@@ -10,14 +10,15 @@ import kotlin.test.assertTrue
 
 class ApplicationTest {
     @Test
-    fun healthEndpointReturnsOk() = testApplication {
-        application {
-            module()
+    fun healthEndpointReturnsOk() =
+        testApplication {
+            application {
+                module()
+            }
+
+            val response = client.get("/health")
+
+            assertEquals(HttpStatusCode.OK, response.status)
+            assertTrue(response.bodyAsText().contains("ChessGame"))
         }
-
-        val response = client.get("/health")
-
-        assertEquals(HttpStatusCode.OK, response.status)
-        assertTrue(response.bodyAsText().contains("ChessGame"))
-    }
 }

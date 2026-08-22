@@ -30,6 +30,12 @@ jobs:
       - name: Make Gradle wrapper executable
         run: chmod +x gradlew
 
+      - name: Check Kotlin formatting
+        run: ./gradlew ktlintCheck
+
+      - name: Run quality checks
+        run: ./gradlew check
+
       - name: Test game core
         run: ./gradlew :game-core:test
 
