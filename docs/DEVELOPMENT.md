@@ -8,18 +8,21 @@ Do not treat an example command as authoritative until verified.
 
 ## Environment Versions
 
-Fill in during bootstrap:
+Verified during bootstrap:
 
-```text
-JDK:
-Gradle:
-Kotlin:
-Android Gradle Plugin:
-Android compileSdk:
-Android minSdk:
-Ktor:
-PostgreSQL:
-```
+- JDK: 24 for `game-core`, `server`, and CI
+- Android Studio local runtime: bundled JDK 25
+- Gradle: 9.5.0
+- Kotlin: 2.2.10
+- Android Gradle Plugin: 9.3.1
+- Android compileSdk: 37
+- Android minSdk: 31
+- Android targetSdk: 37
+- Ktor: 3.5.2
+- ktlint Gradle plugin: 14.2.0
+- PostgreSQL: NOT YET CONFIGURED
+
+Use the Gradle wrapper committed to the repository.
 
 ## Prerequisites
 
@@ -36,83 +39,145 @@ Record exact required versions after bootstrap.
 
 ## Verified Commands
 
-### Aggregate Build / Check
+Run all Gradle commands from the repository root.
 
-**Status:** UNVERIFIED PLACEHOLDER
+### Aggregate Quality Check
 
-Example shape:
+Windows:
 
-```bash
-./gradlew build
-```
+    .\gradlew.bat check
 
-Replace with the actual verified aggregate command if different.
+Linux/macOS/CI:
+
+    ./gradlew check
+
+Status: VERIFIED
+
+This runs the Gradle verification lifecycle, including Android lint and applicable module checks/tests.
+
+### Kotlin Formatting Check
+
+Windows:
+
+    .\gradlew.bat ktlintCheck
+
+Linux/macOS/CI:
+
+    ./gradlew ktlintCheck
+
+Status: VERIFIED
+
+### Kotlin Auto-format
+
+Windows:
+
+    .\gradlew.bat ktlintFormat
+
+Linux/macOS:
+
+    ./gradlew ktlintFormat
+
+Status: VERIFIED
+
+Review `git diff` after auto-formatting.
 
 ### Game Core Tests
 
-**Status:** UNVERIFIED PLACEHOLDER
+Windows:
 
-Likely shape for pure Kotlin/JVM:
+    .\gradlew.bat :game-core:test
 
-```bash
-./gradlew :game-core:test
-```
+Linux/macOS/CI:
 
-### Game Core Build
+    ./gradlew :game-core:test
 
-**Status:** UNVERIFIED PLACEHOLDER
+Status: VERIFIED
 
-```bash
-./gradlew :game-core:build
-```
+### Android Build
 
-### Android Unit Tests
+Windows:
 
-**Status:** UNVERIFIED PLACEHOLDER
+    .\gradlew.bat :android-app:build
 
-```bash
-./gradlew :android-app:testDebugUnitTest
-```
+Linux/macOS/CI:
 
-### Android Debug Build
+    ./gradlew :android-app:build
 
-**Status:** UNVERIFIED PLACEHOLDER
+Status: VERIFIED
 
-```bash
-./gradlew :android-app:assembleDebug
-```
+The Android application has also been manually verified to launch successfully.
 
 ### Android Lint / Static Checks
 
-**Status:** UNVERIFIED PLACEHOLDER
+Windows:
 
-Record exact command after tooling is selected.
+    .\gradlew.bat check
+
+Status: VERIFIED
+
+ktlint is the current Kotlin formatting/style enforcement tool.
+
+Detekt is not currently enabled because the stable 1.x release does not support the project's JVM 24/25 analysis targets.
 
 ### Server Tests
 
-**Status:** UNVERIFIED PLACEHOLDER
+Windows:
 
-```bash
-./gradlew :server:test
-```
+    .\gradlew.bat :server:test
+
+Linux/macOS/CI:
+
+    ./gradlew :server:test
+
+Status: VERIFIED
 
 ### Server Build
 
-**Status:** UNVERIFIED PLACEHOLDER
+Windows:
 
-```bash
-./gradlew :server:build
-```
+    .\gradlew.bat :server:build
+
+Linux/macOS/CI:
+
+    ./gradlew :server:build
+
+Status: VERIFIED
 
 ### Server Run
 
-**Status:** UNVERIFIED PLACEHOLDER
+Windows:
 
-Example shape:
+    .\gradlew.bat :server:run
 
-```bash
-./gradlew :server:run
-```
+Linux/macOS:
+
+    ./gradlew :server:run
+
+Status: VERIFIED
+
+Health endpoint:
+
+    http://localhost:8080/health
+
+Expected response:
+
+    ChessGame server is healthy
+
+The endpoint has been verified to return HTTP 200.
+
+### Gradle Project Structure
+
+Windows:
+
+    .\gradlew.bat projects
+
+Status: VERIFIED
+
+Expected modules:
+
+- `:android-app`
+- `:game-core`
+- `:server`
 
 ## Local PostgreSQL
 
@@ -172,15 +237,31 @@ Document:
 
 ## CI
 
-After M1.7, document:
+CI provider: GitHub Actions
 
-```text
-CI provider:
 Workflow file:
+
+    .github/workflows/ci.yml
+
 Triggers:
-Commands run:
-Required status checks:
-```
+
+- pushes to `main`
+- pull requests targeting `main`
+
+The workflow runs:
+
+    ./gradlew ktlintCheck
+    ./gradlew check
+    ./gradlew :game-core:test
+    ./gradlew :android-app:build
+    ./gradlew :server:test
+    ./gradlew :server:build
+
+Required policy:
+
+- CI must remain green for verified work.
+- Do not ignore a failing required CI check.
+- Fix failures caused by the current change before treating work as complete.
 
 ## Verification Policy
 

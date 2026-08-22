@@ -92,6 +92,20 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - Prefer standard Kotlin/Android/Ktor conventions over custom frameworks.
 - Avoid unnecessary interfaces, wrapper layers, and one-use abstractions.
 
+## Verification Commands
+
+Use `docs/DEVELOPMENT.md` as the authoritative source for build, test, formatting, lint, server-run, and environment commands.
+
+Before completing affected work:
+
+- run the narrowest relevant tests,
+- run the affected-module build or check,
+- run `ktlintCheck` for Kotlin changes,
+- run `check` when the change can affect multiple modules or Android lint,
+- inspect `git status` and `git diff`,
+- do not proceed while required verification is failing,
+- do not treat pushed work as verified while required CI checks are failing.
+
 ## Decision Rule for Unspecified Details
 
 When an implementation detail is unspecified:
@@ -111,7 +125,8 @@ A task is complete only when:
 2. relevant tests pass,
 3. affected modules build/check successfully,
 4. no known regression caused by the change remains,
-5. documentation/backlog is updated when required.
+5. documentation/backlog is updated when required,
+6. required CI checks pass for pushed work.
 
 ## Git / Safety
 
