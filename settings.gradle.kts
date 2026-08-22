@@ -28,3 +28,4 @@ rootProject.name = "ChessGame"
 
 include(":android-app")
 project(":android-app").projectDir = file("android-app/app")
+include(":game-core")
