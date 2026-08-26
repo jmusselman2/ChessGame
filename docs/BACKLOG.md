@@ -292,8 +292,19 @@ GitHub Actions run for the specific pushed commit (not an unrelated later run).
 
 ## M2.1 — Define core chess types
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M1
+
+**Completed:** 2026-08-26 — `game-core` package
+`com.jmussel.chessgame.core.chess` now defines `Side`, `PieceType`, `Piece`,
+`Square`, `Board`, `Move`, `CastlingSide`/`CastlingRights`,
+`PositionKey`/`DrawClaim`/`DrawRuleState`, `GameOutcome`/`TerminationReason`/
+`GameResult`, and `GameState`. All types are immutable and depend on nothing
+outside the Kotlin standard library. Verified locally with
+`.\gradlew.bat :game-core:test` (54 tests across 8 new test classes) and
+`.\gradlew.bat build` (BUILD SUCCESSFUL, includes `ktlintCheck` and Android
+lint). Naming/package choice recorded as `D027` in `docs/DECISIONS.md`.
 
 ### Objective
 

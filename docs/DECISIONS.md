@@ -710,3 +710,79 @@ and hand-off at each milestone boundary.
   before any pull request into `main`.
 - Merging `claude-autopilot` into `main` remains a human step unless explicitly
   authorized.
+
+---
+
+## D027 — Chess Domain Types Live in `core.chess` Without a `Chess` Prefix
+
+**Date:** 2026-08-26
+
+**Status:** Accepted
+
+### Decision
+
+The chess domain types introduced by `M2.1` live in the `game-core` package
+`com.jmussel.chessgame.core.chess` and are named without a redundant `Chess`
+prefix:
+
+```text
+Side, PieceType, Piece, Square, Board, Move,
+CastlingSide, CastlingRights,
+PositionKey, DrawClaim, DrawRuleState,
+GameOutcome, TerminationReason, GameResult,
+GameState
+```
+
+Supporting shape decisions:
+
+- `Square` is a `@JvmInline value class` over a `0..63` index
+  (`index = rank * 8 + file`, file `0` = `a`, rank `0` = rank 1). Squares
+  compare by value, not identity.
+- `Board` holds only piece placement and is immutable; every mutator returns a
+  new board.
+- `Move` carries `from`, `to`, and an optional explicit `promotion`. Castling is
+  the king's two-square move and en passant the pawn's diagonal move, so neither
+  needs its own field — both are derivable from the position the move is applied
+  to.
+- `TerminationReason` carries `isDraw` and `requiresClaim`, so the engine can
+  distinguish claimable draws (threefold repetition, fifty-move rule) from
+  automatic ones (`D019`) without a second parallel type. `GameResult` rejects an
+  outcome inconsistent with its reason.
+- `DrawRuleState` owns the halfmove clock and repetition counts, keyed by
+  `PositionKey`. The claim/automatic thresholds (3, 5, 100, 150) are constants on
+  it.
+- `GameState` has a nullable `result`: `null` means in progress.
+
+### Rationale
+
+`docs/ARCHITECTURE.md` §5 lists the expected concepts as `ChessBoard`,
+`ChessMove`, and so on, while explicitly noting that "the exact class names may
+change". Inside a package already named `chess`, the prefix is redundant, and
+unprefixed names read better at every call site. The package keeps the chess
+ruleset separated from the small amount of non-chess `game-core` surface
+(`GameCore`) and leaves room for a second concrete ruleset later without
+implying a generic framework (`D023`).
+
+Encoding claim-vs-automatic on `TerminationReason` keeps `D019` expressed once,
+in the type system, rather than duplicated in the engine and again on the
+clients.
+
+### Alternatives Considered
+
+- `ChessBoard`/`ChessMove`-style prefixed names in the existing
+  `com.jmussel.chessgame.core` package — rejected as redundant once the package
+  names the ruleset.
+- `Square` as a `data class` of file and rank — rejected; the value class gives
+  the same ergonomics with no allocation and a natural array index.
+- A separate `DrawClaimState` type alongside repetition counts — rejected as an
+  extra type with no behavior of its own; `DrawRuleState` plus `DrawClaim`
+  covers it.
+
+### Consequences
+
+- `docs/ARCHITECTURE.md` §5's illustrative names differ from the implemented
+  ones. That section already permits this; no behavior changed, so it is left as
+  written.
+- Later milestones (`M3` legal moves, `M4` undo history) extend these types
+  rather than replacing them. `M4.1` will add active move history, which is
+  deliberately not part of `GameState` yet.
