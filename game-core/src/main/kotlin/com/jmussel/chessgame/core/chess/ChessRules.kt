@@ -42,6 +42,7 @@ object ChessRules {
         return when {
             isCheckmate(state) -> GameResult.checkmate(loser = state.sideToMove)
             InsufficientMaterial.isDraw(state) -> GameResult.draw(TerminationReason.INSUFFICIENT_MATERIAL)
+            Repetition.isFivefold(state) -> GameResult.draw(TerminationReason.FIVEFOLD_REPETITION)
             isStalemate(state) -> GameResult.draw(TerminationReason.STALEMATE)
             else -> null
         }
@@ -51,9 +52,11 @@ object ChessRules {
      * The state after [move] is played. [move] must be legal in [state].
      *
      * Updates the board, the side to move, castling rights, the en passant target, the
-     * halfmove clock, and the fullmove number, and records a terminal result when the
-     * move ends the game. Repetition tracking is decided by its own rules and is not
-     * applied here.
+     * halfmove clock, the fullmove number, and the repetition count of the new position,
+     * and records a terminal result when the move ends the game.
+     *
+     * A pawn move or capture is irreversible: it resets the halfmove clock and clears the
+     * repetition history, because no earlier position can occur again.
      */
     fun applyMove(
         state: GameState,
@@ -66,18 +69,24 @@ object ChessRules {
         val isCapture = !state.board.isEmpty(move.to) || EnPassant.isCapture(state, move)
         val resetsClock = piece.type == PieceType.PAWN || isCapture
 
+        val drawRuleState =
+            if (resetsClock) {
+                DrawRuleState()
+            } else {
+                state.drawRuleState.withHalfmoveClock(state.drawRuleState.halfmoveClock + 1)
+            }
+
         val next =
-            state.copy(
-                board = LegalMoves.boardAfter(state, move),
-                sideToMove = state.sideToMove.opposite,
-                castlingRights = castlingRightsAfter(state, move, piece),
-                enPassantTarget = EnPassant.targetAfter(state.board, move),
-                drawRuleState =
-                    state.drawRuleState.withHalfmoveClock(
-                        if (resetsClock) 0 else state.drawRuleState.halfmoveClock + 1,
-                    ),
-                fullmoveNumber =
-                    if (state.sideToMove == Side.BLACK) state.fullmoveNumber + 1 else state.fullmoveNumber,
+            Repetition.recording(
+                state.copy(
+                    board = LegalMoves.boardAfter(state, move),
+                    sideToMove = state.sideToMove.opposite,
+                    castlingRights = castlingRightsAfter(state, move, piece),
+                    enPassantTarget = EnPassant.targetAfter(state.board, move),
+                    drawRuleState = drawRuleState,
+                    fullmoveNumber =
+                        if (state.sideToMove == Side.BLACK) state.fullmoveNumber + 1 else state.fullmoveNumber,
+                ),
             )
 
         return next.copy(result = terminalResult(next))

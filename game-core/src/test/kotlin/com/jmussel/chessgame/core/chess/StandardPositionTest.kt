@@ -92,8 +92,13 @@ class StandardPositionTest {
     @Test
     fun hasNoActiveHistory() {
         assertNull(start.enPassantTarget)
-        assertEquals(DrawRuleState(), start.drawRuleState)
-        assertTrue(start.drawRuleState.positionCounts.isEmpty())
+        assertEquals(0, start.halfmoveClock)
+        assertEquals(
+            1,
+            Repetition.occurrences(start),
+            "no moves have been played, but the starting position itself has occurred once",
+        )
+        assertEquals(1, start.drawRuleState.positionCounts.size)
     }
 
     @Test

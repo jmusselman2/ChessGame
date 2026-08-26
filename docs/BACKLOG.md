@@ -340,9 +340,11 @@ Unit tests compile and exercise representative values.
 **Completed:** 2026-08-26 — `StandardPosition` in
 `com.jmussel.chessgame.core.chess` exposes the standard starting `BOARD` and
 `newGame()`. A new game has 32 pieces on their correct squares, White to move,
-all four castling rights, no en passant target, an empty `DrawRuleState` (no
-active history), halfmove clock `0`, fullmove number `1`, and no result.
-Verified locally with `.\gradlew.bat :game-core:test` (13 new
+all four castling rights, no en passant target, no active history, halfmove
+clock `0`, fullmove number `1`, and no result. (Since `M3.12` the starting
+position is also recorded once in `DrawRuleState.positionCounts` for repetition
+counting; no moves have been played.) Verified locally with
+`.\gradlew.bat :game-core:test` (13 new
 `StandardPositionTest` cases, 67 game-core tests total) and
 `.\gradlew.bat build` (BUILD SUCCESSFUL).
 
@@ -678,8 +680,22 @@ Positive/negative positions pass.
 
 ## M3.12 — Repetition tracking and claims
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M3.10
+
+**Completed:** 2026-08-26 — `Repetition` computes a position's identity
+(placement, side to move, castling rights, and an en passant target only while
+a capture onto it is actually legal), counts occurrences in
+`DrawRuleState.positionCounts`, exposes `canClaimThreefold`, and reports
+`isFivefold`. `StandardPosition.newGame` records the starting position once,
+`ChessRules.applyMove` records each new position and clears the history on an
+irreversible pawn move or capture, and `terminalResult` ends the game
+automatically at five occurrences with `FIVEFOLD_REPETITION`. A threefold
+repetition stays claimable rather than automatic (`D019`). Verified locally
+with `.\gradlew.bat :game-core:test` (13 new `RepetitionTest` cases driving
+knight-shuffle repetitions up to fivefold, 255 game-core tests total) and
+`.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ### Acceptance Criteria
 

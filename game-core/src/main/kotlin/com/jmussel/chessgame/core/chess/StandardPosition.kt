@@ -41,13 +41,15 @@ object StandardPosition {
      * target, no draw-rule history, move 1, and no result.
      */
     fun newGame(): GameState =
-        GameState(
-            board = BOARD,
-            sideToMove = Side.WHITE,
-            castlingRights = CastlingRights.ALL,
-            enPassantTarget = null,
-            drawRuleState = DrawRuleState(),
-            fullmoveNumber = 1,
-            result = null,
+        Repetition.recording(
+            GameState(
+                board = BOARD,
+                sideToMove = Side.WHITE,
+                castlingRights = CastlingRights.ALL,
+                enPassantTarget = null,
+                drawRuleState = DrawRuleState(),
+                fullmoveNumber = 1,
+                result = null,
+            ),
         )
 }
