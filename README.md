@@ -53,10 +53,11 @@ The root `CLAUDE.md` defines document precedence and autonomous-development rule
 
 ## Current Status
 
-**Milestone 1 (Repository and Build Bootstrap) is nearly complete.** `M1.1`–`M1.6`
-are `DONE` (local verification 2026-08-25); `M1.7` (CI) is `IN PROGRESS` until
-the updated GitHub Actions workflow has a verified green run. See
-`docs/BACKLOG.md`.
+**Milestone 1 (Repository and Build Bootstrap) is complete.** `M1.1`–`M1.7` are
+`DONE`; the CI workflow ran green on `claude-autopilot` HEAD (`595c124`, GitHub
+Actions run
+[32922786058](https://github.com/jmusselman2/ChessGame/actions/runs/32922786058)).
+See `docs/BACKLOG.md`.
 
 - monorepo structure (`game-core/`, `android-app/`, `server/`,
   `database/migrations/`, `docs/`),
@@ -65,8 +66,8 @@ the updated GitHub Actions workflow has a verified green run. See
 - Ktor server with a verified `/health` endpoint that references `game-core`,
 - ktlint formatting + Android lint wired into `check`,
 - verified developer commands recorded in `docs/DEVELOPMENT.md`,
-- GitHub Actions CI running the single aggregate `./gradlew build`
-  (workflow written; first green run still pending — `M1.7`).
+- GitHub Actions CI running the single aggregate `./gradlew build`, green on the
+  current `claude-autopilot` HEAD.
 
 Milestone-by-milestone progress is tracked in `docs/BACKLOG.md`. Milestone 2
 (Chess Domain Model) has not been started.

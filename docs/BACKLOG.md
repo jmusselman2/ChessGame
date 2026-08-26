@@ -59,11 +59,12 @@ milestone that only has `M2.1`, `M2.2`) is selected the same way.
 
 # M1 — Repository and Build Bootstrap
 
-**Milestone status:** NEARLY COMPLETE. `M1.1`–`M1.6` are `DONE` (local
-verification 2026-08-25). `M1.7` is `IN PROGRESS`: the GitHub Actions workflow
-has been written and updated, but it has not yet had a verified green run.
-`M1.7` — and therefore the milestone — is not complete until the required CI run
-for a pushed `claude-autopilot` commit passes.
+**Milestone status:** COMPLETE. `M1.1`–`M1.7` are `DONE` (local verification
+2026-08-25). The required CI workflow ran green on `claude-autopilot` commit
+`595c124` (GitHub Actions run
+[32922786058](https://github.com/jmusselman2/ChessGame/actions/runs/32922786058),
+`headSha` `595c124c7e1e757b15a7cbeb7c9dbefd9c42fa8e`, conclusion `success`,
+2026-08-25).
 
 ## M1.1 — Create monorepo structure
 
@@ -247,23 +248,24 @@ Execute every documented command successfully.
 
 ## M1.7 — Add CI
 
-**Status:** IN PROGRESS
+**Status:** DONE
 
 **Depends on:** M1.6
 
-**Progress (not complete):** 2026-08-25 — `.github/workflows/ci.yml` exists and
-runs on pushes to `main` and `claude-autopilot` and on pull requests targeting
-`main`. It checks out, sets up JDK 24 (Temurin) and Gradle, and runs a single
-`./gradlew build` step, which covers ktlintCheck, game-core tests, server tests
-+ build, Android unit tests, and Android build/lint. Deprecated action majors
-were updated (`actions/checkout@v7`, `actions/setup-java@v5`,
-`gradle/actions/setup-gradle@v6`) to clear runner deprecation warnings.
+**Completed:** 2026-08-25 — `.github/workflows/ci.yml` runs on pushes to `main`
+and `claude-autopilot` and on pull requests targeting `main`. It checks out,
+sets up JDK 24 (Temurin) and Gradle, and runs a single `./gradlew build` step,
+which covers ktlintCheck, game-core tests, server tests + build, Android unit
+tests, and Android build/lint. Deprecated action majors were updated
+(`actions/checkout@v7`, `actions/setup-java@v5`, `gradle/actions/setup-gradle@v6`)
+to clear runner deprecation warnings.
 
-**Remaining before `DONE`:** this task's acceptance criteria require GitHub
-Actions itself to run successfully. It stays `IN PROGRESS` until the required CI
-run for a pushed `claude-autopilot` commit has actually passed (verified via
-`gh run watch` against that commit's SHA). The updated workflow — bumped action
-majors and the consolidated single step — has not yet had a verified green run.
+The required CI run passed for the exact `claude-autopilot` HEAD: GitHub Actions
+run [32922786058](https://github.com/jmusselman2/ChessGame/actions/runs/32922786058)
+(workflow `CI`, job `Build and Test`), `event` `push`, `headBranch`
+`claude-autopilot`, `headSha` `595c124c7e1e757b15a7cbeb7c9dbefd9c42fa8e`,
+`conclusion` `success` — verified with `gh run view` and a `check-runs` query
+against that SHA.
 
 ### Objective
 

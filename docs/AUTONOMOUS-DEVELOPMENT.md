@@ -238,8 +238,14 @@ Stop autonomous work and report when — and only when — one of these is true:
 - **Production or destructive operation:** deployment to production, production
   secret changes, destructive migrations against non-disposable data, deleting
   user data.
-- **Security-boundary change:** altering authentication, authorization, token
-  verification, server-authority rules, or what the client is trusted to do.
+- **New or changed security decision:** the task would require a security
+  decision that the authoritative documents have not already made, or a change
+  to the approved security model — for example altering the authentication
+  mechanism, the authorization/trust boundaries, token verification, or
+  server-authority rules beyond what `docs/ARCHITECTURE.md`, `docs/PRODUCT.md`,
+  and `docs/DECISIONS.md` specify. Implementing an authentication,
+  authorization, or trust model that the authoritative documentation already
+  specifies is normal autonomous work and is **not** a stop condition.
 - **Architecture-level verification failure:** repeated verification failure
   (per the escalation ladder) that indicates the documented architecture itself
   is wrong rather than the implementation.
@@ -254,27 +260,29 @@ recommended conventional option per `CLAUDE.md`.
 
 ## Branch and Commit Workflow
 
-Autonomous work happens on the `claude-autopilot` branch.
+Continuous autonomous work happens entirely on the `claude-autopilot` branch.
+The autonomous loop does not merge, rebase, synchronize with, or otherwise
+manage `main`. Integrating `claude-autopilot` into `main` is outside the
+autonomous loop and is human-controlled.
 
-- Create it from an up-to-date `main` if it does not exist:
-  `git switch -c claude-autopilot` (or `git switch claude-autopilot` if it
-  already exists).
+- Use the existing `claude-autopilot` branch (`git switch claude-autopilot`).
 - Make one focused commit per completed, verified task. Commit messages state
   the backlog task id and what changed.
 - Local commits after verified tasks are expected and require no approval.
 - After each such commit, push `claude-autopilot` to `origin` and then satisfy
   the **Remote CI Gate** before starting the next task.
 - **Do not** force-push.
-- **Do not** commit or push directly to `main` (protected).
+- **Do not** commit, push, merge, or rebase `main`, and do not merge `main`
+  into `claude-autopilot`.
 - **Do not** rewrite published history.
-- Pushing `claude-autopilot` to `origin` is expected so CI can run; opening or
-  merging a pull request into `main` is a human step unless explicitly
-  authorized.
+- Pushing `claude-autopilot` to `origin` is expected so CI can run. Opening a
+  pull request, and merging `claude-autopilot` into `main`, are human steps
+  unless explicitly authorized.
 - Production and beta deployment remain prohibited without explicit approval.
 
-If `main` has advanced, update `claude-autopilot` by merging or rebasing local
-(unpublished) commits only; never rebase commits that have been pushed and
-shared.
+If a divergence between `claude-autopilot` and `main` needs resolving, that is a
+human integration step — surface it and continue autonomous work on
+`claude-autopilot`; do not reconcile the branches from inside the loop.
 
 ## Test Integrity Rule
 

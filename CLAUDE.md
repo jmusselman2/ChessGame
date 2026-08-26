@@ -145,8 +145,16 @@ Key clarifications:
   requirements, unavailable required credentials/infrastructure (including `gh`
   unavailable for the Remote CI Gate), a significant difficult-to-reverse
   architecture change, a meaningful new recurring cost, a production/destructive
-  operation, a security-boundary change, a repeated verification failure
+  operation, a new or changed security decision, a repeated verification failure
   implicating the documented architecture itself, or an empty unblocked backlog.
+- Implementing an authentication, authorization, or trust model that the
+  authoritative documentation already specifies is normal autonomous work. The
+  security stop condition applies only when the task would need a security
+  decision the documents have not made, or a change to the approved security
+  model.
+- Continuous autonomous work happens entirely on `claude-autopilot`. The loop
+  does not merge, rebase, synchronize with, or otherwise manage `main`;
+  integrating into `main` is human-controlled and outside the loop.
 - Preserved guardrails: no direct pushes to `main`, no force-push, no rewriting
   published history; PR/merge into `main` stays human-controlled; production and
   beta deployment remain prohibited without explicit authorization.
@@ -182,7 +190,7 @@ When an implementation detail is unspecified:
 3. Prefer established Kotlin/Android/Ktor conventions.
 4. Do not add infrastructure for hypothetical future needs.
 5. If a choice is easy to reverse, make the recommended choice and record it if meaningful.
-6. Ask the user only when the decision materially changes product behavior, security, meaningful cost, production data, or creates difficult-to-reverse architecture.
+6. Ask the user only when the decision materially changes product behavior, requires a new or changed security decision (not merely implementing an already-specified security model), introduces meaningful cost, touches production data, or creates difficult-to-reverse architecture.
 
 ## Completion Standard
 
@@ -202,21 +210,21 @@ Routine autonomous work may include:
 - editing files,
 - running Gradle builds/tests/checks,
 - inspecting `git status`, `git diff`, and history,
-- creating the `claude-autopilot` branch and making local commits on it after
-  verified tasks,
+- making local commits on `claude-autopilot` after verified tasks,
 - pushing `claude-autopilot` to `origin` so CI can run.
 
 ### `claude-autopilot` branch workflow
 
-- Autonomous work happens on `claude-autopilot`, branched from an up-to-date
-  `main`.
+- Continuous autonomous work happens entirely on `claude-autopilot`. The loop
+  does not merge, rebase, synchronize with, or otherwise manage `main`.
 - One focused commit per completed, verified backlog task; the message names the
   task id.
-- `main` is protected: do not commit or push to it directly. Merging
-  `claude-autopilot` into `main` (via pull request) is a human step unless
-  explicitly authorized.
-- Keep `claude-autopilot` current with `main` by merging or rebasing only
-  local, unpublished commits.
+- `main` is protected: do not commit, push, merge, or rebase it, and do not
+  merge `main` into `claude-autopilot`.
+- Integrating `claude-autopilot` into `main` (via pull request) is outside the
+  autonomous loop and is human-controlled unless explicitly authorized. If the
+  branches diverge, surface it as a human integration step and keep working on
+  `claude-autopilot`.
 
 ### Pre-commit hygiene
 

@@ -2,13 +2,12 @@
 
 This file records the exact commands and environment details used to build, run, and verify the project.
 
-Milestone 1 bootstrap is largely in place: the commands in the **Verified
-Commands** section below have all been executed successfully against this
-repository locally (last confirmed 2026-08-25). `M1.7` (CI) is still
-`IN PROGRESS` — the updated GitHub Actions workflow has not yet had a verified
-green run, and `M1.7` must not be marked `DONE` until it has. Sections covering
-later milestones (PostgreSQL, migrations, beta deployment) still contain
-placeholders and must be filled in when that work is done.
+Milestone 1 is complete: the commands in the **Verified Commands** section below
+have all been executed successfully against this repository locally (last
+confirmed 2026-08-25), and the CI workflow ran green on `claude-autopilot` HEAD
+(`595c124`, GitHub Actions run 32922786058). Sections covering later milestones
+(PostgreSQL, migrations, beta deployment) still contain placeholders and must be
+filled in when that work is done.
 
 Do not treat an unverified example command as authoritative. When you add or
 change a command, run it, then record it here with `Status: VERIFIED` and the
@@ -339,9 +338,11 @@ Required policy:
 - After changing the workflow file or action versions, confirm the next run on
   `main` or `claude-autopilot` is green.
 
-Status: the updated workflow (single `./gradlew build` step, bumped action
-majors) has **not** yet had a verified green run. `M1.7` stays `IN PROGRESS`
-until it does.
+Status: the workflow (single `./gradlew build` step, `actions/checkout@v7`,
+`actions/setup-java@v5`, `gradle/actions/setup-gradle@v6`) ran green on
+`claude-autopilot` commit `595c124` — GitHub Actions run
+[32922786058](https://github.com/jmusselman2/ChessGame/actions/runs/32922786058),
+job `Build and Test`, conclusion `success` (2026-08-25). `M1.7` is `DONE`.
 
 ### Remote CI Gate (autonomous workflow)
 

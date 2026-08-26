@@ -667,10 +667,17 @@ A task whose acceptance criteria require GitHub Actions to run successfully
 the GitHub CLI, matching the run to the pushed commit's SHA; if `gh` cannot be
 used, that is a stop condition (no silent skipping).
 
-Autonomous work happens on the `claude-autopilot` branch. `main` stays
-protected; no direct pushes, no force-push, no rewriting published history;
-PR/merge into `main` stays human-controlled; production and beta deployment
-require explicit approval.
+Continuous autonomous work happens entirely on the `claude-autopilot` branch.
+The autonomous loop does not merge, rebase, synchronize with, or otherwise
+manage `main`; `main` stays protected (no direct pushes, no force-push, no
+rewriting published history), and integrating `claude-autopilot` into `main` is
+outside the loop and human-controlled. Production and beta deployment require
+explicit approval.
+
+The security stop condition covers only a *new or changed* security decision or
+a change to the approved security model. Implementing an authentication,
+authorization, or trust model that the authoritative documentation already
+specifies is normal autonomous work.
 
 `./gradlew build` is adopted as the single aggregate local verification command
 and is what CI runs.
