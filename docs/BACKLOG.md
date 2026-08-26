@@ -593,8 +593,18 @@ Unit tests cover creation, valid capture, expiration, and self-check interaction
 
 ## M3.9 — Promotion
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M3.4, M3.6
+
+**Completed:** 2026-08-26 — `PseudoLegalMoves.pawnMoves` expands a pawn move
+onto the promotion rank (`promotionRankOf`) into one move per choice in
+`PieceType.PROMOTION_CHOICES` — Queen, Rook, Bishop, Knight — for advances and
+captures alike. A bare move onto the promotion rank is never generated, so
+there is no automatic queen promotion, and `LegalMoves.boardAfter` places the
+chosen piece. Verified locally with `.\gradlew.bat :game-core:test` (10 new
+`PromotionTest` cases covering each choice for both sides, 218 game-core tests
+total) and `.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ### Acceptance Criteria
 

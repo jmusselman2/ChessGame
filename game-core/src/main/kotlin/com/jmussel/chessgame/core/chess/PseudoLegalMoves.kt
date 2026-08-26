@@ -168,11 +168,30 @@ object PseudoLegalMoves {
         return advances + captures
     }
 
-    /** [pawnDestinations] expressed as moves from [from]. */
+    /** The rank a [side] pawn promotes on: rank 8 for White, rank 1 for Black. */
+    fun promotionRankOf(side: Side): Int = StandardPosition.backRankOf(side.opposite)
+
+    /**
+     * [pawnDestinations] expressed as moves from [from].
+     *
+     * A destination on the promotion rank produces one move per choice in
+     * [PieceType.PROMOTION_CHOICES] — the player always chooses, so a bare move onto that
+     * rank is not generated and is therefore never legal.
+     */
     fun pawnMoves(
         board: Board,
         from: Square,
-    ): List<Move> = pawnDestinations(board, from).map { Move(from, it) }
+    ): List<Move> {
+        val piece = requireNotNull(board.pieceAt(from)) { "No piece on $from" }
+        val promotionRank = promotionRankOf(piece.side)
+        return pawnDestinations(board, from).flatMap { to ->
+            if (to.rank == promotionRank) {
+                PieceType.PROMOTION_CHOICES.map { Move(from, to, it) }
+            } else {
+                listOf(Move(from, to))
+            }
+        }
+    }
 
     /**
      * Every pseudo-legal move for the piece on [from], dispatched by piece type.
