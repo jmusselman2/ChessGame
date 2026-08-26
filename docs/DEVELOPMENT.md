@@ -312,13 +312,64 @@ Do not put real secrets in this document.
 
 ## Database Migrations
 
-Document the selected migration tool and verified commands after M6.2/M6.3.
+Status: VERIFIED (2026-08-26)
 
-Required operations:
+Migrations are plain, forward-only SQL files in `database/migrations/`, applied by
+Flyway. The SQL files are the source of truth for the schema — nothing generates
+them from Kotlin.
 
-- create/apply migrations,
-- inspect migration status,
-- reset disposable development/test DB safely.
+### File naming
+
+    database/migrations/V<version>__<description>.sql
+
+for example `V1__initial_schema.sql`. Versions are applied in numeric order and a
+file that has been applied is never edited; a correction is a new file with the
+next version.
+
+The build copies `database/migrations/*.sql` onto the server's classpath at
+`db/migration` (Flyway's default), so the server and the tests migrate from
+exactly the same files.
+
+### Applying migrations
+
+`com.jmussel.chessgame.server.db.Migrations`:
+
+    Migrations.migrate(dataSource)        // apply everything outstanding
+    Migrations.appliedVersions(dataSource) // what this database has already run
+    Migrations.reset(dataSource)          // drop everything and re-apply
+
+`migrate` is repeatable: Flyway records applied versions in `flyway_schema_history`,
+so the same call is safe on a fresh database, a half-migrated one, and one that is
+already current. `reset` is destructive and belongs only to the disposable
+development and test databases.
+
+`DatabaseConfig.fromEnvironment()` builds the pooled `DataSource` from
+`DATABASE_URL` (or `TEST_DATABASE_URL`).
+
+### Running against the local database
+
+Start the disposable database (see **Local PostgreSQL**), then run the server
+tests with the test database configured:
+
+Windows (PowerShell):
+
+    $env:TEST_DATABASE_URL = "postgresql://chessgame:chessgame@localhost:55432/chessgame_test"
+    .\gradlew.bat :server:test
+
+Linux/macOS:
+
+    TEST_DATABASE_URL=postgresql://chessgame:chessgame@localhost:55432/chessgame_test ./gradlew :server:test
+
+Status: VERIFIED (2026-08-26)
+
+When `TEST_DATABASE_URL` is not set, the database-backed tests report themselves
+as passing without touching a database, so `./gradlew build` works on a machine
+with no PostgreSQL. CI sets the variable against its own PostgreSQL service
+container, so they always run there.
+
+How the test database is reset: `Migrations.reset`, or
+`docker compose down -v && docker compose up -d` for a completely fresh container
+(see **Local PostgreSQL**).
 
 ## Environment Variables
 
@@ -372,6 +423,10 @@ Actions used (kept current to avoid GitHub runner deprecation warnings):
 - `actions/checkout@v7`
 - `actions/setup-java@v5` (Temurin, Java 24)
 - `gradle/actions/setup-gradle@v6`
+
+The job also starts a disposable `postgres:18-alpine` service container and sets
+`TEST_DATABASE_URL` to point at it, so the server's database-backed tests run for
+real in CI instead of skipping. Its credentials are throwaway CI values.
 
 The workflow runs a single aggregate step:
 

@@ -14,6 +14,27 @@ jobs:
     name: Build and Test
     runs-on: ubuntu-latest
 
+    # A disposable PostgreSQL so the server's integration tests run for real here
+    # rather than skipping. It mirrors the local database in docs/DEVELOPMENT.md;
+    # the credentials are throwaway CI values.
+    services:
+      postgres:
+        image: postgres:18-alpine
+        env:
+          POSTGRES_USER: chessgame
+          POSTGRES_PASSWORD: chessgame
+          POSTGRES_DB: chessgame_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U chessgame -d chessgame_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      TEST_DATABASE_URL: postgresql://chessgame:chessgame@localhost:5432/chessgame_test
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v7

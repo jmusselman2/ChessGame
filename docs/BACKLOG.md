@@ -1110,15 +1110,36 @@ Decision recorded in `DECISIONS.md`.
 
 ## M6.3 — Database migrations
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M6.2
+
+**Completed:** 2026-08-26 — migrations are plain forward-only SQL files in
+`database/migrations/` named `V<version>__<description>.sql`, applied by Flyway
+`13.4.0` through `com.jmussel.chessgame.server.db.Migrations` (`migrate`,
+`appliedVersions`, `reset`). The build copies those files onto the server's
+classpath at `db/migration`, so the server and the tests migrate from exactly
+the same files, and `DatabaseConfig` builds the pooled `DataSource` from
+`DATABASE_URL` / `TEST_DATABASE_URL` without printing the password. Applying is
+repeatable: Flyway records applied versions in `flyway_schema_history`, so the
+same call is safe on a fresh, half-migrated, or current database. Verified
+locally against the `M6.1` container: `MigrationsTest` migrates an empty
+database, confirms the history table, runs `migrate` again for zero further
+migrations, and resets and re-applies; `flyway_schema_history` was confirmed in
+`chessgame_test` afterwards. The tests no-op when `TEST_DATABASE_URL` is unset —
+confirmed by a run with it cleared — and CI now starts a `postgres:18-alpine`
+service container and sets the variable, so they run for real there.
+`.\gradlew.bat build` succeeds both with and without a database configured.
+Process documented in `docs/DEVELOPMENT.md`; `database/migrations/.gitkeep`
+stays until `M6.4` adds the first real migration.
 
 ### Acceptance Criteria
 
 Repeatable migration process exists and is documented.
 
 `database/migrations/.gitkeep` is only a placeholder to keep the empty directory
-tracked. Delete it in the same change that adds the first real migration file.
+tracked. Delete it in the same change that adds the first real migration file
+(`M6.4`).
 
 ---
 
