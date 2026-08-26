@@ -1347,8 +1347,23 @@ Concurrent claim test: exactly one succeeds.
 
 ## M7.5 — Track last seen
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M7.4
+
+**Completed:** 2026-08-26 — `LastSeenTracker` records activity through
+`UserRepository.touchLastSeen`, and the Supabase authentication provider calls
+it after every successfully authenticated request, so a move, an undo, or simply
+opening the app all count as the meaningful activity `docs/PRODUCT.md` lists.
+Writes are throttled to at most one per user per five minutes, which keeps
+`D010`'s "no continuous heartbeat" — the stored value is accurate to within the
+throttle, which is all the MVP needs. An unauthenticated or rejected request
+records nothing. Verified locally with `.\gradlew.bat :server:test` (8 new
+`LastSeenTest` cases against the real database: a new user has never been seen,
+activity is recorded, a burst inside the throttle writes once, activity after
+the throttle writes again, users are throttled separately, an authenticated
+`/me` counts, and `/health` or a forged token does not) and
+`.\gradlew.bat build` (BUILD SUCCESSFUL, 95 server tests).
 
 ### Acceptance Criteria
 

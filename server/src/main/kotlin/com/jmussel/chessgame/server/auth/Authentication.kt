@@ -3,6 +3,7 @@
 package com.jmussel.chessgame.server.auth
 
 import com.jmussel.chessgame.server.db.UserRepository
+import com.jmussel.chessgame.server.user.LastSeenTracker
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
@@ -42,11 +43,13 @@ class SupabaseAuthenticationProvider(
 ) : AuthenticationProvider(config) {
     private val verifier = config.verifier
     private val users = config.users
+    private val lastSeen = config.lastSeen
 
     class Config internal constructor(
         name: String,
         internal val verifier: SupabaseTokenVerifier,
         internal val users: UserRepository,
+        internal val lastSeen: LastSeenTracker?,
     ) : AuthenticationProvider.Config(name)
 
     override suspend fun onAuthenticate(context: AuthenticationContext) {
@@ -73,6 +76,10 @@ class SupabaseAuthenticationProvider(
 
         val user = users.resolveBySubject(identity.subject)
 
+        // An authenticated request is meaningful activity; the tracker decides whether
+        // that is worth a write (D010).
+        lastSeen?.record(user.id)
+
         context.principal(
             AuthenticatedUser(
                 userId = user.id,
@@ -87,12 +94,13 @@ class SupabaseAuthenticationProvider(
 fun Application.installSupabaseAuthentication(
     verifier: SupabaseTokenVerifier,
     users: UserRepository,
+    lastSeen: LastSeenTracker? = LastSeenTracker(users),
     name: String = SUPABASE_AUTH,
 ) {
     install(Authentication) {
         register(
             SupabaseAuthenticationProvider(
-                SupabaseAuthenticationProvider.Config(name, verifier, users),
+                SupabaseAuthenticationProvider.Config(name, verifier, users, lastSeen),
             ),
         )
     }

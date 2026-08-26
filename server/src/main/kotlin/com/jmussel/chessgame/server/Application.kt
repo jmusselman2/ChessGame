@@ -10,6 +10,7 @@ import com.jmussel.chessgame.server.auth.installSupabaseAuthentication
 import com.jmussel.chessgame.server.db.DatabaseConfig
 import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.UserRepository
+import com.jmussel.chessgame.server.user.LastSeenTracker
 import com.jmussel.chessgame.server.user.usernameRoutes
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
@@ -44,7 +45,8 @@ fun main() {
             healthModule()
         } else {
             val database = Databases.connectAndMigrate(databaseConfig.dataSource())
-            module(SupabaseTokenVerifier.forProject(supabaseUrl), UserRepository(database))
+            val users = UserRepository(database)
+            module(SupabaseTokenVerifier.forProject(supabaseUrl), users)
         }
     }.start(wait = true)
 }
@@ -58,8 +60,9 @@ fun main() {
 fun Application.module(
     verifier: SupabaseTokenVerifier,
     users: UserRepository,
+    lastSeen: LastSeenTracker = LastSeenTracker(users),
 ) {
-    installSupabaseAuthentication(verifier, users)
+    installSupabaseAuthentication(verifier, users, lastSeen)
 
     routing {
         healthRoute()
