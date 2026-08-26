@@ -367,8 +367,17 @@ Dedicated game-core tests pass.
 
 ## M3.1 — Sliding piece pseudo-legal movement
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M2.2
+
+**Completed:** 2026-08-26 — `Direction` (with `Square.shifted`) and
+`PseudoLegalMoves.slidingDestinations` / `slidingMoves` implement rook, bishop,
+and queen geometry: each ray runs until it leaves the board or meets a piece, a
+friendly piece blocks without being a destination, and the first enemy piece is
+capturable but blocks everything behind it. Verified locally with
+`.\gradlew.bat :game-core:test` (16 new `SlidingMovesTest` cases, 83 game-core
+tests total) and `.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ### Objective
 
