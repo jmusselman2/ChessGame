@@ -8,6 +8,7 @@ import com.jmussel.chessgame.core.chess.MoveRecord
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.Square
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -20,6 +21,7 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.time.Instant
+import java.time.OffsetDateTime
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -35,10 +37,18 @@ data class StoredGame(
     val blackUserId: Uuid,
     val version: Long,
     val game: ChessGame,
+    /** When the game was finalized, and `null` while it is still running. */
+    val endedAt: OffsetDateTime? = null,
 ) {
     val isComplete: Boolean
         get() = game.isOver
 }
+
+/** One recorded audit event (`ARCHITECTURE.md` §9). */
+data class StoredGameEvent(
+    val type: String,
+    val payload: JsonObject,
+)
 
 /** Raised when a game has moved on since the caller read it (`D021`). */
 class StaleGameVersionException(
@@ -108,6 +118,7 @@ class GameRepository(
                 blackUserId = row[GamesTable.blackUserId],
                 version = row[GamesTable.version],
                 game = ChessGame(state = row[GamesTable.state].toGameState(), history = readHistory(id)),
+                endedAt = row[GamesTable.endedAt],
             )
         }
 
@@ -121,6 +132,12 @@ class GameRepository(
      * The guarded `update ... where version = expectedVersion` is what actually settles a
      * race, not the read above it: two commands can both read the same version, and only
      * the one whose update matches a row may go on to rewrite the history (`D021`).
+     *
+     * A write that ends the game also finalizes it, in the same transaction: the result,
+     * the termination reason, `ended_at`, and one `GameEnded` audit event are committed
+     * with the move that caused them, or none of them are. Finalization happens exactly
+     * once because only one write can move the row off the version it was read at, and
+     * only the write that finds a running game and leaves a finished one finalizes it.
      */
     fun save(
         id: Uuid,
@@ -144,6 +161,11 @@ class GameRepository(
             val nextVersion = expectedVersion + 1
             val now = Instant.now().atOffset(java.time.ZoneOffset.UTC)
 
+            // A game that was already finished keeps the moment it ended; this write is
+            // what ends it only if it found the game still running.
+            val previouslyEndedAt = current[GamesTable.endedAt]
+            val finalizing = game.isOver && previouslyEndedAt == null
+
             val updated =
                 GamesTable.update({ (GamesTable.id eq id) and (GamesTable.version eq expectedVersion) }) { row ->
                     row[GamesTable.status] = statusOf(game)
@@ -153,7 +175,7 @@ class GameRepository(
                     row[GamesTable.result] = game.result?.outcome?.name
                     row[GamesTable.terminationReason] = game.result?.reason?.name
                     row[GamesTable.updatedAt] = now
-                    row[GamesTable.endedAt] = if (game.isOver) now else null
+                    row[GamesTable.endedAt] = if (game.isOver) previouslyEndedAt ?: now else null
                 }
 
             if (updated == 0) {
@@ -166,26 +188,53 @@ class GameRepository(
             writeHistory(id, game)
 
             auditEvent?.let { type ->
-                GameEventsTable.insert { row ->
-                    row[GameEventsTable.gameId] = id
-                    row[GameEventsTable.type] = type
-                    row[GameEventsTable.payload] = buildJsonObject { put("version", nextVersion) }
-                    row[GameEventsTable.createdAt] = now
-                }
+                recordEvent(id, type, now, buildJsonObject { put("version", nextVersion) })
+            }
+
+            if (finalizing) {
+                recordEvent(
+                    gameId = id,
+                    type = GAME_ENDED,
+                    at = now,
+                    payload =
+                        buildJsonObject {
+                            put("version", nextVersion)
+                            put("result", game.result?.outcome?.name)
+                            put("terminationReason", game.result?.reason?.name)
+                        },
+                )
             }
 
             nextVersion
         }
 
     /** The audit event types recorded against [gameId], oldest first. */
-    fun auditTrail(gameId: Uuid): List<String> =
+    fun auditTrail(gameId: Uuid): List<String> = auditEvents(gameId).map { it.type }
+
+    /** The audit events recorded against [gameId], oldest first. */
+    fun auditEvents(gameId: Uuid): List<StoredGameEvent> =
         transaction(database) {
             GameEventsTable
                 .selectAll()
                 .where { GameEventsTable.gameId eq gameId }
                 .orderBy(GameEventsTable.id to SortOrder.ASC)
-                .map { it[GameEventsTable.type] }
+                .map { StoredGameEvent(type = it[GameEventsTable.type], payload = it[GameEventsTable.payload]) }
         }
+
+    /** Appends one audit event. Append-only: nothing ever updates or deletes these rows. */
+    private fun recordEvent(
+        gameId: Uuid,
+        type: String,
+        at: OffsetDateTime,
+        payload: JsonObject,
+    ) {
+        GameEventsTable.insert { row ->
+            row[GameEventsTable.gameId] = gameId
+            row[GameEventsTable.type] = type
+            row[GameEventsTable.payload] = payload
+            row[GameEventsTable.createdAt] = at
+        }
+    }
 
     /** The version the row holds right now, for reporting a lost race. */
     private fun currentVersion(id: Uuid): Long =
@@ -197,6 +246,16 @@ class GameRepository(
             ?: -1L
 
     private fun statusOf(game: ChessGame): String = if (game.isOver) "COMPLETE" else "IN_PROGRESS"
+
+    companion object {
+        /**
+         * The audit event a finalized game records, once, whatever ended it (`D020`).
+         *
+         * Its payload carries the result and the termination reason, so the audit trail
+         * answers "how did this game end" without reading the game row it describes.
+         */
+        const val GAME_ENDED: String = "GameEnded"
+    }
 
     private fun writeHistory(
         gameId: Uuid,

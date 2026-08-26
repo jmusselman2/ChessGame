@@ -344,7 +344,11 @@ class ClaimDrawCommandTest {
                 DrawClaim.THREEFOLD_REPETITION,
             )
 
-            assertEquals("DrawClaimed", fixture.games.auditTrail(fixture.gameId).last())
+            // The claim is audited, and ending the game it ended is audited after it.
+            assertEquals(
+                listOf("DrawClaimed", GameRepository.GAME_ENDED),
+                fixture.games.auditTrail(fixture.gameId).takeLast(2),
+            )
         }
     }
 

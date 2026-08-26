@@ -1889,8 +1889,33 @@ Missed realtime messages do not corrupt state; canonical state reloads over HTTP
 
 ## M13.1 — Finalize game transactionally
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M10, M11
+
+**Completed:** 2026-08-26 — a terminal result is written exactly once, with the
+move that caused it. Finalization is part of the same guarded write as the move:
+the result, the termination reason, `ended_at`, and one `GameEnded` audit event
+(`ARCHITECTURE.md` §9) commit together or not at all, so no request can ever see
+a game that is over without knowing how, or a mating move without a result.
+Exactly-once falls out of `D021` rather than from a second check: only one write
+can move the row off the version it was read at, and only the write that finds a
+running game and leaves a finished one finalizes it. A game that has already
+ended keeps the moment it ended, and a finished game refuses every further
+command (`D017`), so nothing can restate how it finished. `GameEnded` carries
+the result and the reason in its payload, so the audit trail answers "how did
+this game end" without reading the row it describes; `StoredGame` now carries
+`endedAt`, and `auditEvents` exposes payloads as well as types. Verified locally
+with `.\gradlew.bat :server:test` (9 new `FinalizeGameTest` cases: a mating move
+finalizes the game, a running game does not, exactly one event is recorded and
+it says how the game ended, the result and the move that caused it are stored
+together, a finished game is not finalized again by a move, an undo or a claim,
+two identical mating commands racing at the same version end the game once, and
+a claimed draw and an automatic seventy-five-move draw finalize the same way)
+and `.\gradlew.bat build` against the local test database (BUILD SUCCESSFUL, 288
+server tests, 0 skipped). `ClaimDrawCommandTest.anAcceptedClaimIsAudited` now
+asserts the trail ends `DrawClaimed, GameEnded` rather than just `DrawClaimed` —
+the claim is still audited, and the game ending is audited after it.
 
 ### Acceptance Criteria
 
