@@ -100,6 +100,8 @@ data class GameView(
     val halfmoveClock: Int,
     val result: String? = null,
     val terminationReason: String? = null,
+    /** The draws the viewer could claim right now, if it is their move (`D019`). */
+    val availableDrawClaims: List<String> = emptyList(),
 ) {
     val isOver: Boolean
         get() = result != null
@@ -144,6 +146,15 @@ data class GameView(
                     stored.game.result
                         ?.reason
                         ?.name,
+                availableDrawClaims =
+                    if (state.sideToMove == yourSide) {
+                        com.jmussel.chessgame.core.chess.ChessRules
+                            .availableDrawClaims(state)
+                            .map { it.name }
+                            .sorted()
+                    } else {
+                        emptyList()
+                    },
             )
         }
     }
@@ -166,6 +177,9 @@ enum class RejectionReason {
 
     /** The move is not legal in this position. */
     ILLEGAL_MOVE,
+
+    /** No such draw may be claimed in this position (`D019`). */
+    NO_SUCH_CLAIM,
 }
 
 /**

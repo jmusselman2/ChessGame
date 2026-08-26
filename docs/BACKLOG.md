@@ -1671,8 +1671,28 @@ Stale command rejected cleanly and client can refresh.
 
 ## M10.3 — `ClaimDraw`
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M3.14, M10.1
+
+**Completed:** 2026-08-26 — `GameCommandService.claimDraw` runs the same
+authoritative chain as a move — participant, version, game still running, turn —
+and then asks `game-core` whether the claim is real: `ChessRules.canClaimDraw`
+answers from the position's own repetition history and halfmove clock, never
+from anything the client asserts (`D019`). A valid claim finalises the game as
+`THREEFOLD_REPETITION_CLAIM` or `FIFTY_MOVE_RULE_CLAIM` and records a
+`DrawClaimed` audit event; an invalid one — no repetition yet, the wrong claim
+for the position, or a game that has already ended — writes nothing and comes
+back as `NO_SUCH_CLAIM`. Only the player to move may claim, as in standard
+chess, since the claim is about the position they are being asked to play from.
+`POST /games/{gameId}/draw-claims` carries it, and `GameView` now lists
+`availableDrawClaims` for the player to move so a client can offer the button
+only when the claim is genuinely available. Verified locally with
+`.\gradlew.bat :server:test` (15 new `ClaimDrawCommandTest` cases, including a
+threefold repetition reached by playing real moves through the server, the
+fifty-move clock, the wrong claim for the position, an opponent trying to claim,
+a stale claim, and a second claim on a finished game) and `.\gradlew.bat build`
+(BUILD SUCCESSFUL, 226 server tests).
 
 ### Acceptance Criteria
 

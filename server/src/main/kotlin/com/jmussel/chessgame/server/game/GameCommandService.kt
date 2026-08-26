@@ -3,6 +3,7 @@
 package com.jmussel.chessgame.server.game
 
 import com.jmussel.chessgame.core.chess.ChessRules
+import com.jmussel.chessgame.core.chess.DrawClaim
 import com.jmussel.chessgame.core.chess.Move
 import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.server.db.GameRepository
@@ -49,6 +50,12 @@ sealed interface CommandResult {
         val game: StoredGame,
         val move: Move,
     ) : CommandResult
+
+    /** That draw cannot be claimed in this position. */
+    data class NoSuchClaim(
+        val game: StoredGame,
+        val claim: DrawClaim,
+    ) : CommandResult
 }
 
 /**
@@ -61,9 +68,9 @@ sealed interface CommandResult {
  * ```text
  * load game
  * → validate participant
+ * → validate expected version
  * → validate the game is still running
  * → validate turn
- * → validate expected version
  * → run game-core
  * → persist in one transaction, incrementing the version
  * ```
@@ -103,6 +110,47 @@ class GameCommandService(
                     )
                 } catch (_: StaleGameVersionException) {
                     // Another command won the race between the read and the write.
+                    return@transaction CommandResult.StaleVersion(reload(gameId, stored))
+                }
+
+                CommandResult.Applied(reload(gameId, stored))
+            } ?: CommandResult.NotAParticipant
+        }
+
+    /**
+     * Claims a draw in [gameId] on behalf of [userId].
+     *
+     * Only the player to move may claim, as in standard chess: the claim is about the
+     * position they are being asked to play from. The server decides whether the claim is
+     * real — `game-core` answers from the position's own history, not from anything the
+     * client asserts (`D019`).
+     */
+    fun claimDraw(
+        userId: Uuid,
+        gameId: Uuid,
+        expectedVersion: Long,
+        claim: DrawClaim,
+    ): CommandResult =
+        transaction(database) {
+            val stored = games.load(gameId) ?: return@transaction CommandResult.NoSuchGame
+
+            sideOf(stored, userId)?.let { side ->
+                validate(stored, side, expectedVersion)?.let { return@transaction it }
+
+                if (!ChessRules.canClaimDraw(stored.game.state, claim)) {
+                    return@transaction CommandResult.NoSuchClaim(stored, claim)
+                }
+
+                val claimed = ChessRules.claimDraw(stored.game, claim)
+
+                try {
+                    games.save(
+                        id = gameId,
+                        expectedVersion = expectedVersion,
+                        game = claimed,
+                        auditEvent = DRAW_CLAIMED,
+                    )
+                } catch (_: StaleGameVersionException) {
                     return@transaction CommandResult.StaleVersion(reload(gameId, stored))
                 }
 
@@ -159,5 +207,8 @@ class GameCommandService(
     private companion object {
         /** The audit event a played move records (`ARCHITECTURE.md` §9). */
         const val MOVE_MADE = "MoveMade"
+
+        /** The audit event a claimed draw records. */
+        const val DRAW_CLAIMED = "DrawClaimed"
     }
 }

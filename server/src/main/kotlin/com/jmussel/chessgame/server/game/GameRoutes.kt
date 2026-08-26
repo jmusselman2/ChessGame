@@ -2,6 +2,7 @@
 
 package com.jmussel.chessgame.server.game
 
+import com.jmussel.chessgame.core.chess.DrawClaim
 import com.jmussel.chessgame.core.chess.Move
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Square
@@ -32,8 +33,15 @@ data class MakeMoveRequest(
     val promotion: String? = null,
 )
 
+/** A request to claim a draw the position allows (`D019`). */
+@Serializable
+data class ClaimDrawRequest(
+    val expectedVersion: Long,
+    val claim: String,
+)
+
 /**
- * Reading a game and playing a move in it.
+ * Reading a game, playing a move in it, and claiming a draw.
  *
  * The client sends what it wants to happen; [GameCommandService] decides whether it may.
  * Nothing here trusts the request beyond its shape.
@@ -62,6 +70,24 @@ fun Route.gameRoutes(commands: GameCommandService) {
 
         call.respondTo(
             commands.makeMove(caller.userId, gameId, request.expectedVersion, move),
+            caller,
+        )
+    }
+
+    post("/games/{gameId}/draw-claims") {
+        val caller = call.authenticatedUser()
+        val gameId = call.gameId() ?: return@post
+
+        val request = call.receive<ClaimDrawRequest>()
+        val claim = DrawClaim.entries.firstOrNull { it.name.equals(request.claim, ignoreCase = true) }
+
+        if (claim == null) {
+            call.respondText("Not a draw claim", status = HttpStatusCode.BadRequest)
+            return@post
+        }
+
+        call.respondTo(
+            commands.claimDraw(caller.userId, gameId, request.expectedVersion, claim),
             caller,
         )
     }
@@ -120,6 +146,15 @@ private suspend fun ApplicationCall.respondTo(
                 HttpStatusCode.UnprocessableEntity,
                 RejectionReason.ILLEGAL_MOVE,
                 "${result.move} is not legal here",
+                result.game,
+                caller,
+            )
+
+        is CommandResult.NoSuchClaim ->
+            reject(
+                HttpStatusCode.UnprocessableEntity,
+                RejectionReason.NO_SUCH_CLAIM,
+                "No ${result.claim} draw can be claimed here",
                 result.game,
                 caller,
             )
