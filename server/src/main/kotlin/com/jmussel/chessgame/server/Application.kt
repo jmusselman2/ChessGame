@@ -10,6 +10,7 @@ import com.jmussel.chessgame.server.auth.installSupabaseAuthentication
 import com.jmussel.chessgame.server.db.DatabaseConfig
 import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.UserRepository
+import com.jmussel.chessgame.server.user.usernameRoutes
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.log
@@ -67,6 +68,8 @@ fun Application.module(
             get("/me") {
                 call.respondText(call.authenticatedUser().userId.toString(), status = HttpStatusCode.OK)
             }
+
+            usernameRoutes(users)
         }
     }
 }

@@ -1310,8 +1310,26 @@ Ktor verifies Supabase-issued token and resolves internal user ID.
 
 ## M7.4 — Username claim
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M7.3, M6.4
+
+**Completed:** 2026-08-26 — `Username` validates 3–24 characters of letters,
+numbers, underscore, or hyphen and exposes the lowercase `normalized` form;
+`UserRepository.findByUsername` looks up by that normalized form, so `Jordan`
+and `jordan` are one identity (`D007`). `claimUsername` writes both columns in
+its own transaction and treats a unique-constraint violation (SQLSTATE `23505`)
+as `Taken`, leaving the database as the final race-safe authority; a name is
+never released, so a lost anonymous account keeps it reserved (`D008`), and a
+rename is refused because username changes are outside the MVP
+(`docs/PRODUCT.md`). `POST /username` sits behind Supabase authentication and
+always claims for the calling user — 200, 400 for an invalid name, 409 for a
+taken name or an attempted rename, 401 without a token. Verified locally with
+`.\gradlew.bat :server:test`: 9 `UsernameTest` cases on validation and
+normalization, and 11 `UsernameClaimTest` cases against the real database
+including the required concurrency test — eight users claiming the same name
+through a `CyclicBarrier`, exactly one `Claimed` and seven `Taken`, with exactly
+one user row named afterwards. `.\gradlew.bat build` succeeds (87 server tests).
 
 ### Acceptance Criteria
 

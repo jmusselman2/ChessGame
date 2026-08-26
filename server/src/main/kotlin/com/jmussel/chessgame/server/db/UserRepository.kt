@@ -2,7 +2,10 @@
 
 package com.jmussel.chessgame.server.db
 
+import com.jmussel.chessgame.server.user.Username
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -47,14 +50,62 @@ class UserRepository(
         }
 
     /** The user with [id], or `null`. */
-    fun find(id: Uuid): StoredUser? =
+    fun find(id: Uuid): StoredUser? = transaction(database) { findById(id) }
+
+    /** The user who owns [username], matched case-insensitively, or `null`. */
+    fun findByUsername(username: String): StoredUser? =
         transaction(database) {
             UsersTable
                 .selectAll()
-                .where { UsersTable.id eq id }
+                .where { UsersTable.usernameNormalized eq username.lowercase() }
                 .singleOrNull()
                 ?.let(::toUser)
         }
+
+    /**
+     * Claims [username] for [userId].
+     *
+     * The database's unique index on the normalized username is the final authority, so
+     * two users claiming the same name at the same moment cannot both win — the loser gets
+     * [ClaimUsernameResult.Taken] (`D007`). A username is never released, so a lost
+     * anonymous account keeps its name reserved (`D008`), and changing a username is
+     * outside the MVP.
+     */
+    fun claimUsername(
+        userId: Uuid,
+        username: Username,
+    ): ClaimUsernameResult {
+        val user = find(userId) ?: return ClaimUsernameResult.NoSuchUser
+
+        user.username?.let { existing ->
+            return if (existing.lowercase() == username.normalized) {
+                ClaimUsernameResult.Claimed(user)
+            } else {
+                ClaimUsernameResult.AlreadyNamed(existing)
+            }
+        }
+
+        // The update is its own transaction: a unique violation aborts it, and only the
+        // loser of a race sees one.
+        val updated =
+            try {
+                transaction(database) {
+                    UsersTable.update({ (UsersTable.id eq userId) and UsersTable.username.isNull() }) { row ->
+                        row[UsersTable.username] = username.value
+                        row[UsersTable.usernameNormalized] = username.normalized
+                    }
+                }
+            } catch (e: Exception) {
+                if (e.isUniqueViolation()) return ClaimUsernameResult.Taken else throw e
+            }
+
+        return if (updated == 0) {
+            // Someone claimed a name for this user between the read and the update.
+            ClaimUsernameResult.AlreadyNamed(find(userId)?.username.orEmpty())
+        } else {
+            ClaimUsernameResult.Claimed(user.copy(username = username.value))
+        }
+    }
 
     /** Records that [id] was active at [at]. */
     fun touchLastSeen(
@@ -67,6 +118,13 @@ class UserRepository(
             }
         }
     }
+
+    private fun findById(id: Uuid): StoredUser? =
+        UsersTable
+            .selectAll()
+            .where { UsersTable.id eq id }
+            .singleOrNull()
+            ?.let(::toUser)
 
     private fun findBySubject(authSubject: String): StoredUser? =
         UsersTable
@@ -96,3 +154,31 @@ class UserRepository(
             lastSeenAt = row[UsersTable.lastSeenAt]?.toInstant(),
         )
 }
+
+/** What happened to a username claim. */
+sealed interface ClaimUsernameResult {
+    /** The name is now theirs. */
+    data class Claimed(
+        val user: StoredUser,
+    ) : ClaimUsernameResult
+
+    /** Someone else already has that name. */
+    data object Taken : ClaimUsernameResult
+
+    /** This user already has a username; changes are outside the MVP. */
+    data class AlreadyNamed(
+        val username: String,
+    ) : ClaimUsernameResult
+
+    /** No such user. */
+    data object NoSuchUser : ClaimUsernameResult
+}
+
+/** PostgreSQL's SQLSTATE for a unique constraint violation. */
+private const val UNIQUE_VIOLATION = "23505"
+
+/** Whether this failure is the database refusing a duplicate, rather than anything else. */
+private fun Throwable.isUniqueViolation(): Boolean =
+    generateSequence(this) { it.cause.takeIf { cause -> cause !== it } }
+        .filterIsInstance<java.sql.SQLException>()
+        .any { it.sqlState == UNIQUE_VIOLATION }
