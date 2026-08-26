@@ -2285,10 +2285,10 @@ against the local test database (BUILD SUCCESSFUL, 350 server tests, 0 skipped).
 
 **Completed:** 2026-08-26 — "Play with this friend" held to one series and one
 game however many times it is tapped, at the API boundary where the taps
-actually arrive. No defect was found and no code changed: `D011`'s partial
-unique index settles two opens racing, and the rematch is created by the game
-that finished rather than by anyone asking for it (`D015`), so `POST /series`
-has nothing to create. What was missing was the proof end to end — both players
+actually arrive. `D011`'s partial unique index settles two opens racing, and the
+rematch is created by the game that finished rather than by anyone asking for it
+(`D015`), so `POST /series` has nothing to create. What was missing was the
+proof end to end — both players
 tapping at once get one series and one game, tapping mid-game opens the game in
 progress with its moves intact, tapping after a game ends opens the rematch
 rather than reopening the finished game, and tapping repeatedly across a
@@ -2300,12 +2300,48 @@ games through `/dashboard` and `/history` so the assertions are what a client
 can actually see) and `.\gradlew.bat build` against the local test database
 (BUILD SUCCESSFUL, 360 server tests, 0 skipped).
 
+**Correction (2026-08-26, during `M16.5`):** this note first said no defect was
+found. That was wrong — the race is real and the new test caught it on a later
+run: two players tapping "Play" at the same moment on a series that had no game
+yet both found `currentGameId` empty and both tried to be game one, and the
+database's `games_series_sequence` index refused the second, so one player got a
+`500` instead of the game. The data was never wrong, but the answer to one of
+them was. `SeriesService.openWithGame` now locks the series row and re-reads it
+before starting the first game, so the second request waits, finds the game the
+first created, and hands that back — the same mechanism `settleAfter` already
+used for the same class of race. The concurrency test is what surfaced it and
+now passes repeatedly (three consecutive runs of the series suites).
+
 ---
 
 ## M16.5 — Server logging
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M10
+
+**Completed:** 2026-08-26 — the server now says enough to debug the beta and
+nothing that would be dangerous to keep. Every request is logged as its method,
+path, and status, and every command decision as one line naming the user, the
+game, the version it was written against, and what the server decided — "this
+player asked at version 7 and the game was at 8" is a complete account of a
+refusal, and none of it is a secret. Refusals log at `INFO` and accepted
+commands at `DEBUG`, because an accepted write is already recorded as an audit
+event (`D020`) and a busy game would otherwise fill the log. What is left out is
+the point: headers are never logged, so the bearer token on every authenticated
+request and the Supabase key cannot leak into a file that is read in weaker
+places than the database; bodies are never logged, so the log does not become a
+second copy of the game state; and `/health` is filtered out so polling does not
+bury everything else. Ids in paths stay as they are — a game id is a reference,
+not a secret, and without it a log cannot answer "what happened to this game".
+`logback.xml` writes to the console for a host that collects stdout, and quiets
+Netty, Exposed, and Hikari. Verified locally with `.\gradlew.bat :server:test`
+(6 new `ServerLoggingTest` cases that capture *everything* logged during real
+requests through a Logback appender and assert on all of it: the request line is
+there, the token and the word `Authorization` are not, a refusal is explained,
+no board reaches the log, and `/health` is silent) and `.\gradlew.bat build`
+against the local test database (BUILD SUCCESSFUL, 366 server tests, 0 skipped).
+This build also caught and fixed the `M16.4` concurrency defect recorded above.
 
 ### Acceptance Criteria
 

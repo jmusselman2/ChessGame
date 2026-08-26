@@ -104,6 +104,7 @@ fun Application.module(
     realtime: RealtimeHub = RealtimeHub(),
     lastSeen: LastSeenTracker = LastSeenTracker(users),
 ) {
+    installRequestLogging()
     install(ContentNegotiation) { json() }
     install(WebSockets) { contentConverter = KotlinxWebsocketSerializationConverter(Json) }
     installSupabaseAuthentication(verifier, users, lastSeen)

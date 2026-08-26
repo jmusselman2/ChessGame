@@ -11,11 +11,15 @@ import com.jmussel.chessgame.server.api.GameView
 import com.jmussel.chessgame.server.api.RejectionReason
 import com.jmussel.chessgame.server.auth.AuthenticatedUser
 import com.jmussel.chessgame.server.auth.authenticatedUser
+import com.jmussel.chessgame.server.commandLogLine
 import com.jmussel.chessgame.server.db.StoredGame
 import com.jmussel.chessgame.server.realtime.RealtimeHub
 import com.jmussel.chessgame.server.realtime.RealtimeMessage
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
+import io.ktor.server.application.log
+import io.ktor.server.request.httpMethod
+import io.ktor.server.request.path
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
@@ -145,6 +149,8 @@ private suspend fun ApplicationCall.respondTo(
     result: CommandResult,
     caller: AuthenticatedUser,
 ) {
+    log(result, caller)
+
     when (result) {
         is CommandResult.Applied ->
             respond(GameView.of(result.game, caller.userId))
@@ -210,6 +216,48 @@ private suspend fun ApplicationCall.respondTo(
             )
     }
 }
+
+/**
+ * Records what the server decided about a command.
+ *
+ * A refusal is the interesting case and is logged at `INFO`: "this player asked at version
+ * 7 and the game was at 8" is a complete account of what went wrong, and none of it is a
+ * secret. An accepted command is logged at `DEBUG`, because the write itself is already
+ * recorded as an audit event (`D020`) and a busy game would otherwise fill the log.
+ */
+private fun ApplicationCall.log(
+    result: CommandResult,
+    caller: AuthenticatedUser,
+) {
+    val game = result.gameOrNull() ?: return
+    val line =
+        commandLogLine(
+            action = "${request.httpMethod.value} ${request.path()}",
+            userId = caller.userId,
+            gameId = game.id,
+            expectedVersion = game.version,
+            outcome = result::class.simpleName.orEmpty(),
+        )
+
+    if (result is CommandResult.Applied) {
+        application.log.debug(line)
+    } else {
+        application.log.info(line)
+    }
+}
+
+/** The game a result is about, or `null` when the server never found one. */
+private fun CommandResult.gameOrNull(): StoredGame? =
+    when (this) {
+        is CommandResult.Applied -> game
+        is CommandResult.GameOver -> game
+        is CommandResult.NotYourTurn -> game
+        is CommandResult.StaleVersion -> game
+        is CommandResult.IllegalMove -> game
+        is CommandResult.NoSuchClaim -> game
+        is CommandResult.NothingToUndo -> game
+        CommandResult.NoSuchGame, CommandResult.NotAParticipant -> null
+    }
 
 private suspend fun ApplicationCall.gameId(): Uuid? {
     val raw = parameters["gameId"].orEmpty()

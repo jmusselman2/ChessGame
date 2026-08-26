@@ -39,6 +39,13 @@ class SeriesService(
      *
      * Creating the game and pointing the series at it happen in one transaction, so a
      * series is never left claiming a game that was not written.
+     *
+     * Both players tapping "Play" at the same moment is the case this has to survive. The
+     * series row is locked before the first game is started and re-read under that lock,
+     * so the second request waits for the first, finds the game it created, and hands that
+     * back — the same mechanism [settleAfter] uses for the same class of race. Without the
+     * lock both would find no current game and both would try to be game one of the
+     * series, and the second would be refused by the database.
      */
     fun openWithGame(
         caller: Uuid,
@@ -47,7 +54,12 @@ class SeriesService(
         val opened = series.openOrCreate(caller, friend)
         if (opened.series.currentGameId != null) return opened
 
-        val withGame = transaction(database) { startFirstGame(opened.series) }
+        val withGame =
+            transaction(database) {
+                val current = series.findForUpdate(opened.series.id) ?: opened.series
+
+                if (current.currentGameId != null) current else startFirstGame(current)
+            }
 
         return OpenedSeries(series = withGame, created = opened.created)
     }

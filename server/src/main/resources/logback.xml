@@ -1,0 +1,24 @@
+<!--
+  What the server writes and where.
+
+  One appender to the console, because the beta will run somewhere that collects stdout
+  and a log file on a disposable host is a log nobody reads. The pattern carries the time,
+  the level, the logger, and the message — no MDC, so nothing can be smuggled in from a
+  request. See ServerLogging.kt for what is deliberately never logged.
+-->
+<configuration>
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+    <!-- Netty and Exposed are conversational at INFO and say nothing worth keeping. -->
+    <logger name="io.netty" level="WARN"/>
+    <logger name="Exposed" level="WARN"/>
+    <logger name="com.zaxxer.hikari" level="WARN"/>
+</configuration>
