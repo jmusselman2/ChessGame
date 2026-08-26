@@ -1186,8 +1186,27 @@ Required primary/foreign/unique constraints exist.
 
 ## M6.5 — Server persistence integration
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M6.4
+
+**Completed:** 2026-08-26 — the server can persist and load canonical game
+state transactionally. Exposed `Table` objects in `Tables.kt` map the migrated
+schema (the SQL stays the source of truth — nothing generates or alters a
+schema from Kotlin), `GameStateDocument` is the `jsonb` persistence DTO living
+in the server so `game-core` stays free of serialization, and `GameRepository`
+provides `create`, `load`, `save`, and `auditTrail`. Each call is one Exposed
+transaction, so a game and its move history commit or roll back together, and
+`save` enforces `D021` by rejecting a write whose `expectedVersion` no longer
+matches (`StaleGameVersionException`) and otherwise incrementing the version.
+`kotlinx.serialization` and `exposed-json` were added for the `jsonb` columns.
+Verified locally against the `M6.1` container: `GameRepositoryTest` (16 cases)
+round-trips an empty game, a game with history, castling rights and counters,
+an en passant target, the repetition history, a promotion, a checkmated game,
+and a claimed draw; it also proves the version guard leaves a losing write with
+no trace, that saving replaces rather than appends history, that a failed
+transaction leaves no game or move rows behind, and that an audit event is
+written with the change. `.\gradlew.bat build` succeeds (47 server tests).
 
 ### Acceptance Criteria
 

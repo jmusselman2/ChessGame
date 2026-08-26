@@ -1,0 +1,229 @@
+@file:OptIn(ExperimentalUuidApi::class)
+
+package com.jmussel.chessgame.server.db
+
+import com.jmussel.chessgame.core.chess.ChessGame
+import com.jmussel.chessgame.core.chess.Move
+import com.jmussel.chessgame.core.chess.MoveRecord
+import com.jmussel.chessgame.core.chess.PieceType
+import com.jmussel.chessgame.core.chess.Side
+import com.jmussel.chessgame.core.chess.Square
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
+import java.time.Instant
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
+
+/**
+ * A game as the database holds it: the rules state plus the bookkeeping that is not part
+ * of chess.
+ */
+data class StoredGame(
+    val id: Uuid,
+    val seriesId: Uuid,
+    val sequenceNumber: Int,
+    val whiteUserId: Uuid,
+    val blackUserId: Uuid,
+    val version: Long,
+    val game: ChessGame,
+) {
+    val isComplete: Boolean
+        get() = game.isOver
+}
+
+/** Raised when a game has moved on since the caller read it (`D021`). */
+class StaleGameVersionException(
+    val gameId: Uuid,
+    val expectedVersion: Long,
+    val actualVersion: Long,
+) : RuntimeException("Game $gameId is at version $actualVersion, not $expectedVersion")
+
+/**
+ * Reading and writing canonical game state.
+ *
+ * Every call runs in one transaction, so a game and its move history are always saved or
+ * discarded together — a half-written game is never visible to another request. The
+ * version guard implements `D021`: a write only lands on the version the caller read.
+ */
+class GameRepository(
+    private val database: Database,
+) {
+    /** Inserts [game] as game [sequenceNumber] of [seriesId], and returns its id. */
+    fun create(
+        seriesId: Uuid,
+        sequenceNumber: Int,
+        whiteUserId: Uuid,
+        blackUserId: Uuid,
+        game: ChessGame,
+    ): Uuid =
+        transaction(database) {
+            val id = Uuid.random()
+            val now = Instant.now().atOffset(java.time.ZoneOffset.UTC)
+
+            GamesTable.insert { row ->
+                row[GamesTable.id] = id
+                row[GamesTable.seriesId] = seriesId
+                row[GamesTable.sequenceNumber] = sequenceNumber
+                row[GamesTable.whiteUserId] = whiteUserId
+                row[GamesTable.blackUserId] = blackUserId
+                row[GamesTable.status] = statusOf(game)
+                row[GamesTable.version] = 0
+                row[GamesTable.sideToMove] = game.sideToMove.name
+                row[GamesTable.state] = GameStateDocument.of(game.state)
+                row[GamesTable.result] = game.result?.outcome?.name
+                row[GamesTable.terminationReason] = game.result?.reason?.name
+                row[GamesTable.createdAt] = now
+                row[GamesTable.updatedAt] = now
+                row[GamesTable.endedAt] = if (game.isOver) now else null
+            }
+
+            writeHistory(id, game)
+            id
+        }
+
+    /** The game with [id], or `null` when there is none. */
+    fun load(id: Uuid): StoredGame? =
+        transaction(database) {
+            val row =
+                GamesTable
+                    .selectAll()
+                    .where { GamesTable.id eq id }
+                    .singleOrNull()
+                    ?: return@transaction null
+
+            StoredGame(
+                id = row[GamesTable.id],
+                seriesId = row[GamesTable.seriesId],
+                sequenceNumber = row[GamesTable.sequenceNumber],
+                whiteUserId = row[GamesTable.whiteUserId],
+                blackUserId = row[GamesTable.blackUserId],
+                version = row[GamesTable.version],
+                game = ChessGame(state = row[GamesTable.state].toGameState(), history = readHistory(id)),
+            )
+        }
+
+    /**
+     * Replaces the stored game and its history with [game], moving the version on by one.
+     *
+     * [expectedVersion] must be the version the caller read; anything else means another
+     * command got there first and this one is stale. The whole write — game row, move
+     * history, audit event — is one transaction.
+     */
+    fun save(
+        id: Uuid,
+        expectedVersion: Long,
+        game: ChessGame,
+        auditEvent: String? = null,
+    ): Long =
+        transaction(database) {
+            val current =
+                GamesTable
+                    .selectAll()
+                    .where { GamesTable.id eq id }
+                    .singleOrNull()
+                    ?: throw NoSuchElementException("No game $id")
+
+            val actualVersion = current[GamesTable.version]
+            if (actualVersion != expectedVersion) {
+                throw StaleGameVersionException(id, expectedVersion, actualVersion)
+            }
+
+            val nextVersion = expectedVersion + 1
+            val now = Instant.now().atOffset(java.time.ZoneOffset.UTC)
+
+            GamesTable.update({ (GamesTable.id eq id) and (GamesTable.version eq expectedVersion) }) { row ->
+                row[GamesTable.status] = statusOf(game)
+                row[GamesTable.version] = nextVersion
+                row[GamesTable.sideToMove] = game.sideToMove.name
+                row[GamesTable.state] = GameStateDocument.of(game.state)
+                row[GamesTable.result] = game.result?.outcome?.name
+                row[GamesTable.terminationReason] = game.result?.reason?.name
+                row[GamesTable.updatedAt] = now
+                row[GamesTable.endedAt] = if (game.isOver) now else null
+            }
+
+            MovesTable.deleteWhere { MovesTable.gameId eq id }
+            writeHistory(id, game)
+
+            auditEvent?.let { type ->
+                GameEventsTable.insert { row ->
+                    row[GameEventsTable.gameId] = id
+                    row[GameEventsTable.type] = type
+                    row[GameEventsTable.payload] = buildJsonObject { put("version", nextVersion) }
+                    row[GameEventsTable.createdAt] = now
+                }
+            }
+
+            nextVersion
+        }
+
+    /** The audit event types recorded against [gameId], oldest first. */
+    fun auditTrail(gameId: Uuid): List<String> =
+        transaction(database) {
+            GameEventsTable
+                .selectAll()
+                .where { GameEventsTable.gameId eq gameId }
+                .orderBy(GameEventsTable.id to SortOrder.ASC)
+                .map { it[GameEventsTable.type] }
+        }
+
+    private fun statusOf(game: ChessGame): String = if (game.isOver) "COMPLETE" else "IN_PROGRESS"
+
+    private fun writeHistory(
+        gameId: Uuid,
+        game: ChessGame,
+    ) {
+        game.history.forEachIndexed { index, record ->
+            MovesTable.insert { row ->
+                row[MovesTable.id] = Uuid.random()
+                row[MovesTable.gameId] = gameId
+                row[MovesTable.ply] = index + 1
+                row[MovesTable.side] = record.positionBefore.sideToMove.name
+                row[MovesTable.fromSquare] = record.move.from.name
+                row[MovesTable.toSquare] = record.move.to.name
+                row[MovesTable.promotion] = record.move.promotion?.name
+                row[MovesTable.positionBefore] = GameStateDocument.of(record.positionBefore)
+                row[MovesTable.createdAt] = Instant.now().atOffset(java.time.ZoneOffset.UTC)
+            }
+        }
+    }
+
+    private fun readHistory(gameId: Uuid): List<MoveRecord> =
+        MovesTable
+            .selectAll()
+            .where { MovesTable.gameId eq gameId }
+            .orderBy(MovesTable.ply to SortOrder.ASC)
+            .map { row ->
+                MoveRecord(
+                    move =
+                        Move(
+                            from = Square.parse(row[MovesTable.fromSquare]),
+                            to = Square.parse(row[MovesTable.toSquare]),
+                            promotion = row[MovesTable.promotion]?.let { PieceType.valueOf(it) },
+                        ),
+                    positionBefore = row[MovesTable.positionBefore].toGameState(),
+                )
+            }
+
+    /** Reads the side stored against a ply, for tests and debugging. */
+    fun storedSideAt(
+        gameId: Uuid,
+        ply: Int,
+    ): Side? =
+        transaction(database) {
+            MovesTable
+                .selectAll()
+                .where { (MovesTable.gameId eq gameId) and (MovesTable.ply eq ply) }
+                .singleOrNull()
+                ?.let { Side.valueOf(it[MovesTable.side]) }
+        }
+}

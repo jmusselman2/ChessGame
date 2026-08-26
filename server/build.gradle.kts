@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.kotlin.jvm)
+    alias(libs.plugins.kotlin.serialization)
     application
 }
 
@@ -22,6 +23,8 @@ dependencies {
     implementation(libs.exposed.core)
     implementation(libs.exposed.jdbc)
     implementation(libs.exposed.java.time)
+    implementation(libs.exposed.json)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.hikaricp)
     implementation(libs.flyway.core)
     runtimeOnly(libs.flyway.postgresql)
