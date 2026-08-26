@@ -4,6 +4,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
@@ -11,7 +13,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
-import com.jmussel.chessgame.core.GameCore
+import androidx.compose.ui.unit.dp
+import com.jmussel.chessgame.core.chess.ChessGame
+import com.jmussel.chessgame.ui.board.ChessBoard
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
 class MainActivity : ComponentActivity() {
@@ -21,8 +25,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             ChessGameTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = GameCore.NAME,
+                    GameScreen(
+                        game = ChessGame.newGame(),
                         modifier = Modifier.padding(innerPadding),
                     )
                 }
@@ -31,21 +35,25 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** The board and whose turn it is, both read straight from `game-core`. */
 @Composable
-fun Greeting(
-    name: String,
+fun GameScreen(
+    game: ChessGame,
     modifier: Modifier = Modifier,
 ) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier,
-    )
+    Column(
+        modifier = modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        ChessBoard(board = game.state.board)
+        Text(text = "${game.sideToMove} to move")
+    }
 }
 
 @Preview(showBackground = true)
 @Composable
-fun GreetingPreview() {
+private fun GameScreenPreview() {
     ChessGameTheme {
-        Greeting("Android")
+        GameScreen(game = ChessGame.newGame())
     }
 }

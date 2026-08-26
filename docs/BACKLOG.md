@@ -867,8 +867,20 @@ Terminal/undo tests pass.
 
 ## M5.1 — Render board
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M3
+
+**Completed:** 2026-08-26 — `BoardRendering` turns a `game-core` `Board` into
+the eight rows the board is drawn from (rank 8 first, file `a` on the left),
+each `BoardSquare` carrying its square, occupant, and shade, plus the piece
+glyphs and file/rank labels. The `ChessBoard` composable renders those rows as
+a square grid and holds no chess rules — both sides use the solid glyphs and
+colour tells them apart. `MainActivity` now shows the starting position and
+whose turn it is. Verified locally with
+`.\gradlew.bat :android-app:testDebugUnitTest` (12 new `BoardRenderingTest`
+cases, including the familiar starting grid) and `.\gradlew.bat build`
+(BUILD SUCCESSFUL, includes the Android debug/release APKs and Android lint).
 
 ### Acceptance Criteria
 
