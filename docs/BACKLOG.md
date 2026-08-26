@@ -740,8 +740,19 @@ Boundary tests pass.
 
 ## M3.14 — `ClaimDraw` game-core behavior
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M3.12, M3.13
+
+**Completed:** 2026-08-26 — `ChessRules.availableDrawClaims`, `canClaimDraw`,
+and `claimDraw` implement the `ClaimDraw` action in `game-core`: a valid claim
+finalises the game as `THREEFOLD_REPETITION_CLAIM` or `FIFTY_MOVE_RULE_CLAIM`,
+an invalid claim (too early, wrong claim for the situation, or a finished game)
+is rejected, and the automatic draws — fivefold repetition, the
+seventy-five-move rule, stalemate, insufficient material — still end the game
+with no claim at all. Verified locally with `.\gradlew.bat :game-core:test`
+(13 new `ClaimDrawTest` cases, 279 game-core tests total) and
+`.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ### Acceptance Criteria
 

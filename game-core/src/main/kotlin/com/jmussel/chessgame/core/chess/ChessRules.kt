@@ -50,6 +50,45 @@ object ChessRules {
     }
 
     /**
+     * The draws the side to move may claim right now.
+     *
+     * A claimable draw does not end the game on its own; it stays available until it is
+     * claimed or the position changes (`D019`).
+     */
+    fun availableDrawClaims(state: GameState): Set<DrawClaim> =
+        buildSet {
+            if (Repetition.canClaimThreefold(state)) add(DrawClaim.THREEFOLD_REPETITION)
+            if (MoveCountDraws.canClaimFiftyMove(state)) add(DrawClaim.FIFTY_MOVE_RULE)
+        }
+
+    /** Whether [claim] is currently valid. */
+    fun canClaimDraw(
+        state: GameState,
+        claim: DrawClaim,
+    ): Boolean = claim in availableDrawClaims(state)
+
+    /**
+     * The state after a valid [claim] is made: a finished game drawn for that reason.
+     *
+     * [claim] must be valid in [state]; check with [canClaimDraw] or
+     * [availableDrawClaims] first.
+     */
+    fun claimDraw(
+        state: GameState,
+        claim: DrawClaim,
+    ): GameState {
+        require(!state.isOver) { "The game is over: ${state.result}" }
+        require(canClaimDraw(state, claim)) { "No valid $claim claim is available" }
+
+        val reason =
+            when (claim) {
+                DrawClaim.THREEFOLD_REPETITION -> TerminationReason.THREEFOLD_REPETITION_CLAIM
+                DrawClaim.FIFTY_MOVE_RULE -> TerminationReason.FIFTY_MOVE_RULE_CLAIM
+            }
+        return state.copy(result = GameResult.draw(reason))
+    }
+
+    /**
      * The state after [move] is played. [move] must be legal in [state].
      *
      * Updates the board, the side to move, castling rights, the en passant target, the
