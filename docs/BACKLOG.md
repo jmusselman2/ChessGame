@@ -939,8 +939,21 @@ Highlights come from `game-core`; UI does not duplicate rules.
 
 ## M5.4 — Apply local move
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M5.3
+
+**Completed:** 2026-08-26 — Tapping a highlighted destination plays the move
+through `ChessRules.applyMove`, so the local game state, history, and any
+terminal result all come from `game-core`; the selection clears and the turn
+passes. A pawn reaching the last rank raises a `PendingPromotion` prompt
+instead, because the player must choose the piece (no automatic queen);
+choosing plays the move, and cancelling or tapping the board backs out.
+`GameScreen` renders the prompt and the game status. Verified locally with
+`.\gradlew.bat :android-app:testDebugUnitTest` (13 new `ApplyLocalMoveTest`
+cases including castling, capture, every promotion choice, and a mate that
+stops further play, 47 Android unit tests total) and `.\gradlew.bat build`
+(BUILD SUCCESSFUL).
 
 ### Acceptance Criteria
 
