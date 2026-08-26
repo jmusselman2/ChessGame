@@ -11,6 +11,7 @@ import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.time.Instant
 import java.time.ZoneOffset
 import kotlin.uuid.ExperimentalUuidApi
@@ -100,6 +101,18 @@ class GameSeriesRepository(
                         (GameSeriesTable.status eq ACTIVE_SERIES)
                 }.singleOrNull()
                 ?.let(::toSeries)
+        }
+    }
+
+    /** Points [seriesId] at [gameId] as its current game. */
+    fun attachCurrentGame(
+        seriesId: Uuid,
+        gameId: Uuid,
+    ) {
+        transaction(database) {
+            GameSeriesTable.update({ GameSeriesTable.id eq seriesId }) { row ->
+                row[GameSeriesTable.currentGameId] = gameId
+            }
         }
     }
 

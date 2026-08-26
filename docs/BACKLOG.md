@@ -1512,8 +1512,25 @@ Concurrent create test prevents duplicate active series.
 
 ## M9.2 — Initial game
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M9.1
+
+**Completed:** 2026-08-26 — `SeriesService.openWithGame` opens the pair's active
+series and, when it has no current game, starts one: game 1 from the standard
+position with the colours decided by a coin toss (`D014`), then points the
+series at it. Creating the game and attaching it happen in one transaction, so a
+series never claims a game that was not written, and opening the series again
+from either side returns the same game rather than starting a second. The
+`POST /series` route now hands the caller a series that already has a game to
+play, which is the one-tap "play with this friend" `docs/PRODUCT.md` asks for.
+The random source is injectable, so the colour rule is tested rather than
+assumed. Verified locally with `.\gradlew.bat :server:test` (8 new
+`InitialGameTest` cases: the game is created and attached, both players are on
+opposite sides, each coin toss produces the matching assignment, twenty series
+produce both assignments, reopening starts nothing new, and the game begins with
+White to move at version 0) and `.\gradlew.bat build` (BUILD SUCCESSFUL, 157
+server tests).
 
 ### Acceptance Criteria
 

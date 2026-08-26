@@ -37,6 +37,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.uuid.ExperimentalUuidApi
@@ -105,7 +106,7 @@ class OpenSeriesTest {
             val friendships = FriendshipRepository(database)
             val series = GameSeriesRepository(database)
             testApplication {
-                application { module(tokens.verifier(), users, friendships, series) }
+                application { module(tokens.verifier(), users, friendships, seriesService(database)) }
                 block(Fixture(database, users, friendships, series))
             }
         }
@@ -262,7 +263,7 @@ class OpenSeriesTest {
             assertEquals("Alex", summary.opponent.username)
             assertEquals(ACTIVE_SERIES, summary.status)
             assertFalse(summary.closeAfterCurrentGame)
-            assertNull(summary.currentGameId)
+            assertNotNull(summary.currentGameId, "opening a series starts its first game (M9.2)")
         }
     }
 

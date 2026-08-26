@@ -6,9 +6,9 @@ import com.jmussel.chessgame.server.auth.TestTokens
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
-import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.module
+import com.jmussel.chessgame.server.series.seriesService
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.server.testing.testApplication
@@ -124,7 +124,7 @@ class LastSeenTest {
                         tokens.verifier(),
                         users,
                         FriendshipRepository(database),
-                        GameSeriesRepository(database),
+                        seriesService(database),
                         LastSeenTracker(users, clock = { at }),
                     )
                 }
@@ -149,7 +149,7 @@ class LastSeenTest {
                         tokens.verifier(),
                         users,
                         FriendshipRepository(database),
-                        GameSeriesRepository(database),
+                        seriesService(database),
                         LastSeenTracker(users),
                     )
                 }

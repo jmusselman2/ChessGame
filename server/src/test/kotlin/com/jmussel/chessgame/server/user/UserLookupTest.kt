@@ -7,9 +7,9 @@ import com.jmussel.chessgame.server.auth.TestTokens
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
-import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.module
+import com.jmussel.chessgame.server.series.seriesService
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
@@ -37,7 +37,7 @@ class UserLookupTest {
             val database = Databases.connect(dataSource)
             val users = UserRepository(database)
             testApplication {
-                application { module(tokens.verifier(), users, FriendshipRepository(database), GameSeriesRepository(database)) }
+                application { module(tokens.verifier(), users, FriendshipRepository(database), seriesService(database)) }
                 block(users)
             }
         }

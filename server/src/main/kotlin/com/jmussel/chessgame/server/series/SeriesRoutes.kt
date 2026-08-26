@@ -5,7 +5,6 @@ package com.jmussel.chessgame.server.series
 import com.jmussel.chessgame.server.api.SeriesSummary
 import com.jmussel.chessgame.server.auth.authenticatedUser
 import com.jmussel.chessgame.server.db.FriendshipRepository
-import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.user.Username
 import io.ktor.http.HttpStatusCode
@@ -28,7 +27,7 @@ import kotlin.uuid.ExperimentalUuidApi
 fun Route.seriesRoutes(
     users: UserRepository,
     friendships: FriendshipRepository,
-    series: GameSeriesRepository,
+    series: SeriesService,
 ) {
     post("/series") {
         val caller = call.authenticatedUser()
@@ -55,7 +54,7 @@ fun Route.seriesRoutes(
             return@post
         }
 
-        val opened = series.openOrCreate(caller.userId, friend.id)
+        val opened = series.openWithGame(caller.userId, friend.id)
 
         call.respond(
             status = if (opened.created) HttpStatusCode.Created else HttpStatusCode.OK,

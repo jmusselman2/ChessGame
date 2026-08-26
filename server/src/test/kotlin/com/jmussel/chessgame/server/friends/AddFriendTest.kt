@@ -8,9 +8,9 @@ import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.FriendshipsTable
-import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.module
+import com.jmussel.chessgame.server.series.seriesService
 import com.jmussel.chessgame.server.user.Username
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -64,7 +64,7 @@ class AddFriendTest {
             val users = UserRepository(database)
             val friendships = FriendshipRepository(database)
             testApplication {
-                application { module(tokens.verifier(), users, friendships, GameSeriesRepository(database)) }
+                application { module(tokens.verifier(), users, friendships, seriesService(database)) }
                 block(Fixture(users, friendships, database))
             }
         }
