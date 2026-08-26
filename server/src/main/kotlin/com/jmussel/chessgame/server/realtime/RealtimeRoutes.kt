@@ -21,12 +21,22 @@ import kotlin.uuid.ExperimentalUuidApi
  *
  * The route must sit behind authentication — an anonymous socket has no games to hear
  * about.
+ *
+ * ### Reconnecting
+ *
+ * Nothing is replayed to a client that was away, and nothing needs to be: whatever it
+ * missed is already in the canonical state it reloads over HTTPS (`D022`). The connection
+ * is registered *before* the greeting goes out, which is what makes that reload safe — a
+ * client that reloads after seeing `connected` cannot fall into a gap, because any change
+ * committed from that moment on is pushed to this socket, and every earlier one is in the
+ * reload. Greeting first and subscribing after would open exactly that gap.
  */
 fun Route.realtimeRoutes(hub: RealtimeHub) {
     webSocket("/ws") {
         val caller = call.authenticatedUser()
         val connection = RealtimeConnection { message -> sendSerialized(message) }
 
+        // Before the greeting, so a client that reloads on `connected` misses nothing.
         hub.subscribe(caller.userId, connection)
 
         try {

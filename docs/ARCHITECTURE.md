@@ -343,6 +343,16 @@ WebSocket delivery is a convenience layer, not the source of truth.
 
 On reconnect, Android must be able to reload canonical state over HTTPS.
 
+Nothing is replayed to a client that was away. The server registers the
+connection before it sends the `connected` greeting, so a client that reloads on
+receiving that greeting cannot fall into a gap: every change committed from then
+on is pushed to it, and every earlier one is already in the reload. Missed
+messages therefore cost a client a reload and nothing else.
+
+A push names only the game and the version it reached. Clients must not treat
+one as state, and a command built on a version the server has moved past is
+refused with the canonical state attached rather than applied.
+
 ## 13. Authentication
 
 Use Supabase anonymous authentication for MVP.

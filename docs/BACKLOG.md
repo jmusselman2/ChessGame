@@ -1851,8 +1851,33 @@ Move on client A updates client B automatically.
 
 ## M12.3 — Reconnect recovery
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M12.2
+
+**Completed:** 2026-08-26 — a player who was disconnected while the game moved
+on loses nothing but a reload. Nothing is replayed to a returning client, and
+nothing needs to be: whatever it missed is already in the canonical state it
+reloads over HTTPS (`D022`), and one `/dashboard` request tells it every game it
+plays in and which version to resume from. What makes that reload safe is the
+ordering in `/ws`: the connection is registered *before* the `connected`
+greeting goes out, so a client that reloads on the greeting cannot fall into a
+gap — every change committed from then on is pushed to it, and every earlier one
+is in the reload. Greeting first and subscribing after would open exactly that
+gap, so the ordering is now stated in the route and in `ARCHITECTURE.md` §12
+rather than left to be rediscovered. A command built on a version the server has
+moved past is still refused with `STALE_VERSION` and the current state attached,
+so a client that missed a message recovers from the refusal alone instead of
+writing to the wrong position. The realtime tests now share one fixture
+(`RealtimeFixture.kt`) instead of a third copy of the two-player setup. Verified
+locally with `.\gradlew.bat :server:test` (8 new `ReconnectRecoveryTest` cases:
+the missed moves are in the reload, the returning player sees exactly what the
+player who never left sees, no backlog is replayed, the socket is live from the
+greeting onwards, the dashboard names the version to resume from, a stale
+command is refused with the canonical state and the retry succeeds from it, a
+whole game played across repeated drops ends in the right position, and a dead
+connection is dropped without disturbing the live one) and `.\gradlew.bat build`
+against the local test database (BUILD SUCCESSFUL, 279 server tests, 0 skipped).
 
 ### Acceptance Criteria
 
