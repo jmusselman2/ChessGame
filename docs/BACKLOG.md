@@ -2089,8 +2089,25 @@ without doubled slashes — and 8 new `DashboardSectionsTest` cases) and
 
 ## M14.2 — Their Turn
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M14.1
+
+**Completed:** 2026-08-26 — the dashboard's second section, below the games
+waiting on the player as `docs/PRODUCT.md` orders them. A THEIR TURN line reads
+exactly like a YOUR TURN one and is just as tappable: there is nothing to do in
+those games, but a player still wants to look at them. Whose turn it is comes
+from the server and is never worked out in the app, which would only be guessing
+at state it does not own (`D004`), and the two sections partition the active
+series between them, so nothing a player is in can go missing from the screen. A
+series between games is in neither, because there is still nothing to open. An
+empty THEIR TURN is left off the screen entirely rather than given a heading and
+an apology; the empty YOUR TURN keeps its line, because that one is worth
+saying. Verified locally with `.\gradlew.bat :android-app:testDebugUnitTest`
+(5 new `DashboardSectionsTest` cases: the opponent's games are Their Turn, the
+row reads the same way, every active series lands in exactly one section, a
+game-less series is in neither, and the server's order is kept) and
+`.\gradlew.bat build` (BUILD SUCCESSFUL, 114 Android unit tests, 0 skipped).
 
 ---
 

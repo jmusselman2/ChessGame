@@ -105,4 +105,69 @@ class DashboardSectionsTest {
 
         assertTrue(rows.isEmpty())
     }
+
+    @Test
+    fun theGamesWaitingOnTheOpponentAreTheirTurn() {
+        val rows =
+            DashboardSections.theirTurn(
+                listOf(
+                    entry("Alex", yourTurn = true),
+                    entry("Chris", yourTurn = false),
+                ),
+            )
+
+        assertEquals(listOf("Chris"), rows.map { it.opponent })
+    }
+
+    @Test
+    fun aTheirTurnRowReadsTheSameWay() {
+        val row =
+            DashboardSections
+                .theirTurn(listOf(entry("Chris", yourTurn = false, moveNumber = 24)))
+                .single()
+
+        assertEquals("Chris", row.opponent)
+        assertEquals("White • Move 24", row.detail)
+        assertEquals("game-Chris", row.gameId)
+    }
+
+    @Test
+    fun everyActiveSeriesIsInExactlyOneSection() {
+        val entries =
+            listOf(
+                entry("Alex", yourTurn = true),
+                entry("Chris", yourTurn = false),
+                entry("Sam", yourTurn = true),
+            )
+
+        val yours = DashboardSections.yourTurn(entries)
+        val theirs = DashboardSections.theirTurn(entries)
+
+        assertEquals(entries.size, yours.size + theirs.size)
+        assertTrue(
+            "no game appears in both sections",
+            yours.map { it.gameId }.intersect(theirs.map { it.gameId }.toSet()).isEmpty(),
+        )
+    }
+
+    @Test
+    fun aSeriesBetweenGamesIsInNeitherSection() {
+        val entries = listOf(entry("Alex", yourTurn = false, gameId = null))
+
+        assertTrue(DashboardSections.yourTurn(entries).isEmpty())
+        assertTrue(DashboardSections.theirTurn(entries).isEmpty())
+    }
+
+    @Test
+    fun theirTurnKeepsTheServersOrder() {
+        val rows =
+            DashboardSections.theirTurn(
+                listOf(
+                    entry("Sam", yourTurn = false),
+                    entry("Chris", yourTurn = false),
+                ),
+            )
+
+        assertEquals(listOf("Sam", "Chris"), rows.map { it.opponent })
+    }
 }

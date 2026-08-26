@@ -20,9 +20,9 @@ import com.jmussel.chessgame.ui.theme.ChessGameTheme
 /**
  * The home screen a returning player lands on (`docs/PRODUCT.md`).
  *
- * Only the games waiting on the player are shown so far; Their Turn is `M14.2` and Friends
- * is `M14.3`. What to show is decided by [DashboardSections], so this composable holds no
- * rules of its own.
+ * The games waiting on the player come first and the games waiting on the opponent follow;
+ * Friends is `M14.3`. What to show is decided by [DashboardSections], so this composable
+ * holds no rules of its own.
  */
 @Composable
 fun DashboardScreen(
@@ -34,23 +34,42 @@ fun DashboardScreen(
         modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        YourTurnSection(
+        Section(
+            heading = YOUR_TURN,
+            emptyMessage = NOTHING_WAITING,
             rows = DashboardSections.yourTurn(entries),
+            onOpenGame = onOpenGame,
+        )
+
+        // Nothing can be done in these, but a player still wants to look.
+        Section(
+            heading = THEIR_TURN,
+            emptyMessage = null,
+            rows = DashboardSections.theirTurn(entries),
             onOpenGame = onOpenGame,
         )
     }
 }
 
-/** The games it is the player's move in. */
+/**
+ * One heading and its games.
+ *
+ * A section with nothing in it shows [emptyMessage] if it has one, and otherwise says
+ * nothing at all — an empty THEIR TURN is not worth a line.
+ */
 @Composable
-private fun YourTurnSection(
+private fun Section(
+    heading: String,
+    emptyMessage: String?,
     rows: List<DashboardRow>,
     onOpenGame: (DashboardRow) -> Unit,
 ) {
-    Text(text = YOUR_TURN, style = MaterialTheme.typography.titleSmall)
+    if (rows.isEmpty() && emptyMessage == null) return
+
+    Text(text = heading, style = MaterialTheme.typography.titleSmall)
 
     if (rows.isEmpty()) {
-        Text(text = NOTHING_WAITING, style = MaterialTheme.typography.bodyMedium)
+        emptyMessage?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium) }
         return
     }
 
@@ -75,6 +94,7 @@ private fun DashboardRowItem(
 }
 
 private const val YOUR_TURN = "YOUR TURN"
+private const val THEIR_TURN = "THEIR TURN"
 private const val NOTHING_WAITING = "Nothing waiting on you."
 
 @Preview(showBackground = true)
@@ -103,6 +123,16 @@ private fun DashboardScreenPreview() {
                         sideToMove = "BLACK",
                         moveNumber = 7,
                         yourTurn = true,
+                    ),
+                    DashboardEntryDto(
+                        seriesId = "series-3",
+                        opponent = UserSummaryDto(userId = "user-3", username = "Chris"),
+                        gameId = "game-3",
+                        version = 47,
+                        yourSide = "WHITE",
+                        sideToMove = "BLACK",
+                        moveNumber = 24,
+                        yourTurn = false,
                     ),
                 ),
         )

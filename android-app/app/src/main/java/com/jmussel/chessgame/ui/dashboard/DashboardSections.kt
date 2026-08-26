@@ -19,14 +19,21 @@ data class DashboardRow(
  * Turning what the server said into the dashboard's sections.
  *
  * The hierarchy is `docs/PRODUCT.md`: the games waiting on the player come first, because
- * they are the only ones the player can do anything about. Their Turn is `M14.2` and
- * Friends is `M14.3`.
+ * they are the only ones the player can do anything about, and the games waiting on the
+ * opponent follow. Friends is `M14.3`.
+ *
+ * Whose turn it is comes from the server and is never worked out here — the app would only
+ * be guessing at state it does not own (`D004`). Every active series belongs to exactly one
+ * of the two sections, so nothing a player is in can go missing.
  *
  * Pure, so the grouping and wording are tested without a screen.
  */
 object DashboardSections {
     /** The games waiting on the player, in the order the server sent them. */
-    fun yourTurn(entries: List<DashboardEntryDto>): List<DashboardRow> = entries.filter { it.yourTurn }.mapNotNull(::rowOf)
+    fun yourTurn(entries: List<DashboardEntryDto>): List<DashboardRow> = rowsOf(entries.filter { it.yourTurn })
+
+    /** The games waiting on the opponent, in the order the server sent them. */
+    fun theirTurn(entries: List<DashboardEntryDto>): List<DashboardRow> = rowsOf(entries.filterNot { it.yourTurn })
 
     /** `"White • Move 18"`, or just the colour before the first move is numbered. */
     fun detailFor(entry: DashboardEntryDto): String {
@@ -35,6 +42,8 @@ object DashboardSections {
 
         return listOfNotNull(side, move).joinToString(separator = SEPARATOR)
     }
+
+    private fun rowsOf(entries: List<DashboardEntryDto>): List<DashboardRow> = entries.mapNotNull(::rowOf)
 
     private fun rowOf(entry: DashboardEntryDto): DashboardRow? {
         // A series between games has nothing to open yet; it is not a line to tap.
