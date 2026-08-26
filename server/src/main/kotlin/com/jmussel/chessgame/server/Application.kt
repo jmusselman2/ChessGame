@@ -11,13 +11,17 @@ import com.jmussel.chessgame.server.db.DatabaseConfig
 import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.user.LastSeenTracker
+import com.jmussel.chessgame.server.user.userLookupRoutes
 import com.jmussel.chessgame.server.user.usernameRoutes
 import io.ktor.http.HttpStatusCode
+import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
+import io.ktor.server.application.install
 import io.ktor.server.application.log
 import io.ktor.server.auth.authenticate
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
+import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
@@ -62,6 +66,7 @@ fun Application.module(
     users: UserRepository,
     lastSeen: LastSeenTracker = LastSeenTracker(users),
 ) {
+    install(ContentNegotiation) { json() }
     installSupabaseAuthentication(verifier, users, lastSeen)
 
     routing {
@@ -73,6 +78,7 @@ fun Application.module(
             }
 
             usernameRoutes(users)
+            userLookupRoutes(users)
         }
     }
 }

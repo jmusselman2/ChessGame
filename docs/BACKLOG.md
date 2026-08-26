@@ -1375,8 +1375,22 @@ Meaningful activity updates `lastSeenAt` without continuous heartbeat.
 
 ## M8.1 — Username lookup
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M7.4
+
+**Completed:** 2026-08-26 — `GET /users/{username}` behind Supabase
+authentication matches exactly on the normalized name and returns one
+`UserSummary` (internal id and the spelling its owner chose) or 404. There is no
+search and no partial matching, which is all `D009`'s "add a friend by exact
+unique username" needs, and the response deliberately carries neither the auth
+subject nor `lastSeenAt`. A user who has not claimed a username cannot be found,
+and a syntactically invalid name is a 400 rather than a lookup. JSON responses
+are served through Ktor `ContentNegotiation` with `kotlinx.serialization`.
+Verified locally with `.\gradlew.bat :server:test` (9 new `UserLookupTest`
+cases, including case-insensitive hits, three partial-match misses, and a check
+that nothing private leaks) and `.\gradlew.bat build` (BUILD SUCCESSFUL, 104
+server tests).
 
 ### Acceptance Criteria
 
