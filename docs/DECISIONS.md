@@ -847,3 +847,48 @@ move.
   repetition counting and terminal results; `M4.1` adds active move history.
 - The board-only `LegalMoves` overloads remain for ordinary movement and tests,
   but callers that need a complete legal move list must pass a `GameState`.
+
+---
+
+## D029 — Undo Restores a Recorded Prior Position, Not a Reversed Move
+
+**Date:** 2026-08-26
+
+**Status:** Accepted
+
+### Decision
+
+`GameState` stays the position alone. A new `ChessGame` holds the current
+`GameState` plus `history: List<MoveRecord>`, where each `MoveRecord` pairs the
+move played with the **complete position it was played from**.
+
+Undo pops the last record and returns that position verbatim.
+
+### Rationale
+
+`M4.1` requires restoring the *exact* prior state: board, side to move, castling
+rights, en passant target, halfmove clock, fullmove number, repetition counts,
+and result. Reversing a move by hand would have to un-derive every one of those
+— restoring a captured piece, a castling rook, an en passant pawn, rights lost
+several moves earlier, and a repetition history cleared by an irreversible move.
+Each is a separate opportunity to be subtly wrong, and `D016` makes undo a
+normal part of play rather than a rare operation.
+
+Keeping the history on `ChessGame` rather than inside `GameState` avoids a
+recursive type: a state that contains snapshots of states.
+
+### Alternatives Considered
+
+- An undo delta per move (captured piece, prior rights, prior clock) — rejected;
+  it is strictly more code to get exactly as correct, and the memory saved is
+  irrelevant at chess scale.
+- Replaying the game from the start on every undo — rejected; it is slower, and
+  a series' current game would have to keep every move forever to support it.
+
+### Consequences
+
+- Memory holds one position per active move. Positions are immutable and the
+  repetition map is cleared by every pawn move or capture, so this stays small.
+- Persistence (`M6.4`, `M10`, `M11`) stores the active move history alongside
+  canonical current state, which is what `D020` already calls for.
+- `M4.2` adds *who* may undo and until when; `M4.3` locks a terminal move.

@@ -770,8 +770,22 @@ Game-core tests pass.
 
 ## M4.1 — Active move history
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M3
+
+**Completed:** 2026-08-26 — `ChessGame` holds the current `GameState` plus a
+`MoveRecord` history, each record pairing a played move with the complete
+position it was played from, so an undo restores the board, side to move,
+castling rights, en passant target, both counters, the repetition history, and
+the result exactly (`D029`). `ChessRules` gained `ChessGame` overloads of
+`legalMoves`, `isLegal`, `availableDrawClaims`, `applyMove`, and `claimDraw`,
+plus `undoLastMove` for the mechanical restoration; undo *eligibility* is
+`M4.2`. Verified locally with `.\gradlew.bat :game-core:test` (15 new
+`MoveHistoryTest` cases round-tripping quiet moves, captures, double pawn
+advances, en passant, castling, promotion, an irreversible move that clears the
+repetition history, and a game-ending move, 294 game-core tests total) and
+`.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ### Objective
 

@@ -132,6 +132,46 @@ object ChessRules {
         return next.copy(result = terminalResult(next))
     }
 
+    /** Every legal move for the side to move in [game]. */
+    fun legalMoves(game: ChessGame): List<Move> = legalMoves(game.state)
+
+    /** Whether [move] is legal in [game]. */
+    fun isLegal(
+        game: ChessGame,
+        move: Move,
+    ): Boolean = isLegal(game.state, move)
+
+    /** The draws the side to move may claim in [game]. */
+    fun availableDrawClaims(game: ChessGame): Set<DrawClaim> = availableDrawClaims(game.state)
+
+    /** [game] after [move] is played, with the prior position recorded in the history. */
+    fun applyMove(
+        game: ChessGame,
+        move: Move,
+    ): ChessGame =
+        ChessGame(
+            state = applyMove(game.state, move),
+            history = game.history + MoveRecord(move, game.state),
+        )
+
+    /** [game] drawn by a valid [claim]. The move history is unaffected. */
+    fun claimDraw(
+        game: ChessGame,
+        claim: DrawClaim,
+    ): ChessGame = game.copy(state = claimDraw(game.state, claim))
+
+    /**
+     * [game] with its most recent move taken back, restoring the position exactly as it
+     * was before that move.
+     *
+     * This is the mechanical restoration. Whether the move may be taken back at all is a
+     * separate rule.
+     */
+    fun undoLastMove(game: ChessGame): ChessGame {
+        val last = requireNotNull(game.history.lastOrNull()) { "There is no move to undo" }
+        return ChessGame(state = last.positionBefore, history = game.history.dropLast(1))
+    }
+
     /**
      * Castling rights after [move]: a side loses both rights when its king moves, loses
      * one when that rook leaves its home square, and its opponent loses one when that
