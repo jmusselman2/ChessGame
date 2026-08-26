@@ -25,3 +25,6 @@ Thumbs.db
 *.backup
 *.orig
 *~
+
+# Supabase CLI scratch state (project ref cache, version check)
+supabase/.temp/

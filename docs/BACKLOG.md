@@ -1222,8 +1222,24 @@ Integration tests pass.
 
 ## M7.1 — Supabase project
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M6
+
+**Completed:** 2026-08-26 — the Supabase development project `ChessGame Dev`
+(ref `rkwymrtqayyyfahfgmbm`, region `us-east-2`) provides both halves of this
+task: PostgreSQL 17.6 reporting `ACTIVE_HEALTHY`, and anonymous authentication
+(`D006`) already enabled. Verified on 2026-08-26 by posting to
+`/auth/v1/signup` with the publishable key and receiving HTTP 200 with a session
+whose token carries `"is_anonymous": true` and `amr` method `anonymous`; the
+JWKS endpoint returns an `ES256` EC key, which is what `M7.3` will verify tokens
+against. That check left one throwaway anonymous user in the development
+project. Project ref, API URL, issuer, JWKS URL, and the key-retrieval command
+are recorded in `docs/DEVELOPMENT.md`, and `.env.example` now carries
+`SUPABASE_URL` and `SUPABASE_JWKS_URL` with `SUPABASE_ANON_KEY` left blank — no
+key is committed. The local disposable database from `M6.1` remains the target
+for tests; the `database/migrations/` schema has deliberately **not** been
+applied to the Supabase database yet.
 
 ### Acceptance Criteria
 

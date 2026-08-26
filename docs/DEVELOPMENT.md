@@ -384,8 +384,10 @@ SUPABASE_JWKS_URL
 ```
 
 `.env.example` at the repository root is the committed template. `DATABASE_URL`
-and `TEST_DATABASE_URL` are settled (see **Local PostgreSQL**); the Supabase
-names are finalized during `M7`.
+and `TEST_DATABASE_URL` point at the local disposable database (see **Local
+PostgreSQL**); `SUPABASE_URL` and `SUPABASE_JWKS_URL` are filled in (see
+**Supabase Development Project**), and `SUPABASE_ANON_KEY` is left blank for you
+to fill in locally.
 
 Copy it to `.env`, which is git-ignored, for local values.
 
@@ -395,6 +397,54 @@ Never commit:
 - service-role secrets,
 - private signing keys,
 - production credentials.
+
+## Supabase Development Project
+
+Status: VERIFIED (2026-08-26)
+
+The shared development environment. This is *not* the disposable local database —
+that is the Docker container under **Local PostgreSQL**, which stays the target
+for tests.
+
+| | |
+|---|---|
+| Project | `ChessGame Dev` |
+| Project ref | `rkwymrtqayyyfahfgmbm` |
+| Region | `us-east-2` |
+| PostgreSQL | 17.6 (`db.rkwymrtqayyyfahfgmbm.supabase.co`) |
+| API URL | `https://rkwymrtqayyyfahfgmbm.supabase.co` |
+| Auth issuer | `https://rkwymrtqayyyfahfgmbm.supabase.co/auth/v1` |
+| JWKS | `https://rkwymrtqayyyfahfgmbm.supabase.co/auth/v1/.well-known/jwks.json` |
+| Token signing | `ES256` (EC key, served from JWKS) |
+
+None of the above is a secret — the project ref and API URL ship inside the
+Android app. Keys are a different matter and are never committed.
+
+### Anonymous authentication
+
+Anonymous sign-ins are enabled (`D006`), verified on 2026-08-26 by posting to
+`/auth/v1/signup` with the publishable key and receiving a session whose token
+carries `"is_anonymous": true` and `amr` method `anonymous`. That check leaves a
+throwaway anonymous user behind in the development project, which is harmless.
+
+### Getting the keys
+
+    supabase projects api-keys --project-ref rkwymrtqayyyfahfgmbm
+
+Status: VERIFIED (2026-08-26)
+
+Put the publishable (`anon`) key in your local `.env` as `SUPABASE_ANON_KEY`;
+`.env` is git-ignored. The `service_role` key is a full-access secret: it never
+belongs in the Android app, in this repository, or in a log.
+
+The database password is not retrievable from the CLI — reset or copy it from the
+project's dashboard when a direct database connection is needed.
+
+### What is not configured yet
+
+- The schema in `database/migrations/` has **not** been applied to the Supabase
+  database. Only the local disposable database has it so far.
+- The beta environment is separate again and is `M15.3`.
 
 ## Local Logs
 
