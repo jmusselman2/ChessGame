@@ -786,3 +786,64 @@ clients.
 - Later milestones (`M3` legal moves, `M4` undo history) extend these types
   rather than replacing them. `M4.1` will add active move history, which is
   deliberately not part of `GameState` yet.
+
+---
+
+## D028 — `ChessRules.applyMove` Is the Single State-Transition Function
+
+**Date:** 2026-08-26
+
+**Status:** Accepted
+
+### Decision
+
+`ChessRules` is `game-core`'s entry point: `legalMoves(state)`,
+`isLegal(state, move)`, and `applyMove(state, move)`. `applyMove` requires a
+legal move in an unfinished game and returns the next `GameState`, updating:
+
+- the board (including the castling rook and the en passant captured pawn),
+- the side to move,
+- castling rights,
+- the en passant target,
+- the halfmove clock,
+- the fullmove number.
+
+It deliberately does **not** decide repetition counts (`M3.12`) or terminal
+results (`M3.10`, `M3.11`, `M3.13`); those tasks extend it.
+
+Move generation is layered underneath: `PseudoLegalMoves` (geometry) →
+`LegalMoves` (self-check filtering, plus the `GameState` overloads that add
+castling and en passant) → `ChessRules`. A `Move` stays `from`/`to`/`promotion`;
+castling is recognised as a king moving two files, and en passant as a pawn
+moving diagonally onto `GameState.enPassantTarget`.
+
+### Rationale
+
+`M3.8`'s acceptance criteria require en passant *creation* and *expiration*,
+which cannot be demonstrated without applying moves to a state. Castling-rights
+maintenance has no later backlog task of its own, so it belongs with the
+transition function that first exists — otherwise it would fall through the
+gap between `M3.7` (validation only) and `M4` (undo).
+
+Keeping one transition function avoids two divergent notions of "what a move
+does", which is exactly the kind of duplication the server-authoritative design
+cannot tolerate: Android pre-validation and the Ktor server must agree move for
+move.
+
+### Alternatives Considered
+
+- Applying moves inside `LegalMoves` — rejected; move generation and state
+  transition are different responsibilities, and the layering keeps the pure
+  geometry testable on a bare `Board`.
+- Encoding move kind (`CASTLE`, `EN_PASSANT`, `PROMOTION`) on `Move` — rejected
+  for now; the kind is derivable from the position, and a client-supplied kind
+  would be another untrusted field the server has to re-derive anyway.
+- Deferring castling-rights maintenance to `M4` — rejected; it would leave
+  `applyMove` knowingly wrong in the meantime.
+
+### Consequences
+
+- `M3.9` (promotion) extends generation; `M3.10`–`M3.13` extend `applyMove` with
+  repetition counting and terminal results; `M4.1` adds active move history.
+- The board-only `LegalMoves` overloads remain for ordinary movement and tests,
+  but callers that need a complete legal move list must pass a `GameState`.

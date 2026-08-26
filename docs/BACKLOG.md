@@ -565,8 +565,21 @@ Positive and all major negative cases pass.
 
 ## M3.8 — En passant
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M3.4, M3.6
+
+**Completed:** 2026-08-26 — `EnPassant` implements the target square created by
+a two-square pawn advance, the capture itself, and its expiry after the very
+next move; `LegalMoves` gained `GameState` overloads of `boardAfter` and
+`leavesOwnKingInCheck` so an en passant capture that would expose its own king
+(including the two-pawns-off-the-fifth-rank case) is rejected. Satisfying
+"creation" and "expiration" required a state transition, so this task also
+introduced `ChessRules.applyMove` (board, side to move, castling rights, en
+passant target, halfmove clock, fullmove number) — see `D028`. Verified locally
+with `.\gradlew.bat :game-core:test` (15 new `EnPassantTest` cases and 14 new
+`ChessRulesApplyMoveTest` cases, 208 game-core tests total) and
+`.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ### Acceptance Criteria
 

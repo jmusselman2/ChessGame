@@ -5,8 +5,12 @@ package com.jmussel.chessgame.core.chess
  * check.
  *
  * This covers moving a pinned piece off its pin line, stepping a king onto an attacked
- * square, and failing to answer an existing check. Castling, en passant, and promotion
- * are separate rules and are not generated here yet.
+ * square, and failing to answer an existing check. Promotion is a separate rule and is
+ * not generated here yet.
+ *
+ * The board-only overloads cover ordinary movement. Castling and en passant depend on
+ * rights and the en passant target that only [GameState] carries, so use the [GameState]
+ * overloads for a complete answer.
  */
 object LegalMoves {
     /**
@@ -66,12 +70,37 @@ object LegalMoves {
     ): List<Move> = PseudoLegalMoves.forSide(board, side).filterNot { leavesOwnKingInCheck(board, it) }
 
     /**
-     * Every legal move for the side to move in [state], including castling.
-     *
-     * Castling needs the castling rights that only [GameState] carries, so this is the
-     * entry point that produces a complete move list.
+     * The board after [move] is played in [state], including the pawn removed by an
+     * en passant capture.
      */
-    fun forSideToMove(state: GameState): List<Move> = forSide(state.board, state.sideToMove) + Castling.availableMoves(state)
+    fun boardAfter(
+        state: GameState,
+        move: Move,
+    ): Board {
+        val board = boardAfter(state.board, move)
+        if (!EnPassant.isCapture(state, move)) return board
+        return board.withoutPiece(EnPassant.capturedPawnSquare(move))
+    }
+
+    /** Whether playing [move] in [state] would leave the moving side's own king in check. */
+    fun leavesOwnKingInCheck(
+        state: GameState,
+        move: Move,
+    ): Boolean {
+        val piece = requireNotNull(state.board.pieceAt(move.from)) { "No piece on ${move.from}" }
+        return Attacks.isInCheck(boardAfter(state, move), piece.side)
+    }
+
+    /**
+     * Every legal move for the side to move in [state], including castling and en passant.
+     *
+     * Both need state that a bare [Board] does not carry, so this is the entry point that
+     * produces a complete move list.
+     */
+    fun forSideToMove(state: GameState): List<Move> {
+        val ordinary = PseudoLegalMoves.forSide(state.board, state.sideToMove) + EnPassant.availableMoves(state)
+        return ordinary.filterNot { leavesOwnKingInCheck(state, it) } + Castling.availableMoves(state)
+    }
 
     /** Whether [move] is legal for the side to move in [state]. */
     fun isLegal(
