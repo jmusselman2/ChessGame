@@ -79,6 +79,28 @@ data class SeriesSummaryDto(
     val currentGameId: String? = null,
 )
 
+/** One finished game, as history lists it. */
+@Serializable
+data class FinishedGameDto(
+    val gameId: String,
+    val sequenceNumber: Int,
+    val yourSide: String,
+    val result: String? = null,
+    val terminationReason: String? = null,
+    val moveNumber: Int = 0,
+    val endedAt: String? = null,
+)
+
+/** One series a player took part in, with the games in it that are over. */
+@Serializable
+data class SeriesHistoryDto(
+    val seriesId: String,
+    val opponent: UserSummaryDto,
+    val status: String,
+    val closedAt: String? = null,
+    val games: List<FinishedGameDto> = emptyList(),
+)
+
 /**
  * The app's connection to the Chess server, which is authoritative for everything about a
  * game (`D004`).
@@ -97,6 +119,9 @@ class ChessApiClient(
 
     /** Everyone the caller is friends with (`D009`). */
     suspend fun friends(): List<UserSummaryDto> = get("/friends")
+
+    /** The games the caller has finished, in the series they belong to, newest series first. */
+    suspend fun history(): List<SeriesHistoryDto> = get("/history")
 
     /**
      * The active series with [username], opening the existing one or starting it.

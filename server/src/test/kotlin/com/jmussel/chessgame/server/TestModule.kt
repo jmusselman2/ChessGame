@@ -4,6 +4,7 @@ import com.jmussel.chessgame.server.auth.SupabaseTokenVerifier
 import com.jmussel.chessgame.server.db.DashboardQueries
 import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.GameRepository
+import com.jmussel.chessgame.server.db.HistoryQueries
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.game.GameCommandService
 import com.jmussel.chessgame.server.realtime.RealtimeHub
@@ -33,6 +34,7 @@ fun Application.testModule(
         friendships = FriendshipRepository(database),
         series = series,
         dashboard = DashboardQueries(database),
+        history = HistoryQueries(database),
         commands = GameCommandService(database, GameRepository(database), series),
         realtime = realtime,
         lastSeen = lastSeen ?: LastSeenTracker(users),

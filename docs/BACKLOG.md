@@ -2139,8 +2139,35 @@ Verified locally with `.\gradlew.bat :android-app:testDebugUnitTest` (8 new
 
 ## M14.4 — Completed game and closed-series history
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M13
+
+**Completed:** 2026-08-26 — what has been played stays readable, and stays off
+the home screen (`docs/PRODUCT.md`). `GET /history` returns the caller's series
+with the games in them that are over: a closed series stays there forever
+(`D012`), and a finished game inside a series that is still running is history
+too, because what makes a game history is that it has finished, not what became
+of the series around it. A series with nothing finished in it is not listed.
+`HistoryQueries` costs three queries whatever the number of series — the
+caller's series, the finished games in them, and the opponents those series name
+— and never loads a move history, since a game is summarised here and read in
+full through `GET /games/{gameId}` when someone opens it. Read-only needed no
+new rule to enforce: a finished game refuses every command (`D017`) and a closed
+series never gets another one (`D013`), so there is nothing to write and no
+endpoint that would. On Android, `HistoryList` turns a stored result into a line
+— "Game 2 • White • Won by checkmate • 31 moves", written from the side the
+viewer played, and a closed series headed "Alex (closed)" because "no more games
+with Alex" is what a player would otherwise wonder about. Verified locally with
+`.\gradlew.bat :server:test` (12 new `HistoryTest` cases: a finished game is
+listed and the game in progress is not, each player sees the side they played,
+games keep their order, a closed series stays readable with its `closedAt`, a
+stranger's series is not in your history, `/history` is served over HTTP and
+needs a token, an empty history is an empty list, and a historical game can
+still be read in full but not played), `.\gradlew.bat :android-app:testDebugUnitTest`
+(14 new `HistoryListTest` cases and 2 new `ChessApiClientTest` cases), and
+`.\gradlew.bat build` against the local test database (BUILD SUCCESSFUL, 339
+server tests and 140 Android unit tests, 0 skipped).
 
 ### Acceptance Criteria
 

@@ -14,10 +14,12 @@ import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.GameSeriesRepository
+import com.jmussel.chessgame.server.db.HistoryQueries
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.friends.friendRoutes
 import com.jmussel.chessgame.server.game.GameCommandService
 import com.jmussel.chessgame.server.game.gameRoutes
+import com.jmussel.chessgame.server.history.historyRoutes
 import com.jmussel.chessgame.server.realtime.RealtimeHub
 import com.jmussel.chessgame.server.realtime.realtimeRoutes
 import com.jmussel.chessgame.server.series.SeriesService
@@ -78,6 +80,7 @@ fun main() {
                 friendships = FriendshipRepository(database),
                 series = series,
                 dashboard = DashboardQueries(database),
+                history = HistoryQueries(database),
                 commands = GameCommandService(database, games, series),
             )
         }
@@ -96,6 +99,7 @@ fun Application.module(
     friendships: FriendshipRepository,
     series: SeriesService,
     dashboard: DashboardQueries,
+    history: HistoryQueries,
     commands: GameCommandService,
     realtime: RealtimeHub = RealtimeHub(),
     lastSeen: LastSeenTracker = LastSeenTracker(users),
@@ -117,6 +121,7 @@ fun Application.module(
             friendRoutes(users, friendships)
             seriesRoutes(users, friendships, series)
             dashboardRoutes(dashboard)
+            historyRoutes(history)
             gameRoutes(commands, realtime)
             realtimeRoutes(realtime)
         }

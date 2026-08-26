@@ -200,6 +200,60 @@ class ChessApiClientTest {
     }
 
     @Test
+    fun historyIsRead() {
+        val client =
+            clientReplying(
+                """
+                [
+                  {
+                    "seriesId": "series-1",
+                    "opponent": {"userId": "user-1", "username": "Alex"},
+                    "status": "CLOSED",
+                    "closedAt": "2026-08-20T18:03:00Z",
+                    "games": [
+                      {
+                        "gameId": "game-1",
+                        "sequenceNumber": 1,
+                        "yourSide": "WHITE",
+                        "result": "WHITE_WINS",
+                        "terminationReason": "CHECKMATE",
+                        "moveNumber": 31,
+                        "endedAt": "2026-08-20T18:02:00Z"
+                      }
+                    ]
+                  }
+                ]
+                """.trimIndent(),
+            )
+
+        val series = runBlocking { client.history() }.single()
+
+        assertEquals("/history", requests.single().url.encodedPath)
+        assertEquals("CLOSED", series.status)
+        assertEquals("Alex", series.opponent.username)
+        assertEquals("CHECKMATE", series.games.single().terminationReason)
+        assertEquals(31, series.games.single().moveNumber)
+    }
+
+    @Test
+    fun aSeriesWithNoFinishedGamesReadsAsEmpty() {
+        val client =
+            clientReplying(
+                """
+                [
+                  {
+                    "seriesId": "series-1",
+                    "opponent": {"userId": "user-1", "username": "Alex"},
+                    "status": "ACTIVE"
+                  }
+                ]
+                """.trimIndent(),
+            )
+
+        assertTrue(runBlocking { client.history() }.single().games.isEmpty())
+    }
+
+    @Test
     fun aRefusalIsReportedWithItsStatus() {
         val client = clientReplying("no", status = HttpStatusCode.Unauthorized)
 

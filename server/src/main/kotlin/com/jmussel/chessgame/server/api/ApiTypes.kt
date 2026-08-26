@@ -83,6 +83,60 @@ data class DashboardEntry(
     }
 }
 
+/** One finished game, as history lists it. */
+@Serializable
+data class FinishedGameEntry(
+    val gameId: String,
+    val sequenceNumber: Int,
+    val yourSide: String,
+    val result: String? = null,
+    val terminationReason: String? = null,
+    val moveNumber: Int,
+    val endedAt: String? = null,
+) {
+    companion object {
+        fun of(game: com.jmussel.chessgame.server.db.FinishedGameView): FinishedGameEntry =
+            FinishedGameEntry(
+                gameId = game.gameId.toString(),
+                sequenceNumber = game.sequenceNumber,
+                yourSide = game.yourSide,
+                result = game.result,
+                terminationReason = game.terminationReason,
+                moveNumber = game.moveCount,
+                endedAt = game.endedAt?.toString(),
+            )
+    }
+}
+
+/**
+ * One series a player took part in, with the games in it that are over.
+ *
+ * A closed series stays here forever (`D012`), and a series that is still running appears
+ * too once it has a finished game — what makes a game history is that it has finished.
+ */
+@Serializable
+data class SeriesHistoryEntry(
+    val seriesId: String,
+    val opponent: UserSummary,
+    val status: String,
+    val closedAt: String? = null,
+    val games: List<FinishedGameEntry> = emptyList(),
+) {
+    companion object {
+        fun of(view: com.jmussel.chessgame.server.db.SeriesHistoryView): SeriesHistoryEntry? {
+            val opponent = view.opponent.toSummaryOrNull() ?: return null
+
+            return SeriesHistoryEntry(
+                seriesId = view.seriesId.toString(),
+                opponent = opponent,
+                status = view.status,
+                closedAt = view.closedAt?.toString(),
+                games = view.games.map(FinishedGameEntry::of),
+            )
+        }
+    }
+}
+
 /** A game as one of its two players sees it: the canonical state, from their side. */
 @Serializable
 data class GameView(
