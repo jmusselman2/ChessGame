@@ -166,6 +166,46 @@ class GameCommandService(
         }
 
     /**
+     * Resigns [gameId] on behalf of [userId], losing the game.
+     *
+     * Either player may resign at any point in a game that is still running, whether or
+     * not it is their turn — giving up is not a move. The confirmation belongs to the UI;
+     * once this accepts it, it is final and cannot be undone (`D018`). The series then
+     * carries on exactly as it does after any other completed game: the rematch if it is
+     * active, the end of it if it was closing.
+     */
+    fun resign(
+        userId: Uuid,
+        gameId: Uuid,
+        expectedVersion: Long,
+    ): CommandResult =
+        transaction(database) {
+            val stored = games.load(gameId) ?: return@transaction CommandResult.NoSuchGame
+
+            sideOf(stored, userId)?.let { side ->
+                when {
+                    stored.version != expectedVersion -> return@transaction CommandResult.StaleVersion(stored)
+                    stored.game.isOver -> return@transaction CommandResult.GameOver(stored)
+                }
+
+                val resigned = ChessRules.resign(stored.game, side)
+
+                try {
+                    games.save(
+                        id = gameId,
+                        expectedVersion = expectedVersion,
+                        game = resigned,
+                        auditEvent = PLAYER_RESIGNED,
+                    )
+                } catch (_: StaleGameVersionException) {
+                    return@transaction CommandResult.StaleVersion(reload(gameId, stored))
+                }
+
+                applied(gameId, stored)
+            } ?: CommandResult.NotAParticipant
+        }
+
+    /**
      * Takes back [userId]'s latest move in [gameId].
      *
      * The rule is `D016` exactly, and `game-core` is what applies it: only the player who
@@ -275,14 +315,17 @@ class GameCommandService(
         fallback: StoredGame,
     ): StoredGame = games.load(gameId) ?: fallback
 
-    private companion object {
+    companion object {
         /** The audit event a played move records (`ARCHITECTURE.md` §9). */
-        const val MOVE_MADE = "MoveMade"
+        const val MOVE_MADE: String = "MoveMade"
 
         /** The audit event a claimed draw records. */
-        const val DRAW_CLAIMED = "DrawClaimed"
+        const val DRAW_CLAIMED: String = "DrawClaimed"
 
         /** The audit event a take-back records. */
-        const val MOVE_UNDONE = "MoveUndone"
+        const val MOVE_UNDONE: String = "MoveUndone"
+
+        /** The audit event a resignation records. */
+        const val PLAYER_RESIGNED: String = "PlayerResigned"
     }
 }

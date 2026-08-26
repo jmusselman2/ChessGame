@@ -89,6 +89,21 @@ object ChessRules {
     }
 
     /**
+     * [state] resigned by [side], which wins the game for the other one.
+     *
+     * Resignation does not depend on whose turn it is or on the position: a player may
+     * give up at any point in a game that is still running. It is not a move, so the
+     * history is untouched.
+     */
+    fun resign(
+        state: GameState,
+        side: Side,
+    ): GameState {
+        require(!state.isOver) { "The game is over: ${state.result}" }
+        return state.copy(result = GameResult.resignation(loser = side))
+    }
+
+    /**
      * The state after [move] is played. [move] must be legal in [state].
      *
      * Updates the board, the side to move, castling rights, the en passant target, the
@@ -159,6 +174,12 @@ object ChessRules {
         game: ChessGame,
         claim: DrawClaim,
     ): ChessGame = game.copy(state = claimDraw(game.state, claim))
+
+    /** [game] resigned by [side]. The move history is unaffected. */
+    fun resign(
+        game: ChessGame,
+        side: Side,
+    ): ChessGame = game.copy(state = resign(game.state, side))
 
     /**
      * [game] with its most recent move taken back, restoring the position exactly as it

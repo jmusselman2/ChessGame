@@ -2024,8 +2024,29 @@ If series is marked to close:
 
 ## M13.5 — Resignation path
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M13.2, M13.4
+
+**Completed:** 2026-08-26 — a player can give up, and the series treats that
+exactly like any other finished game. `ChessRules.resign` is the rules half:
+resignation depends on neither the position nor whose turn it is, so a player
+may resign while waiting for their opponent, and it leaves the move history
+alone because giving up is not a move. `POST /games/{gameId}/resignation` is the
+command half, carrying the same `expectedVersion` guard as every other command
+and recording a `PlayerResigned` audit event; because it is an ordinary accepted
+mutation it finalizes the game once (`M13.1`), announces it to both players
+(`M12.2`), and then hits the same fork as a checkmate — the automatic rematch
+with reversed colours while the series is active (`D015`, `D014`), the end of
+the series when it was marked to close (`D013`). It is final once accepted: a
+resigned game refuses undo from either player (`D018`, `D017`), and a duplicate
+resignation is refused as stale rather than producing a second rematch. The
+confirmation stays where `D018` puts it, in the UI. Verified locally with
+`.\gradlew.bat :game-core:test` and `.\gradlew.bat :server:test` (8 new
+`ResignTest` cases in `game-core`, 11 new `ResignationTest` cases for the
+command and the series lifecycle, and 5 new `ResignRouteTest` cases over HTTP)
+and `.\gradlew.bat build` against the local test database (BUILD SUCCESSFUL, 327
+server tests and 323 `game-core` tests, 0 skipped).
 
 ### Acceptance Criteria
 
