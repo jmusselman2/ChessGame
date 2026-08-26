@@ -307,6 +307,39 @@ class AutomaticRematchTest {
     }
 
     @Test
+    fun theRematchReversesTheColours() {
+        withSeries { fixture ->
+            fixture.playFoolsMate(fixture.firstGameId)
+
+            val next = fixture.currentGame()
+
+            assertEquals(fixture.black, next.whiteUserId, "whoever had Black now has White")
+            assertEquals(fixture.white, next.blackUserId)
+        }
+    }
+
+    @Test
+    fun theColoursKeepAlternatingDownTheSeries() {
+        withSeries { fixture ->
+            fixture.playFoolsMate(fixture.firstGameId)
+            fixture.playFoolsMate(fixture.currentGame().id)
+            fixture.playFoolsMate(fixture.currentGame().id)
+
+            val whitePlayers = fixture.gamesInSeries().map { it.whiteUserId }
+
+            assertEquals(
+                listOf(fixture.white, fixture.black, fixture.white, fixture.black),
+                whitePlayers,
+                "the colours swap every game (`D014`)",
+            )
+            assertTrue(
+                fixture.gamesInSeries().all { it.whiteUserId != it.blackUserId },
+                "nobody ever plays themselves",
+            )
+        }
+    }
+
+    @Test
     fun theSeriesKeepsGoingGameAfterGame() {
         withSeries { fixture ->
             fixture.playFoolsMate(fixture.firstGameId)

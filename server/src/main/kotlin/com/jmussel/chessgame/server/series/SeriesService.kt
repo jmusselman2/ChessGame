@@ -62,7 +62,7 @@ class SeriesService(
      * transactions arriving together.
      *
      * A series marked to close after its current game gets no rematch — closing it is
-     * `M13.4`. Colours are carried over as they were; reversing them is `M13.3`.
+     * `M13.4`.
      */
     fun startNextGameAfter(finished: StoredGame): StoredSeries? =
         transaction(database) {
@@ -80,12 +80,16 @@ class SeriesService(
         series: StoredSeries,
         finished: StoredGame,
     ): StoredSeries {
+        // Colours alternate from one game to the next (`D014`): whoever had Black plays
+        // White in the rematch. Taken from the game that just ended rather than counted
+        // from the sequence number, so the series stays consistent even if a game is ever
+        // created out of band.
         val gameId =
             games.create(
                 seriesId = series.id,
                 sequenceNumber = finished.sequenceNumber + 1,
-                whiteUserId = finished.whiteUserId,
-                blackUserId = finished.blackUserId,
+                whiteUserId = finished.blackUserId,
+                blackUserId = finished.whiteUserId,
                 game = ChessGame.newGame(),
             )
 

@@ -1965,8 +1965,20 @@ For active series:
 
 ## M13.3 — Alternate colors
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M13.2
+
+**Completed:** 2026-08-26 — an automatic rematch reverses the colours of the
+game it follows (`D014`): whoever had Black plays White in the next game. The
+sides are taken from the game that just ended rather than counted from the
+sequence number, so the series stays consistent even if a game is ever created
+out of band, and the first game's random colours (`M9.2`) still decide where the
+alternation starts. Verified locally with `.\gradlew.bat :server:test` (2 new
+`AutomaticRematchTest` cases: the rematch reverses the colours, and the colours
+keep alternating over four games with nobody ever playing themselves) and
+`.\gradlew.bat build` against the local test database (BUILD SUCCESSFUL, 302
+server tests, 0 skipped).
 
 ### Acceptance Criteria
 
