@@ -2,6 +2,7 @@
 
 package com.jmussel.chessgame.server.db
 
+import kotlinx.serialization.json.JsonObject
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
@@ -158,6 +159,38 @@ class GameSeriesRepository(
         return close(seriesId, at)
     }
 
+    /**
+     * Appends one audit event about a series (`ARCHITECTURE.md` §9).
+     *
+     * Append-only: nothing ever updates or deletes these rows.
+     */
+    fun recordEvent(
+        seriesId: Uuid,
+        gameId: Uuid?,
+        type: String,
+        payload: JsonObject,
+    ) {
+        transaction(database) {
+            GameEventsTable.insert { row ->
+                row[GameEventsTable.seriesId] = seriesId
+                row[GameEventsTable.gameId] = gameId
+                row[GameEventsTable.type] = type
+                row[GameEventsTable.payload] = payload
+                row[GameEventsTable.createdAt] = Instant.now().atOffset(ZoneOffset.UTC)
+            }
+        }
+    }
+
+    /** The audit events recorded against [seriesId], oldest first. */
+    fun auditEvents(seriesId: Uuid): List<StoredGameEvent> =
+        transaction(database) {
+            GameEventsTable
+                .selectAll()
+                .where { GameEventsTable.seriesId eq seriesId }
+                .orderBy(GameEventsTable.id to SortOrder.ASC)
+                .map { StoredGameEvent(type = it[GameEventsTable.type], payload = it[GameEventsTable.payload]) }
+        }
+
     /** Points [seriesId] at [gameId] as its current game. */
     fun attachCurrentGame(
         seriesId: Uuid,
@@ -169,6 +202,26 @@ class GameSeriesRepository(
             }
         }
     }
+
+    /**
+     * The series with [id], locked against other transactions until this one ends.
+     *
+     * Used where a decision is made from what the series says and then written back — a
+     * finished game asking whether it still owes a rematch, above all. Reading and writing
+     * under the lock is what makes that decision happen once even if two transactions ask
+     * at the same moment; without it both could read the same series and both act.
+     *
+     * Must be called inside a transaction, and holds the row until it commits.
+     */
+    fun findForUpdate(id: Uuid): StoredSeries? =
+        transaction(database) {
+            GameSeriesTable
+                .selectAll()
+                .where { GameSeriesTable.id eq id }
+                .forUpdate()
+                .singleOrNull()
+                ?.let(::toSeries)
+        }
 
     /** The series with [id], active or closed, or `null`. */
     fun find(id: Uuid): StoredSeries? =

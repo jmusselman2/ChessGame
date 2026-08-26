@@ -9,6 +9,7 @@ import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.StaleGameVersionException
 import com.jmussel.chessgame.server.db.StoredGame
+import com.jmussel.chessgame.server.series.SeriesService
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.ExperimentalUuidApi
@@ -86,6 +87,7 @@ sealed interface CommandResult {
 class GameCommandService(
     private val database: Database,
     private val games: GameRepository,
+    private val series: SeriesService,
 ) {
     /** Plays [move] in [gameId] on behalf of [userId]. */
     fun makeMove(
@@ -118,7 +120,7 @@ class GameCommandService(
                     return@transaction CommandResult.StaleVersion(reload(gameId, stored))
                 }
 
-                CommandResult.Applied(reload(gameId, stored))
+                applied(gameId, stored)
             } ?: CommandResult.NotAParticipant
         }
 
@@ -159,7 +161,7 @@ class GameCommandService(
                     return@transaction CommandResult.StaleVersion(reload(gameId, stored))
                 }
 
-                CommandResult.Applied(reload(gameId, stored))
+                applied(gameId, stored)
             } ?: CommandResult.NotAParticipant
         }
 
@@ -216,6 +218,25 @@ class GameCommandService(
         val stored = games.load(gameId) ?: return CommandResult.NoSuchGame
         sideOf(stored, userId) ?: return CommandResult.NotAParticipant
         return CommandResult.Applied(stored)
+    }
+
+    /**
+     * The accepted command's result, once everything that follows from it has happened.
+     *
+     * A move or a claim that ended the game hands the series its rematch before answering
+     * (`D015`), inside this command's transaction: the finished game, its result, and the
+     * game that follows it are one commit, so no client can see a series whose game is
+     * over and whose next game does not exist yet.
+     */
+    private fun applied(
+        gameId: Uuid,
+        fallback: StoredGame,
+    ): CommandResult {
+        val saved = reload(gameId, fallback)
+
+        if (saved.isComplete) series.startNextGameAfter(saved)
+
+        return CommandResult.Applied(saved)
     }
 
     /** Which side [userId] plays in [game], or `null` when they are not in it. */

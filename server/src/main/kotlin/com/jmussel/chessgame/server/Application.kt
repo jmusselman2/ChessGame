@@ -65,18 +65,20 @@ fun main() {
         } else {
             val database = Databases.connectAndMigrate(databaseConfig.dataSource())
             val users = UserRepository(database)
+            val games = GameRepository(database)
+            val series =
+                SeriesService(
+                    database = database,
+                    series = GameSeriesRepository(database),
+                    games = games,
+                )
             module(
                 verifier = SupabaseTokenVerifier.forProject(supabaseUrl),
                 users = users,
                 friendships = FriendshipRepository(database),
-                series =
-                    SeriesService(
-                        database = database,
-                        series = GameSeriesRepository(database),
-                        games = GameRepository(database),
-                    ),
+                series = series,
                 dashboard = DashboardQueries(database),
-                commands = GameCommandService(database, GameRepository(database)),
+                commands = GameCommandService(database, games, series),
             )
         }
     }.start(wait = true)

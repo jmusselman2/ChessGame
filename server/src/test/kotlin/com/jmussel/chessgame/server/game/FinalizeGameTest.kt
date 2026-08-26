@@ -139,7 +139,7 @@ class FinalizeGameTest {
             val database = Databases.connect(dataSource)
             val games = GameRepository(database)
             val fixture =
-                Fixture(database, UserRepository(database), games, GameCommandService(database, games))
+                Fixture(database, UserRepository(database), games, GameCommandService(database, games, seriesService(database)))
             fixture.startGame()
             block(fixture)
         }

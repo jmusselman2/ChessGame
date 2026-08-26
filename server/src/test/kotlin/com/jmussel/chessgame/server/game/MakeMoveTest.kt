@@ -116,7 +116,7 @@ class MakeMoveTest {
                     FriendshipRepository(database),
                     GameSeriesRepository(database),
                     games,
-                    GameCommandService(database, games),
+                    GameCommandService(database, games, seriesService(database)),
                 )
             fixture.startGame()
             block(fixture)
@@ -133,7 +133,7 @@ class MakeMoveTest {
                     FriendshipRepository(database),
                     GameSeriesRepository(database),
                     games,
-                    GameCommandService(database, games),
+                    GameCommandService(database, games, seriesService(database)),
                 )
             fixture.startGame()
 

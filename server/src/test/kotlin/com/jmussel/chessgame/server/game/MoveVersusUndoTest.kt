@@ -92,7 +92,7 @@ class MoveVersusUndoTest {
         DatabaseTestSupport.withMigratedDatabase { dataSource ->
             val database = Databases.connect(dataSource)
             val games = GameRepository(database)
-            block(Fixture(database, UserRepository(database), games, GameCommandService(database, games)))
+            block(Fixture(database, UserRepository(database), games, GameCommandService(database, games, seriesService(database))))
         }
 
     /** Runs the undo and the answering move at the same moment; returns both results. */

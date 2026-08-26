@@ -25,14 +25,15 @@ fun Application.testModule(
     realtime: RealtimeHub = RealtimeHub(),
 ) {
     val users = UserRepository(database)
+    val series = seriesService(database)
 
     module(
         verifier = verifier,
         users = users,
         friendships = FriendshipRepository(database),
-        series = seriesService(database),
+        series = series,
         dashboard = DashboardQueries(database),
-        commands = GameCommandService(database, GameRepository(database)),
+        commands = GameCommandService(database, GameRepository(database), series),
         realtime = realtime,
         lastSeen = lastSeen ?: LastSeenTracker(users),
     )

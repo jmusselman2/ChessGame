@@ -208,6 +208,17 @@ class GameRepository(
             nextVersion
         }
 
+    /** Every game of [seriesId], in the order they were played. */
+    fun inSeries(seriesId: Uuid): List<StoredGame> =
+        transaction(database) {
+            GamesTable
+                .selectAll()
+                .where { GamesTable.seriesId eq seriesId }
+                .orderBy(GamesTable.sequenceNumber to SortOrder.ASC)
+                .map { row -> row[GamesTable.id] }
+                .mapNotNull(::load)
+        }
+
     /** The audit event types recorded against [gameId], oldest first. */
     fun auditTrail(gameId: Uuid): List<String> = auditEvents(gameId).map { it.type }
 

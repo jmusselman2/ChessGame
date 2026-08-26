@@ -1925,8 +1925,33 @@ Terminal result persists exactly once.
 
 ## M13.2 — Create next game exactly once
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M13.1, M9.2
+
+**Completed:** 2026-08-26 — finishing a game in an active series starts the next
+one without either player asking (`D015`), and starts exactly one. The rematch
+happens inside the finishing command's own transaction, so the finished game,
+its result, and the game that follows it are one commit: no client can ever see
+a series whose current game is over and whose next game does not exist yet.
+Exactly-once rests on the series row itself. `startNextGameAfter` locks it with
+`SELECT … FOR UPDATE` and decides from what it says under that lock — a series
+whose current game is no longer the finished one has already had its rematch and
+is handed back untouched — which covers a retry, a duplicated command, and two
+transactions arriving together. A series marked to close after its current game,
+or already closed, gets no rematch; closing it is `M13.4`. Colours are carried
+over as they were, because reversing them is `M13.3`. The new game records a
+`RematchCreated` audit event (`ARCHITECTURE.md` §9) naming the game it followed.
+`GameCommandService` now takes the `SeriesService` it needs to do this, so the
+wiring passes one instance to both. Verified locally with
+`.\gradlew.bat :server:test` (12 new `AutomaticRematchTest` cases: finishing a
+game starts exactly one next game at the next sequence number, the series points
+at it, the finished game is left as it ended, both players are in the new game,
+asking again after the rematch changes nothing, two end-of-games arriving
+together still create one game, a marked-to-close or closed series gets none, an
+unfinished game owes nothing, the event names the game it followed, and a series
+keeps going game after game) and `.\gradlew.bat build` against the local test
+database (BUILD SUCCESSFUL, 300 server tests, 0 skipped).
 
 ### Acceptance Criteria
 
