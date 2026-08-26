@@ -1758,8 +1758,24 @@ Exact product rule enforced server-side.
 
 ## M11.2 — Move-vs-undo concurrency
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M11.1
+
+**Completed:** 2026-08-26 — `MoveVersusUndoTest` sets up exactly the race
+`ARCHITECTURE.md` §10 names: White has played, so White may take that move back
+and Black may answer it, both against the same version and both individually
+legal, leading to different positions. Fired simultaneously through a
+`CyclicBarrier`, exactly one is applied and the other comes back
+`STALE_VERSION`; the stored game is then whichever of the two states won, never
+a mixture; its move history is self-consistent; and only the winning command
+appears in the audit trail. The loser recovers with no special handling — the
+version attached to its rejection is the one that won, and playing on from it is
+accepted. Each assertion runs 15 rounds on fresh games, and the whole test was
+run three times over. No production code needed changing: the guarded write
+fixed in `M10.2` is what makes this hold. Verified locally with
+`.\gradlew.bat :server:test` (5 new cases, 75 races) and
+`.\gradlew.bat build` (BUILD SUCCESSFUL, 255 server tests).
 
 ### Acceptance Criteria
 
