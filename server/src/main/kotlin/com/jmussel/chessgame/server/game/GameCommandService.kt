@@ -234,7 +234,7 @@ class GameCommandService(
     ): CommandResult {
         val saved = reload(gameId, fallback)
 
-        if (saved.isComplete) series.startNextGameAfter(saved)
+        if (saved.isComplete) series.settleAfter(saved)
 
         return CommandResult.Applied(saved)
     }

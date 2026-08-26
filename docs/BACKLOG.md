@@ -1988,8 +1988,29 @@ Rematch colors reverse from prior game.
 
 ## M13.4 — Close series without rematch
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M13.1, M9.3
+
+**Completed:** 2026-08-26 — a series marked to close finishes its current game
+and then ends, which is the second half of `D013`. The decision now lives in one
+place: `SeriesService.settleAfter` asks what a finished game leaves its series
+and either starts the rematch (`M13.2`) or closes it, under the same series-row
+lock, so a marked series can never do both. The game itself is untouched — it is
+played and finalized normally, and the closed series keeps pointing at it as the
+last game played, because a closed series stays readable as history (`D012`).
+Closing records a `SeriesClosed` audit event (`ARCHITECTURE.md` §9) naming the
+last game and why it closed, and it happens once: the guarded update fires only
+while the series is still `ACTIVE`, so a repeat leaves the first `closedAt`
+where it was. Verified locally with `.\gradlew.bat :server:test` (9 new
+`SeriesClosesAfterLastGameTest` cases: the last game still finishes normally,
+the series closes and records when, no rematch follows, closing is audited, an
+unmarked series is not closed, marking mid-game still lets that game finish,
+closing happens once however often it is asked and under two simultaneous
+end-of-games, and the pair can open a fresh series afterwards) and
+`.\gradlew.bat build` against the local test database (BUILD SUCCESSFUL, 311
+server tests, 0 skipped). The two-friends-and-a-series fixture the rematch tests
+used moved to `SeriesEndFixture.kt` so both suites share it.
 
 ### Acceptance Criteria
 
