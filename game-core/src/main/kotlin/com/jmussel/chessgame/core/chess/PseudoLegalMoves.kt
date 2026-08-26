@@ -60,4 +60,37 @@ object PseudoLegalMoves {
                 square = current.shifted(direction)
             }
         }
+
+    /** The eight knight steps: two squares one way and one the other. */
+    val KNIGHT_STEPS: List<Direction> =
+        listOf(
+            Direction(1, 2),
+            Direction(2, 1),
+            Direction(2, -1),
+            Direction(1, -2),
+            Direction(-1, -2),
+            Direction(-2, -1),
+            Direction(-2, 1),
+            Direction(-1, 2),
+        )
+
+    /**
+     * Squares the knight on [from] can reach: any of its eight steps that stays on the
+     * board and is either empty or holds an enemy piece. Knights jump, so pieces in
+     * between are irrelevant.
+     */
+    fun knightDestinations(
+        board: Board,
+        from: Square,
+    ): List<Square> {
+        val piece = requireNotNull(board.pieceAt(from)) { "No piece on $from" }
+        require(piece.type == PieceType.KNIGHT) { "${piece.type} is not a knight" }
+        return KNIGHT_STEPS.mapNotNull { from.shifted(it) }.filter { board.pieceAt(it)?.side != piece.side }
+    }
+
+    /** [knightDestinations] expressed as moves from [from]. */
+    fun knightMoves(
+        board: Board,
+        from: Square,
+    ): List<Move> = knightDestinations(board, from).map { Move(from, it) }
 }

@@ -397,8 +397,16 @@ Positive/negative unit tests pass.
 
 ## M3.2 — Knight movement
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M2.2
+
+**Completed:** 2026-08-26 — `PseudoLegalMoves.KNIGHT_STEPS` plus
+`knightDestinations` / `knightMoves` implement knight movement: the eight steps
+that stay on the board, landing on empty squares or enemy pieces, jumping over
+anything in between; a friendly occupant removes that destination. Verified
+locally with `.\gradlew.bat :game-core:test` (12 new `KnightMovesTest` cases, 95
+game-core tests total) and `.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ### Acceptance Criteria
 
