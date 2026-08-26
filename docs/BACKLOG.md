@@ -651,8 +651,20 @@ Known positions pass.
 
 ## M3.11 — Insufficient material
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M2.1
+
+**Completed:** 2026-08-26 — `InsufficientMaterial.isDraw` recognises the
+standard automatic draws: king vs king, king and one bishop vs king, king and
+one knight vs king, and bishop vs bishop on the same square colour. Two
+knights, two bishops for one side, bishop vs knight, opposite-coloured bishops,
+and any pawn, rook, or queen are not automatic draws. `ChessRules.terminalResult`
+reports it as `INSUFFICIENT_MATERIAL`, checked before stalemate because a dead
+position ends the game the moment material becomes insufficient. Verified
+locally with `.\gradlew.bat :game-core:test` (12 new `InsufficientMaterialTest`
+cases covering positive and negative material combinations, 242 game-core tests
+total) and `.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ### Acceptance Criteria
 

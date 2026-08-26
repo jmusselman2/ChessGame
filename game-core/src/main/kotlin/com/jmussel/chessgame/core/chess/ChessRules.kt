@@ -31,12 +31,17 @@ object ChessRules {
      *
      * Only conditions that end the game automatically appear here. Claimable draws
      * (threefold repetition, the fifty-move rule) and resignation are separate actions.
+     *
+     * Insufficient material is checked before stalemate: a dead position ends the game the
+     * moment the material becomes insufficient, which is before any later stalemate could
+     * arise. Both are draws either way.
      */
     fun terminalResult(state: GameState): GameResult? {
         state.result?.let { return it }
 
         return when {
             isCheckmate(state) -> GameResult.checkmate(loser = state.sideToMove)
+            InsufficientMaterial.isDraw(state) -> GameResult.draw(TerminationReason.INSUFFICIENT_MATERIAL)
             isStalemate(state) -> GameResult.draw(TerminationReason.STALEMATE)
             else -> null
         }

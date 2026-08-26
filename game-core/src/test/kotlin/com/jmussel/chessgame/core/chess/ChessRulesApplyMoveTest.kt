@@ -42,7 +42,7 @@ class ChessRulesApplyMoveTest {
 
     @Test
     fun countsFullmovesAfterEachBlackMove() {
-        val position = state(*kingsAnd(), rights = CastlingRights.NONE)
+        val position = state(*kingsAnd("h1" to white(PieceType.ROOK)), rights = CastlingRights.NONE)
         val afterWhite = ChessRules.applyMove(position, Move.of("e1", "d1"))
         val afterBlack = ChessRules.applyMove(afterWhite, Move.of("e8", "d8"))
 
