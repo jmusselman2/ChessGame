@@ -987,8 +987,21 @@ Own side appears at bottom.
 
 ## M5.6 — Move history, Undo, and Claim Draw UI
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M4, M3.14
+
+**Completed:** 2026-08-26 — `GameControls` supplies the move list (numbered
+rows pairing each side's move, promotion choice included), `canUndo` /
+`undoableSide` / `undo`, and `availableDrawClaims` / `canClaimDraw` /
+`claimDraw`. Every availability question is answered by `game-core`, so Undo is
+offered exactly while `ChessRules.undoableSide` names a side — never before the
+first move and never after the game ends — and a Claim Draw button appears only
+for a claim `ChessRules.availableDrawClaims` currently allows. `GameScreen`
+renders the move list, the Undo button, and one button per valid claim.
+Verified locally with `.\gradlew.bat :android-app:testDebugUnitTest` (13 new
+`GameControlsTest` cases, 71 Android unit tests total) and
+`.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ### Acceptance Criteria
 

@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -26,6 +28,7 @@ import com.jmussel.chessgame.ui.board.BoardInteraction
 import com.jmussel.chessgame.ui.board.BoardRendering
 import com.jmussel.chessgame.ui.board.BoardUiState
 import com.jmussel.chessgame.ui.board.ChessBoard
+import com.jmussel.chessgame.ui.board.GameControls
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
 class MainActivity : ComponentActivity() {
@@ -75,6 +78,35 @@ fun GameScreen(
         }
 
         Text(text = statusFor(state.game))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (GameControls.canUndo(state)) {
+                Button(onClick = { state = GameControls.undo(state) }) {
+                    Text(text = "Undo")
+                }
+            }
+        }
+
+        GameControls.availableDrawClaims(state).forEach { claim ->
+            Button(onClick = { state = GameControls.claimDraw(state, claim) }) {
+                Text(text = GameControls.labelFor(claim))
+            }
+        }
+
+        MoveList(lines = GameControls.moveListLines(state.game))
+    }
+}
+
+/** The moves played so far, newest last. */
+@Composable
+private fun MoveList(lines: List<String>) {
+    if (lines.isEmpty()) return
+
+    Column(
+        modifier = Modifier.verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        lines.forEach { line -> Text(text = line) }
     }
 }
 
