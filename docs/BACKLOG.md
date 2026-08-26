@@ -894,8 +894,20 @@ Android debug build + relevant UI/unit tests.
 
 ## M5.2 — Piece selection
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M5.1
+
+**Completed:** 2026-08-26 — `BoardUiState` carries the game plus the player's
+local selection, and `BoardInteraction.onSquareTapped` decides what a tap means:
+tapping one of the moving side's pieces selects it, tapping it again clears the
+selection, and tapping an empty square, an opponent piece, or anywhere in a
+finished game selects nothing. Selection never reaches `game-core`. `ChessBoard`
+takes `selectedSquare` and `onSquareClick` and tints the selected square;
+`GameScreen` holds the state. Verified locally with
+`.\gradlew.bat :android-app:testDebugUnitTest` (10 new `BoardInteractionTest`
+cases, 23 Android unit tests total) and `.\gradlew.bat build`
+(BUILD SUCCESSFUL).
 
 ### Acceptance Criteria
 

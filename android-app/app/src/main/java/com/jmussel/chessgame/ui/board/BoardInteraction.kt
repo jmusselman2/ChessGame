@@ -1,0 +1,57 @@
+package com.jmussel.chessgame.ui.board
+
+import com.jmussel.chessgame.core.chess.Board
+import com.jmussel.chessgame.core.chess.ChessGame
+import com.jmussel.chessgame.core.chess.Square
+
+/**
+ * What the board screen is showing: the game itself, plus the purely local selection the
+ * player has made.
+ *
+ * The selection is UI state — it never reaches `game-core` and is not part of the game.
+ */
+data class BoardUiState(
+    val game: ChessGame,
+    val selectedSquare: Square? = null,
+) {
+    /** The position being drawn. */
+    val board: Board
+        get() = game.state.board
+
+    companion object {
+        fun newGame(): BoardUiState = BoardUiState(ChessGame.newGame())
+    }
+}
+
+/**
+ * How tapping a square changes the board screen.
+ *
+ * Kept out of Compose so it can be tested on its own, and kept out of `game-core` because
+ * selecting a piece is not a chess rule.
+ */
+object BoardInteraction {
+    /**
+     * The state after the player taps [square].
+     *
+     * Tapping one of the moving side's pieces selects it; tapping it again clears the
+     * selection, as does tapping anywhere else. A finished game cannot be interacted with.
+     */
+    fun onSquareTapped(
+        state: BoardUiState,
+        square: Square,
+    ): BoardUiState {
+        if (state.game.isOver) return state.copy(selectedSquare = null)
+        if (square == state.selectedSquare) return state.copy(selectedSquare = null)
+
+        val piece = state.board.pieceAt(square)
+        val isOwnPiece = piece != null && piece.side == state.game.sideToMove
+
+        return state.copy(selectedSquare = if (isOwnPiece) square else null)
+    }
+
+    /** Whether [square] is the one the player has selected. */
+    fun isSelected(
+        state: BoardUiState,
+        square: Square,
+    ): Boolean = state.selectedSquare == square
+}
