@@ -148,3 +148,37 @@ data class GameView(
         }
     }
 }
+
+/** Why a command was refused, in a form a client can branch on. */
+@Serializable
+enum class RejectionReason {
+    /** The game has already finished; nothing more can be played. */
+    GAME_OVER,
+
+    /** It is the other player's move. Wait for them. */
+    NOT_YOUR_TURN,
+
+    /**
+     * The game moved on since the caller read it. The canonical state is attached: take it
+     * and decide again (`D021`).
+     */
+    STALE_VERSION,
+
+    /** The move is not legal in this position. */
+    ILLEGAL_MOVE,
+}
+
+/**
+ * A refused command.
+ *
+ * [game] carries the canonical state as the server sees it right now, so a client that is
+ * behind can refresh from this reply rather than making a second request. [reason] is what
+ * tells a stale command apart from a premature one — both are conflicts, but only one is
+ * worth retrying.
+ */
+@Serializable
+data class CommandRejection(
+    val reason: RejectionReason,
+    val message: String,
+    val game: GameView? = null,
+)

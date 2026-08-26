@@ -131,16 +131,23 @@ class GameCommandService(
             else -> null
         }
 
-    /** The first reason this command cannot proceed, or `null` when it may. */
+    /**
+     * The first reason this command cannot proceed, or `null` when it may.
+     *
+     * The version comes first because it is the caller's claim about *which* state they
+     * acted on: if that is wrong, everything else they believe about the game — whose turn
+     * it is, whether it is still running — may be wrong too, and "refresh" is the only
+     * useful answer. Once the version agrees, a refusal describes the game itself.
+     */
     private fun validate(
         stored: StoredGame,
         side: Side,
         expectedVersion: Long,
     ): CommandResult? =
         when {
+            stored.version != expectedVersion -> CommandResult.StaleVersion(stored)
             stored.game.isOver -> CommandResult.GameOver(stored)
             stored.game.sideToMove != side -> CommandResult.NotYourTurn(stored)
-            stored.version != expectedVersion -> CommandResult.StaleVersion(stored)
             else -> null
         }
 

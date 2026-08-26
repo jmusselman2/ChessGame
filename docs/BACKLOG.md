@@ -1635,8 +1635,33 @@ authenticate
 
 ## M10.2 — Stale version handling
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M10.1
+
+**Completed:** 2026-08-26 — a command whose `expectedVersion` no longer matches
+is refused cleanly and the caller is given what it needs to carry on. Refusals
+now carry a `CommandRejection` with a machine-readable `reason`
+(`STALE_VERSION`, `NOT_YOUR_TURN`, `GAME_OVER`, `ILLEGAL_MOVE`) plus the
+canonical `GameView`, so a client can tell a stale command — worth retrying from
+the attached state — apart from a premature one, which only waiting fixes; both
+are `409`s and were previously indistinguishable. Validation now checks the
+version first, because a wrong version makes everything else the client believes
+suspect. `GET /games/{gameId}` returns the same state for a client that prefers
+to refresh explicitly.
+
+Writing this task's concurrency test found a real defect in `M6.5`'s
+`GameRepository.save`: it ignored the guarded update's row count, so a command
+that lost a race still reported success and went on to rewrite the move history.
+The row count is now checked and a lost race raises `StaleGameVersionException`,
+which makes the guarded write — not the read before it — the thing that settles
+a race (`D021`).
+
+Verified locally with `.\gradlew.bat :server:test` (10 new `StaleVersionTest`
+cases, including six commands racing on one version where exactly one is applied
+and the other five are stale, run three times without flaking, and a client
+retrying straight from the rejection body) and `.\gradlew.bat build`
+(BUILD SUCCESSFUL, 211 server tests).
 
 ### Acceptance Criteria
 

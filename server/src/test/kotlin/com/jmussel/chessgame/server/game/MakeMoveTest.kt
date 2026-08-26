@@ -5,7 +5,9 @@ package com.jmussel.chessgame.server.game
 import com.jmussel.chessgame.core.chess.ChessGame
 import com.jmussel.chessgame.core.chess.Move
 import com.jmussel.chessgame.core.chess.Side
+import com.jmussel.chessgame.server.api.CommandRejection
 import com.jmussel.chessgame.server.api.GameView
+import com.jmussel.chessgame.server.api.RejectionReason
 import com.jmussel.chessgame.server.auth.TestTokens
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
@@ -343,10 +345,11 @@ class MakeMoveTest {
 
             assertEquals(HttpStatusCode.Conflict, response.status)
 
-            val view = json.decodeFromString<GameView>(response.bodyAsText())
+            val rejection = json.decodeFromString<CommandRejection>(response.bodyAsText())
 
-            assertEquals(0, view.version, "the reply carries the canonical state to correct from")
-            assertEquals("WHITE", view.sideToMove)
+            assertEquals(RejectionReason.NOT_YOUR_TURN, rejection.reason)
+            assertEquals(0, rejection.game?.version, "the reply carries the canonical state to correct from")
+            assertEquals("WHITE", rejection.game?.sideToMove)
         }
     }
 

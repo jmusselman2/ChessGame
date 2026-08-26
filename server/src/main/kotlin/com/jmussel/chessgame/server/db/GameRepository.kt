@@ -117,6 +117,10 @@ class GameRepository(
      * [expectedVersion] must be the version the caller read; anything else means another
      * command got there first and this one is stale. The whole write — game row, move
      * history, audit event — is one transaction.
+     *
+     * The guarded `update ... where version = expectedVersion` is what actually settles a
+     * race, not the read above it: two commands can both read the same version, and only
+     * the one whose update matches a row may go on to rewrite the history (`D021`).
      */
     fun save(
         id: Uuid,
@@ -140,15 +144,22 @@ class GameRepository(
             val nextVersion = expectedVersion + 1
             val now = Instant.now().atOffset(java.time.ZoneOffset.UTC)
 
-            GamesTable.update({ (GamesTable.id eq id) and (GamesTable.version eq expectedVersion) }) { row ->
-                row[GamesTable.status] = statusOf(game)
-                row[GamesTable.version] = nextVersion
-                row[GamesTable.sideToMove] = game.sideToMove.name
-                row[GamesTable.state] = GameStateDocument.of(game.state)
-                row[GamesTable.result] = game.result?.outcome?.name
-                row[GamesTable.terminationReason] = game.result?.reason?.name
-                row[GamesTable.updatedAt] = now
-                row[GamesTable.endedAt] = if (game.isOver) now else null
+            val updated =
+                GamesTable.update({ (GamesTable.id eq id) and (GamesTable.version eq expectedVersion) }) { row ->
+                    row[GamesTable.status] = statusOf(game)
+                    row[GamesTable.version] = nextVersion
+                    row[GamesTable.sideToMove] = game.sideToMove.name
+                    row[GamesTable.state] = GameStateDocument.of(game.state)
+                    row[GamesTable.result] = game.result?.outcome?.name
+                    row[GamesTable.terminationReason] = game.result?.reason?.name
+                    row[GamesTable.updatedAt] = now
+                    row[GamesTable.endedAt] = if (game.isOver) now else null
+                }
+
+            if (updated == 0) {
+                // Another command committed between the read and the update, so this one
+                // never held the version it claimed and must not touch the history.
+                throw StaleGameVersionException(id, expectedVersion, currentVersion(id))
             }
 
             MovesTable.deleteWhere { MovesTable.gameId eq id }
@@ -175,6 +186,15 @@ class GameRepository(
                 .orderBy(GameEventsTable.id to SortOrder.ASC)
                 .map { it[GameEventsTable.type] }
         }
+
+    /** The version the row holds right now, for reporting a lost race. */
+    private fun currentVersion(id: Uuid): Long =
+        GamesTable
+            .selectAll()
+            .where { GamesTable.id eq id }
+            .singleOrNull()
+            ?.get(GamesTable.version)
+            ?: -1L
 
     private fun statusOf(game: ChessGame): String = if (game.isOver) "COMPLETE" else "IN_PROGRESS"
 

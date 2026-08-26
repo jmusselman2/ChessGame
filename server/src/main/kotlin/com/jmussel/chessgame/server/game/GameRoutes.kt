@@ -5,9 +5,12 @@ package com.jmussel.chessgame.server.game
 import com.jmussel.chessgame.core.chess.Move
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Square
+import com.jmussel.chessgame.server.api.CommandRejection
 import com.jmussel.chessgame.server.api.GameView
+import com.jmussel.chessgame.server.api.RejectionReason
 import com.jmussel.chessgame.server.auth.AuthenticatedUser
 import com.jmussel.chessgame.server.auth.authenticatedUser
+import com.jmussel.chessgame.server.db.StoredGame
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receive
@@ -86,16 +89,40 @@ private suspend fun ApplicationCall.respondTo(
             respondText("You are not playing this game", status = HttpStatusCode.Forbidden)
 
         is CommandResult.GameOver ->
-            respond(HttpStatusCode.Conflict, GameView.of(result.game, caller.userId))
+            reject(
+                HttpStatusCode.Conflict,
+                RejectionReason.GAME_OVER,
+                "This game has finished",
+                result.game,
+                caller,
+            )
 
         is CommandResult.NotYourTurn ->
-            respond(HttpStatusCode.Conflict, GameView.of(result.game, caller.userId))
+            reject(
+                HttpStatusCode.Conflict,
+                RejectionReason.NOT_YOUR_TURN,
+                "It is not your move",
+                result.game,
+                caller,
+            )
 
         is CommandResult.StaleVersion ->
-            respond(HttpStatusCode.Conflict, GameView.of(result.game, caller.userId))
+            reject(
+                HttpStatusCode.Conflict,
+                RejectionReason.STALE_VERSION,
+                "This game is at version ${result.game.version}",
+                result.game,
+                caller,
+            )
 
         is CommandResult.IllegalMove ->
-            respond(HttpStatusCode.UnprocessableEntity, GameView.of(result.game, caller.userId))
+            reject(
+                HttpStatusCode.UnprocessableEntity,
+                RejectionReason.ILLEGAL_MOVE,
+                "${result.move} is not legal here",
+                result.game,
+                caller,
+            )
     }
 }
 
@@ -120,3 +147,19 @@ private fun MakeMoveRequest.toMoveOrNull(): Move? {
 
     return runCatching { Move(fromSquare, toSquare, promotionPiece) }.getOrNull()
 }
+
+/** Sends a refusal with the canonical state attached, so the caller can correct itself. */
+private suspend fun ApplicationCall.reject(
+    status: HttpStatusCode,
+    reason: RejectionReason,
+    message: String,
+    game: StoredGame,
+    caller: AuthenticatedUser,
+) = respond(
+    status,
+    CommandRejection(
+        reason = reason,
+        message = message,
+        game = GameView.of(game, caller.userId),
+    ),
+)
