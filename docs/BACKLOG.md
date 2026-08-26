@@ -1013,8 +1013,27 @@ Verified locally with `.\gradlew.bat :android-app:testDebugUnitTest` (13 new
 
 ## M5.7 — Local game completion
 
-**Status:** TODO  
+**Status:** BLOCKED
+
 **Depends on:** M5.4, M5.6
+
+**Blocked on:** the one remaining verification step — a representative *manual*
+local game on an emulator or device. This machine has the Android SDK but no
+AVD configured (`emulator -list-avds` is empty) and no device attached
+(`adb devices` lists none), so the on-device play-through could not be
+performed here. Everything else this task asks for is implemented and verified;
+a human with an emulator or phone can clear this by playing one game and
+switching the status to `DONE`.
+
+**Verified 2026-08-26 (automated):** pass-and-play is complete end to end
+through the same interaction layer taps go through — `LocalGameTest` plays
+whole games: Scholar's mate to checkmate, Fool's mate followed by taps that a
+finished game must ignore, a take-back replaced by a different move, a
+threefold-repetition draw claimed, a pawn promoted after running the board, and
+kingside castling in a real opening. `.\gradlew.bat :game-core:test` passes
+(315 tests), `.\gradlew.bat :android-app:testDebugUnitTest` passes (79 tests),
+and `.\gradlew.bat build` succeeds (BUILD SUCCESSFUL, including the Android
+APKs and Android lint).
 
 ### Acceptance Criteria
 
