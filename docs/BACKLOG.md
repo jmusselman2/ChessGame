@@ -444,8 +444,19 @@ Unit tests pass.
 
 ## M3.4 — Pawn movement
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M2.2
+
+**Completed:** 2026-08-26 — `PseudoLegalMoves.pawnAdvanceDirection`,
+`pawnCaptureSquares`, `pawnDestinations`, and `pawnMoves` implement pawn
+movement for both sides: single advance onto an empty square, the initial
+two-square advance when both squares are empty, and diagonal capture of an
+enemy piece only. A piece directly ahead blocks both advances, and a pawn
+cannot capture straight ahead. En passant (`M3.8`) and promotion (`M3.9`) are
+deliberately not applied here. Verified locally with
+`.\gradlew.bat :game-core:test` (16 new `PawnMovesTest` cases, 122 game-core
+tests total) and `.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ### Acceptance Criteria
 

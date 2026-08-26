@@ -115,4 +115,62 @@ object PseudoLegalMoves {
         board: Board,
         from: Square,
     ): List<Move> = kingDestinations(board, from).map { Move(from, it) }
+
+    /** The direction a [side]'s pawns advance: north for White, south for Black. */
+    fun pawnAdvanceDirection(side: Side): Direction = if (side == Side.WHITE) Direction.NORTH else Direction.SOUTH
+
+    /**
+     * The two squares diagonally ahead of a [side] pawn on [from], regardless of what
+     * stands there. These are the squares such a pawn attacks.
+     */
+    fun pawnCaptureSquares(
+        from: Square,
+        side: Side,
+    ): List<Square> {
+        val forward = pawnAdvanceDirection(side).rankStep
+        return listOfNotNull(
+            from.shifted(Direction(-1, forward)),
+            from.shifted(Direction(1, forward)),
+        )
+    }
+
+    /**
+     * Squares the pawn on [from] can move to: one square forward when empty, two squares
+     * forward from its starting rank when both are empty, and either diagonal forward
+     * square that holds an enemy piece.
+     *
+     * En passant and promotion are separate rules and are not applied here.
+     */
+    fun pawnDestinations(
+        board: Board,
+        from: Square,
+    ): List<Square> {
+        val piece = requireNotNull(board.pieceAt(from)) { "No piece on $from" }
+        require(piece.type == PieceType.PAWN) { "${piece.type} is not a pawn" }
+        val direction = pawnAdvanceDirection(piece.side)
+
+        val advances =
+            buildList {
+                val oneAhead = from.shifted(direction) ?: return@buildList
+                if (!board.isEmpty(oneAhead)) return@buildList
+                add(oneAhead)
+
+                if (from.rank != StandardPosition.pawnRankOf(piece.side)) return@buildList
+                val twoAhead = oneAhead.shifted(direction) ?: return@buildList
+                if (board.isEmpty(twoAhead)) add(twoAhead)
+            }
+
+        val captures =
+            pawnCaptureSquares(from, piece.side).filter {
+                board.pieceAt(it)?.side == piece.side.opposite
+            }
+
+        return advances + captures
+    }
+
+    /** [pawnDestinations] expressed as moves from [from]. */
+    fun pawnMoves(
+        board: Board,
+        from: Square,
+    ): List<Move> = pawnDestinations(board, from).map { Move(from, it) }
 }
