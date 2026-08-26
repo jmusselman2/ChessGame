@@ -11,10 +11,11 @@ package com.jmussel.chessgame.core.chess
 object LegalMoves {
     /**
      * The board after [move] is played: the piece leaves [Move.from], captures whatever
-     * stands on [Move.to], and becomes [Move.promotion] when one is given.
+     * stands on [Move.to], and becomes [Move.promotion] when one is given. When the move
+     * is a castling king move, the rook jumps to the far side of the king with it.
      *
-     * This is plain relocation for legality testing. The castling rook, the en passant
-     * capture, and every non-board part of the state are handled by their own rules.
+     * The en passant capture and every non-board part of the state are handled by their
+     * own rules.
      */
     fun boardAfter(
         board: Board,
@@ -22,7 +23,16 @@ object LegalMoves {
     ): Board {
         val piece = requireNotNull(board.pieceAt(move.from)) { "No piece on ${move.from}" }
         val moved = if (move.promotion == null) piece else piece.copy(type = move.promotion)
-        return board.withoutPiece(move.from).withPiece(move.to, moved)
+        val relocated = board.withoutPiece(move.from).withPiece(move.to, moved)
+
+        if (!Castling.isCastlingMove(board, move)) return relocated
+
+        val castlingSide = Castling.castlingSideOf(move)
+        val rookFrom = Castling.rookOrigin(piece.side, castlingSide)
+        val rook = requireNotNull(board.pieceAt(rookFrom)) { "No rook on $rookFrom to castle with" }
+        return relocated
+            .withoutPiece(rookFrom)
+            .withPiece(Castling.rookDestination(piece.side, castlingSide), rook)
     }
 
     /** Whether playing [move] would leave the moving side's own king in check. */
@@ -55,6 +65,17 @@ object LegalMoves {
         side: Side,
     ): List<Move> = PseudoLegalMoves.forSide(board, side).filterNot { leavesOwnKingInCheck(board, it) }
 
-    /** Every legal move for the side to move in [state]. */
-    fun forSideToMove(state: GameState): List<Move> = forSide(state.board, state.sideToMove)
+    /**
+     * Every legal move for the side to move in [state], including castling.
+     *
+     * Castling needs the castling rights that only [GameState] carries, so this is the
+     * entry point that produces a complete move list.
+     */
+    fun forSideToMove(state: GameState): List<Move> = forSide(state.board, state.sideToMove) + Castling.availableMoves(state)
+
+    /** Whether [move] is legal for the side to move in [state]. */
+    fun isLegal(
+        state: GameState,
+        move: Move,
+    ): Boolean = move in forSideToMove(state)
 }

@@ -531,8 +531,21 @@ Pinned/self-check tests pass.
 
 ## M3.7 — Castling
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M3.3, M3.5, M3.6
+
+**Completed:** 2026-08-26 — `Castling` names the standard king/rook squares and
+implements `canCastle` / `availableMoves`, requiring the castling right, the
+king and rook on their home squares, an empty path (including `b1`/`b8` on the
+queen side), a king that is not in check, and neither the crossed square nor
+the destination attacked. An attacked `b1`/`b8` or an attacked rook does not
+prevent castling. `LegalMoves.boardAfter` moves the rook with the king, and
+`LegalMoves.forSideToMove` / `isLegal(state, move)` include castling because it
+needs the rights that only `GameState` carries. Verified locally with
+`.\gradlew.bat :game-core:test` (19 new `CastlingTest` cases covering the
+positive and every listed negative case, 179 game-core tests total) and
+`.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ### Acceptance Criteria
 
