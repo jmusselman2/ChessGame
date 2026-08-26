@@ -179,8 +179,12 @@ object ChessRules {
      * unanswered by definition — as soon as the opponent replies, their reply becomes the
      * latest move and the earlier one is locked. If the opponent then takes their reply
      * back, the previous move becomes undoable again (`D016`).
+     *
+     * A finished game has nothing to take back: a move that ends the game is final the
+     * moment it is made, with no grace period (`D017`), and so is a claimed draw or a
+     * resignation (`D018`).
      */
-    fun undoableSide(game: ChessGame): Side? = game.lastMover
+    fun undoableSide(game: ChessGame): Side? = if (game.isOver) null else game.lastMover
 
     /** Whether [side] may take its own latest unanswered move back. */
     fun canUndo(

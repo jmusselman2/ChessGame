@@ -839,8 +839,19 @@ Sequence tests pass.
 
 ## M4.3 — Final move cannot be undone
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M4.2, M3.10, M3.11, M3.12, M3.13
+
+**Completed:** 2026-08-26 — `ChessRules.undoableSide` returns `null` for a
+finished game, so `canUndo` is false for both sides and `undo` is rejected once
+any terminal result is recorded: checkmate, stalemate, insufficient material,
+fivefold repetition, the seventy-five-move rule, a claimed draw, or a
+resignation. This is `D017` (a game-ending move is final immediately, with no
+grace period) and `D018`. The history of a finished game stays readable.
+Verified locally with `.\gradlew.bat :game-core:test` (10 new
+`TerminalUndoLockTest` cases, one per terminal reason plus the still-undoable
+cases, 315 game-core tests total) and `.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ### Acceptance Criteria
 
