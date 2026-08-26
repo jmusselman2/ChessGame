@@ -232,6 +232,13 @@ Expected response:
 
 The endpoint has been verified to return HTTP 200.
 
+The server starts in one of two modes:
+
+- with `DATABASE_URL` and `SUPABASE_URL` set, it migrates the database and serves
+  the authenticated API (`/me` and, later, the game commands);
+- without them it logs a warning and serves `/health` alone, so the command still
+  works on a machine with no database configured.
+
 ### Gradle Project Structure
 
 Windows:

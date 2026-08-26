@@ -13,7 +13,7 @@ class ApplicationTest {
     fun healthEndpointReturnsOk() =
         testApplication {
             application {
-                module()
+                healthModule()
             }
 
             val response = client.get("/health")

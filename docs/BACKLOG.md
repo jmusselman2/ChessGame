@@ -1280,8 +1280,27 @@ Anonymous session can be created and restored.
 
 ## M7.3 — Ktor token verification
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M7.1
+
+**Completed:** 2026-08-26 — `SupabaseTokenVerifier` checks a bearer token's
+`ES256` signature against the project's published JWKS, along with its issuer,
+audience (`authenticated`), and expiry, so the server holds no signing secret
+and trusts nothing in the token body until the signature allows it (`D004`).
+`SupabaseAuthenticationProvider` turns a verified token into an
+`AuthenticatedUser`, and `UserRepository.resolveBySubject` maps the Supabase
+subject to the internal `userId`, creating the row the first time an anonymous
+account is seen and falling back to the winner's row if two first requests race
+on the unique `auth_subject` constraint. `/me` sits behind the provider and
+returns that id; `/health` stays open, and `.\gradlew.bat :server:run` still
+serves health alone when `DATABASE_URL`/`SUPABASE_URL` are unset. Verified
+locally with `.\gradlew.bat :server:test` (10 `SupabaseTokenVerifierTest` cases
+rejecting a forged signature, another project's issuer, an expired token, the
+wrong audience, an unknown key id, an `alg: none` token, and rubbish; 9
+`AuthenticatedRouteTest` cases over the real database confirming 401 without a
+usable token and a stable internal id per account) and `.\gradlew.bat build`
+(BUILD SUCCESSFUL, 66 server tests).
 
 ### Acceptance Criteria
 
