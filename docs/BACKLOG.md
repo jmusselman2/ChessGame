@@ -1249,8 +1249,28 @@ PostgreSQL and anonymous Auth configured for development environment.
 
 ## M7.2 — Android anonymous auth
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M7.1
+
+**Completed:** 2026-08-26 — the app creates an anonymous Supabase session on
+first run and restores it afterwards, without ever showing a sign-in (`D006`).
+`SupabaseAuthClient` makes the two calls the app needs directly rather than
+adding the Supabase SDK (`D031`), `SessionStore` keeps the session in
+app-private DataStore across launches, and `AnonymousAuthenticator` restores it,
+refreshes a token within 60 seconds of expiry, and starts a new anonymous
+account if the refresh token is dead — all under a mutex so two screens cannot
+create two accounts. The publishable key is supplied at build time through
+`-PsupabaseAnonKey`, `gradle.properties`, or `SUPABASE_ANON_KEY` and is never
+committed. Verified locally with `.\gradlew.bat :android-app:testDebugUnitTest`
+(10 `AnonymousAuthTest` cases over Ktor's `MockEngine` covering create, store,
+restore-without-network, refresh, dead-refresh recovery, the `apikey` header,
+and sign-out) and 3 `SupabaseLiveAuthTest` cases run against the real
+`ChessGame Dev` project with the key exported, which created, refreshed, and
+restored a real anonymous session; those live tests no-op without the key, which
+was confirmed by a run with it cleared. `.\gradlew.bat build` succeeds
+(92 Android unit tests). The DataStore-backed store is the one piece that needs
+a device to exercise; the same launch that clears `M5.7` covers it.
 
 ### Acceptance Criteria
 

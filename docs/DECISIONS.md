@@ -961,3 +961,64 @@ architecture.
   what `M6.5` will import.
 - Persistence code and its DTOs stay in `server`; `game-core` gains no database
   dependency (`D003`).
+
+---
+
+## D031 — Android Talks to Supabase Auth Directly, Without the Supabase SDK
+
+**Date:** 2026-08-26
+
+**Status:** Accepted
+
+### Decision
+
+The Android app calls the two Supabase auth endpoints it needs —
+`POST /auth/v1/signup` for an anonymous session and
+`POST /auth/v1/token?grant_type=refresh_token` to renew it — with the Ktor HTTP
+client, rather than adding the Supabase Kotlin SDK.
+
+The pieces are `SupabaseAuthClient` (the two calls), `AnonymousSession` (tokens,
+subject, expiry), `SessionStore` (a DataStore-backed store on the device, an
+in-memory one in tests), and `AnonymousAuthenticator`, which restores, refreshes,
+or creates a session under a mutex so two screens starting at once cannot create
+two anonymous accounts.
+
+The publishable key is never committed. It reaches the app as a `BuildConfig`
+field from `-PsupabaseAnonKey`, `gradle.properties`, or the `SUPABASE_ANON_KEY`
+environment variable; the Supabase URL is public and has a default.
+
+### Rationale
+
+`D004` already forbids Android from touching canonical game tables, and `D022`
+routes commands and realtime through the Chess server. So of everything the
+Supabase SDK offers — Postgrest, Realtime, Storage, Functions — the app is only
+allowed to use auth, and of auth only anonymous sign-in and refresh. Two HTTP
+calls against a documented, stable API is less to carry and far easier to test:
+the whole flow runs against Ktor's `MockEngine` on the JVM, with no Android
+runtime and no network.
+
+The app needs a Ktor HTTP client for its own server regardless, so this adds no
+new kind of dependency.
+
+### Alternatives Considered
+
+- **supabase-kt** — the conventional Kotlin client. It would bring session
+  persistence and refresh scheduling for free, but also a large surface the
+  architecture forbids using, and its own HTTP stack to test around. Worth
+  revisiting if the app ever legitimately needs Realtime or Storage from
+  Supabase.
+- **Rolling session storage on `SharedPreferences`** — DataStore is the current
+  Android convention and is coroutine-friendly, which the rest of this code
+  already is.
+
+### Consequences
+
+- Token refresh, expiry margin, and recovery from a dead refresh token are this
+  repository's code and are covered by tests, rather than being the SDK's
+  problem.
+- `SupabaseLiveAuthTest` exercises the real project when `SUPABASE_ANON_KEY` is
+  present, so a change in Supabase's response shape is caught locally; it is a
+  no-op elsewhere, including CI.
+- The session is stored in app-private storage. That is the platform's
+  protection, and it is enough here because the server trusts no client (`D004`)
+  and the token only ever represents an anonymous account.

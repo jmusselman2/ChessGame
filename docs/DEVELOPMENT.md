@@ -440,6 +440,21 @@ belongs in the Android app, in this repository, or in a log.
 The database password is not retrievable from the CLI — reset or copy it from the
 project's dashboard when a direct database connection is needed.
 
+### Building the Android app against it
+
+The app reads the URL and publishable key as `BuildConfig` fields. Supply the key
+with `-PsupabaseAnonKey=...`, a `supabaseAnonKey` entry in `gradle.properties`,
+or the `SUPABASE_ANON_KEY` environment variable; the URL defaults to the project
+above. Setting `SUPABASE_URL` and `SUPABASE_ANON_KEY` also switches on the live
+auth test (`SupabaseLiveAuthTest`), which is otherwise a no-op:
+
+    $env:SUPABASE_ANON_KEY = "<publishable key>"
+    .gradlew.bat :android-app:testDebugUnitTest
+
+Status: VERIFIED (2026-08-26)
+
+Each live run leaves one throwaway anonymous user in the development project.
+
 ### What is not configured yet
 
 - The schema in `database/migrations/` has **not** been applied to the Supabase

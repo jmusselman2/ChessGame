@@ -1,7 +1,24 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.kotlin.serialization)
 }
+
+// The Supabase URL is public and has a sensible default; the publishable key is
+// supplied by whoever builds, through -PsupabaseAnonKey, gradle.properties, or the
+// SUPABASE_ANON_KEY environment variable. It is never committed. See
+// docs/DEVELOPMENT.md.
+val supabaseUrl: String =
+    providers
+        .gradleProperty("supabaseUrl")
+        .orElse(providers.environmentVariable("SUPABASE_URL"))
+        .getOrElse("https://rkwymrtqayyyfahfgmbm.supabase.co")
+
+val supabaseAnonKey: String =
+    providers
+        .gradleProperty("supabaseAnonKey")
+        .orElse(providers.environmentVariable("SUPABASE_ANON_KEY"))
+        .getOrElse("")
 
 android {
     namespace = "com.jmussel.chessgame"
@@ -17,6 +34,9 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
+        buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnonKey\"")
     }
 
     buildTypes {
@@ -32,6 +52,17 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
+    }
+
+    testOptions {
+        unitTests.all {
+            // The live Supabase test skips itself unless these are set; see
+            // SupabaseLiveAuthTest and docs/DEVELOPMENT.md.
+            listOf("SUPABASE_URL", "SUPABASE_ANON_KEY").forEach { variable ->
+                System.getenv(variable)?.let { it1 -> it.environment(variable, it1) }
+            }
+        }
     }
 }
 
@@ -45,6 +76,12 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.datastore.preferences)
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.okhttp)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.kotlinx.json)
+    testImplementation(libs.ktor.client.mock)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
