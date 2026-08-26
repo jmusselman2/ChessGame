@@ -3,6 +3,7 @@ package com.jmussel.chessgame.ui.board
 import com.jmussel.chessgame.core.chess.Board
 import com.jmussel.chessgame.core.chess.Piece
 import com.jmussel.chessgame.core.chess.PieceType
+import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.Square
 
 /** One square as the board is drawn: where it is, what stands on it, and its shade. */
@@ -21,15 +22,25 @@ data class BoardSquare(
 object BoardRendering {
     /**
      * The board as eight rows, drawn from the top of the screen down and from the left
-     * across: rank 8 first, file `a` first.
+     * across, with [orientation]'s own side at the bottom.
+     *
+     * Viewed from White that is rank 8 first and file `a` on the left; viewed from Black
+     * both are reversed, so each player sees their own pieces nearest to them.
      */
-    fun rows(board: Board): List<List<BoardSquare>> =
-        (Square.RANKS - 1 downTo 0).map { rank ->
-            (0 until Square.FILES).map { file -> squareAt(board, Square.of(file, rank)) }
-        }
+    fun rows(
+        board: Board,
+        orientation: Side = Side.WHITE,
+    ): List<List<BoardSquare>> {
+        val ranks = (0 until Square.RANKS).sortedByDescending { if (orientation == Side.WHITE) it else -it }
+        val files = (0 until Square.FILES).sortedBy { if (orientation == Side.WHITE) it else -it }
+        return ranks.map { rank -> files.map { file -> squareAt(board, Square.of(file, rank)) } }
+    }
 
-    /** Every square in drawing order, rank 8 down to rank 1. */
-    fun squares(board: Board): List<BoardSquare> = rows(board).flatten()
+    /** Every square in drawing order for [orientation]. */
+    fun squares(
+        board: Board,
+        orientation: Side = Side.WHITE,
+    ): List<BoardSquare> = rows(board, orientation).flatten()
 
     /** Whether [square] is one of the light squares. `a1` is dark. */
     fun isLight(square: Square): Boolean = (square.file + square.rank) % 2 == 1
@@ -50,11 +61,17 @@ object BoardRendering {
             PieceType.PAWN -> '♟'
         }
 
-    /** The file letters, left to right. */
-    val fileLabels: List<String> = (0 until Square.FILES).map { Square.of(it, 0).fileChar.toString() }
+    /** The file letters, left to right, as [orientation] sees them. */
+    fun fileLabels(orientation: Side = Side.WHITE): List<String> {
+        val labels = (0 until Square.FILES).map { Square.of(it, 0).fileChar.toString() }
+        return if (orientation == Side.WHITE) labels else labels.reversed()
+    }
 
-    /** The rank numbers, as drawn from top to bottom. */
-    val rankLabels: List<String> = (Square.RANKS downTo 1).map { it.toString() }
+    /** The rank numbers, top to bottom, as [orientation] sees them. */
+    fun rankLabels(orientation: Side = Side.WHITE): List<String> {
+        val labels = (Square.RANKS downTo 1).map { it.toString() }
+        return if (orientation == Side.WHITE) labels else labels.reversed()
+    }
 
     private fun squareAt(
         board: Board,

@@ -42,10 +42,11 @@ private const val CAPTURE_RING_SCALE = 0.86f
 private const val CAPTURE_RING_WIDTH = 0.07f
 
 /**
- * Draws [board] as a square eight-by-eight grid, White at the bottom.
+ * Draws [board] as a square eight-by-eight grid.
  *
  * Everything shown comes from `game-core` through [BoardRendering]; this composable holds
- * no chess rules of its own. [selectedSquare] is highlighted, and tapping any square calls
+ * no chess rules of its own. The board is drawn with [orientation]'s own side at the
+ * bottom. [selectedSquare] is highlighted, and tapping any square calls
  * [onSquareClick] — deciding what a tap means belongs to [BoardInteraction].
  */
 @Composable
@@ -54,6 +55,7 @@ fun ChessBoard(
     modifier: Modifier = Modifier,
     selectedSquare: Square? = null,
     legalDestinations: Set<Square> = emptySet(),
+    orientation: Side = Side.WHITE,
     onSquareClick: (Square) -> Unit = {},
 ) {
     Column(
@@ -62,7 +64,7 @@ fun ChessBoard(
                 .fillMaxWidth()
                 .aspectRatio(1f),
     ) {
-        BoardRendering.rows(board).forEach { row ->
+        BoardRendering.rows(board, orientation).forEach { row ->
             Row(
                 modifier =
                     Modifier

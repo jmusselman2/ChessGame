@@ -63,6 +63,7 @@ fun GameScreen(
             board = state.board,
             selectedSquare = state.selectedSquare,
             legalDestinations = BoardInteraction.legalDestinations(state),
+            orientation = state.orientation,
             onSquareClick = { square -> state = BoardInteraction.onSquareTapped(state, square) },
         )
 

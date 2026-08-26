@@ -5,6 +5,7 @@ import com.jmussel.chessgame.core.chess.ChessGame
 import com.jmussel.chessgame.core.chess.ChessRules
 import com.jmussel.chessgame.core.chess.Move
 import com.jmussel.chessgame.core.chess.PieceType
+import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.Square
 
 /**
@@ -30,6 +31,15 @@ data class BoardUiState(
     val game: ChessGame,
     val selectedSquare: Square? = null,
     val pendingPromotion: PendingPromotion? = null,
+    /**
+     * Whose side of the board is drawn at the bottom.
+     *
+     * Pass-and-play on one device means the player at the board changes every move, so the
+     * board turns to the side to move and each of them sees their own pieces nearest.
+     * Once a player has a fixed colour in a multiplayer game, this is set to that colour
+     * instead.
+     */
+    val orientation: Side = Side.WHITE,
 ) {
     /** The position being drawn. */
     val board: Board
@@ -114,6 +124,9 @@ object BoardInteraction {
     /** The state after the player backs out of the promotion prompt. */
     fun cancelPromotion(state: BoardUiState): BoardUiState = state.copy(pendingPromotion = null)
 
+    /** The state with the board turned around, so the other side is at the bottom. */
+    fun flipBoard(state: BoardUiState): BoardUiState = state.copy(orientation = state.orientation.opposite)
+
     private fun play(
         state: BoardUiState,
         from: Square,
@@ -132,12 +145,15 @@ object BoardInteraction {
     private fun applyMove(
         state: BoardUiState,
         move: Move,
-    ): BoardUiState =
-        BoardUiState(
-            game = ChessRules.applyMove(state.game, move),
+    ): BoardUiState {
+        val played = ChessRules.applyMove(state.game, move)
+        return BoardUiState(
+            game = played,
             selectedSquare = null,
             pendingPromotion = null,
+            orientation = played.sideToMove,
         )
+    }
 
     private fun movesFrom(
         state: BoardUiState,

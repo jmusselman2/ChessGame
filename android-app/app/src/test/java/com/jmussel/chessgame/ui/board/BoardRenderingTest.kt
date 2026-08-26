@@ -109,8 +109,8 @@ class BoardRenderingTest {
 
     @Test
     fun labelsTheFilesAndRanksAsDrawn() {
-        assertEquals(listOf("a", "b", "c", "d", "e", "f", "g", "h"), BoardRendering.fileLabels)
-        assertEquals(listOf("8", "7", "6", "5", "4", "3", "2", "1"), BoardRendering.rankLabels)
+        assertEquals(listOf("a", "b", "c", "d", "e", "f", "g", "h"), BoardRendering.fileLabels())
+        assertEquals(listOf("8", "7", "6", "5", "4", "3", "2", "1"), BoardRendering.rankLabels())
     }
 
     @Test

@@ -963,8 +963,21 @@ Tap legal destination and update local game state.
 
 ## M5.5 — Board orientation
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M5.1
+
+**Completed:** 2026-08-26 — `BoardRendering.rows` / `squares` / `fileLabels` /
+`rankLabels` take an orientation and draw the requested side's own pieces at the
+bottom, reversing both ranks and files; square shades and identities are
+unaffected. `BoardUiState.orientation` carries it, and because pass-and-play on
+one device changes who is at the board every move, the board turns to the side
+to move after each move; `BoardInteraction.flipBoard` also turns it by hand.
+When a player has a fixed colour in a multiplayer game the same field will hold
+that colour. Verified locally with
+`.\gradlew.bat :android-app:testDebugUnitTest` (11 new `BoardOrientationTest`
+cases, 58 Android unit tests total) and `.\gradlew.bat build`
+(BUILD SUCCESSFUL).
 
 ### Acceptance Criteria
 
