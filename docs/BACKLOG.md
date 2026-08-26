@@ -625,8 +625,19 @@ Tests cover each promotion choice.
 
 ## M3.10 — Checkmate and stalemate
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M3.6, M3.7, M3.8, M3.9
+
+**Completed:** 2026-08-26 — `ChessRules` adds `isInCheck`, `hasNoLegalMoves`,
+`isCheckmate`, `isStalemate`, and `terminalResult`, and `applyMove` now records
+the result when a move ends the game (`D017`: a game-ending move is immediately
+final). Checkmate is a win for the side that delivered it; stalemate is a draw
+with no winner. Verified locally with `.\gradlew.bat :game-core:test` (12 new
+`CheckmateStalemateTest` cases: back-rank, smothered, Fool's mate and Scholar's
+mate played from the starting position, escapable/blockable/capturable checks,
+two stalemates, and a near-stalemate with one pawn move left; 230 game-core
+tests total) and `.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ### Acceptance Criteria
 

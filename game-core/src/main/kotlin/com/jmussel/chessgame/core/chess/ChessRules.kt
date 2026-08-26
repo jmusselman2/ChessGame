@@ -14,12 +14,41 @@ object ChessRules {
         move: Move,
     ): Boolean = LegalMoves.isLegal(state, move)
 
+    /** Whether the side to move is in check. */
+    fun isInCheck(state: GameState): Boolean = Attacks.isSideToMoveInCheck(state)
+
+    /** Whether the side to move has no legal move at all. */
+    fun hasNoLegalMoves(state: GameState): Boolean = legalMoves(state).isEmpty()
+
+    /** Whether the side to move is checkmated: in check with no legal move. */
+    fun isCheckmate(state: GameState): Boolean = isInCheck(state) && hasNoLegalMoves(state)
+
+    /** Whether the side to move is stalemated: not in check, but with no legal move. */
+    fun isStalemate(state: GameState): Boolean = !isInCheck(state) && hasNoLegalMoves(state)
+
+    /**
+     * The result [state] has already reached on its own, or `null` when play continues.
+     *
+     * Only conditions that end the game automatically appear here. Claimable draws
+     * (threefold repetition, the fifty-move rule) and resignation are separate actions.
+     */
+    fun terminalResult(state: GameState): GameResult? {
+        state.result?.let { return it }
+
+        return when {
+            isCheckmate(state) -> GameResult.checkmate(loser = state.sideToMove)
+            isStalemate(state) -> GameResult.draw(TerminationReason.STALEMATE)
+            else -> null
+        }
+    }
+
     /**
      * The state after [move] is played. [move] must be legal in [state].
      *
      * Updates the board, the side to move, castling rights, the en passant target, the
-     * halfmove clock, and the fullmove number. Repetition tracking and terminal results
-     * are decided by their own rules and are not applied here.
+     * halfmove clock, and the fullmove number, and records a terminal result when the
+     * move ends the game. Repetition tracking is decided by its own rules and is not
+     * applied here.
      */
     fun applyMove(
         state: GameState,
@@ -32,18 +61,21 @@ object ChessRules {
         val isCapture = !state.board.isEmpty(move.to) || EnPassant.isCapture(state, move)
         val resetsClock = piece.type == PieceType.PAWN || isCapture
 
-        return state.copy(
-            board = LegalMoves.boardAfter(state, move),
-            sideToMove = state.sideToMove.opposite,
-            castlingRights = castlingRightsAfter(state, move, piece),
-            enPassantTarget = EnPassant.targetAfter(state.board, move),
-            drawRuleState =
-                state.drawRuleState.withHalfmoveClock(
-                    if (resetsClock) 0 else state.drawRuleState.halfmoveClock + 1,
-                ),
-            fullmoveNumber =
-                if (state.sideToMove == Side.BLACK) state.fullmoveNumber + 1 else state.fullmoveNumber,
-        )
+        val next =
+            state.copy(
+                board = LegalMoves.boardAfter(state, move),
+                sideToMove = state.sideToMove.opposite,
+                castlingRights = castlingRightsAfter(state, move, piece),
+                enPassantTarget = EnPassant.targetAfter(state.board, move),
+                drawRuleState =
+                    state.drawRuleState.withHalfmoveClock(
+                        if (resetsClock) 0 else state.drawRuleState.halfmoveClock + 1,
+                    ),
+                fullmoveNumber =
+                    if (state.sideToMove == Side.BLACK) state.fullmoveNumber + 1 else state.fullmoveNumber,
+            )
+
+        return next.copy(result = terminalResult(next))
     }
 
     /**

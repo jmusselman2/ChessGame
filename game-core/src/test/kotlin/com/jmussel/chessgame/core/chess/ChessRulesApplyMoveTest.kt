@@ -169,7 +169,7 @@ class ChessRulesApplyMoveTest {
     }
 
     @Test
-    fun doesNotDecideTheResult() {
+    fun leavesTheResultUnsetWhileTheGameContinues() {
         val position = state(*kingsAnd("d1" to white(PieceType.ROOK)), rights = CastlingRights.NONE)
 
         assertNull(ChessRules.applyMove(position, Move.of("d1", "d5")).result)
