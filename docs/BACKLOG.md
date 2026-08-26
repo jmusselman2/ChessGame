@@ -1400,8 +1400,23 @@ Exact normalized lookup returns one user or not found.
 
 ## M8.2 — Add friend
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M8.1
+
+**Completed:** 2026-08-26 — `FriendshipRepository.add` stores a friendship as
+one row with the lower user id first, so it is mutual the moment it is made
+(`D009`) and the three forbidden cases are impossible rather than merely
+checked for: a self-friendship is refused (and the schema's ordering check would
+refuse it anyway), a duplicate returns `AlreadyFriends`, and the reversed pair
+is the same row. Re-adding a removed friend revives that row rather than
+creating a second, keeping the history `D013` calls for. `POST /friends` behind
+Supabase authentication adds by username for the calling user — 200, 400 for
+yourself or a malformed name, 404 for an unknown user, 409 for a duplicate in
+either direction. Verified locally with `.\gradlew.bat :server:test` (13 new
+`AddFriendTest` cases over the real database, covering mutuality from both
+sides, the ordered pair, re-adding after removal, and every endpoint response)
+and `.\gradlew.bat build` (BUILD SUCCESSFUL, 117 server tests).
 
 ### Acceptance Criteria
 

@@ -5,6 +5,7 @@ package com.jmussel.chessgame.server.user
 import com.jmussel.chessgame.server.auth.TestTokens
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
+import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.module
 import io.ktor.client.request.get
@@ -112,12 +113,13 @@ class LastSeenTest {
     @Test
     fun anAuthenticatedRequestCountsAsActivity() {
         DatabaseTestSupport.withMigratedDatabase { dataSource ->
-            val users = UserRepository(Databases.connect(dataSource))
+            val database = Databases.connect(dataSource)
+            val users = UserRepository(database)
             val at = Instant.parse("2026-08-26T10:00:00Z")
 
             testApplication {
                 application {
-                    module(tokens.verifier(), users, LastSeenTracker(users, clock = { at }))
+                    module(tokens.verifier(), users, FriendshipRepository(database), LastSeenTracker(users, clock = { at }))
                 }
 
                 client.get("/me") { header("Authorization", "Bearer ${tokens.tokenFor("auth-1")}") }
@@ -130,11 +132,12 @@ class LastSeenTest {
     @Test
     fun anUnauthenticatedRequestIsNotActivity() {
         DatabaseTestSupport.withMigratedDatabase { dataSource ->
-            val users = UserRepository(Databases.connect(dataSource))
+            val database = Databases.connect(dataSource)
+            val users = UserRepository(database)
             val existing = users.resolveBySubject("auth-1")
 
             testApplication {
-                application { module(tokens.verifier(), users, LastSeenTracker(users)) }
+                application { module(tokens.verifier(), users, FriendshipRepository(database), LastSeenTracker(users)) }
 
                 client.get("/health")
                 client.get("/me")

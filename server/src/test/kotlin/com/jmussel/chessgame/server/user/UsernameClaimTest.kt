@@ -6,6 +6,7 @@ import com.jmussel.chessgame.server.auth.TestTokens
 import com.jmussel.chessgame.server.db.ClaimUsernameResult
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
+import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.module
 import io.ktor.client.request.header
@@ -41,9 +42,10 @@ class UsernameClaimTest {
 
     private fun withServer(block: suspend ApplicationTestBuilder.(UserRepository) -> Unit) =
         DatabaseTestSupport.withMigratedDatabase { dataSource ->
-            val users = UserRepository(Databases.connect(dataSource))
+            val database = Databases.connect(dataSource)
+            val users = UserRepository(database)
             testApplication {
-                application { module(tokens.verifier(), users) }
+                application { module(tokens.verifier(), users, FriendshipRepository(database)) }
                 block(users)
             }
         }
