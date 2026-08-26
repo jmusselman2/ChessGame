@@ -2279,8 +2279,26 @@ against the local test database (BUILD SUCCESSFUL, 350 server tests, 0 skipped).
 
 ## M16.4 — Series/rematch idempotency
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M13
+
+**Completed:** 2026-08-26 — "Play with this friend" held to one series and one
+game however many times it is tapped, at the API boundary where the taps
+actually arrive. No defect was found and no code changed: `D011`'s partial
+unique index settles two opens racing, and the rematch is created by the game
+that finished rather than by anyone asking for it (`D015`), so `POST /series`
+has nothing to create. What was missing was the proof end to end — both players
+tapping at once get one series and one game, tapping mid-game opens the game in
+progress with its moves intact, tapping after a game ends opens the rematch
+rather than reopening the finished game, and tapping repeatedly across a
+finished game still leaves exactly two games. A series closed by removing a
+friend is not revived by making up again: that opens a new series and leaves the
+old one and its game as history (`D012`, `D013`). Verified locally with
+`.\gradlew.bat :server:test` (10 new `SeriesIdempotencyTest` cases, counting
+games through `/dashboard` and `/history` so the assertions are what a client
+can actually see) and `.\gradlew.bat build` against the local test database
+(BUILD SUCCESSFUL, 360 server tests, 0 skipped).
 
 ---
 
