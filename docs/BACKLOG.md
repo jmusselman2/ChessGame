@@ -711,8 +711,20 @@ Sequence-based tests pass.
 
 ## M3.13 — Fifty-/seventy-five-move rules
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M3.10
+
+**Completed:** 2026-08-26 — `MoveCountDraws.canClaimFiftyMove` becomes true at
+100 halfmoves without a pawn move or capture, and
+`isSeventyFiveMoveDraw` at 150; `ChessRules.terminalResult` ends the game
+automatically with `SEVENTY_FIVE_MOVE_RULE`, while the fifty-move draw stays
+claimable (`D019`). Checkmate on the 75th move is still checkmate because
+`terminalResult` checks it first. The halfmove clock advances on quiet moves
+for both sides and resets to `0` on any pawn move or capture. Verified locally
+with `.\gradlew.bat :game-core:test` (11 new `MoveCountDrawsTest` cases
+covering the 99/100 and 148/149/150 boundaries, 266 game-core tests total) and
+`.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ### Acceptance Criteria
 

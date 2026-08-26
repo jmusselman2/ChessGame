@@ -43,6 +43,7 @@ object ChessRules {
             isCheckmate(state) -> GameResult.checkmate(loser = state.sideToMove)
             InsufficientMaterial.isDraw(state) -> GameResult.draw(TerminationReason.INSUFFICIENT_MATERIAL)
             Repetition.isFivefold(state) -> GameResult.draw(TerminationReason.FIVEFOLD_REPETITION)
+            MoveCountDraws.isSeventyFiveMoveDraw(state) -> GameResult.draw(TerminationReason.SEVENTY_FIVE_MOVE_RULE)
             isStalemate(state) -> GameResult.draw(TerminationReason.STALEMATE)
             else -> null
         }
