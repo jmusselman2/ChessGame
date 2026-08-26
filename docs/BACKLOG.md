@@ -1481,8 +1481,23 @@ and another pair's series left alone) and `.\gradlew.bat build`
 
 ## M9.1 — Start/open active series
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M8.2
+
+**Completed:** 2026-08-26 — `GameSeriesRepository.openOrCreate` returns the
+pair's `ACTIVE` series if there is one and creates it otherwise, always storing
+the pair with the lower user id first, so either player's "Play" opens the same
+series (`D011`). The partial unique index is what enforces it: when an insert
+loses a race the repository re-reads and returns the winner's series rather than
+creating a parallel one. A closed series stays for history and does not block a
+new one (`D012`). `POST /series` behind Supabase authentication opens the series
+with a named friend — 201 when created, 200 when reopened, 403 for someone who
+is not a friend, 400 for yourself or a malformed name, 404 for an unknown user.
+Verified locally with `.\gradlew.bat :server:test` (13 new `OpenSeriesTest`
+cases) including the required concurrency test: eight simultaneous opens from
+both sides through a `CyclicBarrier` produce exactly one creation, one series id
+for everyone, and one row. `.\gradlew.bat build` succeeds (149 server tests).
 
 ### Acceptance Criteria
 

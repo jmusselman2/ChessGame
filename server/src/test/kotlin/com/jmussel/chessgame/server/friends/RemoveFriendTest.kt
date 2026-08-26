@@ -8,6 +8,7 @@ import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.GameRepository
+import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.db.GameSeriesTable
 import com.jmussel.chessgame.server.db.RemoveFriendResult
 import com.jmussel.chessgame.server.db.UserRepository
@@ -100,7 +101,7 @@ class RemoveFriendTest {
             val users = UserRepository(database)
             val friendships = FriendshipRepository(database)
             testApplication {
-                application { module(tokens.verifier(), users, friendships) }
+                application { module(tokens.verifier(), users, friendships, GameSeriesRepository(database)) }
                 block(Fixture(database, users, friendships))
             }
         }

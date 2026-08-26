@@ -6,6 +6,7 @@ import com.jmussel.chessgame.server.auth.TestTokens
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
+import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.module
 import io.ktor.client.request.get
@@ -119,7 +120,13 @@ class LastSeenTest {
 
             testApplication {
                 application {
-                    module(tokens.verifier(), users, FriendshipRepository(database), LastSeenTracker(users, clock = { at }))
+                    module(
+                        tokens.verifier(),
+                        users,
+                        FriendshipRepository(database),
+                        GameSeriesRepository(database),
+                        LastSeenTracker(users, clock = { at }),
+                    )
                 }
 
                 client.get("/me") { header("Authorization", "Bearer ${tokens.tokenFor("auth-1")}") }
@@ -137,7 +144,15 @@ class LastSeenTest {
             val existing = users.resolveBySubject("auth-1")
 
             testApplication {
-                application { module(tokens.verifier(), users, FriendshipRepository(database), LastSeenTracker(users)) }
+                application {
+                    module(
+                        tokens.verifier(),
+                        users,
+                        FriendshipRepository(database),
+                        GameSeriesRepository(database),
+                        LastSeenTracker(users),
+                    )
+                }
 
                 client.get("/health")
                 client.get("/me")

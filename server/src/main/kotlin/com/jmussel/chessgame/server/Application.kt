@@ -10,8 +10,10 @@ import com.jmussel.chessgame.server.auth.installSupabaseAuthentication
 import com.jmussel.chessgame.server.db.DatabaseConfig
 import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
+import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.friends.friendRoutes
+import com.jmussel.chessgame.server.series.seriesRoutes
 import com.jmussel.chessgame.server.user.LastSeenTracker
 import com.jmussel.chessgame.server.user.userLookupRoutes
 import com.jmussel.chessgame.server.user.usernameRoutes
@@ -56,6 +58,7 @@ fun main() {
                 verifier = SupabaseTokenVerifier.forProject(supabaseUrl),
                 users = users,
                 friendships = FriendshipRepository(database),
+                series = GameSeriesRepository(database),
             )
         }
     }.start(wait = true)
@@ -71,6 +74,7 @@ fun Application.module(
     verifier: SupabaseTokenVerifier,
     users: UserRepository,
     friendships: FriendshipRepository,
+    series: GameSeriesRepository,
     lastSeen: LastSeenTracker = LastSeenTracker(users),
 ) {
     install(ContentNegotiation) { json() }
@@ -87,6 +91,7 @@ fun Application.module(
             usernameRoutes(users)
             userLookupRoutes(users)
             friendRoutes(users, friendships)
+            seriesRoutes(users, friendships, series)
         }
     }
 }

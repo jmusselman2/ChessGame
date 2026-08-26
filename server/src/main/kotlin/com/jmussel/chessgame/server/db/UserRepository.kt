@@ -173,12 +173,3 @@ sealed interface ClaimUsernameResult {
     /** No such user. */
     data object NoSuchUser : ClaimUsernameResult
 }
-
-/** PostgreSQL's SQLSTATE for a unique constraint violation. */
-private const val UNIQUE_VIOLATION = "23505"
-
-/** Whether this failure is the database refusing a duplicate, rather than anything else. */
-private fun Throwable.isUniqueViolation(): Boolean =
-    generateSequence(this) { it.cause.takeIf { cause -> cause !== it } }
-        .filterIsInstance<java.sql.SQLException>()
-        .any { it.sqlState == UNIQUE_VIOLATION }
