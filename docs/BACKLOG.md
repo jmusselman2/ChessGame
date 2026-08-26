@@ -475,8 +475,20 @@ Unit tests pass.
 
 ## M3.5 — Attack and check detection
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M3.1, M3.2, M3.3, M3.4
+
+**Completed:** 2026-08-26 — `Attacks` provides `attackedSquaresFrom`,
+`attackersOf`, `isAttacked`, `attackedSquares`, `kingSquare`, `isInCheck`
+(board or `GameState`), and `isSideToMoveInCheck`. Attack squares differ from
+movement where the rules do: pawns attack only their capture diagonals, and a
+square occupied by a friendly piece is still defended. `PseudoLegalMoves.ray`
+was refactored to return every square up to and including the first blocker so
+movement and attacks share one ray; `slidingDestinations` filters out a
+friendly-occupied final square. Verified locally with
+`.\gradlew.bat :game-core:test` (20 new `AttacksTest` cases, 142 game-core
+tests total) and `.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ### Acceptance Criteria
 

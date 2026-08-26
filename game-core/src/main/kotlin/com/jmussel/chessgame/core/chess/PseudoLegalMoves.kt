@@ -32,7 +32,7 @@ object PseudoLegalMoves {
             requireNotNull(slidingDirectionsFor(piece.type)) {
                 "${piece.type} is not a sliding piece"
             }
-        return directions.flatMap { ray(board, from, it, piece.side) }
+        return directions.flatMap { ray(board, from, it) }.filter { board.pieceAt(it)?.side != piece.side }
     }
 
     /** [slidingDestinations] expressed as moves from [from]. */
@@ -41,22 +41,22 @@ object PseudoLegalMoves {
         from: Square,
     ): List<Move> = slidingDestinations(board, from).map { Move(from, it) }
 
-    private fun ray(
+    /**
+     * Every square along [direction] from [from] up to and including the first occupied
+     * one, whichever side occupies it. Callers decide whether that blocker is a legal
+     * destination or merely a defended square.
+     */
+    internal fun ray(
         board: Board,
         from: Square,
         direction: Direction,
-        side: Side,
     ): List<Square> =
         buildList {
             var square = from.shifted(direction)
             while (square != null) {
                 val current = square
-                val occupant = board.pieceAt(current)
-                if (occupant != null) {
-                    if (occupant.side != side) add(current)
-                    break
-                }
                 add(current)
+                if (!board.isEmpty(current)) break
                 square = current.shifted(direction)
             }
         }
