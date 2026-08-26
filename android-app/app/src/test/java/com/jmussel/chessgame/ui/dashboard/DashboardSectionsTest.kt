@@ -3,6 +3,7 @@ package com.jmussel.chessgame.ui.dashboard
 import com.jmussel.chessgame.api.DashboardEntryDto
 import com.jmussel.chessgame.api.UserSummaryDto
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -29,6 +30,8 @@ class DashboardSectionsTest {
         moveNumber = moveNumber,
         yourTurn = yourTurn,
     )
+
+    private fun person(username: String) = UserSummaryDto(userId = "user-$username", username = username)
 
     @Test
     fun onlyTheGamesWaitingOnYouAreListed() {
@@ -156,6 +159,88 @@ class DashboardSectionsTest {
 
         assertTrue(DashboardSections.yourTurn(entries).isEmpty())
         assertTrue(DashboardSections.theirTurn(entries).isEmpty())
+    }
+
+    @Test
+    fun everyFriendIsListed() {
+        val rows =
+            DashboardSections.friends(
+                friends = listOf(person("Sam"), person("Alex"), person("Chris")),
+                entries = emptyList(),
+            )
+
+        assertEquals(listOf("Alex", "Chris", "Sam"), rows.map { it.username })
+    }
+
+    @Test
+    fun aFriendWithNoGameIsSomeoneToPlay() {
+        val row = DashboardSections.friends(listOf(person("Alex")), emptyList()).single()
+
+        assertEquals("Play", row.action)
+        assertNull(row.gameId)
+    }
+
+    @Test
+    fun aFriendWithAGameIsSomeoneToOpen() {
+        val row =
+            DashboardSections
+                .friends(
+                    friends = listOf(person("Alex")),
+                    entries = listOf(entry("Alex", yourTurn = true)),
+                ).single()
+
+        assertEquals("Open", row.action)
+        assertEquals("game-Alex", row.gameId)
+    }
+
+    @Test
+    fun aFriendItIsNotYourTurnAgainstIsStillSomeoneToOpen() {
+        val row =
+            DashboardSections
+                .friends(
+                    friends = listOf(person("Chris")),
+                    entries = listOf(entry("Chris", yourTurn = false)),
+                ).single()
+
+        assertEquals("Open", row.action)
+    }
+
+    @Test
+    fun aSeriesBetweenGamesLeavesTheFriendSomeoneToPlay() {
+        val row =
+            DashboardSections
+                .friends(
+                    friends = listOf(person("Alex")),
+                    entries = listOf(entry("Alex", yourTurn = false, gameId = null)),
+                ).single()
+
+        assertEquals("Play", row.action)
+        assertNull(row.gameId)
+    }
+
+    @Test
+    fun friendsAlreadyShownAboveAreListedAgain() {
+        val entries = listOf(entry("Alex", yourTurn = true))
+
+        val rows = DashboardSections.friends(listOf(person("Alex"), person("Robin")), entries)
+
+        // The section is the way to reach a friend, not a leftovers pile.
+        assertEquals(listOf("Alex", "Robin"), rows.map { it.username })
+    }
+
+    @Test
+    fun anAccountWithNoFriendsHasNoRows() {
+        assertTrue(DashboardSections.friends(emptyList(), emptyList()).isEmpty())
+    }
+
+    @Test
+    fun aGameAgainstSomeoneWhoIsNoLongerAFriendIsNotAFriendRow() {
+        // Removing a friend leaves the game in progress alone (`D013`), so the series can
+        // outlive the friendship; the Friends section still only lists friends.
+        val rows = DashboardSections.friends(listOf(person("Alex")), listOf(entry("Chris", yourTurn = true)))
+
+        assertEquals(listOf("Alex"), rows.map { it.username })
+        assertEquals("Play", rows.single().action)
     }
 
     @Test

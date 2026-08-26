@@ -160,6 +160,46 @@ class ChessApiClientTest {
     }
 
     @Test
+    fun theFriendListIsRead() {
+        val client =
+            clientReplying(
+                """[{"userId": "user-1", "username": "Alex"}, {"userId": "user-2", "username": "Sam"}]""",
+            )
+
+        val friends = runBlocking { client.friends() }
+
+        assertEquals(listOf("Alex", "Sam"), friends.map { it.username })
+        assertEquals("/friends", requests.single().url.encodedPath)
+    }
+
+    @Test
+    fun playingWithAFriendOpensTheSeries() {
+        val client =
+            clientReplying(
+                """
+                {
+                  "seriesId": "series-1",
+                  "opponent": {"userId": "user-1", "username": "Alex"},
+                  "status": "ACTIVE",
+                  "closeAfterCurrentGame": false,
+                  "currentGameId": "game-1"
+                }
+                """.trimIndent(),
+            )
+
+        val series = runBlocking { client.openSeries("Alex") }
+
+        assertEquals("game-1", series.currentGameId)
+        assertEquals("ACTIVE", series.status)
+        assertEquals("Alex", series.opponent.username)
+
+        val request = requests.single()
+
+        assertEquals("/series", request.url.encodedPath)
+        assertEquals("POST", request.method.value)
+    }
+
+    @Test
     fun aRefusalIsReportedWithItsStatus() {
         val client = clientReplying("no", status = HttpStatusCode.Unauthorized)
 

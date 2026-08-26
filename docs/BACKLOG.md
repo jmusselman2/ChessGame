@@ -2113,8 +2113,27 @@ game-less series is in neither, and the server's order is kept) and
 
 ## M14.3 — Friends
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M8
+
+**Completed:** 2026-08-26 — the dashboard's last section, and the way a player
+reaches a friend they have no game with. Every friend is listed, ordered by
+name, because this is a list to find someone in rather than a feed, and friends
+who already appear above under a turn heading are listed again — the section is
+the way to reach a friend, not a leftovers pile. Each row carries the one thing
+to do about that friend: `Open` when there is a game under way with them,
+`Play` when there is not, which is `docs/PRODUCT.md`'s `[Play/Open]` exactly.
+Which of the two an action turns out to be is still the server's business
+(`D011`), so `Play` posts to `/series` and takes back whatever series that
+opens. `ChessApiClient` gained `GET /friends` and `POST /series` for this. A
+series between games leaves its friend as someone to `Play`, and a game against
+someone who is no longer a friend — which `D013` allows to outlive the
+friendship — is not a friend row. An account with no friends is told that adding
+one by username is how anything starts, rather than shown an empty heading.
+Verified locally with `.\gradlew.bat :android-app:testDebugUnitTest` (8 new
+`DashboardSectionsTest` cases and 2 new `ChessApiClientTest` cases) and
+`.\gradlew.bat build` (BUILD SUCCESSFUL, 124 Android unit tests, 0 skipped).
 
 ---
 

@@ -3,13 +3,16 @@ package com.jmussel.chessgame.ui.dashboard
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -20,15 +23,17 @@ import com.jmussel.chessgame.ui.theme.ChessGameTheme
 /**
  * The home screen a returning player lands on (`docs/PRODUCT.md`).
  *
- * The games waiting on the player come first and the games waiting on the opponent follow;
- * Friends is `M14.3`. What to show is decided by [DashboardSections], so this composable
- * holds no rules of its own.
+ * The games waiting on the player come first, the games waiting on the opponent follow,
+ * and every friend is reachable at the bottom. What to show is decided by
+ * [DashboardSections], so this composable holds no rules of its own.
  */
 @Composable
 fun DashboardScreen(
     entries: List<DashboardEntryDto>,
     modifier: Modifier = Modifier,
+    friends: List<UserSummaryDto> = emptyList(),
     onOpenGame: (DashboardRow) -> Unit = {},
+    onPlayFriend: (FriendRow) -> Unit = {},
 ) {
     Column(
         modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
@@ -48,6 +53,44 @@ fun DashboardScreen(
             rows = DashboardSections.theirTurn(entries),
             onOpenGame = onOpenGame,
         )
+
+        FriendsSection(
+            rows = DashboardSections.friends(friends, entries),
+            onPlayFriend = onPlayFriend,
+        )
+    }
+}
+
+/**
+ * Everyone the player can play, each with the one thing to do about them.
+ *
+ * This is how a player reaches a friend they have no game with, so it is shown even when
+ * the list is empty — an account with no friends yet needs to be told that adding one is
+ * how anything starts.
+ */
+@Composable
+private fun FriendsSection(
+    rows: List<FriendRow>,
+    onPlayFriend: (FriendRow) -> Unit,
+) {
+    Text(text = FRIENDS, style = MaterialTheme.typography.titleSmall)
+
+    if (rows.isEmpty()) {
+        Text(text = NO_FRIENDS_YET, style = MaterialTheme.typography.bodyMedium)
+        return
+    }
+
+    rows.forEach { row ->
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(text = row.username, style = MaterialTheme.typography.bodyLarge)
+            TextButton(onClick = { onPlayFriend(row) }) {
+                Text(text = row.action)
+            }
+        }
     }
 }
 
@@ -95,13 +138,21 @@ private fun DashboardRowItem(
 
 private const val YOUR_TURN = "YOUR TURN"
 private const val THEIR_TURN = "THEIR TURN"
+private const val FRIENDS = "FRIENDS"
 private const val NOTHING_WAITING = "Nothing waiting on you."
+private const val NO_FRIENDS_YET = "Add a friend by username to start playing."
 
 @Preview(showBackground = true)
 @Composable
 private fun DashboardScreenPreview() {
     ChessGameTheme {
         DashboardScreen(
+            friends =
+                listOf(
+                    UserSummaryDto(userId = "user-1", username = "Alex"),
+                    UserSummaryDto(userId = "user-3", username = "Chris"),
+                    UserSummaryDto(userId = "user-4", username = "Robin"),
+                ),
             entries =
                 listOf(
                     DashboardEntryDto(

@@ -5,6 +5,8 @@ import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
@@ -67,6 +69,16 @@ data class DashboardEntryDto(
     val closeAfterCurrentGame: Boolean = false,
 )
 
+/** A series as the server describes it to one of its two players. */
+@Serializable
+data class SeriesSummaryDto(
+    val seriesId: String,
+    val opponent: UserSummaryDto,
+    val status: String,
+    val closeAfterCurrentGame: Boolean = false,
+    val currentGameId: String? = null,
+)
+
 /**
  * The app's connection to the Chess server, which is authoritative for everything about a
  * game (`D004`).
@@ -83,11 +95,38 @@ class ChessApiClient(
     /** The caller's active series, newest first, as the server orders them. */
     suspend fun dashboard(): List<DashboardEntryDto> = get("/dashboard")
 
-    private suspend inline fun <reified T> get(path: String): T {
-        val response: HttpResponse =
-            httpClient.get(config.url(path)) {
+    /** Everyone the caller is friends with (`D009`). */
+    suspend fun friends(): List<UserSummaryDto> = get("/friends")
+
+    /**
+     * The active series with [username], opening the existing one or starting it.
+     *
+     * "Play with this friend" is one action, and which of the two it turns out to be is
+     * the server's business, not the app's (`D011`).
+     */
+    suspend fun openSeries(username: String): SeriesSummaryDto = post("/series", username)
+
+    private suspend inline fun <reified T> get(path: String): T =
+        read(path) {
+            httpClient.get(config.url(path)) { header(HttpHeaders.Authorization, "Bearer ${accessToken()}") }
+        }
+
+    private suspend inline fun <reified T> post(
+        path: String,
+        body: String,
+    ): T =
+        read(path) {
+            httpClient.post(config.url(path)) {
                 header(HttpHeaders.Authorization, "Bearer ${accessToken()}")
+                setBody(body)
             }
+        }
+
+    private suspend inline fun <reified T> read(
+        path: String,
+        request: () -> HttpResponse,
+    ): T {
+        val response = request()
 
         if (!response.status.isSuccess()) {
             throw ChessApiException(response.status.value, "Chess server refused $path: ${response.status}")
