@@ -502,8 +502,20 @@ Representative check/non-check tests pass.
 
 ## M3.6 — Self-check prevention
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M3.5
+
+**Completed:** 2026-08-26 — `LegalMoves` adds `boardAfter`,
+`leavesOwnKingInCheck`, `isLegal`, `from`, `forSide`, and `forSideToMove`: a
+pseudo-legal move is discarded when the resulting board leaves the mover's own
+king attacked. This covers pinned pieces (may slide along the pin line and
+capture the pinner, nothing else), kings stepping onto attacked or defended
+squares, retreating along a checking ray, and answering an existing check by
+capture or block. `PseudoLegalMoves.from` / `forSide` dispatch pseudo-legal
+generation by piece type. Verified locally with `.\gradlew.bat :game-core:test`
+(18 new `LegalMovesTest` cases including the 20-legal-move opening position,
+160 game-core tests total) and `.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ### Acceptance Criteria
 

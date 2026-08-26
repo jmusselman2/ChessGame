@@ -173,4 +173,28 @@ object PseudoLegalMoves {
         board: Board,
         from: Square,
     ): List<Move> = pawnDestinations(board, from).map { Move(from, it) }
+
+    /**
+     * Every pseudo-legal move for the piece on [from], dispatched by piece type.
+     *
+     * Castling, en passant, and promotion are separate rules and are not included here.
+     */
+    fun from(
+        board: Board,
+        from: Square,
+    ): List<Move> {
+        val piece = requireNotNull(board.pieceAt(from)) { "No piece on $from" }
+        return when (piece.type) {
+            PieceType.PAWN -> pawnMoves(board, from)
+            PieceType.KNIGHT -> knightMoves(board, from)
+            PieceType.KING -> kingMoves(board, from)
+            else -> slidingMoves(board, from)
+        }
+    }
+
+    /** Every pseudo-legal move for [side], in square order. */
+    fun forSide(
+        board: Board,
+        side: Side,
+    ): List<Move> = board.squaresOf(side).flatMap { from(board, it) }
 }
