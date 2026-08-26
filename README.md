@@ -25,6 +25,7 @@ The long-term goal is not to remain a chess application. Chess is being used to 
 ├── android-app/
 ├── server/
 ├── database/
+│   ├── README.md
 │   └── migrations/
 └── docs/
     ├── PRODUCT.md
@@ -52,16 +53,47 @@ The root `CLAUDE.md` defines document precedence and autonomous-development rule
 
 ## Current Status
 
-The first milestone is repository/bootstrap setup and verification.
+**Milestone 1 (Repository and Build Bootstrap) is nearly complete.** `M1.1`–`M1.6`
+are `DONE` (local verification 2026-08-25); `M1.7` (CI) is `IN PROGRESS` until
+the updated GitHub Actions workflow has a verified green run. See
+`docs/BACKLOG.md`.
 
-After bootstrap, update `docs/DEVELOPMENT.md` with commands that have actually been executed successfully.
+- monorepo structure (`game-core/`, `android-app/`, `server/`,
+  `database/migrations/`, `docs/`),
+- pure Kotlin/JVM `game-core` with a passing unit test,
+- Android app (Kotlin + Compose) that depends on and references `game-core`,
+- Ktor server with a verified `/health` endpoint that references `game-core`,
+- ktlint formatting + Android lint wired into `check`,
+- verified developer commands recorded in `docs/DEVELOPMENT.md`,
+- GitHub Actions CI running the single aggregate `./gradlew build`
+  (workflow written; first green run still pending — `M1.7`).
+
+Milestone-by-milestone progress is tracked in `docs/BACKLOG.md`. Milestone 2
+(Chess Domain Model) has not been started.
 
 ## Getting Started
 
-The exact build, test, server, and database commands will be finalized during Milestone 1 and recorded in:
+Use the committed Gradle wrapper. Verified commands are in `docs/DEVELOPMENT.md`.
 
-```text
-docs/DEVELOPMENT.md
+Single aggregate verification (also what CI runs):
+
+```bash
+./gradlew build
 ```
 
-Do not copy unverified command examples into automation or CI until they have been confirmed against the generated project.
+Common narrower commands:
+
+```bash
+./gradlew :game-core:test
+./gradlew :server:test
+./gradlew :server:run          # then GET http://localhost:8080/health
+./gradlew :android-app:assembleDebug
+./gradlew ktlintCheck
+```
+
+## Continuous Autonomous Development
+
+This repository is set up for continuous autonomous implementation of the
+backlog. See `docs/AUTONOMOUS-DEVELOPMENT.md`. In short: work happens on the
+`claude-autopilot` branch, one verified backlog task per commit, continuing
+across milestone boundaries and stopping only for genuine blockers.

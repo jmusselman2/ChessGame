@@ -92,19 +92,86 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - Prefer standard Kotlin/Android/Ktor conventions over custom frameworks.
 - Avoid unnecessary interfaces, wrapper layers, and one-use abstractions.
 
+## Continuous Autonomous Development
+
+When asked to run autonomously (for example "start the autopilot", "work the
+backlog", "continue autonomously"), follow `docs/AUTONOMOUS-DEVELOPMENT.md`. The
+normal task loop is exactly:
+
+1. Select the highest-priority unblocked `TODO` (Task Selection Order in
+   `docs/BACKLOG.md`).
+2. Mark it `IN PROGRESS`.
+3. Implement it.
+4. Add/update tests.
+5. Run targeted verification.
+6. Run `./gradlew build`.
+7. Fix failures until local verification passes.
+8. Mark the task `DONE` and add its completion note.
+9. Review `git status` and `git diff`.
+10. Commit the verified task on `claude-autopilot`.
+11. Push `claude-autopilot` to `origin`.
+12. Wait for the required GitHub Actions run for that pushed commit.
+13. If CI fails, diagnose and fix it, rerun local verification, commit, push
+    again, and wait for CI again (same escalation ladder).
+14. Only after the required CI checks are green may the workflow select and
+    begin the next backlog task.
+15. Continue automatically across milestone boundaries.
+
+Key clarifications:
+
+- **`DONE` vs. advancing are different gates.** A task may be marked `DONE` once
+  its required **local** verification succeeds (implementation + acceptance
+  criteria + `./gradlew build`). The workflow may **not** advance to the next
+  task until the pushed `claude-autopilot` commit has passed required remote CI.
+  `DONE` = task-level implementation gate; green remote CI = branch-level
+  progression gate.
+- **Tasks whose acceptance criteria require GitHub Actions itself to run
+  successfully (e.g. `M1.7`)** are not `DONE` until that CI run has actually
+  succeeded.
+- **Remote CI monitoring:** prefer the GitHub CLI (`gh`) to find and watch the
+  run for the pushed commit; verify the run's head SHA matches the commit just
+  pushed rather than trusting the latest unrelated run. If `gh` is unavailable,
+  unauthenticated, or cannot reach the repo, treat it as a missing external
+  prerequisite and stop per the Stop Conditions — do not silently skip remote
+  CI verification.
+- **Milestone completion is not a stopping condition.** Continue across
+  milestone boundaries without pausing.
+- A normal compile error, test failure, lint failure, failing GitHub Actions
+  run, or implementation bug is **not** a reason to stop — diagnose and fix it.
+  Work the escalation ladder in `docs/AUTONOMOUS-DEVELOPMENT.md` (targeted
+  fixes, then wider investigation, then — only after genuinely different
+  attempts fail the same way — stop and report with a full diagnosis).
+- Stop and ask only for a genuine blocker: contradictory authoritative
+  requirements, unavailable required credentials/infrastructure (including `gh`
+  unavailable for the Remote CI Gate), a significant difficult-to-reverse
+  architecture change, a meaningful new recurring cost, a production/destructive
+  operation, a security-boundary change, a repeated verification failure
+  implicating the documented architecture itself, or an empty unblocked backlog.
+- Preserved guardrails: no direct pushes to `main`, no force-push, no rewriting
+  published history; PR/merge into `main` stays human-controlled; production and
+  beta deployment remain prohibited without explicit authorization.
+
 ## Verification Commands
 
 Use `docs/DEVELOPMENT.md` as the authoritative source for build, test, formatting, lint, server-run, and environment commands.
+
+The single aggregate verification command is `./gradlew build` (Windows: `.\gradlew.bat build`). It runs `ktlintCheck`, every module's unit tests, Android lint, the Android APKs, and the server distribution, and it is exactly what CI runs.
 
 Before completing affected work:
 
 - run the narrowest relevant tests,
 - run the affected-module build or check,
 - run `ktlintCheck` for Kotlin changes,
-- run `check` when the change can affect multiple modules or Android lint,
+- run `./gradlew build` when the change can affect multiple modules or Android lint, and always before marking a backlog task `DONE`,
 - inspect `git status` and `git diff`,
 - do not proceed while required verification is failing,
 - do not treat pushed work as verified while required CI checks are failing.
+
+In the autonomous workflow, local `./gradlew build` success lets a task be
+marked `DONE`, but a green required GitHub Actions run for the pushed
+`claude-autopilot` commit is a separate gate that must pass before the next task
+is started (see **Continuous Autonomous Development** and
+`docs/AUTONOMOUS-DEVELOPMENT.md`).
 
 ## Decision Rule for Unspecified Details
 
@@ -134,15 +201,46 @@ Routine autonomous work may include:
 
 - editing files,
 - running Gradle builds/tests/checks,
-- inspecting `git status`, `git diff`, and history.
+- inspecting `git status`, `git diff`, and history,
+- creating the `claude-autopilot` branch and making local commits on it after
+  verified tasks,
+- pushing `claude-autopilot` to `origin` so CI can run.
+
+### `claude-autopilot` branch workflow
+
+- Autonomous work happens on `claude-autopilot`, branched from an up-to-date
+  `main`.
+- One focused commit per completed, verified backlog task; the message names the
+  task id.
+- `main` is protected: do not commit or push to it directly. Merging
+  `claude-autopilot` into `main` (via pull request) is a human step unless
+  explicitly authorized.
+- Keep `claude-autopilot` current with `main` by merging or rebasing only
+  local, unpublished commits.
+
+### Pre-commit hygiene
+
+- Run `git diff --check` before every commit; it must report nothing. Fix any
+  trailing-whitespace or leftover-conflict-marker errors it flags on touched
+  lines first. This check is part of the autonomous pre-commit review (see
+  `docs/AUTONOMOUS-DEVELOPMENT.md` and the `docs/DEVELOPMENT.md` verification
+  policy).
+- Do not create `.bak`, `.backup`, `.orig`, `.old`, `~`, or similarly-named
+  manual backup copies of tracked files. Git history is the recovery mechanism;
+  use a branch, `git stash`, or `git worktree` instead.
+- A temporary backup file the tooling itself creates during an in-place edit may
+  be removed by that same tooling once the operation succeeds. Never delete
+  unknown or user-created untracked files (deleting untracked user work still
+  requires explicit authorization).
 
 Do not perform any of the following without explicit authorization:
 
 - destructive production actions,
-- production deployment,
+- production or beta deployment,
 - credential changes,
 - destructive database operations,
 - `git reset --hard`,
 - deleting untracked user work,
 - force pushing,
-- pushing to protected branches.
+- pushing to `main` or any other protected branch,
+- rewriting published history.

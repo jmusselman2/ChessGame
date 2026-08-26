@@ -19,3 +19,9 @@ local.properties
 # OS
 .DS_Store
 Thumbs.db
+
+# Temporary/editor backup files
+*.bak
+*.backup
+*.orig
+*~

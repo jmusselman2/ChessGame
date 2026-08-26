@@ -2,9 +2,17 @@
 
 This file records the exact commands and environment details used to build, run, and verify the project.
 
-During Milestone 1, replace all placeholders/examples below with commands that have actually been executed successfully.
+Milestone 1 bootstrap is largely in place: the commands in the **Verified
+Commands** section below have all been executed successfully against this
+repository locally (last confirmed 2026-08-25). `M1.7` (CI) is still
+`IN PROGRESS` — the updated GitHub Actions workflow has not yet had a verified
+green run, and `M1.7` must not be marked `DONE` until it has. Sections covering
+later milestones (PostgreSQL, migrations, beta deployment) still contain
+placeholders and must be filled in when that work is done.
 
-Do not treat an example command as authoritative until verified.
+Do not treat an unverified example command as authoritative. When you add or
+change a command, run it, then record it here with `Status: VERIFIED` and the
+date.
 
 ## Environment Versions
 
@@ -41,7 +49,35 @@ Record exact required versions after bootstrap.
 
 Run all Gradle commands from the repository root.
 
-### Aggregate Quality Check
+### Single Aggregate Verification Command
+
+Windows:
+
+    .\gradlew.bat build
+
+Linux/macOS/CI:
+
+    ./gradlew build
+
+Status: VERIFIED (2026-08-25)
+
+`build` is the one command that verifies the whole repository. Across every
+module it runs:
+
+- `ktlintCheck` (the ktlint plugin wires it into `check`, and `build` depends on
+  `check`),
+- `game-core` unit tests,
+- `server` unit tests and the server distribution (`distZip`/`distTar`),
+- Android debug + release unit tests,
+- Android lint,
+- the Android debug and release APKs.
+
+This is what CI runs. Use it as the affected-work verification for any change
+that can affect more than one module, and as the final gate before marking a
+backlog task `DONE`. Prefer the narrower commands below for fast iteration while
+implementing.
+
+### Aggregate Quality Check (no packaging)
 
 Windows:
 
@@ -51,9 +87,11 @@ Linux/macOS/CI:
 
     ./gradlew check
 
-Status: VERIFIED
+Status: VERIFIED (2026-08-25)
 
-This runs the Gradle verification lifecycle, including Android lint and applicable module checks/tests.
+`check` runs the verification lifecycle only — ktlint, Android lint, and all
+module tests — without assembling the APKs or the server distribution. It is a
+faster subset of `build`.
 
 ### Kotlin Formatting Check
 
@@ -93,7 +131,36 @@ Linux/macOS/CI:
 
 Status: VERIFIED
 
-### Android Build
+### Android Unit Tests
+
+Windows:
+
+    .\gradlew.bat :android-app:testDebugUnitTest
+
+Linux/macOS/CI:
+
+    ./gradlew :android-app:testDebugUnitTest
+
+Status: VERIFIED (2026-08-25)
+
+Host-side JVM unit tests for the Android module. Do not rely on Android manual
+testing for chess-rule correctness — that belongs in `game-core` tests.
+
+### Android Debug Build
+
+Windows:
+
+    .\gradlew.bat :android-app:assembleDebug
+
+Linux/macOS/CI:
+
+    ./gradlew :android-app:assembleDebug
+
+Status: VERIFIED (2026-08-25)
+
+Produces the debug APK without running lint or release tasks.
+
+### Android Build (debug + release + lint + tests)
 
 Windows:
 
@@ -103,7 +170,7 @@ Linux/macOS/CI:
 
     ./gradlew :android-app:build
 
-Status: VERIFIED
+Status: VERIFIED (2026-08-25)
 
 The Android application has also been manually verified to launch successfully.
 
@@ -246,22 +313,61 @@ Workflow file:
 Triggers:
 
 - pushes to `main`
+- pushes to `claude-autopilot`
 - pull requests targeting `main`
 
-The workflow runs:
+Actions used (kept current to avoid GitHub runner deprecation warnings):
 
-    ./gradlew ktlintCheck
-    ./gradlew check
-    ./gradlew :game-core:test
-    ./gradlew :android-app:build
-    ./gradlew :server:test
-    ./gradlew :server:build
+- `actions/checkout@v7`
+- `actions/setup-java@v5` (Temurin, Java 24)
+- `gradle/actions/setup-gradle@v6`
+
+The workflow runs a single aggregate step:
+
+    ./gradlew build
+
+`build` covers ktlintCheck, `game-core` tests, `server` tests + distribution,
+Android debug/release unit tests, Android lint, and the Android APKs. If a
+future need arises to split CI into parallel jobs, keep `./gradlew build` as the
+union of what those jobs run.
 
 Required policy:
 
 - CI must remain green for verified work.
 - Do not ignore a failing required CI check.
 - Fix failures caused by the current change before treating work as complete.
+- After changing the workflow file or action versions, confirm the next run on
+  `main` or `claude-autopilot` is green.
+
+Status: the updated workflow (single `./gradlew build` step, bumped action
+majors) has **not** yet had a verified green run. `M1.7` stays `IN PROGRESS`
+until it does.
+
+### Remote CI Gate (autonomous workflow)
+
+In the continuous autonomous workflow (`docs/AUTONOMOUS-DEVELOPMENT.md`), a task
+may be marked `DONE` once local `./gradlew build` passes, but the workflow may
+**not** start the next task until the pushed `claude-autopilot` commit has
+passed its required GitHub Actions run.
+
+Monitor the run with the GitHub CLI, and confirm it is the run for the commit
+you just pushed:
+
+    git rev-parse HEAD
+    gh run list --branch claude-autopilot --limit 10
+    gh run watch <run-id> --exit-status
+    gh run view <run-id> --log-failed
+
+- Match the run's head SHA to `git rev-parse HEAD`. Do not accept the latest
+  unrelated run, a run for an older commit, or an in-progress run as passing the
+  gate.
+- If `gh` is not installed, `gh auth status` fails, or the repo is not
+  reachable, that is a **missing external prerequisite**: stop per the Stop
+  Conditions in `docs/AUTONOMOUS-DEVELOPMENT.md`. Do not silently skip the
+  remote CI gate.
+- A failing run is normally a config/implementation problem — diagnose, fix,
+  re-run `./gradlew build` locally, commit, push, and watch CI again using the
+  same failure-escalation ladder.
 
 ## Verification Policy
 
@@ -270,8 +376,16 @@ For every behavior change:
 1. run relevant narrow tests,
 2. run affected-module tests,
 3. build/check the affected module,
-4. inspect `git status`,
-5. inspect `git diff`.
+4. run the single aggregate command `./gradlew build` when the change can touch
+   more than one module (and always before marking a backlog task `DONE`),
+5. run `git diff --check` and fix every reported whitespace error before
+   committing,
+6. inspect `git status`,
+7. inspect `git diff`.
+
+`git diff --check` must report nothing (exit 0) before any commit. If it flags
+trailing whitespace or a stray conflict marker on a line the change touched, fix
+that line — do not commit over it.
 
 Do not rely on Android manual testing for chess-rule correctness.
 

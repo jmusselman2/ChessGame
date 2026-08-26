@@ -11,6 +11,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import com.jmussel.chessgame.core.GameCore
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
 class MainActivity : ComponentActivity() {
@@ -21,7 +22,7 @@ class MainActivity : ComponentActivity() {
             ChessGameTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Greeting(
-                        name = "Android",
+                        name = GameCore.NAME,
                         modifier = Modifier.padding(innerPadding),
                     )
                 }

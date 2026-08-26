@@ -17,14 +17,64 @@ Work in milestone order unless a dependency explicitly permits otherwise.
 
 Each task must satisfy its acceptance criteria and verification requirements before being marked `DONE`.
 
+## Task Selection Order (Autonomous Mode)
+
+When running the continuous autonomous workflow (`docs/AUTONOMOUS-DEVELOPMENT.md`),
+select the next task deterministically:
+
+1. Consider only tasks with `Status: TODO`.
+2. Exclude any task whose `Depends on` tasks are not all `DONE`.
+3. Exclude any task marked `BLOCKED` and any task that would require a
+   documented stop condition.
+4. Of the remainder, pick the one that comes first in this document
+   (lowest milestone number, then lowest task number).
+5. Mark it `IN PROGRESS` before editing code.
+6. Mark it `DONE` only after its required **local** verification passes
+   (implementation + acceptance criteria + `./gradlew build`).
+
+### `DONE` is not the same as being allowed to start the next task
+
+- `DONE` = the task's implementation and local acceptance criteria passed.
+- The autonomous workflow may **not** select or begin the next task until the
+  pushed `claude-autopilot` commit has passed its **required GitHub Actions
+  run**. A green remote CI run is the branch-level progression gate; `DONE` is
+  the task-level implementation gate. A task can legitimately be `DONE` while
+  the branch is still waiting on CI.
+- For a task whose acceptance criteria require GitHub Actions itself to run
+  successfully (for example `M1.7`), do **not** mark it `DONE` until that CI run
+  has actually succeeded — the successful run is part of that task's acceptance
+  criteria, not only the progression gate.
+- If remote CI cannot be verified (GitHub CLI unavailable, unauthenticated, or
+  no repo access), stop per the Stop Conditions in
+  `docs/AUTONOMOUS-DEVELOPMENT.md`. Do not silently skip remote CI.
+
+Milestone boundaries are **not** stopping points. After a task is `DONE` and its
+pushed commit's required CI is green, immediately select the next one,
+continuing into the next milestone.
+
+A single milestone-level task with no sub-tasks (for example `M2.1` inside a
+milestone that only has `M2.1`, `M2.2`) is selected the same way.
+
 ---
 
 # M1 — Repository and Build Bootstrap
 
+**Milestone status:** NEARLY COMPLETE. `M1.1`–`M1.6` are `DONE` (local
+verification 2026-08-25). `M1.7` is `IN PROGRESS`: the GitHub Actions workflow
+has been written and updated, but it has not yet had a verified green run.
+`M1.7` — and therefore the milestone — is not complete until the required CI run
+for a pushed `claude-autopilot` commit passes.
+
 ## M1.1 — Create monorepo structure
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** None
+
+**Completed:** 2026-08-25 — `game-core/`, `android-app/`, `server/`,
+`database/migrations/`, and `docs/` exist. `./gradlew projects` lists
+`:android-app`, `:game-core`, `:server`. Root Gradle build (Kotlin DSL) is at
+the repository root.
 
 ### Objective
 
@@ -53,8 +103,14 @@ docs/
 
 ## M1.2 — Configure pure Kotlin/JVM `game-core`
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M1.1
+
+**Completed:** 2026-08-25 — `game-core` applies only the Kotlin/JVM plugin, has
+no Android/Ktor/database dependencies, builds via `./gradlew :game-core:build`,
+and `./gradlew :game-core:test` passes (`GameCoreTest`). Command recorded in
+`docs/DEVELOPMENT.md`.
 
 ### Objective
 
@@ -74,8 +130,14 @@ Record exact verified test/build command in `docs/DEVELOPMENT.md`.
 
 ## M1.3 — Configure Android app
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M1.2
+
+**Completed:** 2026-08-25 — `android-app` depends on `:game-core`,
+`./gradlew :android-app:assembleDebug` and `./gradlew :android-app:build`
+succeed, `MainActivity` references `com.jmussel.chessgame.core.GameCore`, and
+the app has been manually verified to launch (see `docs/DEVELOPMENT.md`).
 
 ### Objective
 
@@ -96,8 +158,14 @@ Record exact Android build/test command in `docs/DEVELOPMENT.md`.
 
 ## M1.4 — Configure Ktor server
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M1.2
+
+**Completed:** 2026-08-25 — `server` depends on `:game-core`,
+`./gradlew :server:build` and `:server:test` pass, `./gradlew :server:run`
+starts locally, and `GET http://localhost:8080/health` returns HTTP 200
+`ChessGame server is healthy`. `Application.kt` references `GameCore`.
 
 ### Objective
 
@@ -119,8 +187,14 @@ Record exact run/build/test commands in `docs/DEVELOPMENT.md`.
 
 ## M1.5 — Configure formatting and static analysis
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M1.2, M1.3, M1.4
+
+**Completed:** 2026-08-25 — ktlint Gradle plugin (`14.2.0`) is applied to every
+subproject and wired into `check`; Android lint runs via `check`.
+`./gradlew ktlintCheck` and `./gradlew ktlintFormat` run non-interactively.
+Detekt is intentionally deferred (documented in `docs/DEVELOPMENT.md`).
 
 ### Objective
 
@@ -140,8 +214,15 @@ Run configured checks successfully.
 
 ## M1.6 — Establish developer verification commands
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M1.2, M1.3, M1.4, M1.5
+
+**Completed:** 2026-08-25 — `docs/DEVELOPMENT.md` documents verified commands for
+game-core tests/build, Android unit tests, Android debug build, server
+tests/build/run, formatting/static checks, and the single aggregate command
+`./gradlew build`. Every documented command was executed successfully on
+2026-08-25.
 
 ### Objective
 
@@ -166,8 +247,23 @@ Execute every documented command successfully.
 
 ## M1.7 — Add CI
 
-**Status:** TODO  
+**Status:** IN PROGRESS
+
 **Depends on:** M1.6
+
+**Progress (not complete):** 2026-08-25 — `.github/workflows/ci.yml` exists and
+runs on pushes to `main` and `claude-autopilot` and on pull requests targeting
+`main`. It checks out, sets up JDK 24 (Temurin) and Gradle, and runs a single
+`./gradlew build` step, which covers ktlintCheck, game-core tests, server tests
++ build, Android unit tests, and Android build/lint. Deprecated action majors
+were updated (`actions/checkout@v7`, `actions/setup-java@v5`,
+`gradle/actions/setup-gradle@v6`) to clear runner deprecation warnings.
+
+**Remaining before `DONE`:** this task's acceptance criteria require GitHub
+Actions itself to run successfully. It stays `IN PROGRESS` until the required CI
+run for a pushed `claude-autopilot` commit has actually passed (verified via
+`gh run watch` against that commit's SHA). The updated workflow — bumped action
+majors and the consolidated single step — has not yet had a verified green run.
 
 ### Objective
 
@@ -185,7 +281,8 @@ CI runs:
 
 ### Verification
 
-CI passes on the bootstrap branch/commit.
+CI passes on the bootstrap branch/commit — confirmed by watching the required
+GitHub Actions run for the specific pushed commit (not an unrelated later run).
 
 ---
 
@@ -683,6 +780,9 @@ Decision recorded in `DECISIONS.md`.
 ### Acceptance Criteria
 
 Repeatable migration process exists and is documented.
+
+`database/migrations/.gitkeep` is only a placeholder to keep the empty directory
+tracked. Delete it in the same change that adds the first real migration file.
 
 ---
 

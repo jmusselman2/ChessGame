@@ -635,3 +635,71 @@ Choose the Kotlin/JVM PostgreSQL library during bootstrap after checking current
 ### Rationale
 
 Library quality changes faster than the architecture itself.
+
+---
+
+## D026 — Continuous Autonomous Development on `claude-autopilot`
+
+**Date:** 2026-08-25
+
+**Status:** Accepted
+
+### Decision
+
+After M1.1-M1.6 were reconciled and locally verified, autonomous development
+switched from a "stop at every milestone boundary" checkpoint to a continuous
+loop:
+
+- select the highest-priority unblocked `TODO` from `docs/BACKLOG.md` (using its
+  Task Selection Order),
+- implement, test, run targeted verification, run `./gradlew build`, fix
+  failures, mark `DONE` (local gate), update docs, review the diff, commit,
+- push `claude-autopilot` and wait for the required GitHub Actions run for that
+  commit; only advance to the next task once that run is green,
+- continue to the next task **across** milestone boundaries,
+- stop only for the explicit blockers listed in
+  `docs/AUTONOMOUS-DEVELOPMENT.md`.
+
+`DONE` (task implementation + local `./gradlew build`) and *advancing to the
+next task* (green required remote CI for the pushed commit) are separate gates.
+A task whose acceptance criteria require GitHub Actions to run successfully
+(e.g. `M1.7`) is not `DONE` until that CI run passes. Remote CI is monitored via
+the GitHub CLI, matching the run to the pushed commit's SHA; if `gh` cannot be
+used, that is a stop condition (no silent skipping).
+
+Autonomous work happens on the `claude-autopilot` branch. `main` stays
+protected; no direct pushes, no force-push, no rewriting published history;
+PR/merge into `main` stays human-controlled; production and beta deployment
+require explicit approval.
+
+`./gradlew build` is adopted as the single aggregate local verification command
+and is what CI runs.
+
+### Rationale
+
+The milestone-boundary checkpoint in the original protocol was explicitly
+described as a temporary safeguard to be loosened once the workflow proved
+reliable. M1 bootstrap and local verification are now in place, so the
+checkpoint adds friction without adding safety. Genuine risks (contradictions, missing
+infrastructure, irreversible architecture changes, cost, security, destructive
+operations) are covered by explicit stop conditions and a failure-escalation
+ladder instead.
+
+A single aggregate command removes ambiguity about "what counts as verified" and
+keeps local verification identical to CI.
+
+### Supersedes
+
+The "Default Autonomy Scope" section of `docs/AUTONOMOUS-DEVELOPMENT.md` that
+limited autonomous work to the current milestone and required a stop, summary,
+and hand-off at each milestone boundary.
+
+### Consequences
+
+- `docs/AUTONOMOUS-DEVELOPMENT.md`, `CLAUDE.md`, `docs/BACKLOG.md`, and
+  `docs/DEVELOPMENT.md` were updated to describe the loop, the branch workflow,
+  the stop conditions, the escalation ladder, and the aggregate command.
+- CI also triggers on `claude-autopilot` so autonomous commits get feedback
+  before any pull request into `main`.
+- Merging `claude-autopilot` into `main` remains a human step unless explicitly
+  authorized.
