@@ -1145,8 +1145,27 @@ tracked. Delete it in the same change that adds the first real migration file
 
 ## M6.4 — Initial schema
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M6.3
+
+**Completed:** 2026-08-26 — `database/migrations/V1__initial_schema.sql`
+creates `users`, `friendships`, `game_series`, `games`, `moves`, and
+`game_events`, and `database/migrations/.gitkeep` was deleted in the same
+change. Constraints encode the product rules rather than leaving them to
+application code: a unique `username_normalized` and a unique `auth_subject`
+(`D007`), username length and character checks, friendships and series stored
+as an ordered pair with a `user_a_id < user_b_id` check so a self-friendship or
+a reversed duplicate cannot exist (`D009`), a partial unique index giving at
+most one `ACTIVE` series per pair (`D011`), a `game_series` status check with
+`closed_at` agreeing with it (`D012`) plus `close_after_current_game`
+(`D013`), games unique per `(series_id, sequence_number)` with distinct
+players, `version` defaulting to `0` (`D021`), a result that must agree with
+`COMPLETE` status, moves unique per `(game_id, ply)` with square and promotion
+checks and `position_before` for exact undo (`D029`), and append-only
+`game_events`. Verified locally against the `M6.1` container:
+`InitialSchemaTest` (19 cases) applies the migration and confirms each
+constraint rejects what it should; `.\gradlew.bat build` succeeds.
 
 ### Objective
 
