@@ -18,12 +18,15 @@ import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.friends.friendRoutes
 import com.jmussel.chessgame.server.game.GameCommandService
 import com.jmussel.chessgame.server.game.gameRoutes
+import com.jmussel.chessgame.server.realtime.RealtimeHub
+import com.jmussel.chessgame.server.realtime.realtimeRoutes
 import com.jmussel.chessgame.server.series.SeriesService
 import com.jmussel.chessgame.server.series.seriesRoutes
 import com.jmussel.chessgame.server.user.LastSeenTracker
 import com.jmussel.chessgame.server.user.userLookupRoutes
 import com.jmussel.chessgame.server.user.usernameRoutes
 import io.ktor.http.HttpStatusCode
+import io.ktor.serialization.kotlinx.KotlinxWebsocketSerializationConverter
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
@@ -36,6 +39,8 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.routing
+import io.ktor.server.websocket.WebSockets
+import kotlinx.serialization.json.Json
 import kotlin.uuid.ExperimentalUuidApi
 
 private const val SUPABASE_URL = "SUPABASE_URL"
@@ -90,9 +95,11 @@ fun Application.module(
     series: SeriesService,
     dashboard: DashboardQueries,
     commands: GameCommandService,
+    realtime: RealtimeHub = RealtimeHub(),
     lastSeen: LastSeenTracker = LastSeenTracker(users),
 ) {
     install(ContentNegotiation) { json() }
+    install(WebSockets) { contentConverter = KotlinxWebsocketSerializationConverter(Json) }
     installSupabaseAuthentication(verifier, users, lastSeen)
 
     routing {
@@ -109,6 +116,7 @@ fun Application.module(
             seriesRoutes(users, friendships, series)
             dashboardRoutes(dashboard)
             gameRoutes(commands)
+            realtimeRoutes(realtime)
         }
     }
 }

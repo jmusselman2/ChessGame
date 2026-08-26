@@ -1791,8 +1791,26 @@ Integration/concurrency test passes repeatedly.
 
 ## M12.1 — WebSocket connection
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M10
+
+**Completed:** 2026-08-26 — an authenticated client can hold a realtime
+connection. Ktor's WebSockets plugin is installed and `/ws` sits behind the same
+Supabase authentication as every other route: the handshake carries the bearer
+token, an unauthenticated or forged one is refused before any session exists,
+and connecting resolves the internal user like any other authenticated request.
+One socket per client covers every game that client plays in, so the app does
+not open a connection per game. `RealtimeHub` tracks who is connected — a user
+may hold several sockets at once (two devices, or one that has not noticed it is
+gone) — and drops a connection as soon as its read loop ends. Delivery is
+best-effort by design: the socket only ever says *that* something changed, and
+canonical state is reloaded over HTTPS (`D022`). Publishing updates is `M12.2`.
+Verified locally with `.\gradlew.bat :server:test` (8 new
+`RealtimeConnectionTest` cases: connect and receive the `connected` frame, the
+connection is registered while open and forgotten when closed, two devices for
+one person, two people tracked separately, and both refusal paths) and
+`.\gradlew.bat build` (BUILD SUCCESSFUL, 263 server tests).
 
 ### Acceptance Criteria
 

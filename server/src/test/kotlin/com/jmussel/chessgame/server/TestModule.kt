@@ -6,6 +6,7 @@ import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.game.GameCommandService
+import com.jmussel.chessgame.server.realtime.RealtimeHub
 import com.jmussel.chessgame.server.series.seriesService
 import com.jmussel.chessgame.server.user.LastSeenTracker
 import io.ktor.server.application.Application
@@ -21,6 +22,7 @@ fun Application.testModule(
     verifier: SupabaseTokenVerifier,
     database: Database,
     lastSeen: LastSeenTracker? = null,
+    realtime: RealtimeHub = RealtimeHub(),
 ) {
     val users = UserRepository(database)
 
@@ -31,6 +33,7 @@ fun Application.testModule(
         series = seriesService(database),
         dashboard = DashboardQueries(database),
         commands = GameCommandService(database, GameRepository(database)),
+        realtime = realtime,
         lastSeen = lastSeen ?: LastSeenTracker(users),
     )
 }
