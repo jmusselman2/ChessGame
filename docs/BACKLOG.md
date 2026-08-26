@@ -2177,6 +2177,15 @@ Historical games/series are read-only and remain accessible.
 
 # M15 — Beta Deployment Environment
 
+> **Held for a human decision (2026-08-26).** Every task in this milestone
+> triggers a Stop Condition in `docs/AUTONOMOUS-DEVELOPMENT.md`, so the
+> autonomous loop excludes them from selection and carries on with the next
+> selectable task rather than stopping: `M15.1` commits to a **new recurring
+> cost**, `M15.2` is a **beta deployment**, and `M15.3` needs a **Supabase
+> project and credentials** that are not available to the loop. `M15.4` follows
+> `M15.2`. These need an authorized human to choose the provider, pay for it,
+> and hold the credentials.
+
 ## M15.1 — Select Ktor hosting provider
 
 **Status:** TODO  
@@ -2243,8 +2252,28 @@ Beta build targets deployed beta API without hard-coded production secrets.
 
 ## M16.3 — Duplicate commands
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M10, M11, M13
+
+**Completed:** 2026-08-26 — the same command arriving twice was held to
+exactly-once end to end, over HTTP, for all four commands. No defect was found
+and no code changed: the version a command is written against is what makes it
+unique (`D021`), so a duplicate is by construction a stale one, and the guarded
+write settles it. What was missing was the proof that this holds at the API
+boundary rather than only inside `GameRepository`, and that a client can act on
+the answer — a retry is refused with `STALE_VERSION` and the canonical state
+attached, so a client whose reply was lost can see its own move in the refusal
+without a second request. The distinction that matters is kept: retrying at the
+*old* version is a duplicate and refused, while sending the same squares at the
+version the game is now at is a new move and allowed. Verified locally with
+`.\gradlew.bat :server:test` (11 new `DuplicateCommandTest` cases: a repeated
+move, undo, draw claim, and resignation each count once, a retry can see its own
+move in the refusal, an undo retried at the new version reports nothing to take
+back and a resignation reports the game finished, ten identical requests leave
+one move, a duplicate does not disturb the opponent's view, and a duplicated
+game-ending move still creates exactly one rematch) and `.\gradlew.bat build`
+against the local test database (BUILD SUCCESSFUL, 350 server tests, 0 skipped).
 
 ---
 
