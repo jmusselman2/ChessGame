@@ -1432,8 +1432,18 @@ Friendship is mutual immediately.
 
 ## M8.3 — Friends list
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M8.2
+
+**Completed:** 2026-08-26 — `GET /friends` behind Supabase authentication
+returns the calling user's current friends as `UserSummary` values, oldest
+friendship first, using `FriendshipRepository.friendsOf`. It lists only the
+caller's own friends, both sides of a friendship see each other, a removed
+friend disappears from both lists, and the response carries no auth subject or
+activity. Verified locally with `.\gradlew.bat :server:test` (7 new
+`FriendsListTest` cases) and `.\gradlew.bat build` (BUILD SUCCESSFUL, 124 server
+tests).
 
 ---
 
