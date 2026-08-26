@@ -2,6 +2,7 @@
 
 package com.jmussel.chessgame.server.auth
 
+import com.jmussel.chessgame.server.db.DashboardQueries
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
@@ -36,7 +37,15 @@ class AuthenticatedRouteTest {
             val database = Databases.connect(dataSource)
             val users = UserRepository(database)
             testApplication {
-                application { module(tokens.verifier(), users, FriendshipRepository(database), seriesService(database)) }
+                application {
+                    module(
+                        tokens.verifier(),
+                        users,
+                        FriendshipRepository(database),
+                        seriesService(database),
+                        DashboardQueries(database),
+                    )
+                }
                 block(users)
             }
         }

@@ -4,6 +4,7 @@ package com.jmussel.chessgame.server.user
 
 import com.jmussel.chessgame.server.auth.TestTokens
 import com.jmussel.chessgame.server.db.ClaimUsernameResult
+import com.jmussel.chessgame.server.db.DashboardQueries
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
@@ -46,7 +47,15 @@ class UsernameClaimTest {
             val database = Databases.connect(dataSource)
             val users = UserRepository(database)
             testApplication {
-                application { module(tokens.verifier(), users, FriendshipRepository(database), seriesService(database)) }
+                application {
+                    module(
+                        tokens.verifier(),
+                        users,
+                        FriendshipRepository(database),
+                        seriesService(database),
+                        DashboardQueries(database),
+                    )
+                }
                 block(users)
             }
         }

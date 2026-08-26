@@ -6,6 +6,7 @@ import com.jmussel.chessgame.server.api.SeriesSummary
 import com.jmussel.chessgame.server.auth.TestTokens
 import com.jmussel.chessgame.server.db.ACTIVE_SERIES
 import com.jmussel.chessgame.server.db.CLOSED_SERIES
+import com.jmussel.chessgame.server.db.DashboardQueries
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
@@ -106,7 +107,7 @@ class OpenSeriesTest {
             val friendships = FriendshipRepository(database)
             val series = GameSeriesRepository(database)
             testApplication {
-                application { module(tokens.verifier(), users, friendships, seriesService(database)) }
+                application { module(tokens.verifier(), users, friendships, seriesService(database), DashboardQueries(database)) }
                 block(Fixture(database, users, friendships, series))
             }
         }

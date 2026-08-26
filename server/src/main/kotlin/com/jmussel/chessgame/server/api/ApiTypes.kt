@@ -1,7 +1,10 @@
+@file:OptIn(ExperimentalUuidApi::class)
+
 package com.jmussel.chessgame.server.api
 
 import com.jmussel.chessgame.server.db.StoredUser
 import kotlinx.serialization.Serializable
+import kotlin.uuid.ExperimentalUuidApi
 
 /**
  * A user as other users see them: the internal id everything references, and the name they
@@ -17,7 +20,6 @@ data class UserSummary(
 )
 
 /** [StoredUser] as the API shows it, or `null` when they have not claimed a username yet. */
-@OptIn(kotlin.uuid.ExperimentalUuidApi::class)
 fun StoredUser.toSummaryOrNull(): UserSummary? = username?.let { UserSummary(userId = id.toString(), username = it) }
 
 /** A series as one of its two players sees it. */
@@ -30,7 +32,6 @@ data class SeriesSummary(
     val currentGameId: String? = null,
 ) {
     companion object {
-        @OptIn(kotlin.uuid.ExperimentalUuidApi::class)
         fun of(
             series: com.jmussel.chessgame.server.db.StoredSeries,
             opponent: StoredUser,
@@ -45,6 +46,38 @@ data class SeriesSummary(
                 status = series.status,
                 closeAfterCurrentGame = series.closeAfterCurrentGame,
                 currentGameId = series.currentGameId?.toString(),
+            )
+        }
+    }
+}
+
+/** One dashboard line: an active series, the game it is at, and whose move it is. */
+@Serializable
+data class DashboardEntry(
+    val seriesId: String,
+    val opponent: UserSummary,
+    val gameId: String? = null,
+    val version: Long? = null,
+    val yourSide: String? = null,
+    val sideToMove: String? = null,
+    val moveNumber: Int? = null,
+    val yourTurn: Boolean = false,
+    val closeAfterCurrentGame: Boolean = false,
+) {
+    companion object {
+        fun of(view: com.jmussel.chessgame.server.db.ActiveSeriesView): DashboardEntry? {
+            val opponent = view.opponent.toSummaryOrNull() ?: return null
+
+            return DashboardEntry(
+                seriesId = view.seriesId.toString(),
+                opponent = opponent,
+                gameId = view.gameId?.toString(),
+                version = view.gameVersion,
+                yourSide = view.yourSide,
+                sideToMove = view.sideToMove,
+                moveNumber = view.fullmoveNumber,
+                yourTurn = view.isYourTurn,
+                closeAfterCurrentGame = view.closeAfterCurrentGame,
             )
         }
     }

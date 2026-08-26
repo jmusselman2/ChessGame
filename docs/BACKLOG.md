@@ -1565,8 +1565,24 @@ Series can be marked to close after its current game and transitions idempotentl
 
 ## M9.4 — Dashboard discovery
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M9.1, M9.2
+
+**Completed:** 2026-08-26 — `DashboardQueries.activeSeriesFor` loads every
+active series a player is in together with the game each is at, in two queries
+regardless of how many series there are: one left join of `game_series` onto its
+current game, and one lookup of the opponents those rows name. There is no
+query per series. Each `ActiveSeriesView` carries the opponent, game id,
+version, the side the viewer is playing, whose move it is, the move number, and
+whether the series closes after this game — everything the `docs/PRODUCT.md`
+dashboard hierarchy needs. `GET /dashboard` behind Supabase authentication
+returns them as `DashboardEntry` values with a `yourTurn` flag, which `M14.1`
+and `M14.2` will group. Verified locally with `.\gradlew.bat :server:test` (11
+new `DashboardTest` cases: turn flipping after a real move, several series at
+once, a closed series dropping off, a series marked to close saying so, a
+series with no game yet, and nothing private in the response) and
+`.\gradlew.bat build` (BUILD SUCCESSFUL, 180 server tests).
 
 ### Acceptance Criteria
 
