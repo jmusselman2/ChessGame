@@ -93,4 +93,26 @@ object PseudoLegalMoves {
         board: Board,
         from: Square,
     ): List<Move> = knightDestinations(board, from).map { Move(from, it) }
+
+    /**
+     * Squares the king on [from] can step to: any of the eight adjacent squares that stays
+     * on the board and is not occupied by a friendly piece.
+     *
+     * This is plain king movement only. Castling is a separate rule, and whether a
+     * destination is attacked is not considered here.
+     */
+    fun kingDestinations(
+        board: Board,
+        from: Square,
+    ): List<Square> {
+        val piece = requireNotNull(board.pieceAt(from)) { "No piece on $from" }
+        require(piece.type == PieceType.KING) { "${piece.type} is not a king" }
+        return Direction.ALL.mapNotNull { from.shifted(it) }.filter { board.pieceAt(it)?.side != piece.side }
+    }
+
+    /** [kingDestinations] expressed as moves from [from]. */
+    fun kingMoves(
+        board: Board,
+        from: Square,
+    ): List<Move> = kingDestinations(board, from).map { Move(from, it) }
 }

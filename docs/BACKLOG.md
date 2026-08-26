@@ -421,8 +421,16 @@ Unit tests pass.
 
 ## M3.3 — King movement
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M2.2
+
+**Completed:** 2026-08-26 — `PseudoLegalMoves.kingDestinations` / `kingMoves`
+implement plain king movement: the eight adjacent squares that stay on the
+board, excluding those holding a friendly piece. Castling (`M3.7`) and
+attacked-square filtering (`M3.5`/`M3.6`) are deliberately separate. Verified
+locally with `.\gradlew.bat :game-core:test` (11 new `KingMovesTest` cases, 106
+game-core tests total) and `.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ### Objective
 
