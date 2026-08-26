@@ -1702,8 +1702,23 @@ Server authoritatively accepts valid claim and rejects invalid claim.
 
 ## M10.4 — Two-client turn-taking
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M10.1
+
+**Completed:** 2026-08-26 — `TwoClientGameTest` plays the whole loop over HTTP
+with two different tokens and nothing shared between the players but the server:
+each signs in, claims a username, they become friends, one opens the series, and
+they alternate moves. Each client reads only its own view — opposite colours,
+exactly one of them to move — and sees the other's move on its next read. A
+player who tries to move twice in a row is refused with `NOT_YOUR_TURN` and
+writes nothing; both dashboards report the same canonical version from opposite
+sides; a whole game is played to checkmate through the API, after which neither
+player can move; and a third person can neither read the game nor play in it.
+Verified locally with `.\gradlew.bat :server:test` (7 new `TwoClientGameTest`
+cases) and `.\gradlew.bat build` (BUILD SUCCESSFUL, 233 server tests). No
+production code needed changing — `M10.1`–`M10.3` already made this work; this
+task is the demonstration that it does.
 
 ### Acceptance Criteria
 
