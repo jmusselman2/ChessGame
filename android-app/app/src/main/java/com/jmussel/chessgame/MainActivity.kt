@@ -57,6 +57,7 @@ fun GameScreen(
         ChessBoard(
             board = state.board,
             selectedSquare = state.selectedSquare,
+            legalDestinations = BoardInteraction.legalDestinations(state),
             onSquareClick = { square -> state = BoardInteraction.onSquareTapped(state, square) },
         )
         Text(text = "${state.game.sideToMove} to move")

@@ -917,8 +917,19 @@ Tap own piece and highlight selected square.
 
 ## M5.3 — Legal move highlights
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M5.2
+
+**Completed:** 2026-08-26 — `BoardInteraction.legalDestinations` /
+`isLegalDestination` filter `ChessRules.legalMoves` for the selected square, so
+every highlight comes from `game-core` and the UI derives no chess rules of its
+own — pins, castling, and captures are all whatever the engine says. A
+promotion square is highlighted once rather than once per choice. `ChessBoard`
+draws a dot on an empty destination and a ring around a capture. Verified
+locally with `.\gradlew.bat :android-app:testDebugUnitTest` (11 new
+`LegalMoveHighlightTest` cases, 34 Android unit tests total) and
+`.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ### Acceptance Criteria
 

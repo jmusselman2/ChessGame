@@ -2,6 +2,7 @@ package com.jmussel.chessgame.ui.board
 
 import com.jmussel.chessgame.core.chess.Board
 import com.jmussel.chessgame.core.chess.ChessGame
+import com.jmussel.chessgame.core.chess.ChessRules
 import com.jmussel.chessgame.core.chess.Square
 
 /**
@@ -54,4 +55,25 @@ object BoardInteraction {
         state: BoardUiState,
         square: Square,
     ): Boolean = state.selectedSquare == square
+
+    /**
+     * Where the selected piece may legally move, or an empty set when nothing is selected.
+     *
+     * The moves come from `game-core`; the UI never works out for itself where a piece may
+     * go. A pawn reaching the last rank yields one square, not one square per promotion
+     * choice.
+     */
+    fun legalDestinations(state: BoardUiState): Set<Square> {
+        val from = state.selectedSquare ?: return emptySet()
+        return ChessRules
+            .legalMoves(state.game)
+            .filter { it.from == from }
+            .mapTo(mutableSetOf()) { it.to }
+    }
+
+    /** Whether [square] is somewhere the selected piece may move to. */
+    fun isLegalDestination(
+        state: BoardUiState,
+        square: Square,
+    ): Boolean = square in legalDestinations(state)
 }

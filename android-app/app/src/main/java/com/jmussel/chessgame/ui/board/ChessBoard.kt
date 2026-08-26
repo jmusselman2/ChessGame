@@ -1,6 +1,7 @@
 package com.jmussel.chessgame.ui.board
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -9,6 +10,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -28,9 +31,15 @@ private val DarkSquare = Color(0xFFB58863)
 private val WhitePiece = Color(0xFFFFFFFF)
 private val BlackPiece = Color(0xFF2B2B2B)
 private val SelectedSquare = Color(0x8046A5FF)
+private val DestinationMarker = Color(0x9925691E)
 
 /** How much of a square's width a piece glyph fills. */
 private const val GLYPH_SCALE = 0.72f
+
+/** Marker sizes, as fractions of a square. */
+private const val DOT_SCALE = 0.28f
+private const val CAPTURE_RING_SCALE = 0.86f
+private const val CAPTURE_RING_WIDTH = 0.07f
 
 /**
  * Draws [board] as a square eight-by-eight grid, White at the bottom.
@@ -44,6 +53,7 @@ fun ChessBoard(
     board: Board,
     modifier: Modifier = Modifier,
     selectedSquare: Square? = null,
+    legalDestinations: Set<Square> = emptySet(),
     onSquareClick: (Square) -> Unit = {},
 ) {
     Column(
@@ -63,6 +73,7 @@ fun ChessBoard(
                     SquareCell(
                         square = square,
                         isSelected = square.square == selectedSquare,
+                        isLegalDestination = square.square in legalDestinations,
                         onClick = { onSquareClick(square.square) },
                         modifier =
                             Modifier
@@ -79,6 +90,7 @@ fun ChessBoard(
 private fun SquareCell(
     square: BoardSquare,
     isSelected: Boolean,
+    isLegalDestination: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -90,14 +102,34 @@ private fun SquareCell(
                 .then(if (isSelected) Modifier.background(SelectedSquare) else Modifier),
         contentAlignment = Alignment.Center,
     ) {
-        val glyphSize = (maxWidth.value * GLYPH_SCALE).sp
+        val cellSize = maxWidth
+
         square.piece?.let { piece ->
             Text(
                 text = BoardRendering.glyphFor(piece.type).toString(),
                 color = if (piece.side == Side.WHITE) WhitePiece else BlackPiece,
-                fontSize = glyphSize,
+                fontSize = (cellSize.value * GLYPH_SCALE).sp,
                 textAlign = TextAlign.Center,
             )
+        }
+
+        if (isLegalDestination) {
+            // A dot marks an empty destination; a ring around the piece marks a capture.
+            if (square.piece == null) {
+                Box(
+                    modifier =
+                        Modifier
+                            .size(cellSize * DOT_SCALE)
+                            .background(DestinationMarker, CircleShape),
+                )
+            } else {
+                Box(
+                    modifier =
+                        Modifier
+                            .size(cellSize * CAPTURE_RING_SCALE)
+                            .border(cellSize * CAPTURE_RING_WIDTH, DestinationMarker, CircleShape),
+                )
+            }
         }
     }
 }
