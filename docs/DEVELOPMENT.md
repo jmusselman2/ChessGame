@@ -6,8 +6,9 @@ Milestone 1 is complete: the commands in the **Verified Commands** section below
 have all been executed successfully against this repository locally (last
 confirmed 2026-08-25), and the CI workflow ran green on `claude-autopilot` HEAD
 (`595c124`, GitHub Actions run 32922786058). Sections covering later milestones
-(PostgreSQL, migrations, beta deployment) still contain placeholders and must be
-filled in when that work is done.
+(migrations, beta deployment) still contain placeholders and must be filled in
+when that work is done. The local PostgreSQL section is verified as of
+2026-08-26 (`M6.1`).
 
 Do not treat an unverified example command as authoritative. When you add or
 change a command, run it, then record it here with `Status: VERIFIED` and the
@@ -27,7 +28,7 @@ Verified during bootstrap:
 - Android targetSdk: 37
 - Ktor: 3.5.2
 - ktlint Gradle plugin: 14.2.0
-- PostgreSQL: NOT YET CONFIGURED
+- PostgreSQL: 18.6 (Docker `postgres:18-alpine`, host port 55432 — see **Local PostgreSQL**)
 
 Use the Gradle wrapper committed to the repository.
 
@@ -39,7 +40,7 @@ Expected:
 - Android Studio
 - Android SDK
 - Git
-- PostgreSQL for local/test development
+- Docker (for the disposable local PostgreSQL — see **Local PostgreSQL**)
 - Gradle wrapper committed to repository
 
 Record exact required versions after bootstrap.
@@ -247,17 +248,65 @@ Expected modules:
 
 ## Local PostgreSQL
 
-Document after M6.1:
+Status: VERIFIED (2026-08-26)
 
-```text
-How PostgreSQL is started:
-Database name:
-Test database name:
-Port:
-How migrations are applied:
-How test DB is reset:
-How integration tests obtain credentials:
-```
+The local database is a disposable Docker container defined in `compose.yaml` at
+the repository root. It is development/test only — never a production or beta
+environment — and its credentials are deliberately non-secret local values.
+
+| | |
+|---|---|
+| Image | `postgres:18-alpine` (PostgreSQL 18.6) |
+| Container | `chessgame-postgres` |
+| Host port | `55432` (so an installed local PostgreSQL on `5432` is left alone) |
+| User / password | `chessgame` / `chessgame` (local throwaway values) |
+| Development database | `chessgame_dev` |
+| Test database | `chessgame_test` |
+
+### Start
+
+    docker compose up -d
+
+Status: VERIFIED (2026-08-26)
+
+Wait until it reports healthy:
+
+    docker compose ps
+
+### Stop, keeping the data
+
+    docker compose stop
+
+### Reset — throw the database away and start clean
+
+    docker compose down -v
+    docker compose up -d
+
+Status: VERIFIED (2026-08-26)
+
+`down -v` removes the data volume. The next `up` re-runs
+`database/init/01-create-test-database.sql`, which recreates `chessgame_test`
+alongside `chessgame_dev`. This is how the test database is reset.
+
+### Open a psql session
+
+    docker compose exec postgres psql -U chessgame -d chessgame_dev
+    docker compose exec postgres psql -U chessgame -d chessgame_test
+
+Status: VERIFIED (2026-08-26)
+
+`psql` is not needed on the host; it runs inside the container.
+
+### Connection URLs
+
+    postgresql://chessgame:chessgame@localhost:55432/chessgame_dev
+    postgresql://chessgame:chessgame@localhost:55432/chessgame_test
+
+These are also in `.env.example` as `DATABASE_URL` and `TEST_DATABASE_URL`.
+Integration tests read them from the environment (`.env` is git-ignored); the
+committed template holds only these local throwaway values.
+
+How migrations are applied: documented after `M6.3`.
 
 Do not put real secrets in this document.
 
@@ -276,15 +325,18 @@ Required operations:
 Expected categories may include:
 
 ```text
+DATABASE_URL
+TEST_DATABASE_URL
 SUPABASE_URL
 SUPABASE_ANON_KEY
 SUPABASE_JWKS_URL
-DATABASE_URL
 ```
 
-Actual names must be finalized during setup.
+`.env.example` at the repository root is the committed template. `DATABASE_URL`
+and `TEST_DATABASE_URL` are settled (see **Local PostgreSQL**); the Supabase
+names are finalized during `M7`.
 
-Commit an `.env.example` or equivalent template containing names/placeholders only.
+Copy it to `.env`, which is git-ignored, for local values.
 
 Never commit:
 

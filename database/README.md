@@ -6,7 +6,9 @@ This directory is part of the monorepo structure established in Milestone 1
 (`M1.1`). The migration tooling, connection details, and initial schema are
 defined later:
 
-- `M6.1` — development/test PostgreSQL
+- `M6.1` — development/test PostgreSQL — DONE; the disposable database is the
+  Docker container in `compose.yaml`, with `database/init/` seeding
+  `chessgame_test`. Commands are in `docs/DEVELOPMENT.md`.
 - `M6.2` — PostgreSQL access library selection (recorded in `docs/DECISIONS.md`)
 - `M6.3` — repeatable migration process (documented in `docs/DEVELOPMENT.md`)
 - `M6.4` — initial schema (`users`, `friendships`, `game_series`, `games`,

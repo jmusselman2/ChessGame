@@ -1,0 +1,36 @@
+# Disposable local PostgreSQL for development and tests.
+#
+# This is a throwaway database on the developer's machine. It is never a
+# production or beta environment, and the credentials below are deliberately
+# non-secret local values — real credentials never live in this repository.
+#
+# Commands are documented in docs/DEVELOPMENT.md.
+
+name: chessgame
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    container_name: chessgame-postgres
+    environment:
+      POSTGRES_USER: chessgame
+      POSTGRES_PASSWORD: chessgame
+      POSTGRES_DB: chessgame_dev
+    ports:
+      # 55432 on the host, so an already-installed local PostgreSQL on 5432 is
+      # left alone.
+      - "55432:5432"
+    volumes:
+      # Runs once, when the data volume is first created.
+      - ./database/init:/docker-entrypoint-initdb.d:ro
+      # PostgreSQL 18 images keep data in a major-version subdirectory, so the
+      # volume mounts one level up at /var/lib/postgresql.
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chessgame -d chessgame_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  postgres-data:

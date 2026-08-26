@@ -1049,8 +1049,24 @@ All game-core tests pass, Android builds, and representative manual local game w
 
 ## M6.1 — Development PostgreSQL
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M1
+
+**Completed:** 2026-08-26 — `compose.yaml` at the repository root defines a
+disposable `postgres:18-alpine` container (`chessgame-postgres`) on host port
+`55432`, so an installed local PostgreSQL on `5432` is untouched. It creates
+`chessgame_dev`, and `database/init/01-create-test-database.sql` creates
+`chessgame_test` beside it. The credentials are deliberately non-secret local
+throwaway values; `.env.example` holds `DATABASE_URL` and `TEST_DATABASE_URL`
+and `.env` stays git-ignored. This is a development/test environment only,
+separate from any production or beta data. Verified locally on 2026-08-26:
+`docker compose up -d` reaches a healthy container (PostgreSQL 18.6), both
+databases are listed by `\l`, a create/insert/select/drop round trip succeeds in
+`chessgame_test`, host port `55432` accepts connections, and
+`docker compose down -v` followed by `up -d` rebuilds both databases from
+scratch — which is also how the test database is reset. `.\gradlew.bat build`
+still succeeds. Commands are recorded in `docs/DEVELOPMENT.md`.
 
 ### Objective
 
