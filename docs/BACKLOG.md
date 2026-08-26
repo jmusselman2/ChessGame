@@ -1449,8 +1449,24 @@ tests).
 
 ## M8.4 — Remove friend
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M8.2
+
+**Completed:** 2026-08-26 — `FriendshipRepository.remove` deactivates the
+friendship by setting `removed_at` and, in the same transaction, sets
+`close_after_current_game` on the pair's `ACTIVE` series, so the two can never
+disagree. Nothing is deleted: the friendship row stays for history, the series
+stays `ACTIVE`, and the current game is untouched and still playable — only the
+next automatic rematch is disabled, exactly as `D013` describes. The series'
+own transition to `CLOSED` when that game ends is `M9.3`/`M13.4`.
+`DELETE /friends/{username}` behind Supabase authentication removes for the
+calling user from either side — 200 (saying the current game finishes first when
+a series was marked), 404 for an unknown user or someone who is not a friend,
+400 for a malformed name. Verified locally with `.\gradlew.bat :server:test`
+(12 new `RemoveFriendTest` cases, including a real in-progress game left intact
+and another pair's series left alone) and `.\gradlew.bat build`
+(BUILD SUCCESSFUL, 136 server tests).
 
 ### Acceptance Criteria
 

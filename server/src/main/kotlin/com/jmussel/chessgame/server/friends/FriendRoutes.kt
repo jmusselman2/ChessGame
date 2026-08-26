@@ -6,6 +6,7 @@ import com.jmussel.chessgame.server.api.toSummaryOrNull
 import com.jmussel.chessgame.server.auth.authenticatedUser
 import com.jmussel.chessgame.server.db.AddFriendResult
 import com.jmussel.chessgame.server.db.FriendshipRepository
+import com.jmussel.chessgame.server.db.RemoveFriendResult
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.user.Username
 import io.ktor.http.HttpStatusCode
@@ -13,12 +14,13 @@ import io.ktor.server.request.receiveText
 import io.ktor.server.response.respond
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import kotlin.uuid.ExperimentalUuidApi
 
 /**
- * Listing friends and adding one by username.
+ * Listing friends, adding one by username, and removing one.
  *
  * A friendship is mutual the moment it is made, with no request to accept (`D009`). The
  * caller is always one side of it — a client cannot make two other people friends, and can
@@ -64,6 +66,38 @@ fun Route.friendRoutes(
 
             AddFriendResult.Yourself ->
                 call.respondText("You cannot add yourself", status = HttpStatusCode.BadRequest)
+        }
+    }
+
+    delete("/friends/{username}") {
+        val caller = call.authenticatedUser()
+        val requested = call.parameters["username"].orEmpty()
+
+        if (Username.ofOrNull(requested) == null) {
+            call.respondText("Not a username", status = HttpStatusCode.BadRequest)
+            return@delete
+        }
+
+        val friend = users.findByUsername(requested)
+        if (friend?.username == null) {
+            call.respondText("No such user", status = HttpStatusCode.NotFound)
+            return@delete
+        }
+
+        when (val result = friendships.remove(caller.userId, friend.id)) {
+            is RemoveFriendResult.Removed ->
+                call.respondText(
+                    text =
+                        if (result.seriesMarkedToClose) {
+                            "Removed ${friend.username}; your current game finishes first"
+                        } else {
+                            "Removed ${friend.username}"
+                        },
+                    status = HttpStatusCode.OK,
+                )
+
+            RemoveFriendResult.NotFriends ->
+                call.respondText("Not friends with ${friend.username}", status = HttpStatusCode.NotFound)
         }
     }
 }

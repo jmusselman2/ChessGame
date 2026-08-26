@@ -32,6 +32,20 @@ data class StoredFriendship(
     fun otherThan(userId: Uuid): Uuid = if (userId == userAId) userBId else userAId
 }
 
+/** The status a series has while it is still being played. */
+const val ACTIVE_SERIES: String = "ACTIVE"
+
+/** What happened to a remove-friend request. */
+sealed interface RemoveFriendResult {
+    /** The friendship is over; [seriesMarkedToClose] says whether a series will close with it. */
+    data class Removed(
+        val seriesMarkedToClose: Boolean,
+    ) : RemoveFriendResult
+
+    /** They were not friends to begin with. */
+    data object NotFriends : RemoveFriendResult
+}
+
 /** What happened to an add-friend request. */
 sealed interface AddFriendResult {
     data class Added(
@@ -107,25 +121,52 @@ class FriendshipRepository(
                 .map { toFriendship(it).otherThan(userId) }
         }
 
-    /** Marks the friendship between [first] and [second] removed, keeping the row. */
+    /**
+     * Removes the friendship between [first] and [second] and marks their active series to
+     * close after its current game.
+     *
+     * Both happen in one transaction, so the pair can never end up un-friended with a
+     * series that will keep making rematches. Nothing is deleted and no game is touched:
+     * the row stays for history, the current game plays on, and only the *next* automatic
+     * rematch is disabled (`D013`). The series' own transition to `CLOSED` happens when
+     * that game ends.
+     */
     fun remove(
         first: Uuid,
         second: Uuid,
         at: Instant = Instant.now(),
-    ): Boolean {
-        if (first == second) return false
+    ): RemoveFriendResult {
+        if (first == second) return RemoveFriendResult.NotFriends
         val (lower, higher) = order(first, second)
 
         return transaction(database) {
-            FriendshipsTable.update(
-                {
-                    (FriendshipsTable.userAId eq lower) and
-                        (FriendshipsTable.userBId eq higher) and
-                        FriendshipsTable.removedAt.isNull()
-                },
-            ) { row ->
-                row[FriendshipsTable.removedAt] = at.atOffset(ZoneOffset.UTC)
-            } > 0
+            val removed =
+                FriendshipsTable.update(
+                    {
+                        (FriendshipsTable.userAId eq lower) and
+                            (FriendshipsTable.userBId eq higher) and
+                            FriendshipsTable.removedAt.isNull()
+                    },
+                ) { row ->
+                    row[FriendshipsTable.removedAt] = at.atOffset(ZoneOffset.UTC)
+                }
+
+            if (removed == 0) {
+                return@transaction RemoveFriendResult.NotFriends
+            }
+
+            val seriesClosing =
+                GameSeriesTable.update(
+                    {
+                        (GameSeriesTable.userAId eq lower) and
+                            (GameSeriesTable.userBId eq higher) and
+                            (GameSeriesTable.status eq ACTIVE_SERIES)
+                    },
+                ) { row ->
+                    row[GameSeriesTable.closeAfterCurrentGame] = true
+                }
+
+            RemoveFriendResult.Removed(seriesMarkedToClose = seriesClosing > 0)
         }
     }
 
