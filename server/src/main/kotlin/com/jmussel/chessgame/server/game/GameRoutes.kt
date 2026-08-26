@@ -33,6 +33,12 @@ data class MakeMoveRequest(
     val promotion: String? = null,
 )
 
+/** A request to take back the caller's latest move (`D016`). */
+@Serializable
+data class UndoMoveRequest(
+    val expectedVersion: Long,
+)
+
 /** A request to claim a draw the position allows (`D019`). */
 @Serializable
 data class ClaimDrawRequest(
@@ -41,7 +47,7 @@ data class ClaimDrawRequest(
 )
 
 /**
- * Reading a game, playing a move in it, and claiming a draw.
+ * Reading a game, playing a move in it, taking one back, and claiming a draw.
  *
  * The client sends what it wants to happen; [GameCommandService] decides whether it may.
  * Nothing here trusts the request beyond its shape.
@@ -72,6 +78,15 @@ fun Route.gameRoutes(commands: GameCommandService) {
             commands.makeMove(caller.userId, gameId, request.expectedVersion, move),
             caller,
         )
+    }
+
+    post("/games/{gameId}/undo") {
+        val caller = call.authenticatedUser()
+        val gameId = call.gameId() ?: return@post
+
+        val request = call.receive<UndoMoveRequest>()
+
+        call.respondTo(commands.undoMove(caller.userId, gameId, request.expectedVersion), caller)
     }
 
     post("/games/{gameId}/draw-claims") {
@@ -155,6 +170,15 @@ private suspend fun ApplicationCall.respondTo(
                 HttpStatusCode.UnprocessableEntity,
                 RejectionReason.NO_SUCH_CLAIM,
                 "No ${result.claim} draw can be claimed here",
+                result.game,
+                caller,
+            )
+
+        is CommandResult.NothingToUndo ->
+            reject(
+                HttpStatusCode.Conflict,
+                RejectionReason.NOTHING_TO_UNDO,
+                "You have no move to take back",
                 result.game,
                 caller,
             )

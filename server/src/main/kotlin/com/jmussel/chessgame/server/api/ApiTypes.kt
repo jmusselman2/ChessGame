@@ -102,6 +102,8 @@ data class GameView(
     val terminationReason: String? = null,
     /** The draws the viewer could claim right now, if it is their move (`D019`). */
     val availableDrawClaims: List<String> = emptyList(),
+    /** Whether the viewer may take their latest move back right now (`D016`). */
+    val canUndo: Boolean = false,
 ) {
     val isOver: Boolean
         get() = result != null
@@ -146,6 +148,9 @@ data class GameView(
                     stored.game.result
                         ?.reason
                         ?.name,
+                canUndo =
+                    com.jmussel.chessgame.core.chess.ChessRules
+                        .canUndo(stored.game, yourSide),
                 availableDrawClaims =
                     if (state.sideToMove == yourSide) {
                         com.jmussel.chessgame.core.chess.ChessRules
@@ -180,6 +185,9 @@ enum class RejectionReason {
 
     /** No such draw may be claimed in this position (`D019`). */
     NO_SUCH_CLAIM,
+
+    /** There is nothing for this player to take back right now (`D016`). */
+    NOTHING_TO_UNDO,
 }
 
 /**

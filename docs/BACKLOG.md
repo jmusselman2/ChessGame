@@ -1730,8 +1730,25 @@ Two authenticated users can alternate server-authoritative moves.
 
 ## M11.1 — `UndoMove`
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M4, M10.1
+
+**Completed:** 2026-08-26 — `GameCommandService.undoMove` enforces `D016`
+server-side, with `game-core` applying the rule: a player may take back their
+own latest move only while the opponent has not answered. The exact sequence
+from `docs/PRODUCT.md` is covered by tests — Jordan plays `Nf3` and may take it
+back; once Alex answers `Nc6` Jordan may not, but Alex may take back `Nc6`; and
+when Alex does, Jordan's `Nf3` becomes the latest unanswered move and is
+takeable again. A game-ending move is never takeable (`D017`), the opponent can
+never take back your move, and a stranger can do neither. An accepted undo is a
+mutation like any other: it increments the version (`D021`) and records a
+`MoveUndone` audit event, so a client holding the old version cannot play into a
+position that no longer exists. `POST /games/{gameId}/undo` carries it, refusing
+with `NOTHING_TO_UNDO`, and `GameView.canUndo` tells each player whether the
+control belongs on their screen. Verified locally with
+`.\gradlew.bat :server:test` (17 new `UndoMoveTest` cases) and
+`.\gradlew.bat build` (BUILD SUCCESSFUL, 250 server tests).
 
 ### Acceptance Criteria
 

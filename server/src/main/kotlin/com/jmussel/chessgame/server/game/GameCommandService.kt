@@ -56,6 +56,11 @@ sealed interface CommandResult {
         val game: StoredGame,
         val claim: DrawClaim,
     ) : CommandResult
+
+    /** This player has no move to take back right now (`D016`). */
+    data class NothingToUndo(
+        val game: StoredGame,
+    ) : CommandResult
 }
 
 /**
@@ -158,6 +163,51 @@ class GameCommandService(
             } ?: CommandResult.NotAParticipant
         }
 
+    /**
+     * Takes back [userId]'s latest move in [gameId].
+     *
+     * The rule is `D016` exactly, and `game-core` is what applies it: only the player who
+     * made the latest move may take it back, only while the opponent has not answered, and
+     * never once the game has ended (`D017`). The undone move leaves the history, so the
+     * previous move becomes takeable-back again by whoever made it.
+     *
+     * An undo is an accepted mutation like any other, so it increments the version
+     * (`D021`) — a client holding the old version cannot then play into a position that no
+     * longer exists.
+     */
+    fun undoMove(
+        userId: Uuid,
+        gameId: Uuid,
+        expectedVersion: Long,
+    ): CommandResult =
+        transaction(database) {
+            val stored = games.load(gameId) ?: return@transaction CommandResult.NoSuchGame
+
+            sideOf(stored, userId)?.let { side ->
+                when {
+                    stored.version != expectedVersion -> return@transaction CommandResult.StaleVersion(stored)
+                    stored.game.isOver -> return@transaction CommandResult.GameOver(stored)
+                    !ChessRules.canUndo(stored.game, side) ->
+                        return@transaction CommandResult.NothingToUndo(stored)
+                }
+
+                val undone = ChessRules.undo(stored.game, side)
+
+                try {
+                    games.save(
+                        id = gameId,
+                        expectedVersion = expectedVersion,
+                        game = undone,
+                        auditEvent = MOVE_UNDONE,
+                    )
+                } catch (_: StaleGameVersionException) {
+                    return@transaction CommandResult.StaleVersion(reload(gameId, stored))
+                }
+
+                CommandResult.Applied(reload(gameId, stored))
+            } ?: CommandResult.NotAParticipant
+        }
+
     /** The canonical game as [userId] may see it, or why they may not. */
     fun load(
         userId: Uuid,
@@ -210,5 +260,8 @@ class GameCommandService(
 
         /** The audit event a claimed draw records. */
         const val DRAW_CLAIMED = "DrawClaimed"
+
+        /** The audit event a take-back records. */
+        const val MOVE_UNDONE = "MoveUndone"
     }
 }
