@@ -2058,8 +2058,32 @@ Resignation follows the same active-vs-closing series lifecycle.
 
 ## M14.1 — Your Turn
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M9, M10
+
+**Completed:** 2026-08-26 — the dashboard's first section, and the connection
+that feeds it. `ChessApiClient` is the app's link to the Chess server, which is
+authoritative for everything about a game (`D004`): it reads `GET /dashboard`
+with the anonymous session's bearer token, asked for per request rather than
+captured so a refresh between calls is picked up (`D006`), and it is lenient
+about fields it does not know so a newer server does not break an older app.
+`DashboardSections.yourTurn` decides what appears — the games waiting on the
+player, in the order the server sent them, each reading "Alex / White • Move 18"
+as `docs/PRODUCT.md` lays out — and it is pure, so the grouping and the wording
+are tested without a screen. `DashboardScreen` renders that section and nothing
+else; Their Turn is `M14.2` and Friends is `M14.3`, and making the dashboard the
+app's landing screen belongs with them rather than half-done here. A series
+between games contributes no line, because there is nothing yet to open.
+`ChessServerConfig` defaults to `http://10.0.2.2:8080`, the host machine as an
+emulator sees it, which is what a developer running the server locally needs;
+the beta endpoint is `M15.4`. Verified locally with
+`.\gradlew.bat :android-app:testDebugUnitTest` (9 new `ChessApiClientTest` cases
+over Ktor's `MockEngine` — the dashboard is read, the token is sent and re-asked
+for every call, an empty dashboard and a game-less series are read correctly,
+unknown fields are ignored, a refusal carries its status, and the base URL joins
+without doubled slashes — and 8 new `DashboardSectionsTest` cases) and
+`.\gradlew.bat build` (BUILD SUCCESSFUL, 109 Android unit tests, 0 skipped).
 
 ---
 
