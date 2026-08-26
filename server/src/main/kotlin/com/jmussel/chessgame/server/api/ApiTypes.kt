@@ -82,3 +82,69 @@ data class DashboardEntry(
         }
     }
 }
+
+/** A game as one of its two players sees it: the canonical state, from their side. */
+@Serializable
+data class GameView(
+    val gameId: String,
+    val seriesId: String,
+    val version: Long,
+    val yourSide: String,
+    val sideToMove: String,
+    val yourTurn: Boolean,
+    val inCheck: Boolean,
+    /** Eight rows, rank 8 first, FEN-style letters with `.` for an empty square. */
+    val board: List<String>,
+    val moves: List<String>,
+    val moveNumber: Int,
+    val halfmoveClock: Int,
+    val result: String? = null,
+    val terminationReason: String? = null,
+) {
+    val isOver: Boolean
+        get() = result != null
+
+    companion object {
+        fun of(
+            stored: com.jmussel.chessgame.server.db.StoredGame,
+            viewer: kotlin.uuid.Uuid,
+        ): GameView {
+            require(viewer == stored.whiteUserId || viewer == stored.blackUserId) {
+                "That player is not in this game"
+            }
+
+            val yourSide =
+                if (viewer == stored.whiteUserId) {
+                    com.jmussel.chessgame.core.chess.Side.WHITE
+                } else {
+                    com.jmussel.chessgame.core.chess.Side.BLACK
+                }
+            val state = stored.game.state
+
+            return GameView(
+                gameId = stored.id.toString(),
+                seriesId = stored.seriesId.toString(),
+                version = stored.version,
+                yourSide = yourSide.name,
+                sideToMove = state.sideToMove.name,
+                yourTurn = !stored.game.isOver && state.sideToMove == yourSide,
+                inCheck =
+                    !stored.game.isOver &&
+                        com.jmussel.chessgame.core.chess.Attacks
+                            .isSideToMoveInCheck(state),
+                board = state.board.toString().lines(),
+                moves = stored.game.moves.map { it.toString() },
+                moveNumber = state.fullmoveNumber,
+                halfmoveClock = state.halfmoveClock,
+                result =
+                    stored.game.result
+                        ?.outcome
+                        ?.name,
+                terminationReason =
+                    stored.game.result
+                        ?.reason
+                        ?.name,
+            )
+        }
+    }
+}

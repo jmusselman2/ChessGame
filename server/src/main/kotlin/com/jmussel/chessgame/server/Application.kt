@@ -16,6 +16,8 @@ import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.friends.friendRoutes
+import com.jmussel.chessgame.server.game.GameCommandService
+import com.jmussel.chessgame.server.game.gameRoutes
 import com.jmussel.chessgame.server.series.SeriesService
 import com.jmussel.chessgame.server.series.seriesRoutes
 import com.jmussel.chessgame.server.user.LastSeenTracker
@@ -69,6 +71,7 @@ fun main() {
                         games = GameRepository(database),
                     ),
                 dashboard = DashboardQueries(database),
+                commands = GameCommandService(database, GameRepository(database)),
             )
         }
     }.start(wait = true)
@@ -86,6 +89,7 @@ fun Application.module(
     friendships: FriendshipRepository,
     series: SeriesService,
     dashboard: DashboardQueries,
+    commands: GameCommandService,
     lastSeen: LastSeenTracker = LastSeenTracker(users),
 ) {
     install(ContentNegotiation) { json() }
@@ -104,6 +108,7 @@ fun Application.module(
             friendRoutes(users, friendships)
             seriesRoutes(users, friendships, series)
             dashboardRoutes(dashboard)
+            gameRoutes(commands)
         }
     }
 }

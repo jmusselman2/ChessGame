@@ -14,8 +14,8 @@ import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.db.UserRepository
-import com.jmussel.chessgame.server.module
 import com.jmussel.chessgame.server.series.seriesService
+import com.jmussel.chessgame.server.testModule
 import com.jmussel.chessgame.server.user.Username
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -106,13 +106,7 @@ class DashboardTest {
             val friendships = FriendshipRepository(database)
             testApplication {
                 application {
-                    module(
-                        tokens.verifier(),
-                        users,
-                        friendships,
-                        seriesService(database),
-                        DashboardQueries(database),
-                    )
+                    testModule(tokens.verifier(), database)
                 }
                 block(
                     Fixture(

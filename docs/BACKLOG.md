@@ -1594,8 +1594,29 @@ Current active series/game can be loaded efficiently.
 
 ## M10.1 — `MakeMove`
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M4, M6.5, M9
+
+**Completed:** 2026-08-26 — `GameCommandService.makeMove` runs the exact
+sequence this task specifies, all inside one transaction: load the game,
+validate the caller is a participant, validate the game is still running,
+validate it is their turn, validate `expectedVersion`, run `game-core`, then
+persist and increment the version. The client sends intent only — `from`, `to`,
+optional promotion, and the version it read — and never a board state
+(`ARCHITECTURE.md` §7, `D004`); the stored position is whatever
+`ChessRules.applyMove` produced, and an accepted move records a `MoveMade` audit
+event (`D020`). The version is checked twice on purpose: once for a clear answer
+and once as the guarded write that actually settles a race (`D021`).
+`POST /games/{gameId}/moves` returns the canonical `GameView` on success and
+carries that same state on every refusal a caller could correct from — 409 for
+game over, wrong turn, or a stale version; 422 for an illegal move; 403 for a
+stranger; 404 for an unknown game. `GET /games/{gameId}` reads the canonical
+game for either player. Verified locally with `.\gradlew.bat :server:test` (21
+new `MakeMoveTest` cases, including Fool's mate played move by move through the
+service, a promotion with its choice, stale and future versions writing nothing,
+and only accepted commands appearing in the audit trail) and
+`.\gradlew.bat build` (BUILD SUCCESSFUL, 201 server tests).
 
 ### Acceptance Criteria
 

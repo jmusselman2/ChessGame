@@ -4,13 +4,11 @@ package com.jmussel.chessgame.server.friends
 
 import com.jmussel.chessgame.server.api.UserSummary
 import com.jmussel.chessgame.server.auth.TestTokens
-import com.jmussel.chessgame.server.db.DashboardQueries
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.UserRepository
-import com.jmussel.chessgame.server.module
-import com.jmussel.chessgame.server.series.seriesService
+import com.jmussel.chessgame.server.testModule
 import com.jmussel.chessgame.server.user.Username
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -55,7 +53,7 @@ class FriendsListTest {
             val users = UserRepository(database)
             val friendships = FriendshipRepository(database)
             testApplication {
-                application { module(tokens.verifier(), users, friendships, seriesService(database), DashboardQueries(database)) }
+                application { testModule(tokens.verifier(), database) }
                 block(Fixture(users, friendships))
             }
         }

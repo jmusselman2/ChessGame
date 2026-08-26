@@ -3,13 +3,10 @@
 package com.jmussel.chessgame.server.user
 
 import com.jmussel.chessgame.server.auth.TestTokens
-import com.jmussel.chessgame.server.db.DashboardQueries
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
-import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.UserRepository
-import com.jmussel.chessgame.server.module
-import com.jmussel.chessgame.server.series.seriesService
+import com.jmussel.chessgame.server.testModule
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.server.testing.testApplication
@@ -121,14 +118,7 @@ class LastSeenTest {
 
             testApplication {
                 application {
-                    module(
-                        tokens.verifier(),
-                        users,
-                        FriendshipRepository(database),
-                        seriesService(database),
-                        DashboardQueries(database),
-                        LastSeenTracker(users, clock = { at }),
-                    )
+                    testModule(tokens.verifier(), database, LastSeenTracker(users, clock = { at }))
                 }
 
                 client.get("/me") { header("Authorization", "Bearer ${tokens.tokenFor("auth-1")}") }
@@ -147,14 +137,7 @@ class LastSeenTest {
 
             testApplication {
                 application {
-                    module(
-                        tokens.verifier(),
-                        users,
-                        FriendshipRepository(database),
-                        seriesService(database),
-                        DashboardQueries(database),
-                        LastSeenTracker(users),
-                    )
+                    testModule(tokens.verifier(), database, LastSeenTracker(users))
                 }
 
                 client.get("/health")
