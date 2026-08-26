@@ -1080,8 +1080,18 @@ Disposable development/test database is available.
 
 ## M6.2 — Select PostgreSQL access library
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M6.1
+
+**Completed:** 2026-08-26 — JetBrains Exposed `1.5.0` (typed SQL DSL, not the
+DAO) over HikariCP `7.1.0` with the PostgreSQL JDBC driver `42.7.13`, recorded
+as `D030` in `docs/DECISIONS.md` against every listed selection criterion.
+Versions live in `gradle/libs.versions.toml` and the dependencies are declared
+in `server/build.gradle.kts` (driver `runtimeOnly`). Verified locally:
+`.\gradlew.bat :server:dependencies --configuration runtimeClasspath` resolves
+`exposed-core`, `exposed-jdbc`, `exposed-java-time`, `HikariCP`, and
+`postgresql` at those versions, and `.\gradlew.bat build` succeeds.
 
 ### Selection Criteria
 

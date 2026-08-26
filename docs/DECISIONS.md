@@ -892,3 +892,72 @@ recursive type: a state that contains snapshots of states.
 - Persistence (`M6.4`, `M10`, `M11`) stores the active move history alongside
   canonical current state, which is what `D020` already calls for.
 - `M4.2` adds *who* may undo and until when; `M4.3` locks a terminal move.
+
+---
+
+## D030 — Exposed over HikariCP for PostgreSQL Access
+
+**Date:** 2026-08-26
+
+**Status:** Accepted
+
+### Decision
+
+The Ktor server reaches PostgreSQL through:
+
+- **JetBrains Exposed 1.5.0** (`exposed-core`, `exposed-jdbc`,
+  `exposed-java-time`) — the typed SQL DSL, not the DAO/entity layer,
+- **HikariCP 7.1.0** for connection pooling,
+- **PostgreSQL JDBC 42.7.13** as the driver (runtime only).
+
+Migrations stay plain SQL files under `database/migrations/`; Exposed's schema
+generation is not the source of truth. The migration tool itself is `M6.3`.
+
+This settles the choice `D025` deferred.
+
+### Rationale
+
+Against the selection criteria in `M6.2`:
+
+- **Maintained** — Exposed 1.5.0 is JetBrains' current stable line (the
+  `org.jetbrains.exposed:exposed-core` metadata on Maven Central was last
+  updated the same day this was chosen); HikariCP and the PostgreSQL driver are
+  both long-standing and current.
+- **PostgreSQL support** — first-class, over the standard JDBC driver.
+- **Transaction support** — explicit `transaction { }` blocks with the isolation
+  level under our control, which is what the move/undo races in `D021` need.
+- **Kotlin ergonomics** — a Kotlin-first typed DSL, so queries are checked by
+  the compiler rather than assembled as strings.
+- **Migration compatibility** — Exposed does not insist on owning the schema, so
+  plain SQL migrations remain the source of truth.
+- **Testability** — it runs against the real disposable PostgreSQL from `M6.1`,
+  so integration tests exercise actual PostgreSQL behaviour (constraints,
+  isolation) rather than an in-memory substitute.
+
+The DAO layer is deliberately unused: it is an ORM-style abstraction the MVP has
+no need for, and `CLAUDE.md` asks for the simplest thing consistent with the
+architecture.
+
+### Alternatives Considered
+
+- **Plain JDBC + HikariCP** — the smallest dependency set, but every query
+  becomes a hand-written string with manual `ResultSet` mapping. Rejected as
+  more error-prone for no architectural gain.
+- **Ktorm** — comparable Kotlin DSL, smaller community and slower release
+  cadence than Exposed.
+- **jOOQ** — excellent SQL fidelity, but code generation against a live schema
+  adds a build step, and its commercial licensing model is a consideration the
+  MVP does not need to take on.
+- **R2DBC / reactive drivers** — asynchronous access does not pay off at this
+  scale and complicates transactional reasoning.
+
+### Consequences
+
+- `server/build.gradle.kts` declares the three Exposed modules and HikariCP,
+  with the PostgreSQL driver as `runtimeOnly`; versions live in
+  `gradle/libs.versions.toml`. Resolution and `./gradlew build` were verified on
+  2026-08-26.
+- Exposed 1.x lives under the `org.jetbrains.exposed.v1.*` packages, which is
+  what `M6.5` will import.
+- Persistence code and its DTOs stay in `server`; `game-core` gains no database
+  dependency (`D003`).
