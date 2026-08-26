@@ -12,6 +12,8 @@ import com.jmussel.chessgame.server.api.RejectionReason
 import com.jmussel.chessgame.server.auth.AuthenticatedUser
 import com.jmussel.chessgame.server.auth.authenticatedUser
 import com.jmussel.chessgame.server.db.StoredGame
+import com.jmussel.chessgame.server.realtime.RealtimeHub
+import com.jmussel.chessgame.server.realtime.RealtimeMessage
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.request.receive
@@ -54,7 +56,10 @@ data class ClaimDrawRequest(
  *
  * Routes must sit behind authentication.
  */
-fun Route.gameRoutes(commands: GameCommandService) {
+fun Route.gameRoutes(
+    commands: GameCommandService,
+    realtime: RealtimeHub,
+) {
     get("/games/{gameId}") {
         val caller = call.authenticatedUser()
         val gameId = call.gameId() ?: return@get
@@ -75,7 +80,7 @@ fun Route.gameRoutes(commands: GameCommandService) {
         }
 
         call.respondTo(
-            commands.makeMove(caller.userId, gameId, request.expectedVersion, move),
+            commands.makeMove(caller.userId, gameId, request.expectedVersion, move).also { realtime.announce(it) },
             caller,
         )
     }
@@ -86,7 +91,10 @@ fun Route.gameRoutes(commands: GameCommandService) {
 
         val request = call.receive<UndoMoveRequest>()
 
-        call.respondTo(commands.undoMove(caller.userId, gameId, request.expectedVersion), caller)
+        call.respondTo(
+            commands.undoMove(caller.userId, gameId, request.expectedVersion).also { realtime.announce(it) },
+            caller,
+        )
     }
 
     post("/games/{gameId}/draw-claims") {
@@ -102,7 +110,7 @@ fun Route.gameRoutes(commands: GameCommandService) {
         }
 
         call.respondTo(
-            commands.claimDraw(caller.userId, gameId, request.expectedVersion, claim),
+            commands.claimDraw(caller.userId, gameId, request.expectedVersion, claim).also { realtime.announce(it) },
             caller,
         )
     }
@@ -222,3 +230,24 @@ private suspend fun ApplicationCall.reject(
         game = GameView.of(game, caller.userId),
     ),
 )
+
+/**
+ * Announces an accepted command to both players' open connections.
+ *
+ * Both sides are told, not only the opponent: the player who acted may have a second device
+ * open, and the message is a nudge to reload rather than state, so the extra one costs
+ * nothing. A refused command changed nothing, so there is nothing to announce.
+ *
+ * Delivery is best-effort and deliberately not part of accepting the command — a move is
+ * accepted whether or not anyone is listening (`D022`).
+ */
+private suspend fun RealtimeHub.announce(result: CommandResult) {
+    if (result !is CommandResult.Applied) return
+
+    val game = result.game
+
+    publish(
+        userIds = listOf(game.whiteUserId, game.blackUserId),
+        message = RealtimeMessage.gameUpdated(game.id, game.version),
+    )
+}

@@ -115,7 +115,7 @@ fun Application.module(
             friendRoutes(users, friendships)
             seriesRoutes(users, friendships, series)
             dashboardRoutes(dashboard)
-            gameRoutes(commands)
+            gameRoutes(commands, realtime)
             realtimeRoutes(realtime)
         }
     }

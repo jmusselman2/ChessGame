@@ -1820,8 +1820,28 @@ Authenticated client can establish realtime connection.
 
 ## M12.2 — Publish game updates
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M12.1
+
+**Completed:** 2026-08-26 — a move by one player now reaches the other player's
+open connection without them asking. Every accepted command — a move, an undo,
+a claimed draw — announces the game to both sides through `RealtimeHub`, and a
+refused one announces nothing, because nothing changed. Both players are told
+rather than only the opponent: the player who acted may have a second device
+open, and the message is a nudge to reload rather than state, so the extra one
+costs nothing. The push still carries only the game id and the version it
+reached; the client reloads canonical state over HTTPS (`D022`). Announcing is
+deliberately outside the command itself: publishing is best-effort, so a move is
+accepted whether or not anyone is listening, and a connection that fails to take
+a message is dropped rather than retried. Verified locally with
+`.\gradlew.bat :server:test` (8 new `GameUpdateBroadcastTest` cases: the
+opponent hears about a move and at which version, the mover's other device hears
+it too, every move of a rally is announced in order, an undo and a claimed draw
+are announced like a move, a refused command is silent, an onlooker is told
+nothing about someone else's game, and a move is still accepted with no socket
+open) and `.\gradlew.bat build` against the local test database (BUILD
+SUCCESSFUL, 271 server tests, 0 skipped).
 
 ### Acceptance Criteria
 
