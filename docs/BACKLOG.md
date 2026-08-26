@@ -333,8 +333,18 @@ Unit tests compile and exercise representative values.
 
 ## M2.2 — Initial standard position
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M2.1
+
+**Completed:** 2026-08-26 — `StandardPosition` in
+`com.jmussel.chessgame.core.chess` exposes the standard starting `BOARD` and
+`newGame()`. A new game has 32 pieces on their correct squares, White to move,
+all four castling rights, no en passant target, an empty `DrawRuleState` (no
+active history), halfmove clock `0`, fullmove number `1`, and no result.
+Verified locally with `.\gradlew.bat :game-core:test` (13 new
+`StandardPositionTest` cases, 67 game-core tests total) and
+`.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ### Acceptance Criteria
 
