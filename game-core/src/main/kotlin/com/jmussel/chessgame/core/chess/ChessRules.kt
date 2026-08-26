@@ -164,12 +164,41 @@ object ChessRules {
      * [game] with its most recent move taken back, restoring the position exactly as it
      * was before that move.
      *
-     * This is the mechanical restoration. Whether the move may be taken back at all is a
-     * separate rule.
+     * This is the mechanical restoration. Whether the move may be taken back at all is
+     * [canUndo].
      */
     fun undoLastMove(game: ChessGame): ChessGame {
         val last = requireNotNull(game.history.lastOrNull()) { "There is no move to undo" }
         return ChessGame(state = last.positionBefore, history = game.history.dropLast(1))
+    }
+
+    /**
+     * The side that may currently take a move back, or `null` when nobody may.
+     *
+     * Only the latest move can be undone, and only by the player who made it. That move is
+     * unanswered by definition — as soon as the opponent replies, their reply becomes the
+     * latest move and the earlier one is locked. If the opponent then takes their reply
+     * back, the previous move becomes undoable again (`D016`).
+     */
+    fun undoableSide(game: ChessGame): Side? = game.lastMover
+
+    /** Whether [side] may take its own latest unanswered move back. */
+    fun canUndo(
+        game: ChessGame,
+        side: Side,
+    ): Boolean = undoableSide(game) == side
+
+    /**
+     * [game] with [side]'s latest unanswered move taken back.
+     *
+     * [side] must be allowed to undo; check with [canUndo] first.
+     */
+    fun undo(
+        game: ChessGame,
+        side: Side,
+    ): ChessGame {
+        require(canUndo(game, side)) { "$side has no move to take back" }
+        return undoLastMove(game)
     }
 
     /**

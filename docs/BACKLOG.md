@@ -810,8 +810,19 @@ Round-trip move/undo tests pass.
 
 ## M4.2 — Undo latest unanswered move
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M4.1
+
+**Completed:** 2026-08-26 — `ChessRules.undoableSide`, `canUndo`, and `undo`
+implement `D016`: only the latest move may be taken back, and only by the player
+who made it. That move is unanswered by definition, so the opponent's reply
+locks it; when the opponent takes their own reply back, the previous move
+becomes undoable again. Undo hands the turn back to the player who took the
+move back, who may then play something else. The terminal-result lock is
+`M4.3`. Verified locally with `.\gradlew.bat :game-core:test` (11 new
+`UndoEligibilityTest` cases covering all four acceptance criteria, 305
+game-core tests total) and `.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ### Acceptance Criteria
 
