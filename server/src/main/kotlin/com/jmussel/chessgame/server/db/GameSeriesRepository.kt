@@ -104,6 +104,60 @@ class GameSeriesRepository(
         }
     }
 
+    /**
+     * Marks [seriesId] to close once its current game finishes.
+     *
+     * Idempotent: marking a series that is already marked, or one that is already closed,
+     * changes nothing and reports `false`.
+     */
+    fun markCloseAfterCurrentGame(seriesId: Uuid): Boolean =
+        transaction(database) {
+            GameSeriesTable.update(
+                {
+                    (GameSeriesTable.id eq seriesId) and
+                        (GameSeriesTable.status eq ACTIVE_SERIES) and
+                        (GameSeriesTable.closeAfterCurrentGame eq false)
+                },
+            ) { row ->
+                row[GameSeriesTable.closeAfterCurrentGame] = true
+            } > 0
+        }
+
+    /**
+     * Closes [seriesId].
+     *
+     * Idempotent in the way that matters: closing an already-closed series changes nothing
+     * and reports `false`, so a retried or duplicated end-of-game does not move `closedAt`
+     * or reopen anything (`D012`).
+     */
+    fun close(
+        seriesId: Uuid,
+        at: Instant = Instant.now(),
+    ): Boolean =
+        transaction(database) {
+            GameSeriesTable.update(
+                { (GameSeriesTable.id eq seriesId) and (GameSeriesTable.status eq ACTIVE_SERIES) },
+            ) { row ->
+                row[GameSeriesTable.status] = CLOSED_SERIES
+                row[GameSeriesTable.closedAt] = at.atOffset(ZoneOffset.UTC)
+            } > 0
+        }
+
+    /**
+     * Closes [seriesId] only if it was marked to close after its current game.
+     *
+     * This is what a finished game asks: "am I the last one?" A series that was not marked
+     * stays active and goes on to its automatic rematch (`D015`).
+     */
+    fun closeIfMarked(
+        seriesId: Uuid,
+        at: Instant = Instant.now(),
+    ): Boolean {
+        val series = find(seriesId) ?: return false
+        if (!series.isActive || !series.closeAfterCurrentGame) return false
+        return close(seriesId, at)
+    }
+
     /** Points [seriesId] at [gameId] as its current game. */
     fun attachCurrentGame(
         seriesId: Uuid,

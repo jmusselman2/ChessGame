@@ -1540,8 +1540,22 @@ Initial colors randomized and current game attached to series.
 
 ## M9.3 — Series close-after-current lifecycle
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M9.1, M8.4
+
+**Completed:** 2026-08-26 — `GameSeriesRepository` gained
+`markCloseAfterCurrentGame`, `close`, and `closeIfMarked`, giving the series the
+`ACTIVE` → marked → `CLOSED` lifecycle `D012` and `D013` describe. Every step is
+idempotent: marking an already-marked or already-closed series changes nothing,
+closing twice keeps the first `closedAt` rather than moving it, and
+`closeIfMarked` leaves an unmarked series active so its automatic rematch still
+happens (`D015`). A closed series stops being the pair's active one but stays
+readable for history, which also frees the pair to start a new series. The
+actual call when a game ends is `M13.4`. Verified locally with
+`.\gradlew.bat :server:test` (12 new `SeriesLifecycleTest` cases, including
+removing a friend feeding into the same transition and repeated closes being
+harmless) and `.\gradlew.bat build` (BUILD SUCCESSFUL, 169 server tests).
 
 ### Acceptance Criteria
 
