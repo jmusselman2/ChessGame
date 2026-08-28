@@ -31,15 +31,16 @@ import com.jmussel.chessgame.ui.theme.ChessGameTheme
 fun ChessApp(
     navigation: AppNavigation,
     modifier: Modifier = Modifier,
+    startup: StartupState = StartupState.Loading,
     onOpen: (Destination) -> Unit = {},
     onBack: () -> Unit = {},
+    onRetryStartup: () -> Unit = {},
 ) {
     Column(modifier = modifier.fillMaxSize()) {
         ShellChrome(navigation = navigation, onOpen = onOpen, onBack = onBack)
 
         when (val destination = navigation.current) {
-            // Restoring or creating the anonymous session is M14.6.
-            Destination.Startup -> PendingScreen(title = STARTING, detail = null)
+            Destination.Startup -> StartupScreen(state = startup, onRetry = onRetryStartup)
             // Claiming a username is M14.7.
             Destination.UsernameOnboarding -> PendingScreen(title = USERNAME, detail = NOT_WIRED_UP)
             // Live dashboard data is M14.9.
@@ -96,6 +97,39 @@ private fun ShellChrome(
     }
 }
 
+/**
+ * Getting a session, and what to do when it does not arrive.
+ *
+ * The account is invisible (`D006`), so a working startup has nothing to say and shows
+ * only that it is working. A failure says what went wrong and offers the retry when trying
+ * again could help; a build with no Supabase key gets the explanation without the button,
+ * because tapping it would fail identically.
+ */
+@Composable
+private fun StartupScreen(
+    state: StartupState,
+    onRetry: () -> Unit,
+) {
+    Column(
+        modifier = Modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        when (state) {
+            is StartupState.Failed -> {
+                Text(text = SIGN_IN_PROBLEM, style = MaterialTheme.typography.titleSmall)
+                Text(text = state.message, style = MaterialTheme.typography.bodyMedium)
+                if (state.canRetry) {
+                    TextButton(onClick = onRetry) { Text(text = RETRY) }
+                }
+            }
+
+            // Waiting, and the moment between a session arriving and the dashboard
+            // replacing this screen, look the same: there is nothing to report.
+            else -> Text(text = STARTING, style = MaterialTheme.typography.titleSmall)
+        }
+    }
+}
+
 /** A screen whose contents are a later task: what it will be, and nothing pretending to be it. */
 @Composable
 private fun PendingScreen(
@@ -116,6 +150,8 @@ private const val FRIENDS = "Friends"
 private const val HISTORY = "History"
 private const val LOCAL_GAME = "Local game"
 private const val STARTING = "Starting…"
+private const val SIGN_IN_PROBLEM = "Cannot sign in"
+private const val RETRY = "Try again"
 private const val USERNAME = "Username"
 private const val GAME = "Game"
 private const val NOT_WIRED_UP = "Not wired up yet."

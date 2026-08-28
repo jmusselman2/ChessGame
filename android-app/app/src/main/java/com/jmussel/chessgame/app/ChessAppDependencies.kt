@@ -38,17 +38,25 @@ class ChessAppDependencies(
             store = sessionStore,
         )
 
+    /** Restores or creates the session the rest of the app needs (`M14.6`). */
+    val startup: AppStartup = AppStartup(supabaseConfig, authenticator)
+
     /**
-     * The Chess server, asked for the access token per request.
+     * The access token to send, asked for per call rather than captured.
      *
-     * The token is fetched through [authenticator] rather than captured, so a refresh part
-     * way through a session is picked up without rebuilding anything.
+     * One provider for everything that authenticates: the HTTP client uses it now and the
+     * WebSocket client (`M14.12`) uses the same one, so a token that nears expiry hours
+     * into a session is refreshed underneath both without rebuilding anything.
      */
+    val accessToken: suspend () -> String = { authenticator.currentSession().accessToken }
+
+    /** The Chess server, which is authoritative for every game (`D004`). */
     val chessApi: ChessApiClient =
         ChessApiClient(
             config = serverConfig,
             httpClient = httpClient,
-        ) { authenticator.currentSession().accessToken }
+            accessToken = accessToken,
+        )
 
     /** Releases the HTTP client and the connections it is holding. */
     override fun close() {

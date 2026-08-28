@@ -514,12 +514,18 @@ The app reads the URL and publishable key as `BuildConfig` fields. Supply the ke
 with `-PsupabaseAnonKey=...`, a `supabaseAnonKey` entry in `gradle.properties`,
 or the `SUPABASE_ANON_KEY` environment variable; the URL defaults to the project
 above. Setting `SUPABASE_URL` and `SUPABASE_ANON_KEY` also switches on the live
-auth test (`SupabaseLiveAuthTest`), which is otherwise a no-op:
+tests — `SupabaseLiveAuthTest` (the two auth calls) and `AppStartupLiveTest`
+(the app's startup path end to end) — which are otherwise no-ops:
 
     $env:SUPABASE_ANON_KEY = "<publishable key>"
-    .gradlew.bat :android-app:testDebugUnitTest
+    $env:SUPABASE_URL = "https://rkwymrtqayyyfahfgmbm.supabase.co"
+    .\gradlew.bat :android-app:testDebugUnitTest --rerun-tasks
 
-Status: VERIFIED (2026-08-26)
+Status: VERIFIED (2026-08-28, `M14.6`)
+
+`--rerun-tasks` matters for the same reason it does for the server tests: the
+variables are not declared task inputs, so without it Gradle can report the test
+task `UP-TO-DATE` and the live tests never run.
 
 Each live run leaves one throwaway anonymous user in the development project.
 

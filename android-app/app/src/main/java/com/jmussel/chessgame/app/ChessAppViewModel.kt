@@ -5,8 +5,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
 import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /**
  * What the application is showing and what it is built from.
@@ -27,9 +30,44 @@ class ChessAppViewModel(
     var navigation: AppNavigation by mutableStateOf(AppNavigation())
         private set
 
+    /** How far getting a session has got. */
+    var startup: StartupState by mutableStateOf(StartupState.Loading)
+        private set
+
     /** What the screens are built from. */
     val app: ChessAppDependencies
         get() = dependencies
+
+    /**
+     * The startup run in flight, or the last one there was.
+     *
+     * Internal because only a test has any business waiting on it — the app watches
+     * [startup], which says the same thing in the terms a screen needs.
+     */
+    internal var startupJob: Job? = null
+        private set
+
+    /**
+     * Restores or creates the anonymous session, then goes to the dashboard.
+     *
+     * Safe to call again: a run already under way is left alone and a session already
+     * obtained is not obtained twice, so a recreated activity cannot end up with two
+     * anonymous accounts. Calling it after a failure is the retry.
+     */
+    fun start() {
+        if (startupJob?.isActive == true || startup is StartupState.Ready) return
+
+        startupJob =
+            viewModelScope.launch {
+                startup = StartupState.Loading
+
+                val result = dependencies.startup.run()
+                startup = result
+
+                // Where a named user goes instead of the dashboard is M14.7.
+                if (result is StartupState.Ready) restartAt(Destination.Dashboard)
+            }
+    }
 
     /** Shows [destination] in front of the current screen. */
     fun open(destination: Destination) {

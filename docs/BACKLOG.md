@@ -2069,10 +2069,10 @@ Resignation follows the same active-vs-closing series lifecycle.
 
 **Milestone status:** INCOMPLETE. `M14.1`–`M14.4` completed server queries,
 API-client reads, and isolated Compose presentation components; `M14.5` put an
-application shell and navigation around them. Nothing is yet fed by live
-authenticated data and no online game can be played from Android.
-`M14.6`–`M14.18` are the remaining client integration work required before beta
-deployment.
+application shell and navigation around them and `M14.6` made the app sign
+itself in on startup. No screen is yet fed by live authenticated data and no
+online game can be played from Android. `M14.7`–`M14.18` are the remaining
+client integration work required before beta deployment.
 
 ## M14.1 — Your Turn data and presentation component
 
@@ -2262,9 +2262,43 @@ top-level transition; Android unit tests and aggregate build pass.
 
 ## M14.6 — Restore or create the anonymous session on startup
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M14.5, M7.2
+
+**Completed:** 2026-08-28 — the app now signs itself in. `MainActivity.onCreate`
+calls `ChessAppViewModel.start()`, which runs `AppStartup` in the model's own
+scope; startup asks `AnonymousAuthenticator` for a session and turns the outcome
+into something a screen can show, so restoring, refreshing, and creating stay
+where `D031` put them. A stored session that is still good is restored without
+touching the network, one near expiry is refreshed, an absent or dead one
+becomes a new anonymous account, and only then does the app leave the startup
+screen for the dashboard — nothing authenticated is called before there is a
+session. `start()` ignores a call while a run is in flight or once a session is
+in hand, so a recreated activity, a recomposition, and a retry cannot end up
+with two anonymous accounts. `ChessAppDependencies.accessToken` is now one named
+provider asked per call: the HTTP client uses it today and the WebSocket client
+(`M14.12`) can use the same one, so a token that nears expiry hours into a
+session is refreshed underneath both without rebuilding the shell. A failure
+says what happened and offers "Try again" when trying again could help; a build
+with no `SUPABASE_ANON_KEY` explains itself and offers no button, because a
+rebuild is the only fix — and it makes no request at all. No failure message
+quotes a token, a refresh token, or the key, which is asserted rather than
+assumed. Verified locally with `.\gradlew.bat :android-app:testDebugUnitTest`
+(9 new `AppStartupTest` cases over Ktor's `MockEngine` covering restore,
+refresh, create, dead-refresh recovery, a refused sign-in, an unreachable
+service, a keyless build, and the no-secrets rule, and 6 new `ChessAppTest`
+cases covering loading, landing, first run, retry, the keyless stop, and the
+single token provider — the model's coroutines run on a `StandardTestDispatcher`
+so "loading" is a state a test can see) and `.\gradlew.bat build` (BUILD
+SUCCESSFUL, 185 Android unit tests, 0 skipped). The configured-build half of the
+verification was run against the real `ChessGame Dev` project with
+`SUPABASE_URL`/`SUPABASE_ANON_KEY` exported: 2 new `AppStartupLiveTest` cases
+(2.79s and 0.27s of real network) created an anonymous session through
+`AppStartup` and restored the same account on the second run, alongside the 3
+existing `SupabaseLiveAuthTest` cases. Those live tests no-op without the key,
+so CI and the aggregate build above are unaffected. The DataStore-backed store
+on a real device and the end-to-end play-through remain `M14.18`.
 
 ### Objective
 

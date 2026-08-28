@@ -756,13 +756,16 @@ The Android source has `AnonymousAuthenticator`, `SessionStore`,
 `ChessApiClient`, `DashboardScreen`, `HistoryScreen`, and reusable board
 components, and since `M14.5` an application shell — `MainActivity` →
 `ChessApp` → `ChessAppViewModel` → `ChessAppDependencies` — that owns
-navigation and the shared HTTP client (`D033`). The screens are not yet fed by
-it: the remaining integration sequence is documented as `M14.6`–`M14.18`:
-startup auth, onboarding/friends, dashboard landing, online game loading and
-commands, WebSocket invalidation/reload, completion/rematch, history review,
-and two-client device verification. The current server `GET /me` returns only a
-plain user id, so M14.7 also completes the narrow current-user read contract
-needed to bypass onboarding for returning named users.
+navigation and the shared HTTP client (`D033`). `M14.6` added `AppStartup`,
+which restores or creates the anonymous session before the app leaves the
+startup screen, and the one access-token provider everything authenticated asks
+per call. The screens are not yet fed by live data: the remaining integration
+sequence is documented as `M14.7`–`M14.18`: onboarding/friends, dashboard
+landing, online game loading and commands, WebSocket invalidation/reload,
+completion/rematch, history review, and two-client device verification. The
+current server `GET /me` returns only a plain user id, so M14.7 also completes
+the narrow current-user read contract needed to bypass onboarding for returning
+named users.
 
 ## 30. Server Architecture
 

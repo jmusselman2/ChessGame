@@ -30,6 +30,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Started here rather than from composition, so a recomposition cannot ask for a
+        // second session; the model ignores the call when it already has one.
+        viewModel.start()
+
         setContent {
             ChessGameTheme {
                 // A back press the app has nowhere to go with is the system's: the app closes.
@@ -39,8 +44,10 @@ class MainActivity : ComponentActivity() {
                     ChessApp(
                         navigation = viewModel.navigation,
                         modifier = Modifier.padding(innerPadding),
+                        startup = viewModel.startup,
                         onOpen = viewModel::open,
                         onBack = { if (!viewModel.back()) finish() },
+                        onRetryStartup = viewModel::start,
                     )
                 }
             }
