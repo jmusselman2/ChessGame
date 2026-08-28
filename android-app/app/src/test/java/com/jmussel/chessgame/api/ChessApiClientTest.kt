@@ -13,6 +13,7 @@ import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -25,6 +26,15 @@ import org.junit.Test
  */
 class ChessApiClientTest {
     private val requests = mutableListOf<HttpRequestData>()
+
+    /** One game, as the server describes it. */
+    private val gameBody =
+        """
+        {"gameId":"game-1","seriesId":"series-1","opponent":{"userId":"user-1","username":"Alex"},
+         "version":8,"yourSide":"WHITE","sideToMove":"BLACK","yourTurn":false,"inCheck":false,
+         "board":["rnbqkbnr","pppppppp","........","........","....P...","........","PPPP.PPP","RNBQKBNR"],
+         "moves":["e2e4"],"moveNumber":1,"halfmoveClock":0}
+        """.trimIndent()
 
     private fun clientReplying(
         body: String,
@@ -416,6 +426,91 @@ class ChessApiClientTest {
         assertEquals("Removed Alex; your current game finishes first", outcome)
         assertEquals("/friends/Alex", request.url.encodedPath)
         assertEquals(HttpMethod.Delete, request.method)
+    }
+
+    @Test
+    fun aMoveIsPostedWithTheVersionItWasDecidedAt() {
+        val client = clientReplying(gameBody)
+
+        val played = runBlocking { client.makeMove("game-1", expectedVersion = 7, from = "e2", to = "e4") }
+
+        val request = requests.single()
+        assertEquals("game-1", played.gameId)
+        assertEquals("/games/game-1/moves", request.url.encodedPath)
+        assertEquals(HttpMethod.Post, request.method)
+
+        val body = (request.body as TextContent).text
+        assertTrue("the version has to travel with the move", body.contains("\"expectedVersion\":7"))
+        assertTrue(body.contains("\"from\":\"e2\""))
+        assertTrue(body.contains("\"to\":\"e4\""))
+        assertFalse("an ordinary move promotes nothing", body.contains("promotion"))
+    }
+
+    @Test
+    fun aPromotionCarriesThePieceItBecomes() {
+        val client = clientReplying(gameBody)
+
+        runBlocking { client.makeMove("game-1", expectedVersion = 7, from = "g7", to = "g8", promotion = "QUEEN") }
+
+        assertTrue((requests.single().body as TextContent).text.contains("\"promotion\":\"QUEEN\""))
+    }
+
+    @Test
+    fun aRefusedMoveComesBackWithTheCanonicalStateAttached() {
+        val client =
+            clientReplying(
+                """{"reason":"STALE_VERSION","message":"This game is at version 9","game":$gameBody}""",
+                status = HttpStatusCode.Conflict,
+            )
+
+        val refusal =
+            try {
+                runBlocking { client.makeMove("game-1", expectedVersion = 7, from = "e2", to = "e4") }
+                null
+            } catch (e: ChessCommandRefusedException) {
+                e
+            }
+
+        assertEquals("STALE_VERSION", refusal?.reason)
+        assertEquals(409, refusal?.status)
+        assertEquals("game-1", refusal?.game?.gameId)
+    }
+
+    @Test
+    fun aRefusalWithNoGameToShowIsStillReadable() {
+        val client =
+            clientReplying(
+                """{"reason":"ILLEGAL_MOVE","message":"e2e5 is not legal here"}""",
+                status = HttpStatusCode.UnprocessableEntity,
+            )
+
+        val refusal =
+            try {
+                runBlocking { client.makeMove("game-1", expectedVersion = 7, from = "e2", to = "e5") }
+                null
+            } catch (e: ChessCommandRefusedException) {
+                e
+            }
+
+        assertEquals("ILLEGAL_MOVE", refusal?.reason)
+        assertNull(refusal?.game)
+        assertEquals("e2e5 is not legal here", refusal?.rejection?.message)
+    }
+
+    @Test
+    fun aRefusalThatIsNotACommandRejectionIsStillReported() {
+        val client = clientReplying("Not a move", status = HttpStatusCode.BadRequest)
+
+        val failure =
+            try {
+                runBlocking { client.makeMove("game-1", expectedVersion = 7, from = "e2", to = "zz") }
+                null
+            } catch (e: ChessApiException) {
+                e
+            }
+
+        assertEquals(400, failure?.status)
+        assertEquals("Not a move", failure?.explanation)
     }
 
     @Test

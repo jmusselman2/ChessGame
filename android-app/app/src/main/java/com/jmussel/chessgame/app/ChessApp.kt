@@ -13,6 +13,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.jmussel.chessgame.core.chess.PieceType
+import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
 import com.jmussel.chessgame.ui.board.LocalGameScreen
@@ -51,6 +53,9 @@ fun ChessApp(
     onBack: () -> Unit = {},
     onRetryStartup: () -> Unit = {},
     onRetryGame: () -> Unit = {},
+    onSquareTapped: (Square) -> Unit = {},
+    onChoosePromotion: (PieceType) -> Unit = {},
+    onCancelPromotion: () -> Unit = {},
     onClaimUsername: (String) -> Unit = {},
     friendsActions: FriendsActions = FriendsActions(),
     dashboardActions: DashboardActions = DashboardActions(),
@@ -82,6 +87,9 @@ fun ChessApp(
                 OnlineGameScreen(
                     state = game ?: OnlineGameState.Loading(destination.gameId),
                     onRetry = onRetryGame,
+                    onSquareTapped = onSquareTapped,
+                    onChoosePromotion = onChoosePromotion,
+                    onCancelPromotion = onCancelPromotion,
                 )
         }
     }

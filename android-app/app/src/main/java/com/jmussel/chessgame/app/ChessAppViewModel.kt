@@ -8,8 +8,11 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.jmussel.chessgame.api.ChessApiClient
 import com.jmussel.chessgame.api.ChessApiException
+import com.jmussel.chessgame.api.ChessCommandRefusedException
 import com.jmussel.chessgame.api.CurrentUserDto
 import com.jmussel.chessgame.api.UserSummaryDto
+import com.jmussel.chessgame.core.chess.PieceType
+import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
 import com.jmussel.chessgame.ui.dashboard.DashboardMessages
@@ -18,6 +21,7 @@ import com.jmussel.chessgame.ui.dashboard.DashboardUiState
 import com.jmussel.chessgame.ui.dashboard.FriendRow
 import com.jmussel.chessgame.ui.friends.Friends
 import com.jmussel.chessgame.ui.friends.FriendsUiState
+import com.jmussel.chessgame.ui.game.BoardTap
 import com.jmussel.chessgame.ui.game.OnlineGame
 import com.jmussel.chessgame.ui.game.OnlineGameState
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
@@ -98,6 +102,10 @@ class ChessAppViewModel(
 
     /** The game load in flight, if any. Internal for the same reason. */
     internal var gameJob: Job? = null
+        private set
+
+    /** The move in flight, if any. Internal for the same reason. */
+    internal var moveJob: Job? = null
         private set
 
     /**
@@ -224,6 +232,78 @@ class ChessAppViewModel(
             }
 
         loadGame(gameId)
+    }
+
+    /**
+     * Handles a tap on the online board.
+     *
+     * Selecting a piece and raising the promotion prompt happen on screen; a move goes to
+     * the server, and the board does not change until the server answers (`D004`).
+     */
+    fun tapSquare(square: Square) {
+        val ready = game as? OnlineGameState.Ready ?: return
+
+        act(OnlineGame.onSquareTapped(ready, square))
+    }
+
+    /** Sends the pending promotion as the chosen piece. */
+    fun choosePromotion(choice: PieceType) {
+        val ready = game as? OnlineGameState.Ready ?: return
+
+        act(OnlineGame.choosePromotion(ready, choice))
+    }
+
+    /** Backs out of the promotion prompt without playing anything. */
+    fun cancelPromotion() {
+        val ready = game as? OnlineGameState.Ready ?: return
+
+        game = OnlineGame.cancelPromotion(ready)
+    }
+
+    /**
+     * Shows what the tap came to, and sends the move if it was one.
+     *
+     * The command carries the version the move was decided against, which is what makes it
+     * unique: a retry of a move already applied arrives stale and is refused with the
+     * canonical state attached, so the same move cannot be played twice (`D021`). Whatever
+     * the server answers — the new state, or a refusal carrying one — replaces what is on
+     * screen.
+     */
+    private fun act(tap: BoardTap) {
+        game = tap.state
+
+        if (tap !is BoardTap.Submit) return
+        if (moveJob?.isActive == true) return
+
+        val decidedAt = tap.state.game
+
+        moveJob =
+            viewModelScope.launch {
+                game =
+                    try {
+                        val played =
+                            dependencies.chessApi.makeMove(
+                                gameId = decidedAt.gameId,
+                                expectedVersion = decidedAt.version,
+                                from = tap.move.from.toString(),
+                                to = tap.move.to.toString(),
+                                promotion = tap.move.promotion?.name,
+                            )
+
+                        OnlineGameState.Ready(played)
+                    } catch (refused: ChessCommandRefusedException) {
+                        OnlineGameState.Ready(
+                            game = refused.game ?: decidedAt,
+                            message = OnlineGame.messageFor(refused),
+                        )
+                    } catch (refused: ChessApiException) {
+                        OnlineGameState.Ready(game = decidedAt, message = OnlineGame.messageFor(refused))
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (unreachable: Exception) {
+                        OnlineGameState.Ready(game = decidedAt, message = OnlineGame.unreachableMessage())
+                    }
+            }
     }
 
     /**

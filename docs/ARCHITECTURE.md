@@ -767,10 +767,13 @@ friends screen: lookup by exact username, add, remove with its confirmation, and
 the dashboard the live landing screen, loading the active series and the friends
 list together. `M14.10` made `GET /games/{gameId}` carry the opponent and the
 last move as structured data, so a game screen needs only a game id to draw
-itself, and added the read-only online game screen. No move can be played from
-Android yet: the integration sequence is documented as `M14.11`–`M14.18`:
-commands, WebSocket invalidation/reload, completion/rematch, history review, and
-two-client device verification.
+itself, and added the read-only online game screen. `M14.11` connected board
+interaction to `POST /games/{gameId}/moves`, previewing legal destinations by
+replaying the canonical move list and changing the board only from what the
+server answered. An opponent's move is still only seen by reopening the game:
+the integration sequence is documented as `M14.12`–`M14.18`: WebSocket
+invalidation/reload, undo, draw claims, resignation, completion/rematch, history
+review, and two-client device verification.
 
 ## 30. Server Architecture
 

@@ -2071,10 +2071,10 @@ Resignation follows the same active-vs-closing series lifecycle.
 API-client reads, and isolated Compose presentation components; `M14.5` put an
 application shell and navigation around them, `M14.6` made the app sign itself
 in on startup, `M14.7` gave it a typed identity and username onboarding, `M14.8`
-made friends reachable, `M14.9` made the dashboard the live landing screen, and
-`M14.10` made an online game readable. No move can be played from Android yet.
-`M14.11`–`M14.18` are the remaining client integration work required before beta
-deployment.
+made friends reachable, `M14.9` made the dashboard the live landing screen,
+`M14.10` made an online game readable, and `M14.11` made a move playable. An
+opponent's move is still only seen by reopening the game. `M14.12`–`M14.18` are
+the remaining client integration work required before beta deployment.
 
 ## M14.1 — Your Turn data and presentation component
 
@@ -2585,9 +2585,41 @@ completed games, history, and error/retry paths.
 
 ## M14.11 — Submit moves through the authoritative server
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M14.10, M10.2
+
+**Completed:** 2026-08-28 — a move can be played from Android, and only the server
+can make it happen. Tapping a piece shows where it may go — a preview, replayed
+from the moves the server listed, so no castling right or en-passant square has
+to be guessed at and no new field was needed on the read contract; a move list
+that cannot be replayed costs the preview and nothing else. Tapping a destination
+sends `POST /games/{gameId}/moves` with the version the move was decided at and
+nothing else moves: the board is redrawn only from what came back (`D004`). A
+pawn reaching the last rank raises the promotion prompt first, and the chosen
+piece travels with the move. While a command is in flight the board is closed to
+input, so a second tap sends nothing and the same move cannot be sent twice by
+tapping. A retry that the player does make is held to exactly once by the version
+it carries (`D021`, `M16.3`): the server refuses it as stale and attaches the
+canonical state, which becomes what is on screen — so a client whose reply was
+lost sees its own move rather than playing it again. Every refusal is said in
+plain words — moved on, not your move, finished, not legal — and an unreachable
+server leaves the game where it was with something to read. Verified locally with
+`.\gradlew.bat :android-app:testDebugUnitTest` (14 new `OnlineMoveTest` cases:
+the move list replays into the position that was sent, unreplayable moves cost
+only the preview, selecting shows destinations, a destination submits with input
+closed, tapping the selection clears it, nothing happens when it is not your
+move, while sending, or after the game is over, a promotion prompts and then
+sends its piece, backing out sends nothing, and each refusal reads plainly; 5 new
+`ChessApiClientTest` cases for the posted version, a promotion, a refusal
+carrying canonical state, a refusal without one, and a non-command refusal; and
+6 new `ChessAppTest` cases: a move is sent and what came back is shown, the board
+does not move until the server says so, a second tap in flight sends nothing, a
+stale refusal replaces the screen with the state it carried, a refused move
+leaves the game where it was, and an unreachable server leaves something to read)
+and `.\gradlew.bat build` (BUILD SUCCESSFUL, 280 Android unit tests, 0 skipped).
+Undo, draw claims, and resignation are `M14.13`–`M14.15`; hearing about the
+opponent's move without reloading is `M14.12`.
 
 ### Objective
 

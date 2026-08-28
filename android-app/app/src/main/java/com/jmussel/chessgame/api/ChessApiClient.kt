@@ -10,7 +10,9 @@ import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
+import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.Serializable
@@ -100,6 +102,15 @@ data class SeriesSummaryDto(
     val currentGameId: String? = null,
 )
 
+/** What a client asks the server to play: intent, never a board state. */
+@Serializable
+data class MakeMoveRequestDto(
+    val expectedVersion: Long,
+    val from: String,
+    val to: String,
+    val promotion: String? = null,
+)
+
 /** One move, in the pieces needed to draw it. */
 @Serializable
 data class MoveDto(
@@ -139,6 +150,34 @@ data class GameViewDto(
     /** Whether the game is over, which is the server's word and never worked out here. */
     val isOver: Boolean
         get() = result != null
+}
+
+/**
+ * A command the server refused, and the canonical state it sent back with the refusal.
+ *
+ * [game] is the game as the server has it right now, so a client that is behind — a retry
+ * whose first reply was lost, above all — can correct itself from the refusal instead of
+ * asking again (`D021`).
+ */
+@Serializable
+data class CommandRejectionDto(
+    val reason: String? = null,
+    val message: String = "",
+    val game: GameViewDto? = null,
+)
+
+/** Raised when the Chess server refuses a command, carrying what it said about it. */
+class ChessCommandRefusedException(
+    val status: Int,
+    val rejection: CommandRejectionDto,
+) : RuntimeException(rejection.message) {
+    /** The canonical state the refusal carried, when it carried one. */
+    val game: GameViewDto?
+        get() = rejection.game
+
+    /** `STALE_VERSION`, `ILLEGAL_MOVE`, and so on, as the server named it. */
+    val reason: String?
+        get() = rejection.reason
 }
 
 /** One finished game, as history lists it. */
@@ -231,6 +270,32 @@ class ChessApiClient(
     suspend fun game(gameId: String): GameViewDto = get("/games/$gameId")
 
     /**
+     * Plays a move, and returns the game as it stands after it.
+     *
+     * [expectedVersion] is the version the move was decided against, which is what makes
+     * the command unique: a retry of a move that was already applied arrives as a stale
+     * one and is refused with the canonical state attached, so the same move cannot be
+     * played twice (`D021`).
+     */
+    suspend fun makeMove(
+        gameId: String,
+        expectedVersion: Long,
+        from: String,
+        to: String,
+        promotion: String? = null,
+    ): GameViewDto =
+        command(
+            path = "/games/$gameId/moves",
+            body =
+                MakeMoveRequestDto(
+                    expectedVersion = expectedVersion,
+                    from = from,
+                    to = to,
+                    promotion = promotion,
+                ),
+        )
+
+    /**
      * The active series with [username], opening the existing one or starting it.
      *
      * "Play with this friend" is one action, and which of the two it turns out to be is
@@ -253,6 +318,38 @@ class ChessApiClient(
                 setBody(body)
             }
         }
+
+    /**
+     * Sends a command and reads the game it produced.
+     *
+     * A refusal carries the server's reason and, whenever there is a game to show, the
+     * canonical state — so it is raised as [ChessCommandRefusedException] rather than a
+     * plain refusal, and the caller can take the attached state and carry on.
+     */
+    private suspend inline fun <reified B : Any> command(
+        path: String,
+        body: B,
+    ): GameViewDto {
+        val response =
+            httpClient.post(config.url(path)) {
+                header(HttpHeaders.Authorization, "Bearer ${accessToken()}")
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+
+        if (response.status.isSuccess()) return response.body()
+
+        val text = response.bodyAsText()
+        val rejection = runCatching { Json.decodeFromString<CommandRejectionDto>(text) }.getOrNull()
+
+        if (rejection != null) throw ChessCommandRefusedException(response.status.value, rejection)
+
+        throw ChessApiException(
+            status = response.status.value,
+            explanation = text.trim(),
+            message = "Chess server refused $path: ${response.status}",
+        )
+    }
 
     private suspend inline fun <reified T> delete(path: String): T =
         read(path) {

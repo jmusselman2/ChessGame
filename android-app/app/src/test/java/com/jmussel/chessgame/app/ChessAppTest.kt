@@ -7,6 +7,7 @@ import com.jmussel.chessgame.auth.AnonymousSession
 import com.jmussel.chessgame.auth.InMemorySessionStore
 import com.jmussel.chessgame.auth.SessionStore
 import com.jmussel.chessgame.auth.SupabaseConfig
+import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
 import com.jmussel.chessgame.ui.dashboard.DashboardSections
@@ -35,6 +36,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -157,6 +159,7 @@ class ChessAppTest {
             path.startsWith("/friends/") -> replies.removalOutcome
             path.startsWith("/users/") -> user(path.removePrefix("/users/"))
             path == "/series" -> series(sentText(request), replies.currentGameId)
+            path.endsWith("/moves") -> playedGame(path.removePrefix("/games/").removeSuffix("/moves"))
             path.startsWith("/games/") -> gameView(path.removePrefix("/games/"))
             else -> "[]"
         }
@@ -175,6 +178,25 @@ class ChessAppTest {
          "yourSide":"WHITE","sideToMove":"WHITE","yourTurn":true,"inCheck":false,
          "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
          "moves":[],"moveNumber":1,"halfmoveClock":0}
+        """.trimIndent()
+
+    /** The same game after 1. e2e4, which is what the stubbed server answers a move with. */
+    private fun playedGame(gameId: String): String =
+        """
+        {"gameId":"$gameId","seriesId":"series-1","opponent":${user("Alex")},"version":2,
+         "yourSide":"WHITE","sideToMove":"BLACK","yourTurn":false,"inCheck":false,
+         "board":["rnbqkbnr","pppppppp","........","........","....P...","........","PPPP.PPP","RNBQKBNR"],
+         "moves":["e2e4"],"lastMove":{"from":"e2","to":"e4"},"moveNumber":1,"halfmoveClock":0}
+        """.trimIndent()
+
+    /** A refusal carrying the canonical state, as the server sends one for a stale command. */
+    private val staleRejection =
+        """
+        {"reason":"STALE_VERSION","message":"This game is at version 9","game":
+         {"gameId":"game-7","seriesId":"series-1","opponent":{"userId":"user-Alex","username":"Alex"},
+          "version":9,"yourSide":"WHITE","sideToMove":"WHITE","yourTurn":true,"inCheck":false,
+          "board":["rnbqkbnr","pppp.ppp","........","....p...","....P...","........","PPPP.PPP","RNBQKBNR"],
+          "moves":["e2e4","e7e5"],"lastMove":{"from":"e7","to":"e5"},"moveNumber":2,"halfmoveClock":0}}
         """.trimIndent()
 
     private fun sentText(request: HttpRequestData): String = (request.body as TextContent).text
@@ -1006,6 +1028,140 @@ class ChessAppTest {
 
             assertTrue(viewModel.back())
             assertEquals(Destination.Dashboard, viewModel.navigation.current)
+        }
+
+    @Test
+    fun playingAMoveSendsItAndShowsWhatCameBack() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.tapSquare(Square.parse("e2"))
+            assertEquals(Square.parse("e2"), (viewModel.game as OnlineGameState.Ready).selected)
+
+            viewModel.tapSquare(Square.parse("e4"))
+            assertTrue("input is closed while the server decides", (viewModel.game as OnlineGameState.Ready).submitting)
+
+            viewModel.moveJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals(listOf("e2e4"), ready.game.moves)
+            assertFalse(ready.submitting)
+            assertEquals(listOf("/games/game-7", "/games/game-7/moves"), paths)
+        }
+
+    @Test
+    fun theBoardDoesNotMoveUntilTheServerSaysSo() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            val before = (viewModel.game as OnlineGameState.Ready).game.board
+
+            viewModel.tapSquare(Square.parse("e2"))
+            viewModel.tapSquare(Square.parse("e4"))
+
+            assertEquals("nothing moves on the way out", before, (viewModel.game as OnlineGameState.Ready).game.board)
+
+            viewModel.moveJob?.join()
+
+            assertNotEquals(before, (viewModel.game as OnlineGameState.Ready).game.board)
+        }
+
+    @Test
+    fun aSecondTapWhileAMoveIsInFlightSendsNothing() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.tapSquare(Square.parse("e2"))
+            viewModel.tapSquare(Square.parse("e4"))
+            viewModel.tapSquare(Square.parse("d2"))
+            viewModel.tapSquare(Square.parse("d4"))
+            viewModel.moveJob?.join()
+
+            assertEquals("exactly one move was sent", 1, paths.count { it.endsWith("/moves") })
+        }
+
+    @Test
+    fun aStaleRefusalReplacesTheScreenWithTheStateItCarried() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            refusals = 1,
+                            refusalPath = "/games/game-7/moves",
+                            refusalStatus = HttpStatusCode.Conflict,
+                            refusalBody = staleRejection,
+                        ),
+                )
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.tapSquare(Square.parse("e2"))
+            viewModel.tapSquare(Square.parse("e4"))
+            viewModel.moveJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals("the canonical state came back with the refusal", 9, ready.game.version.toInt())
+            assertEquals(listOf("e2e4", "e7e5"), ready.game.moves)
+            assertTrue(ready.message.orEmpty().contains("moved on"))
+            assertFalse(ready.submitting)
+        }
+
+    @Test
+    fun aRefusedMoveLeavesTheGameWhereItWasAndSaysWhy() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            refusals = 1,
+                            refusalPath = "/games/game-7/moves",
+                            refusalStatus = HttpStatusCode.UnprocessableEntity,
+                            refusalBody = """{"reason":"ILLEGAL_MOVE","message":"e2e4 is not legal here"}""",
+                        ),
+                )
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+            val before = (viewModel.game as OnlineGameState.Ready).game
+
+            viewModel.tapSquare(Square.parse("e2"))
+            viewModel.tapSquare(Square.parse("e4"))
+            viewModel.moveJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals(before, ready.game)
+            assertTrue(ready.message.orEmpty().contains("not legal"))
+        }
+
+    @Test
+    fun aMoveThatNeverReachesTheServerLeavesSomethingToRead() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            refusals = 1,
+                            refusalPath = "/games/game-7/moves",
+                            refusalStatus = HttpStatusCode.BadGateway,
+                            refusalBody = "",
+                        ),
+                )
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.tapSquare(Square.parse("e2"))
+            viewModel.tapSquare(Square.parse("e4"))
+            viewModel.moveJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertTrue(ready.message.orEmpty().isNotBlank())
+            assertFalse(ready.submitting)
         }
 
     private fun viewModel(
