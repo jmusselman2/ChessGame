@@ -13,6 +13,7 @@ import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
 import com.jmussel.chessgame.ui.dashboard.DashboardSections
+import com.jmussel.chessgame.ui.game.OnlineGame
 import com.jmussel.chessgame.ui.game.OnlineGameState
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import io.ktor.client.HttpClient
@@ -115,6 +116,7 @@ class ChessAppTest {
         friends: List<String> = emptyList(),
         games: List<String> = emptyList(),
         canUndo: Boolean = false,
+        claims: List<String> = emptyList(),
         removalOutcome: String = "Removed",
         currentGameId: String? = "game-1",
         refusals: Int = 0,
@@ -136,7 +138,7 @@ class ChessAppTest {
                         if (refuse) {
                             refusalBody
                         } else {
-                            replyTo(request, path, Replies(username, friends, games, removalOutcome, currentGameId, canUndo))
+                            replyTo(request, path, Replies(username, friends, games, removalOutcome, currentGameId, canUndo, claims))
                         },
                     status = if (refuse) refusalStatus else HttpStatusCode.OK,
                     headers = headersOf("Content-Type", ContentType.Application.Json.toString()),
@@ -156,6 +158,7 @@ class ChessAppTest {
         val removalOutcome: String,
         val currentGameId: String?,
         val canUndo: Boolean,
+        val claims: List<String>,
     )
 
     /** What the server would say to one request. */
@@ -177,7 +180,8 @@ class ChessAppTest {
             path == "/series" -> series(sentText(request), replies.currentGameId)
             path.endsWith("/moves") -> playedGame(path.removePrefix("/games/").removeSuffix("/moves"))
             path.endsWith("/undo") -> gameView(path.removePrefix("/games/").removeSuffix("/undo"), canUndo = false)
-            path.startsWith("/games/") -> gameView(path.removePrefix("/games/"), replies.canUndo)
+            path.endsWith("/draw-claims") -> drawnGame(path.removePrefix("/games/").removeSuffix("/draw-claims"))
+            path.startsWith("/games/") -> gameView(path.removePrefix("/games/"), replies.canUndo, replies.claims)
             else -> "[]"
         }
 
@@ -192,12 +196,24 @@ class ChessAppTest {
     private fun gameView(
         gameId: String,
         canUndo: Boolean = false,
+        claims: List<String> = emptyList(),
     ): String =
         """
         {"gameId":"$gameId","seriesId":"series-1","opponent":${user("Alex")},"version":1,
          "yourSide":"WHITE","sideToMove":"WHITE","yourTurn":true,"inCheck":false,
          "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
-         "moves":[],"moveNumber":1,"halfmoveClock":0,"canUndo":$canUndo}
+         "moves":[],"moveNumber":1,"halfmoveClock":0,"canUndo":$canUndo,
+         "availableDrawClaims":${claims.joinToString(",", "[", "]") { "\"$it\"" }}}
+        """.trimIndent()
+
+    /** The same game once a claimed draw has ended it. */
+    private fun drawnGame(gameId: String): String =
+        """
+        {"gameId":"$gameId","seriesId":"series-1","opponent":${user("Alex")},"version":2,
+         "yourSide":"WHITE","sideToMove":"WHITE","yourTurn":false,"inCheck":false,
+         "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
+         "moves":[],"moveNumber":1,"halfmoveClock":0,
+         "result":"DRAW","terminationReason":"THREEFOLD_REPETITION_CLAIM"}
         """.trimIndent()
 
     /** The same game after 1. e2e4, which is what the stubbed server answers a move with. */
@@ -1385,7 +1401,7 @@ class ChessAppTest {
 
             val ready = viewModel.game as OnlineGameState.Ready
             assertEquals(before, ready.game)
-            assertEquals("There is nothing to take back", ready.message)
+            assertTrue(ready.message.orEmpty().contains("nothing to take back"))
         }
 
     @Test
@@ -1450,6 +1466,132 @@ class ChessAppTest {
             viewModel.gameJob?.join()
 
             assertEquals(2, paths.count { it == "/games/game-7" })
+        }
+
+    @Test
+    fun onlyTheClaimsTheServerListedCanBeMade() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.claimDraw("THREEFOLD_REPETITION")
+            viewModel.moveJob?.join()
+
+            assertEquals("a game with no claim available sends nothing", listOf("/games/game-7"), paths)
+        }
+
+    @Test
+    fun aThreefoldClaimIsSentWithItsVersionAndTheResultComesBack() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(claims = listOf("THREEFOLD_REPETITION")))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.claimDraw("THREEFOLD_REPETITION")
+            assertTrue((viewModel.game as OnlineGameState.Ready).submitting)
+            viewModel.moveJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals(listOf("/games/game-7", "/games/game-7/draw-claims"), paths)
+            assertTrue(sentBodies.last().contains("\"expectedVersion\":1"))
+            assertTrue(sentBodies.last().contains("THREEFOLD_REPETITION"))
+            assertEquals("DRAW", ready.game.result)
+            assertEquals("THREEFOLD_REPETITION_CLAIM", ready.game.terminationReason)
+        }
+
+    @Test
+    fun aFiftyMoveClaimIsSentAsItsOwnRule() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(claims = listOf("FIFTY_MOVE_RULE")))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.claimDraw("FIFTY_MOVE_RULE")
+            viewModel.moveJob?.join()
+
+            assertTrue(sentBodies.last().contains("FIFTY_MOVE_RULE"))
+            assertEquals("DRAW", (viewModel.game as OnlineGameState.Ready).game.result)
+        }
+
+    @Test
+    fun theTwoClaimsAreLabelledApart() {
+        assertEquals("Claim draw (threefold repetition)", OnlineGame.claimLabel("THREEFOLD_REPETITION"))
+        assertEquals("Claim draw (fifty-move rule)", OnlineGame.claimLabel("FIFTY_MOVE_RULE"))
+    }
+
+    @Test
+    fun aClaimTheServerRefusesLeavesTheGameRunning() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            claims = listOf("THREEFOLD_REPETITION"),
+                            refusals = 1,
+                            refusalPath = "/games/game-7/draw-claims",
+                            refusalStatus = HttpStatusCode.Conflict,
+                            refusalBody = """{"reason":"NO_SUCH_CLAIM","message":"No such claim"}""",
+                        ),
+                )
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+            val before = (viewModel.game as OnlineGameState.Ready).game
+
+            viewModel.claimDraw("THREEFOLD_REPETITION")
+            viewModel.moveJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals("the app never decides a game is drawn", before, ready.game)
+            assertTrue(ready.message.orEmpty().contains("no draw to claim"))
+        }
+
+    @Test
+    fun aStaleClaimIsRecoveredFromTheStateTheRefusalCarried() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            claims = listOf("THREEFOLD_REPETITION"),
+                            refusals = 1,
+                            refusalPath = "/games/game-7/draw-claims",
+                            refusalStatus = HttpStatusCode.Conflict,
+                            refusalBody = staleRejection,
+                        ),
+                )
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.claimDraw("THREEFOLD_REPETITION")
+            viewModel.moveJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals(9, ready.game.version.toInt())
+            assertTrue(ready.message.orEmpty().contains("moved on"))
+        }
+
+    @Test
+    fun aClaimInAFinishedGameIsExplained() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            claims = listOf("THREEFOLD_REPETITION"),
+                            refusals = 1,
+                            refusalPath = "/games/game-7/draw-claims",
+                            refusalStatus = HttpStatusCode.Conflict,
+                            refusalBody = """{"reason":"GAME_OVER","message":"This game has finished"}""",
+                        ),
+                )
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.claimDraw("THREEFOLD_REPETITION")
+            viewModel.moveJob?.join()
+
+            assertTrue((viewModel.game as OnlineGameState.Ready).message.orEmpty().contains("finished"))
         }
 
     private fun viewModel(

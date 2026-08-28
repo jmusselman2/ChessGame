@@ -205,6 +205,19 @@ object OnlineGame {
     /** The state after the player backs out of the promotion prompt. */
     fun cancelPromotion(state: OnlineGameState.Ready): OnlineGameState.Ready = state.copy(pendingPromotion = null)
 
+    /**
+     * What a claim button says.
+     *
+     * The names are the server's, and the two claims are labelled apart because they are
+     * different rules a player may be entitled to at the same time (`D019`).
+     */
+    fun claimLabel(claim: String): String =
+        when (claim.uppercase()) {
+            THREEFOLD -> "Claim draw (threefold repetition)"
+            FIFTY_MOVE -> "Claim draw (fifty-move rule)"
+            else -> "Claim draw (${claim.lowercase().replace('_', ' ')})"
+        }
+
     /** `"Alex • You are White"`. */
     fun headingFor(game: GameViewDto): String = "${game.opponent.username} $SEPARATOR You are ${sideLabel(game.yourSide)}"
 
@@ -259,6 +272,8 @@ object OnlineGame {
             NOT_YOUR_TURN -> NOT_YOUR_MOVE
             GAME_OVER -> ALREADY_OVER
             ILLEGAL_MOVE -> ILLEGAL
+            NO_SUCH_CLAIM -> NO_CLAIM
+            NOTHING_TO_UNDO -> NOTHING_BACK
             else -> refusal.rejection.message.ifBlank { REFUSED_COMMAND }
         }
 
@@ -318,6 +333,10 @@ object OnlineGame {
     private const val NOT_YOUR_TURN = "NOT_YOUR_TURN"
     private const val GAME_OVER = "GAME_OVER"
     private const val ILLEGAL_MOVE = "ILLEGAL_MOVE"
+    private const val NO_SUCH_CLAIM = "NO_SUCH_CLAIM"
+    private const val NOTHING_TO_UNDO = "NOTHING_TO_UNDO"
+    private const val THREEFOLD = "THREEFOLD_REPETITION"
+    private const val FIFTY_MOVE = "FIFTY_MOVE_RULE"
     private const val NOT_YOURS = "This game is not yours to look at."
     private const val NO_SUCH_GAME = "That game is gone."
     private const val REFUSED = "The server would not show that game. Try again."
@@ -326,5 +345,7 @@ object OnlineGame {
     private const val NOT_YOUR_MOVE = "It is not your move."
     private const val ALREADY_OVER = "This game has finished."
     private const val ILLEGAL = "That move is not legal here."
+    private const val NO_CLAIM = "There is no draw to claim here."
+    private const val NOTHING_BACK = "There is nothing to take back."
     private const val UNREACHABLE = "Could not reach the server. Check your connection and try again."
 }

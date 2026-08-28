@@ -378,6 +378,24 @@ class ChessAppViewModel(
     }
 
     /**
+     * Claims a draw the canonical state says is available (`D019`).
+     *
+     * The app offers only the claims the server listed and never decides that a game is
+     * drawn: the game becomes whatever the server answers, which is where a claimed draw
+     * gets its result and its termination reason.
+     */
+    fun claimDraw(claim: String) {
+        val ready = game as? OnlineGameState.Ready ?: return
+        if (claim !in ready.game.availableDrawClaims || ready.submitting) return
+
+        game = ready.copy(selected = null, pendingPromotion = null, submitting = true, message = null)
+
+        sendCommand(ready.game) { api, decidedAt ->
+            api.claimDraw(gameId = decidedAt.gameId, expectedVersion = decidedAt.version, claim = claim)
+        }
+    }
+
+    /**
      * Sends one command about the game on screen and shows whatever came back.
      *
      * Every command works the same way: it carries the version it was decided against,

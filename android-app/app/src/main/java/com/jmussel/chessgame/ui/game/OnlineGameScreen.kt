@@ -41,6 +41,7 @@ fun OnlineGameScreen(
     onChoosePromotion: (PieceType) -> Unit = {},
     onCancelPromotion: () -> Unit = {},
     onUndo: () -> Unit = {},
+    onClaimDraw: (String) -> Unit = {},
 ) {
     Column(
         modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
@@ -63,6 +64,7 @@ fun OnlineGameScreen(
                     onChoosePromotion = onChoosePromotion,
                     onCancelPromotion = onCancelPromotion,
                     onUndo = onUndo,
+                    onClaimDraw = onClaimDraw,
                 )
         }
     }
@@ -76,6 +78,7 @@ private fun Game(
     onChoosePromotion: (PieceType) -> Unit,
     onCancelPromotion: () -> Unit,
     onUndo: () -> Unit,
+    onClaimDraw: (String) -> Unit,
 ) {
     val game = state.game
 
@@ -104,6 +107,14 @@ private fun Game(
     // (`D016`); the server decides again when the command arrives.
     if (game.canUndo) {
         Button(onClick = onUndo, enabled = !state.submitting) { Text(text = UNDO) }
+    }
+
+    // Only the claims the server said are available, each labelled by its own rule
+    // (`D019`); an automatic draw needs no claim and never appears here.
+    game.availableDrawClaims.forEach { claim ->
+        Button(onClick = { onClaimDraw(claim) }, enabled = !state.submitting) {
+            Text(text = OnlineGame.claimLabel(claim))
+        }
     }
 
     // What the server was last asked, and what it said about it.

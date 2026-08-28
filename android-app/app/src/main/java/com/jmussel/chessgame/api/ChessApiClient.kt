@@ -135,6 +135,13 @@ data class VersionedRequestDto(
     val expectedVersion: Long,
 )
 
+/** A draw claim: the version it was decided against, and which rule is being claimed. */
+@Serializable
+data class ClaimDrawRequestDto(
+    val expectedVersion: Long,
+    val claim: String,
+)
+
 /** One move, in the pieces needed to draw it. */
 @Serializable
 data class MoveDto(
@@ -293,6 +300,18 @@ class ChessApiClient(
         gameId: String,
         expectedVersion: Long,
     ): GameViewDto = command("/games/$gameId/undo", VersionedRequestDto(expectedVersion))
+
+    /**
+     * Claims the draw [claim] allows, and returns the game as it stands after it.
+     *
+     * Whether the position allows it is the server's answer (`D019`); the app offers only
+     * what the canonical state listed and never decides that a game is drawn.
+     */
+    suspend fun claimDraw(
+        gameId: String,
+        expectedVersion: Long,
+        claim: String,
+    ): GameViewDto = command("/games/$gameId/draw-claims", ClaimDrawRequestDto(expectedVersion, claim))
 
     /** The games the caller has finished, in the series they belong to, newest series first. */
     suspend fun history(): List<SeriesHistoryDto> = get("/history")

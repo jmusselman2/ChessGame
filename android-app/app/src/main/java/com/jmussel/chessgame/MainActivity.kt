@@ -85,6 +85,7 @@ class MainActivity : ComponentActivity() {
                         onChoosePromotion = viewModel::choosePromotion,
                         onCancelPromotion = viewModel::cancelPromotion,
                         onUndo = viewModel::undoMove,
+                        onClaimDraw = viewModel::claimDraw,
                         onClaimUsername = viewModel::claimUsername,
                         friendsActions = friendsActions,
                         dashboardActions = dashboardActions,

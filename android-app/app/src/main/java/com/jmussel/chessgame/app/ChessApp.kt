@@ -57,6 +57,7 @@ fun ChessApp(
     onChoosePromotion: (PieceType) -> Unit = {},
     onCancelPromotion: () -> Unit = {},
     onUndo: () -> Unit = {},
+    onClaimDraw: (String) -> Unit = {},
     onClaimUsername: (String) -> Unit = {},
     friendsActions: FriendsActions = FriendsActions(),
     dashboardActions: DashboardActions = DashboardActions(),
@@ -92,6 +93,7 @@ fun ChessApp(
                     onChoosePromotion = onChoosePromotion,
                     onCancelPromotion = onCancelPromotion,
                     onUndo = onUndo,
+                    onClaimDraw = onClaimDraw,
                 )
         }
     }

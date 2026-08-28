@@ -2750,9 +2750,30 @@ recovery, and realtime reload.
 
 ## M14.14 — Authoritative draw-claim integration
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M14.11, M10.3
+
+**Completed:** 2026-08-28 — a draw can be claimed from the game screen, and the
+server is what makes it one. A claim button appears for each entry in the
+canonical state's `availableDrawClaims` and for nothing else, so the app never
+works out an entitlement the server has not granted (`D019`); threefold
+repetition and the fifty-move rule are labelled apart, because a player may be
+entitled to either and they are different rules. The claim carries the version it
+was decided against and goes through the same command path as a move and an undo
+(`D021`); the result and the termination reason come back from the server, so the
+app never decides that a game is drawn — a refused claim leaves the game exactly
+where it was and says there is no draw to claim here. Stale and finished-game
+refusals recover from the canonical state the refusal carried. An accepted claim
+simply becomes a finished game on screen, which is the same terminal state every
+other ending produces; following the series into its next game is `M14.16`.
+Verified locally with `.\gradlew.bat :android-app:testDebugUnitTest` (7 new
+`ChessAppTest` cases: a game with no claim available sends nothing, a threefold
+claim travels with its version and comes back drawn, a fifty-move claim is sent
+as its own rule, the two labels differ, a refused claim leaves the game running,
+a stale claim recovers from the attached state, and a claim in a finished game is
+explained) and `.\gradlew.bat build` (BUILD SUCCESSFUL, 301 Android unit tests,
+0 skipped).
 
 ### Objective
 
