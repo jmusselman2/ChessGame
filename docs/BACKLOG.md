@@ -2068,10 +2068,11 @@ Resignation follows the same active-vs-closing series lifecycle.
 # M14 — Android Multiplayer Client, Dashboard, and History
 
 **Milestone status:** INCOMPLETE. `M14.1`–`M14.4` completed server queries,
-API-client reads, and isolated Compose presentation components. They did not
-wire those pieces into `MainActivity`, provide an authenticated application
-shell, or make an online game playable from Android. `M14.5`–`M14.18` are the
-remaining client integration work required before beta deployment.
+API-client reads, and isolated Compose presentation components; `M14.5` put an
+application shell and navigation around them. Nothing is yet fed by live
+authenticated data and no online game can be played from Android.
+`M14.6`–`M14.18` are the remaining client integration work required before beta
+deployment.
 
 ## M14.1 — Your Turn data and presentation component
 
@@ -2196,9 +2197,38 @@ navigation and full-game review are `M14.17`.
 
 ## M14.5 — Android application shell and navigation
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M5.6, M7.2, M14.1, M14.4
+
+**Completed:** 2026-08-28 — the app is now an application rather than a board.
+`MainActivity` holds no state: it renders `ChessApp` and hands back presses to
+`ChessAppViewModel`, which outlives it, so a rotation redraws the same app
+instead of restarting it. What is showing is `AppNavigation`, an immutable stack
+of `Destination`s with `open`, `restartAt`, and `back` — free of Compose and
+Android, so every transition the shell supports is tested on the JVM (`D033`).
+`restartAt` is how startup and onboarding hand over: neither is somewhere to go
+back to, so the dashboard becomes the screen the player leaves the app from, and
+`back()` returning `null` there is the signal that the press belongs to the
+system. `ChessAppDependencies` builds one Ktor `HttpClient` shared by Supabase
+auth and the Chess server, with the `AnonymousAuthenticator` and `ChessApiClient`
+on top of it; it is constructed from the application context by a factory that
+runs only when there is no model yet, and closed in `onCleared`, so no client is
+ever made during composition or left unclosed. The manifest asks for
+`INTERNET` and points at a network security configuration that forbids cleartext;
+the `debug` source set replaces that file with one allowing `10.0.2.2` and
+`localhost` only, so a developer can reach a local server and a beta or release
+build cannot talk in the clear at all (verified in the merged release manifest
+and both packaged configurations). The local pass-and-play screen moved out of
+`MainActivity` to `ui/board/LocalGameScreen.kt` unchanged. Screens whose contents
+are later tasks say so rather than pretending: startup (`M14.6`), username
+(`M14.7`), friends (`M14.8`), and an online game (`M14.10`); the dashboard and
+history render their real components with no data until `M14.9` and `M14.17`
+load it. Verified locally with `.\gradlew.bat :android-app:testDebugUnitTest`
+(20 new `AppNavigationTest` cases covering the startup destination and every
+supported transition, and 8 new `ChessAppTest` cases covering the shared token,
+the closed client, the lazily built factory, and the shell's own transitions) and
+`.\gradlew.bat build` (BUILD SUCCESSFUL, 168 Android unit tests, 0 skipped).
 
 ### Objective
 

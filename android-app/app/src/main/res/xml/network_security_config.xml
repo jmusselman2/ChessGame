@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Everything this app sends carries a session token, so nothing it sends may travel in
+  the clear. The debug build overrides this file to reach a development server on the
+  emulator's loopback address; no other build can.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+</network-security-config>

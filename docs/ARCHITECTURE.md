@@ -752,16 +752,17 @@ UX, but an online board changes only when an authenticated server response is
 accepted or canonical state is reloaded. Every command carries the currently
 loaded expected version.
 
-The current Android source has `AnonymousAuthenticator`, `SessionStore`,
+The Android source has `AnonymousAuthenticator`, `SessionStore`,
 `ChessApiClient`, `DashboardScreen`, `HistoryScreen`, and reusable board
-components. These are not yet composed into the typical flow above. The
-remaining integration sequence is documented as `M14.5`–`M14.18`: application
-shell/navigation and runtime networking, startup auth, onboarding/friends,
-dashboard landing, online game loading and commands, WebSocket
-invalidation/reload, completion/rematch, history review, and two-client device
-verification. The current server `GET /me` returns only a plain user id, so
-M14.7 also completes the narrow current-user read contract needed to bypass
-onboarding for returning named users.
+components, and since `M14.5` an application shell — `MainActivity` →
+`ChessApp` → `ChessAppViewModel` → `ChessAppDependencies` — that owns
+navigation and the shared HTTP client (`D033`). The screens are not yet fed by
+it: the remaining integration sequence is documented as `M14.6`–`M14.18`:
+startup auth, onboarding/friends, dashboard landing, online game loading and
+commands, WebSocket invalidation/reload, completion/rematch, history review,
+and two-client device verification. The current server `GET /me` returns only a
+plain user id, so M14.7 also completes the narrow current-user read contract
+needed to bypass onboarding for returning named users.
 
 ## 30. Server Architecture
 

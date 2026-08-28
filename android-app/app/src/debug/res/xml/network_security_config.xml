@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug builds only. A developer runs the Chess server over plain HTTP on their own
+  machine, which an emulator reaches at 10.0.2.2, so those two addresses are allowed and
+  nothing else is. This file replaces the release configuration in debug builds and is
+  never part of a beta or release APK.
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+        <domain includeSubdomains="false">localhost</domain>
+    </domain-config>
+</network-security-config>

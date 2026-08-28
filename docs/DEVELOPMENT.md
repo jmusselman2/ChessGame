@@ -287,11 +287,13 @@ The server starts in one of two modes:
   works on a machine with no database configured.
 
 `ChessServerConfig` points development Android clients at
-`http://10.0.2.2:8080`, but the current manifest does not yet grant network
-access or permit that development-only cleartext connection. Do not interpret
-the configured URL or host-side API-client tests as a successful device
-connection; `M14.5` owns the runtime networking setup while beta/release traffic
-remains HTTPS-only.
+`http://10.0.2.2:8080`, which is this machine as an emulator sees it. Since
+`M14.5` the manifest grants `INTERNET`, and the `debug` source set's
+`res/xml/network_security_config.xml` permits cleartext to `10.0.2.2` and
+`localhost` only; the release configuration forbids cleartext entirely, so beta
+and release traffic remains HTTPS-only (`D033`). Do not interpret the configured
+URL or host-side API-client tests as a successful device connection — no
+emulator play-through has been run yet, which is `M14.18`.
 
 ### Gradle Project Structure
 

@@ -1134,3 +1134,73 @@ Checked 2026-08-28:
 - [Supabase pricing and Free-plan limits](https://supabase.com/pricing)
 - [Supabase Free-project pausing](https://supabase.com/docs/guides/platform/free-project-pausing)
 - [Railway pricing](https://railway.com/pricing)
+
+---
+
+## D033 — The Android Shell Is a Back Stack and a `ViewModel`, and Only Debug Builds Talk Cleartext
+
+**Date:** 2026-08-28
+
+**Status:** Accepted
+
+### Decision
+
+The Android application shell is three small pieces:
+
+- `AppNavigation` — an immutable list of `Destination`s with `open`,
+  `restartAt`, and `back`. No navigation library, no routes, no deep links.
+- `ChessAppViewModel` — holds that navigation and owns `ChessAppDependencies`,
+  closing it in `onCleared`.
+- `ChessAppDependencies` — one Ktor `HttpClient` shared by Supabase auth and the
+  Chess server, plus the `AnonymousAuthenticator` and `ChessApiClient` built on
+  it, constructed from the application context and never from a composable.
+
+Navigation state is not persisted. After process death the app starts at
+`Destination.Startup` again and reaches the dashboard through the stored
+session, which is the only thing that has to survive (`D006`).
+
+Transport security is set by a network security configuration rather than by
+`usesCleartextTraffic`: the release configuration forbids cleartext entirely,
+and the `debug` source set replaces that file with one permitting cleartext to
+`10.0.2.2` and `localhost` only.
+
+### Rationale
+
+The MVP has seven destinations and no deep links, so `androidx.navigation` would
+add a dependency, a serialization format for arguments, and a second state
+model, to replace a list and three methods. A plain immutable stack is free of
+Compose and Android, so every transition the app supports is tested on the JVM.
+
+The dependencies have to outlive the `Activity` — rotating the device must not
+sign in again or drop the HTTP client — and must not outlive the app's state, or
+nothing would ever close the client. A `ViewModel` is exactly that lifetime, and
+holds no `Activity` reference, so a recreated screen attaches to the state
+already there.
+
+A developer runs the Chess server over plain HTTP on their own machine; a beta
+player's device must never send a session token in the clear. Splitting the
+configuration by source set makes that difference a build-time fact rather than
+a runtime flag someone can leave on.
+
+### Alternatives Considered
+
+- **`androidx.navigation` (or Navigation 3)** — the conventional choice, and the
+  right one when destinations are numerous, deep-linked, or contributed by
+  feature modules. None of that is true here. Worth revisiting if deep links or
+  a multi-module client appear.
+- **Dependencies in an `Application` subclass** — process-lifetime is simple, but
+  gives no close point at all and makes the container awkward to substitute in
+  tests.
+- **`android:usesCleartextTraffic="true"` on debug only** — equivalent for the
+  emulator, but it permits cleartext to *anywhere* in a debug build rather than
+  to the development server.
+
+### Consequences
+
+- Adding a destination means adding a `Destination` and a branch in `ChessApp`;
+  there is no route table to keep in step.
+- Nothing survives process death except the session, so any screen state worth
+  keeping (for example a loaded game) must be reloaded from the server rather
+  than restored — which `D004` requires anyway.
+- A beta or release build cannot reach a plain-HTTP server at all. `M15.4`'s
+  endpoint has to be HTTPS, which is what `D032`'s hosting provides.
