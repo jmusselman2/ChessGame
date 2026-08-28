@@ -336,7 +336,9 @@ class ChessAppTest {
             viewModel.start()
             viewModel.startupJob?.join()
 
-            assertEquals("restoring a valid session must not call Supabase", listOf("/me"), paths)
+            // The dashboard load that follows is another job; only the startup calls matter here.
+            assertEquals("restoring a valid session must not call Supabase", listOf("/me"), paths.take(1))
+            assertFalse(paths.any { it.startsWith("/auth/") })
             assertEquals(Destination.Dashboard, viewModel.navigation.current)
         }
 
@@ -402,7 +404,7 @@ class ChessAppTest {
             assertEquals(UsernameClaim.Idle, viewModel.usernameClaim)
             assertEquals("Jordan", viewModel.currentUser?.username)
             assertEquals(AppNavigation(listOf(Destination.Dashboard)), viewModel.navigation)
-            assertEquals(listOf("/auth/v1/signup", "/me", "/username"), paths)
+            assertEquals(listOf("/auth/v1/signup", "/me", "/username"), paths.take(3))
         }
 
     @Test
@@ -695,9 +697,11 @@ class ChessAppTest {
 
             viewModel.playFriend(UserSummaryDto(userId = "user-1", username = "Alex"))
             viewModel.friendsJob?.join()
+            viewModel.gameJob?.join()
 
-            assertEquals(listOf("/series"), paths)
+            assertEquals("the series is asked for first", "/series", paths.first())
             assertEquals(Destination.OnlineGame("game-7"), viewModel.navigation.current)
+            assertTrue("and the game it named is loaded", paths.contains("/games/game-7"))
         }
 
     @Test
