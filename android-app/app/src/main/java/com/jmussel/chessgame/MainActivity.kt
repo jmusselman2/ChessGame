@@ -84,6 +84,7 @@ class MainActivity : ComponentActivity() {
                         onSquareTapped = viewModel::tapSquare,
                         onChoosePromotion = viewModel::choosePromotion,
                         onCancelPromotion = viewModel::cancelPromotion,
+                        onUndo = viewModel::undoMove,
                         onClaimUsername = viewModel::claimUsername,
                         friendsActions = friendsActions,
                         dashboardActions = dashboardActions,

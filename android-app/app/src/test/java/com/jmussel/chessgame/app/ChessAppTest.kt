@@ -114,6 +114,7 @@ class ChessAppTest {
         username: String? = null,
         friends: List<String> = emptyList(),
         games: List<String> = emptyList(),
+        canUndo: Boolean = false,
         removalOutcome: String = "Removed",
         currentGameId: String? = "game-1",
         refusals: Int = 0,
@@ -135,7 +136,7 @@ class ChessAppTest {
                         if (refuse) {
                             refusalBody
                         } else {
-                            replyTo(request, path, Replies(username, friends, games, removalOutcome, currentGameId))
+                            replyTo(request, path, Replies(username, friends, games, removalOutcome, currentGameId, canUndo))
                         },
                     status = if (refuse) refusalStatus else HttpStatusCode.OK,
                     headers = headersOf("Content-Type", ContentType.Application.Json.toString()),
@@ -154,6 +155,7 @@ class ChessAppTest {
         val games: List<String>,
         val removalOutcome: String,
         val currentGameId: String?,
+        val canUndo: Boolean,
     )
 
     /** What the server would say to one request. */
@@ -174,7 +176,8 @@ class ChessAppTest {
             path.startsWith("/users/") -> user(path.removePrefix("/users/"))
             path == "/series" -> series(sentText(request), replies.currentGameId)
             path.endsWith("/moves") -> playedGame(path.removePrefix("/games/").removeSuffix("/moves"))
-            path.startsWith("/games/") -> gameView(path.removePrefix("/games/"))
+            path.endsWith("/undo") -> gameView(path.removePrefix("/games/").removeSuffix("/undo"), canUndo = false)
+            path.startsWith("/games/") -> gameView(path.removePrefix("/games/"), replies.canUndo)
             else -> "[]"
         }
 
@@ -186,12 +189,15 @@ class ChessAppTest {
         """.trimIndent()
 
     /** One game, as the stubbed server has it: a fresh board against Alex. */
-    private fun gameView(gameId: String): String =
+    private fun gameView(
+        gameId: String,
+        canUndo: Boolean = false,
+    ): String =
         """
         {"gameId":"$gameId","seriesId":"series-1","opponent":${user("Alex")},"version":1,
          "yourSide":"WHITE","sideToMove":"WHITE","yourTurn":true,"inCheck":false,
          "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
-         "moves":[],"moveNumber":1,"halfmoveClock":0}
+         "moves":[],"moveNumber":1,"halfmoveClock":0,"canUndo":$canUndo}
         """.trimIndent()
 
     /** The same game after 1. e2e4, which is what the stubbed server answers a move with. */
@@ -232,6 +238,10 @@ class ChessAppTest {
 
     private val paths: List<String>
         get() = requests.map { it.url.encodedPath }
+
+    /** What was actually sent, for the assertions about versions travelling with commands. */
+    private val sentBodies: List<String>
+        get() = requests.mapNotNull { (it.body as? TextContent)?.text }
 
     private fun dependencies(
         httpClient: HttpClient = httpClient(),
@@ -1317,6 +1327,130 @@ class ChessAppTest {
         assertEquals("wss://chess.example/ws", ChessServerConfig("https://chess.example").webSocketUrl("/ws"))
         assertEquals("ws://10.0.2.2:8080/ws", ChessServerConfig("http://10.0.2.2:8080").webSocketUrl("/ws"))
     }
+
+    @Test
+    fun undoIsSentOnlyWhenTheServerSaysThisPlayerMay() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            assertFalse("a game with nothing to take back offers nothing", (viewModel.game as OnlineGameState.Ready).game.canUndo)
+
+            viewModel.undoMove()
+            viewModel.moveJob?.join()
+
+            assertEquals(listOf("/games/game-7"), paths)
+        }
+
+    @Test
+    fun anEligibleUndoIsSentWithItsVersionAndTheAnswerBecomesTheScreen() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(canUndo = true))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.undoMove()
+            assertTrue((viewModel.game as OnlineGameState.Ready).submitting)
+
+            viewModel.moveJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals(listOf("/games/game-7", "/games/game-7/undo"), paths)
+            assertTrue("the version travels with the command", sentBodies.last().contains("\"expectedVersion\":1"))
+            assertEquals("the board is whatever came back", emptyList<String>(), ready.game.moves)
+            assertFalse(ready.submitting)
+        }
+
+    @Test
+    fun anUndoWithNothingToTakeBackIsExplainedAndChangesNothing() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            canUndo = true,
+                            refusals = 1,
+                            refusalPath = "/games/game-7/undo",
+                            refusalStatus = HttpStatusCode.Conflict,
+                            refusalBody = """{"reason":"NOTHING_TO_UNDO","message":"There is nothing to take back"}""",
+                        ),
+                )
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+            val before = (viewModel.game as OnlineGameState.Ready).game
+
+            viewModel.undoMove()
+            viewModel.moveJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals(before, ready.game)
+            assertEquals("There is nothing to take back", ready.message)
+        }
+
+    @Test
+    fun aStaleUndoIsRecoveredFromTheStateTheRefusalCarried() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            canUndo = true,
+                            refusals = 1,
+                            refusalPath = "/games/game-7/undo",
+                            refusalStatus = HttpStatusCode.Conflict,
+                            refusalBody = staleRejection,
+                        ),
+                )
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.undoMove()
+            viewModel.moveJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals(9, ready.game.version.toInt())
+            assertEquals(listOf("e2e4", "e7e5"), ready.game.moves)
+            assertTrue(ready.message.orEmpty().contains("moved on"))
+        }
+
+    @Test
+    fun anUndoInAFinishedGameIsExplained() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            canUndo = true,
+                            refusals = 1,
+                            refusalPath = "/games/game-7/undo",
+                            refusalStatus = HttpStatusCode.Conflict,
+                            refusalBody = """{"reason":"GAME_OVER","message":"This game has finished"}""",
+                        ),
+                )
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.undoMove()
+            viewModel.moveJob?.join()
+
+            assertTrue((viewModel.game as OnlineGameState.Ready).message.orEmpty().contains("finished"))
+        }
+
+    @Test
+    fun anUndoAnnouncedOverTheSocketIsJustAnotherReload() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(canUndo = true))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.onRealtimeMessage(
+                RealtimeMessageDto(type = RealtimeMessageDto.GAME_UPDATED, gameId = "game-7", version = 4),
+            )
+            viewModel.gameJob?.join()
+
+            assertEquals(2, paths.count { it == "/games/game-7" })
+        }
 
     private fun viewModel(
         httpClient: HttpClient = httpClient(),

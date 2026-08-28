@@ -2703,9 +2703,29 @@ non-matching updates, duplicate messages, close/reconnect, and HTTPS reload.
 
 ## M14.13 — Authoritative undo integration
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M14.11, M11
+
+**Completed:** 2026-08-28 — a move can be taken back from the game screen, and
+only when the server says so. The Undo button appears exactly when the canonical
+state's `canUndo` says this player may take their latest move back (`D016`), so
+the app never works out eligibility from the position; the server decides again
+when the command arrives. `POST /games/{gameId}/undo` carries the version the undo
+was decided against, so a retry after the undo landed is refused as stale rather
+than taking back a second move (`D021`). Every command on this screen now goes
+through one path: the version travels with it, the screen becomes the canonical
+state that came back, and a refusal's attached state replaces what was showing —
+nothing is ever rewritten locally. Nothing to take back, not your move, a
+finished game, and a stale version are each said in plain words. An undo the
+opponent made arrives as an ordinary `game-updated` and is just another reload
+(`M14.12`). Verified locally with `.\gradlew.bat :android-app:testDebugUnitTest`
+(6 new `ChessAppTest` cases: a game with nothing to take back sends nothing, an
+eligible undo travels with its version and the answer becomes the screen, nothing
+to undo is explained and changes nothing, a stale undo recovers from the state
+the refusal carried, an undo in a finished game is explained, and an undo
+announced over the socket is just another reload) and `.\gradlew.bat build`
+(BUILD SUCCESSFUL, 294 Android unit tests, 0 skipped).
 
 ### Objective
 

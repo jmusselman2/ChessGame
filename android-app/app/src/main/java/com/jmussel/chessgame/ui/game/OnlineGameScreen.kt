@@ -40,6 +40,7 @@ fun OnlineGameScreen(
     onSquareTapped: (Square) -> Unit = {},
     onChoosePromotion: (PieceType) -> Unit = {},
     onCancelPromotion: () -> Unit = {},
+    onUndo: () -> Unit = {},
 ) {
     Column(
         modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
@@ -61,6 +62,7 @@ fun OnlineGameScreen(
                     onSquareTapped = onSquareTapped,
                     onChoosePromotion = onChoosePromotion,
                     onCancelPromotion = onCancelPromotion,
+                    onUndo = onUndo,
                 )
         }
     }
@@ -73,6 +75,7 @@ private fun Game(
     onSquareTapped: (Square) -> Unit,
     onChoosePromotion: (PieceType) -> Unit,
     onCancelPromotion: () -> Unit,
+    onUndo: () -> Unit,
 ) {
     val game = state.game
 
@@ -96,6 +99,12 @@ private fun Game(
     }
 
     Text(text = OnlineGame.statusFor(game), style = MaterialTheme.typography.bodyLarge)
+
+    // Offered only while the server's own answer says this player may take a move back
+    // (`D016`); the server decides again when the command arrives.
+    if (game.canUndo) {
+        Button(onClick = onUndo, enabled = !state.submitting) { Text(text = UNDO) }
+    }
 
     // What the server was last asked, and what it said about it.
     if (state.submitting) Text(text = SUBMITTING, style = MaterialTheme.typography.bodyMedium)
@@ -135,6 +144,7 @@ private const val RETRY = "Try again"
 private const val SUBMITTING = "Sending…"
 private const val PROMOTE_TO = "Promote to"
 private const val CANCEL = "Cancel"
+private const val UNDO = "Undo"
 
 @Preview(showBackground = true)
 @Composable

@@ -10,6 +10,7 @@ import com.jmussel.chessgame.api.ChessApiClient
 import com.jmussel.chessgame.api.ChessApiException
 import com.jmussel.chessgame.api.ChessCommandRefusedException
 import com.jmussel.chessgame.api.CurrentUserDto
+import com.jmussel.chessgame.api.GameViewDto
 import com.jmussel.chessgame.api.RealtimeMessageDto
 import com.jmussel.chessgame.api.UserSummaryDto
 import com.jmussel.chessgame.core.chess.PieceType
@@ -343,24 +344,58 @@ class ChessAppViewModel(
         game = tap.state
 
         if (tap !is BoardTap.Submit) return
-        if (moveJob?.isActive == true) return
 
-        val decidedAt = tap.state.game
+        val move = tap.move
+
+        sendCommand(tap.state.game) { api, decidedAt ->
+            api.makeMove(
+                gameId = decidedAt.gameId,
+                expectedVersion = decidedAt.version,
+                from = move.from.toString(),
+                to = move.to.toString(),
+                promotion = move.promotion?.name,
+            )
+        }
+    }
+
+    /**
+     * Takes back the latest move, if the server says this player may.
+     *
+     * Whether there is anything to take back is the canonical state's answer (`D016`) — the
+     * app offers the action only when the game it was sent says so, and the server decides
+     * again when it arrives. Nothing is rewritten locally either way: the board becomes
+     * whatever came back.
+     */
+    fun undoMove() {
+        val ready = game as? OnlineGameState.Ready ?: return
+        if (!ready.game.canUndo || ready.submitting) return
+
+        game = ready.copy(selected = null, pendingPromotion = null, submitting = true, message = null)
+
+        sendCommand(ready.game) { api, decidedAt ->
+            api.undoMove(gameId = decidedAt.gameId, expectedVersion = decidedAt.version)
+        }
+    }
+
+    /**
+     * Sends one command about the game on screen and shows whatever came back.
+     *
+     * Every command works the same way: it carries the version it was decided against,
+     * which is what makes it unique (`D021`), and the screen is replaced by the canonical
+     * state — the accepted one, or the one attached to the refusal. A retry whose first
+     * reply was lost therefore sees its own effect rather than doing it twice.
+     */
+    private fun sendCommand(
+        decidedAt: GameViewDto,
+        command: suspend (ChessApiClient, GameViewDto) -> GameViewDto,
+    ) {
+        if (moveJob?.isActive == true) return
 
         moveJob =
             viewModelScope.launch {
                 game =
                     try {
-                        val played =
-                            dependencies.chessApi.makeMove(
-                                gameId = decidedAt.gameId,
-                                expectedVersion = decidedAt.version,
-                                from = tap.move.from.toString(),
-                                to = tap.move.to.toString(),
-                                promotion = tap.move.promotion?.name,
-                            )
-
-                        OnlineGameState.Ready(played)
+                        OnlineGameState.Ready(command(dependencies.chessApi, decidedAt))
                     } catch (refused: ChessCommandRefusedException) {
                         OnlineGameState.Ready(
                             game = refused.game ?: decidedAt,

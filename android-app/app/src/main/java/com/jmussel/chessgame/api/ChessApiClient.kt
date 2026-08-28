@@ -129,6 +129,12 @@ data class MakeMoveRequestDto(
     val promotion: String? = null,
 )
 
+/** A command that only needs the version it was decided against. */
+@Serializable
+data class VersionedRequestDto(
+    val expectedVersion: Long,
+)
+
 /** One move, in the pieces needed to draw it. */
 @Serializable
 data class MoveDto(
@@ -275,6 +281,18 @@ class ChessApiClient(
      * (`D013`), which is what the returned sentence says.
      */
     suspend fun removeFriend(username: String): String = delete("/friends/$username")
+
+    /**
+     * Takes back the caller's latest move, and returns the game as it stands after it.
+     *
+     * Whether there is anything to take back is the server's answer (`D016`); the version
+     * makes the command unique in the same way a move's does, so a retry after the undo
+     * landed is refused as stale rather than taking back a second move.
+     */
+    suspend fun undoMove(
+        gameId: String,
+        expectedVersion: Long,
+    ): GameViewDto = command("/games/$gameId/undo", VersionedRequestDto(expectedVersion))
 
     /** The games the caller has finished, in the series they belong to, newest series first. */
     suspend fun history(): List<SeriesHistoryDto> = get("/history")
