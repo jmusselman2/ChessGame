@@ -2068,13 +2068,12 @@ Resignation follows the same active-vs-closing series lifecycle.
 # M14 — Android Multiplayer Client, Dashboard, and History
 
 **Milestone status:** INCOMPLETE. `M14.1`–`M14.4` completed server queries,
-API-client reads, and isolated Compose presentation components; `M14.5` put an
-application shell and navigation around them, `M14.6` made the app sign itself
-in on startup, `M14.7` gave it a typed identity and username onboarding, `M14.8`
-made friends reachable, `M14.9` made the dashboard the live landing screen,
-`M14.10` made an online game readable, and `M14.11` made a move playable. An
-opponent's move is still only seen by reopening the game. `M14.12`–`M14.18` are
-the remaining client integration work required before beta deployment.
+API-client reads, and isolated Compose presentation components; `M14.5`–`M14.12`
+built the application shell, startup, onboarding, friends, the live dashboard,
+the online game screen, moves, and realtime reloads. Undo, draw claims,
+resignation, the rematch flow, reachable history, and the device play-through
+remain: `M14.13`–`M14.18` are the client integration work required before beta
+deployment.
 
 ## M14.1 — Your Turn data and presentation component
 
@@ -2647,9 +2646,38 @@ returned state.
 
 ## M14.12 — Receive opponent updates through WebSockets
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M14.11, M12
+
+**Completed:** 2026-08-28 — the app hears about the opponent's move without being
+asked to look. `ChessRealtimeClient` opens one authenticated socket at `/ws`,
+carrying a token asked for at connect time through the same provider the HTTP
+calls use, so a connection made hours into a session is not holding the token the
+app started with. The address follows the server's scheme — `https` becomes
+`wss`, `http` becomes `ws` — so the socket is exactly as protected as the rest of
+the traffic (`D033`). Nothing on it is treated as state: `connected` means only
+"you are live, so what you are looking at may be old", and everything on screen is
+reloaded over HTTPS; a `game-updated` names a game, and if it is the game being
+looked at, that game is reloaded, while any other game refreshes the dashboard
+and leaves the open one untouched. The version the message carries is never
+written anywhere — it is a fact about the game, not the game (`D022`) — which is
+what makes a duplicate, a late, and an out-of-order message all come to the same
+harmless reload, and what stops a pushed version from ever standing in for state.
+A dropped or refused connection is reopened after a pause, for as long as the
+app's state lives; the loop ends when the model is cleared, along with the HTTP
+client it shares (`D033`). `RealtimeSource` is the one seam: the real socket, and
+a source a test can drive, so what the app does with a message is checked without
+standing up a WebSocket server in a unit test. Verified locally with
+`.\gradlew.bat :android-app:testDebugUnitTest` (8 new `ChessAppTest` cases: a
+fresh connection refreshes what is on screen, an update for the open game reloads
+it over HTTPS and the pushed version is not the version shown, an update for
+another game leaves the open game alone and refreshes the dashboard, the same
+update twice is harmless, an unknown message type is ignored, a dropped
+connection is reopened, a failed connection is tried again, and the socket
+address follows the server's scheme) and `.\gradlew.bat build` (BUILD SUCCESSFUL,
+288 Android unit tests, 0 skipped). The socket against a real server is part of
+the device play-through, `M14.18`.
 
 ### Objective
 

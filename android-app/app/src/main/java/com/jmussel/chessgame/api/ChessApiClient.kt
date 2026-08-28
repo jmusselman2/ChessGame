@@ -35,9 +35,27 @@ data class ChessServerConfig(
     /** [path] against this server, with no doubled slash however the base was written. */
     fun url(path: String): String = "${baseUrl.trimEnd('/')}/${path.trimStart('/')}"
 
+    /**
+     * [path] as a WebSocket address on the same server.
+     *
+     * `https` becomes `wss` and `http` becomes `ws`, so the socket is exactly as protected
+     * as the rest of the traffic: a beta or release build reaches an HTTPS server and gets
+     * an encrypted socket, and only a development build can have either in the clear
+     * (`D033`).
+     */
+    fun webSocketUrl(path: String): String =
+        when {
+            baseUrl.startsWith(HTTPS, ignoreCase = true) -> url(path).replaceFirst(HTTPS, "wss://")
+            baseUrl.startsWith(HTTP, ignoreCase = true) -> url(path).replaceFirst(HTTP, "ws://")
+            else -> url(path)
+        }
+
     companion object {
         /** `localhost` on the machine running the emulator. */
         const val EMULATOR_LOOPBACK: String = "http://10.0.2.2:8080"
+
+        private const val HTTP = "http://"
+        private const val HTTPS = "https://"
     }
 }
 

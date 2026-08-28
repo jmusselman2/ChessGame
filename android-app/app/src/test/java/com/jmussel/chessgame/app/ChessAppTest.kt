@@ -2,6 +2,8 @@ package com.jmussel.chessgame.app
 
 import com.jmussel.chessgame.api.ChessApiClient
 import com.jmussel.chessgame.api.ChessServerConfig
+import com.jmussel.chessgame.api.RealtimeMessageDto
+import com.jmussel.chessgame.api.RealtimeSource
 import com.jmussel.chessgame.api.UserSummaryDto
 import com.jmussel.chessgame.auth.AnonymousSession
 import com.jmussel.chessgame.auth.InMemorySessionStore
@@ -27,9 +29,12 @@ import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
@@ -41,6 +46,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.IOException
 
 /**
  * The application shell: what it is showing, what the screens are built from, and how
@@ -55,6 +61,14 @@ class ChessAppTest {
     private val requests = mutableListOf<HttpRequestData>()
 
     private val dispatcher = StandardTestDispatcher()
+
+    /**
+     * A connection that stays open and says nothing.
+     *
+     * The default for tests that are not about realtime: a source that ended would have the
+     * model waiting to reconnect for the rest of the test.
+     */
+    private val silentRealtime = RealtimeSource { flow { awaitCancellation() } }
 
     private val storedSession =
         AnonymousSession(
@@ -223,11 +237,13 @@ class ChessAppTest {
         httpClient: HttpClient = httpClient(),
         sessionStore: SessionStore = InMemorySessionStore(storedSession),
         supabaseConfig: SupabaseConfig = SupabaseConfig(url = "https://supabase.example", anonKey = "publishable-key"),
+        realtime: RealtimeSource = silentRealtime,
     ) = ChessAppDependencies(
         serverConfig = ChessServerConfig("https://chess.example"),
         supabaseConfig = supabaseConfig,
         httpClient = httpClient,
         sessionStore = sessionStore,
+        realtime = realtime,
     )
 
     @Test
@@ -1168,11 +1184,151 @@ class ChessAppTest {
             assertFalse(ready.submitting)
         }
 
+    @Test
+    fun aFreshConnectionRefreshesWhatIsOnScreen() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan"))
+            viewModel.start()
+            viewModel.startupJob?.join()
+            viewModel.dashboardJob?.join()
+            val before = paths.size
+
+            viewModel.onRealtimeMessage(RealtimeMessageDto(type = RealtimeMessageDto.CONNECTED))
+            viewModel.dashboardJob?.join()
+
+            assertTrue("a live connection means what is on screen may be old", paths.size > before)
+            assertTrue(paths.drop(before).contains("/dashboard"))
+        }
+
+    @Test
+    fun anUpdateForTheOpenGameReloadsItOverHttps() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan"))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.onRealtimeMessage(
+                RealtimeMessageDto(type = RealtimeMessageDto.GAME_UPDATED, gameId = "game-7", version = 12),
+            )
+            viewModel.gameJob?.join()
+
+            assertEquals(listOf("/games/game-7", "/games/game-7"), paths)
+            assertEquals(
+                "the version pushed is not the version shown; the reload decides that",
+                1,
+                (viewModel.game as OnlineGameState.Ready).game.version.toInt(),
+            )
+        }
+
+    @Test
+    fun anUpdateForAnotherGameLeavesTheOpenGameAlone() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan", games = listOf("Alex")))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+            val showing = viewModel.game
+
+            viewModel.onRealtimeMessage(
+                RealtimeMessageDto(type = RealtimeMessageDto.GAME_UPDATED, gameId = "game-other", version = 3),
+            )
+            viewModel.dashboardJob?.join()
+            viewModel.gameJob?.join()
+
+            assertEquals("the open game is untouched", showing, viewModel.game)
+            assertTrue(paths.contains("/dashboard"))
+            assertFalse(paths.contains("/games/game-other"))
+        }
+
+    @Test
+    fun theSameUpdateTwiceIsHarmless() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan"))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            val update = RealtimeMessageDto(type = RealtimeMessageDto.GAME_UPDATED, gameId = "game-7", version = 12)
+            viewModel.onRealtimeMessage(update)
+            viewModel.gameJob?.join()
+            viewModel.onRealtimeMessage(update)
+            viewModel.gameJob?.join()
+
+            assertTrue(viewModel.game is OnlineGameState.Ready)
+            assertEquals(3, paths.count { it == "/games/game-7" })
+        }
+
+    @Test
+    fun aMessageThisAppDoesNotKnowIsIgnored() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan"))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+            val before = paths.size
+
+            viewModel.onRealtimeMessage(RealtimeMessageDto(type = "something-new"))
+
+            assertEquals(before, paths.size)
+        }
+
+    @Test
+    fun theConnectionIsOpenedAndReopenedWhileTheAppLives() =
+        runTest(dispatcher) {
+            var connections = 0
+            val source =
+                RealtimeSource {
+                    flow {
+                        connections++
+                        emit(RealtimeMessageDto(type = RealtimeMessageDto.CONNECTED))
+                        // The socket drops, which ends the flow.
+                    }
+                }
+            val viewModel = viewModel(realtime = source)
+
+            viewModel.watchUpdates()
+            advanceTimeBy(10_000)
+
+            assertTrue("a dropped connection is opened again", connections > 1)
+
+            viewModel.updatesJob?.cancel()
+        }
+
+    @Test
+    fun aConnectionThatFailsIsTriedAgainRatherThanGivingUp() =
+        runTest(dispatcher) {
+            var attempts = 0
+            val source =
+                RealtimeSource {
+                    flow {
+                        attempts++
+                        throw IOException("no route to host")
+                    }
+                }
+            val viewModel = viewModel(realtime = source)
+
+            viewModel.watchUpdates()
+            advanceTimeBy(10_000)
+
+            assertTrue(attempts > 1)
+
+            viewModel.updatesJob?.cancel()
+        }
+
+    @Test
+    fun theSocketAddressFollowsTheServersScheme() {
+        assertEquals("wss://chess.example/ws", ChessServerConfig("https://chess.example").webSocketUrl("/ws"))
+        assertEquals("ws://10.0.2.2:8080/ws", ChessServerConfig("http://10.0.2.2:8080").webSocketUrl("/ws"))
+    }
+
     private fun viewModel(
         httpClient: HttpClient = httpClient(),
         sessionStore: SessionStore = InMemorySessionStore(storedSession),
         supabaseConfig: SupabaseConfig = SupabaseConfig(url = "https://supabase.example", anonKey = "publishable-key"),
+        realtime: RealtimeSource = silentRealtime,
     ) = ChessAppViewModel(
-        dependencies(httpClient = httpClient, sessionStore = sessionStore, supabaseConfig = supabaseConfig),
+        dependencies(
+            httpClient = httpClient,
+            sessionStore = sessionStore,
+            supabaseConfig = supabaseConfig,
+            realtime = realtime,
+        ),
     )
 }

@@ -10,6 +10,7 @@ import com.jmussel.chessgame.api.ChessApiClient
 import com.jmussel.chessgame.api.ChessApiException
 import com.jmussel.chessgame.api.ChessCommandRefusedException
 import com.jmussel.chessgame.api.CurrentUserDto
+import com.jmussel.chessgame.api.RealtimeMessageDto
 import com.jmussel.chessgame.api.UserSummaryDto
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Square
@@ -30,6 +31,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 /**
@@ -108,6 +111,10 @@ class ChessAppViewModel(
     internal var moveJob: Job? = null
         private set
 
+    /** The realtime connection loop, once it has been started. Internal for the same reason. */
+    internal var updatesJob: Job? = null
+        private set
+
     /**
      * Restores or creates the anonymous session, asks the server who it belongs to, and
      * goes wherever that answer says.
@@ -126,7 +133,10 @@ class ChessAppViewModel(
                 val result = dependencies.startup.run()
                 startup = result
 
-                if (result is StartupState.Ready) arriveAs(result.user)
+                if (result is StartupState.Ready) {
+                    arriveAs(result.user)
+                    watchUpdates()
+                }
             }
     }
 
@@ -232,6 +242,66 @@ class ChessAppViewModel(
             }
 
         loadGame(gameId)
+    }
+
+    /**
+     * Keeps a realtime connection open for as long as the app's state lives.
+     *
+     * Nothing on the socket is treated as state: `connected` means "you are live, so
+     * whatever you have may be out of date", and a `game-updated` names a game to reload
+     * over HTTPS (`D022`). A dropped connection is reconnected after a pause; the loop ends
+     * only when the model is cleared.
+     */
+    fun watchUpdates() {
+        if (updatesJob?.isActive == true) return
+
+        updatesJob =
+            viewModelScope.launch {
+                while (isActive) {
+                    // A dropped socket ends the flow rather than throwing; either way the
+                    // answer is the same: wait a moment and connect again.
+                    runCatching { dependencies.realtime.messages().collect(::onRealtimeMessage) }
+
+                    delay(RECONNECT_PAUSE_MILLIS)
+                }
+            }
+    }
+
+    /**
+     * What one realtime message means.
+     *
+     * `connected` says only that the connection is live, so everything on screen is
+     * refreshed from the server; a `game-updated` for the game being looked at reloads it,
+     * and one for any other game refreshes the dashboard and leaves the open game alone.
+     * The version it carries is never written anywhere — it is a fact about the game, not
+     * the game (`D022`), so a duplicate, a late, and an out-of-order message all come to
+     * the same harmless reload.
+     */
+    internal fun onRealtimeMessage(message: RealtimeMessageDto) {
+        when (message.type) {
+            RealtimeMessageDto.CONNECTED -> {
+                refreshWhatIsOnScreen()
+            }
+
+            RealtimeMessageDto.GAME_UPDATED -> {
+                val showing = (game as? OnlineGameState.Ready)?.game?.gameId
+
+                if (message.gameId != null && message.gameId == showing) {
+                    loadGame(message.gameId)
+                } else {
+                    loadDashboard()
+                }
+            }
+
+            else -> Unit
+        }
+    }
+
+    /** Reloads whatever the player can see, which is what a fresh connection calls for. */
+    private fun refreshWhatIsOnScreen() {
+        if (currentUser?.username != null) loadDashboard()
+
+        (game as? OnlineGameState.Ready)?.let { ready -> loadGame(ready.game.gameId) }
     }
 
     /**
@@ -561,6 +631,9 @@ class ChessAppViewModel(
     }
 
     companion object {
+        /** How long to wait before opening the socket again after it has dropped. */
+        private const val RECONNECT_PAUSE_MILLIS = 3_000L
+
         /**
          * Builds the model, and its dependencies with it, only when there is not one already.
          *

@@ -770,10 +770,11 @@ last move as structured data, so a game screen needs only a game id to draw
 itself, and added the read-only online game screen. `M14.11` connected board
 interaction to `POST /games/{gameId}/moves`, previewing legal destinations by
 replaying the canonical move list and changing the board only from what the
-server answered. An opponent's move is still only seen by reopening the game:
-the integration sequence is documented as `M14.12`–`M14.18`: WebSocket
-invalidation/reload, undo, draw claims, resignation, completion/rematch, history
-review, and two-client device verification.
+server answered. `M14.12` added the authenticated WebSocket client: one socket,
+messages used only as invalidation, and every reload over HTTPS (`D022`). Undo,
+draw claims, resignation, the rematch flow, and reachable history remain: the
+integration sequence is documented as `M14.13`–`M14.18`, ending in the
+two-client device verification.
 
 ## 30. Server Architecture
 

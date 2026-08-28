@@ -3,7 +3,9 @@ package com.jmussel.chessgame.app
 import android.content.Context
 import com.jmussel.chessgame.BuildConfig
 import com.jmussel.chessgame.api.ChessApiClient
+import com.jmussel.chessgame.api.ChessRealtimeClient
 import com.jmussel.chessgame.api.ChessServerConfig
+import com.jmussel.chessgame.api.RealtimeSource
 import com.jmussel.chessgame.auth.AnonymousAuthenticator
 import com.jmussel.chessgame.auth.DataStoreSessionStore
 import com.jmussel.chessgame.auth.SessionStore
@@ -11,6 +13,7 @@ import com.jmussel.chessgame.auth.SupabaseAuthClient
 import com.jmussel.chessgame.auth.SupabaseConfig
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.serialization.kotlinx.json.json
 
 /**
@@ -30,6 +33,7 @@ class ChessAppDependencies(
     val supabaseConfig: SupabaseConfig,
     private val httpClient: HttpClient,
     sessionStore: SessionStore,
+    realtime: RealtimeSource? = null,
 ) : AutoCloseable {
     /** Keeps one anonymous account alive across launches (`D006`). */
     val authenticator: AnonymousAuthenticator =
@@ -58,6 +62,15 @@ class ChessAppDependencies(
     /** Restores or creates the session, then asks the server who it belongs to (`M14.6`). */
     val startup: AppStartup = AppStartup(supabaseConfig, authenticator, chessApi)
 
+    /**
+     * Where realtime updates come from.
+     *
+     * The same client and the same token provider as everything else: a message on this
+     * socket is only ever a nudge to reload over HTTPS (`D022`). A test supplies its own
+     * source, so what the app does with a message is checked without a socket.
+     */
+    val realtime: RealtimeSource = realtime ?: ChessRealtimeClient(serverConfig, httpClient, accessToken)
+
     /** Releases the HTTP client and the connections it is holding. */
     override fun close() {
         httpClient.close()
@@ -78,10 +91,11 @@ class ChessAppDependencies(
                 sessionStore = DataStoreSessionStore(context.applicationContext),
             )
 
-        /** One client for both APIs, lenient about fields it does not know. */
+        /** One client for both APIs and the socket, lenient about fields it does not know. */
         fun defaultHttpClient(): HttpClient =
             HttpClient {
                 install(ContentNegotiation) { json(ChessApiClient.Json) }
+                install(WebSockets)
             }
     }
 }
