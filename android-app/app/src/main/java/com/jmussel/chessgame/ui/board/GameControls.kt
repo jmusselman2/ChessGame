@@ -14,7 +14,7 @@ data class MoveListRow(
 )
 
 /**
- * The controls beside the board: the move list, Undo, and Claim Draw.
+ * The controls beside the board: the move list, Undo, Claim Draw, and Resign.
  *
  * Whether a control is offered is decided by `game-core` — the UI does not keep its own
  * idea of when a move may be taken back or a draw claimed.
@@ -75,6 +75,33 @@ object GameControls {
             selectedSquare = null,
             pendingPromotion = null,
         )
+
+    /**
+     * Whether resigning is possible at all, which is only that the game is still running.
+     *
+     * A player may give up on their opponent's move as readily as on their own
+     * (`docs/PRODUCT.md`), so whose turn it is has nothing to do with it.
+     */
+    fun canResign(state: BoardUiState): Boolean = !state.game.isOver
+
+    /**
+     * The state after [side] resigns.
+     *
+     * Final once made (`D018`), which is why the screen asks first. On one device the side
+     * resigning has to be named: there are two players at one board.
+     */
+    fun resign(
+        state: BoardUiState,
+        side: Side,
+    ): BoardUiState =
+        state.copy(
+            game = ChessRules.resign(state.game, side),
+            selectedSquare = null,
+            pendingPromotion = null,
+        )
+
+    /** A short label for resigning as [side]. */
+    fun resignLabelFor(side: Side): String = "Resign as ${if (side == Side.WHITE) "White" else "Black"}"
 
     /** A short label for a draw claim. */
     fun labelFor(claim: DrawClaim): String =

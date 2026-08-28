@@ -38,6 +38,8 @@ sealed interface OnlineGameState {
         val selected: Square? = null,
         val pendingPromotion: PendingPromotion? = null,
         val submitting: Boolean = false,
+        /** Whether the player has been asked to confirm giving the game up (`D018`). */
+        val confirmingResignation: Boolean = false,
         val message: String? = null,
     ) : OnlineGameState
 

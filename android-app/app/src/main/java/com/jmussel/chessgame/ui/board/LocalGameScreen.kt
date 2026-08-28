@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -18,6 +20,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.jmussel.chessgame.core.chess.ChessGame
 import com.jmussel.chessgame.core.chess.PieceType
+import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
 /**
@@ -35,6 +38,7 @@ fun LocalGameScreen(
     initialState: BoardUiState = BoardUiState.newGame(),
 ) {
     var state by remember { mutableStateOf(initialState) }
+    var resigning by remember { mutableStateOf<Side?>(null) }
 
     Column(
         modifier = modifier.padding(16.dp),
@@ -71,8 +75,45 @@ fun LocalGameScreen(
             }
         }
 
+        // Either player may give up, on their own move or the other's, and is asked first
+        // because it cannot be taken back (`D018`).
+        if (GameControls.canResign(state)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Side.entries.forEach { side ->
+                    Button(onClick = { resigning = side }) { Text(text = GameControls.resignLabelFor(side)) }
+                }
+            }
+        }
+
+        resigning?.let { side ->
+            ResignConfirmation(
+                side = side,
+                onConfirm = {
+                    state = GameControls.resign(state, side)
+                    resigning = null
+                },
+                onCancel = { resigning = null },
+            )
+        }
+
         MoveList(lines = GameControls.moveListLines(state.game))
     }
+}
+
+/** The question asked before a resignation, which cannot be taken back (`D018`). */
+@Composable
+private fun ResignConfirmation(
+    side: Side,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(text = "Resign?") },
+        text = { Text(text = "${if (side == Side.WHITE) "White" else "Black"} loses this game. This cannot be undone.") },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(text = "Resign") } },
+        dismissButton = { TextButton(onClick = onCancel) { Text(text = "Keep playing") } },
+    )
 }
 
 /** The moves played so far, newest last. */

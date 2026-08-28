@@ -48,6 +48,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import java.io.IOException
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * The application shell: what it is showing, what the screens are built from, and how
@@ -59,7 +60,12 @@ import java.io.IOException
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChessAppTest {
-    private val requests = mutableListOf<HttpRequestData>()
+    // Written by the engine from whichever coroutine made the request and read by assertions
+    // while another job may still be sending: a snapshot-safe list keeps that honest.
+    private val requests = CopyOnWriteArrayList<HttpRequestData>()
+
+    /** Every model this test built, so the jobs they started can be stopped afterwards. */
+    private val models = mutableListOf<ChessAppViewModel>()
 
     private val dispatcher = StandardTestDispatcher()
 
@@ -96,8 +102,26 @@ class ChessAppTest {
         Dispatchers.setMain(dispatcher)
     }
 
+    /**
+     * Stops everything the models under test started.
+     *
+     * A real model is cleared with its `Activity`; here nothing clears it, and a realtime
+     * loop left running would still be using `Dispatchers.Main` when the next test sets it.
+     */
     @After
     fun releaseTheTestDispatcher() {
+        models.forEach { model ->
+            listOf(
+                model.startupJob,
+                model.usernameClaimJob,
+                model.friendsJob,
+                model.dashboardJob,
+                model.gameJob,
+                model.moveJob,
+                model.updatesJob,
+            ).forEach { job -> job?.cancel() }
+        }
+
         Dispatchers.resetMain()
     }
 
@@ -117,6 +141,7 @@ class ChessAppTest {
         games: List<String> = emptyList(),
         canUndo: Boolean = false,
         claims: List<String> = emptyList(),
+        yourTurn: Boolean = true,
         removalOutcome: String = "Removed",
         currentGameId: String? = "game-1",
         refusals: Int = 0,
@@ -138,7 +163,11 @@ class ChessAppTest {
                         if (refuse) {
                             refusalBody
                         } else {
-                            replyTo(request, path, Replies(username, friends, games, removalOutcome, currentGameId, canUndo, claims))
+                            replyTo(
+                                request,
+                                path,
+                                Replies(username, friends, games, removalOutcome, currentGameId, canUndo, claims, yourTurn),
+                            )
                         },
                     status = if (refuse) refusalStatus else HttpStatusCode.OK,
                     headers = headersOf("Content-Type", ContentType.Application.Json.toString()),
@@ -159,6 +188,7 @@ class ChessAppTest {
         val currentGameId: String?,
         val canUndo: Boolean,
         val claims: List<String>,
+        val yourTurn: Boolean,
     )
 
     /** What the server would say to one request. */
@@ -181,7 +211,9 @@ class ChessAppTest {
             path.endsWith("/moves") -> playedGame(path.removePrefix("/games/").removeSuffix("/moves"))
             path.endsWith("/undo") -> gameView(path.removePrefix("/games/").removeSuffix("/undo"), canUndo = false)
             path.endsWith("/draw-claims") -> drawnGame(path.removePrefix("/games/").removeSuffix("/draw-claims"))
-            path.startsWith("/games/") -> gameView(path.removePrefix("/games/"), replies.canUndo, replies.claims)
+            path.endsWith("/resignation") -> resignedGame(path.removePrefix("/games/").removeSuffix("/resignation"))
+            path.startsWith("/games/") ->
+                gameView(path.removePrefix("/games/"), replies.canUndo, replies.claims, replies.yourTurn)
             else -> "[]"
         }
 
@@ -197,16 +229,28 @@ class ChessAppTest {
         gameId: String,
         canUndo: Boolean = false,
         claims: List<String> = emptyList(),
+        yourTurn: Boolean = true,
     ): String =
         """
         {"gameId":"$gameId","seriesId":"series-1","opponent":${user("Alex")},"version":1,
-         "yourSide":"WHITE","sideToMove":"WHITE","yourTurn":true,"inCheck":false,
+         "yourSide":"WHITE","sideToMove":"WHITE","yourTurn":$yourTurn,"inCheck":false,
          "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
          "moves":[],"moveNumber":1,"halfmoveClock":0,"canUndo":$canUndo,
          "availableDrawClaims":${claims.joinToString(",", "[", "]") { "\"$it\"" }}}
         """.trimIndent()
 
+    /** The same game once its White player has resigned. */
+    private fun resignedGame(gameId: String): String =
+        """
+        {"gameId":"$gameId","seriesId":"series-1","opponent":${user("Alex")},"version":2,
+         "yourSide":"WHITE","sideToMove":"WHITE","yourTurn":false,"inCheck":false,
+         "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
+         "moves":[],"moveNumber":1,"halfmoveClock":0,
+         "result":"BLACK_WINS","terminationReason":"RESIGNATION"}
+        """.trimIndent()
+
     /** The same game once a claimed draw has ended it. */
+
     private fun drawnGame(gameId: String): String =
         """
         {"gameId":"$gameId","seriesId":"series-1","opponent":${user("Alex")},"version":2,
@@ -1594,6 +1638,141 @@ class ChessAppTest {
             assertTrue((viewModel.game as OnlineGameState.Ready).message.orEmpty().contains("finished"))
         }
 
+    @Test
+    fun resigningIsAskedAboutBeforeAnythingIsSent() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.askToResign()
+
+            assertTrue((viewModel.game as OnlineGameState.Ready).confirmingResignation)
+            assertEquals("nothing is sent until it is confirmed", listOf("/games/game-7"), paths)
+        }
+
+    @Test
+    fun cancellingLeavesTheGameExactlyAsItWas() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+            val before = (viewModel.game as OnlineGameState.Ready).game
+
+            viewModel.askToResign()
+            viewModel.cancelResignation()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertFalse(ready.confirmingResignation)
+            assertEquals(before, ready.game)
+            assertEquals(listOf("/games/game-7"), paths)
+        }
+
+    @Test
+    fun aConfirmedResignationIsSentWithItsVersionAndTheResultComesBack() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.askToResign()
+            viewModel.resign()
+            assertTrue((viewModel.game as OnlineGameState.Ready).submitting)
+            viewModel.moveJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals(listOf("/games/game-7", "/games/game-7/resignation"), paths)
+            assertTrue(sentBodies.last().contains("\"expectedVersion\":1"))
+            assertEquals("BLACK_WINS", ready.game.result)
+            assertEquals("RESIGNATION", ready.game.terminationReason)
+            assertFalse(ready.confirmingResignation)
+        }
+
+    @Test
+    fun resigningIsOfferedWhenItIsTheOpponentsMoveToo() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(yourTurn = false))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.askToResign()
+            viewModel.resign()
+            viewModel.moveJob?.join()
+
+            assertEquals("BLACK_WINS", (viewModel.game as OnlineGameState.Ready).game.result)
+        }
+
+    @Test
+    fun resigningAGameThatHasAlreadyFinishedIsExplained() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            refusals = 1,
+                            refusalPath = "/games/game-7/resignation",
+                            refusalStatus = HttpStatusCode.Conflict,
+                            refusalBody = """{"reason":"GAME_OVER","message":"This game has finished"}""",
+                        ),
+                )
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.askToResign()
+            viewModel.resign()
+            viewModel.moveJob?.join()
+
+            assertTrue((viewModel.game as OnlineGameState.Ready).message.orEmpty().contains("finished"))
+        }
+
+    @Test
+    fun aStaleResignationRecoversFromTheStateTheRefusalCarried() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            refusals = 1,
+                            refusalPath = "/games/game-7/resignation",
+                            refusalStatus = HttpStatusCode.Conflict,
+                            refusalBody = staleRejection,
+                        ),
+                )
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.askToResign()
+            viewModel.resign()
+            viewModel.moveJob?.join()
+
+            assertEquals(9, (viewModel.game as OnlineGameState.Ready).game.version.toInt())
+        }
+
+    @Test
+    fun aGameThatIsNotYoursCannotBeResigned() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            refusals = 1,
+                            refusalPath = "/games/game-7/resignation",
+                            refusalStatus = HttpStatusCode.Forbidden,
+                            refusalBody = "You are not playing this game",
+                        ),
+                )
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.askToResign()
+            viewModel.resign()
+            viewModel.moveJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertTrue(ready.message.orEmpty().isNotBlank())
+            assertNull("nothing was decided locally", ready.game.result)
+        }
+
     private fun viewModel(
         httpClient: HttpClient = httpClient(),
         sessionStore: SessionStore = InMemorySessionStore(storedSession),
@@ -1606,5 +1785,5 @@ class ChessAppTest {
             supabaseConfig = supabaseConfig,
             realtime = realtime,
         ),
-    )
+    ).also(models::add)
 }

@@ -313,6 +313,18 @@ class ChessApiClient(
         claim: String,
     ): GameViewDto = command("/games/$gameId/draw-claims", ClaimDrawRequestDto(expectedVersion, claim))
 
+    /**
+     * Gives up the game, and returns it as it stands after that.
+     *
+     * Final once accepted (`D018`), which is why the screen asks first. The version makes
+     * the command unique, so a retry after the resignation landed is refused as a finished
+     * game rather than resigning twice.
+     */
+    suspend fun resign(
+        gameId: String,
+        expectedVersion: Long,
+    ): GameViewDto = command("/games/$gameId/resignation", VersionedRequestDto(expectedVersion))
+
     /** The games the caller has finished, in the series they belong to, newest series first. */
     suspend fun history(): List<SeriesHistoryDto> = get("/history")
 

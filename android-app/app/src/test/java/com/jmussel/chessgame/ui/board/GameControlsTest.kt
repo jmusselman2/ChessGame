@@ -196,4 +196,63 @@ class GameControlsTest {
                 .size,
         )
     }
+
+    @Test
+    fun eitherPlayerMayResignWhileTheGameIsRunning() {
+        val state = BoardUiState.newGame()
+
+        assertTrue(GameControls.canResign(state))
+    }
+
+    @Test
+    fun whiteResigningEndsTheGameForBlack() {
+        val resigned = GameControls.resign(BoardUiState.newGame(), Side.WHITE)
+
+        assertEquals(Side.BLACK, resigned.game.result?.winner)
+        assertEquals(TerminationReason.RESIGNATION, resigned.game.result?.reason)
+    }
+
+    @Test
+    fun blackResigningEndsTheGameForWhite() {
+        val resigned = GameControls.resign(BoardUiState.newGame(), Side.BLACK)
+
+        assertEquals(Side.WHITE, resigned.game.result?.winner)
+    }
+
+    @Test
+    fun aPlayerMayResignOnTheOpponentsMove() {
+        // White has moved, so it is Black's turn; White may still give up.
+        val afterWhiteMove =
+            BoardInteraction.onSquareTapped(
+                BoardInteraction.onSquareTapped(BoardUiState.newGame(), Square.parse("e2")),
+                Square.parse("e4"),
+            )
+
+        val resigned = GameControls.resign(afterWhiteMove, Side.WHITE)
+
+        assertEquals(Side.BLACK, resigned.game.result?.winner)
+    }
+
+    @Test
+    fun resigningClearsWhateverTheBoardWasShowing() {
+        val selected = BoardInteraction.onSquareTapped(BoardUiState.newGame(), Square.parse("e2"))
+
+        val resigned = GameControls.resign(selected, Side.WHITE)
+
+        assertNull(resigned.selectedSquare)
+        assertNull(resigned.pendingPromotion)
+    }
+
+    @Test
+    fun aFinishedGameOffersNoResignation() {
+        val resigned = GameControls.resign(BoardUiState.newGame(), Side.WHITE)
+
+        assertFalse(GameControls.canResign(resigned))
+    }
+
+    @Test
+    fun theResignLabelNamesTheSideGivingUp() {
+        assertEquals("Resign as White", GameControls.resignLabelFor(Side.WHITE))
+        assertEquals("Resign as Black", GameControls.resignLabelFor(Side.BLACK))
+    }
 }

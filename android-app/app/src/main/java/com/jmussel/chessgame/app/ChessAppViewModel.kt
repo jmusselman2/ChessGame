@@ -395,6 +395,45 @@ class ChessAppViewModel(
         }
     }
 
+    /** Asks whether the player really means to give the game up (`D018`). */
+    fun askToResign() {
+        val ready = game as? OnlineGameState.Ready ?: return
+        if (ready.game.isOver || ready.submitting) return
+
+        game = ready.copy(confirmingResignation = true, message = null)
+    }
+
+    /** Leaves the game as it was. */
+    fun cancelResignation() {
+        val ready = game as? OnlineGameState.Ready ?: return
+
+        game = ready.copy(confirmingResignation = false)
+    }
+
+    /**
+     * Gives the game up, once the question has been answered (`D018`).
+     *
+     * Available whether or not it is this player's move: a player may give up at any point
+     * in a game they are losing. The result is the server's, like every other ending.
+     */
+    fun resign() {
+        val ready = game as? OnlineGameState.Ready ?: return
+        if (ready.game.isOver || ready.submitting) return
+
+        game =
+            ready.copy(
+                selected = null,
+                pendingPromotion = null,
+                confirmingResignation = false,
+                submitting = true,
+                message = null,
+            )
+
+        sendCommand(ready.game) { api, decidedAt ->
+            api.resign(gameId = decidedAt.gameId, expectedVersion = decidedAt.version)
+        }
+    }
+
     /**
      * Sends one command about the game on screen and shows whatever came back.
      *

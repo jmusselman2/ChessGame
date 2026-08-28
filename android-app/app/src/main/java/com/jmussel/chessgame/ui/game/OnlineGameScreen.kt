@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -42,6 +43,9 @@ fun OnlineGameScreen(
     onCancelPromotion: () -> Unit = {},
     onUndo: () -> Unit = {},
     onClaimDraw: (String) -> Unit = {},
+    onAskToResign: () -> Unit = {},
+    onResign: () -> Unit = {},
+    onCancelResignation: () -> Unit = {},
 ) {
     Column(
         modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
@@ -65,6 +69,9 @@ fun OnlineGameScreen(
                     onCancelPromotion = onCancelPromotion,
                     onUndo = onUndo,
                     onClaimDraw = onClaimDraw,
+                    onAskToResign = onAskToResign,
+                    onResign = onResign,
+                    onCancelResignation = onCancelResignation,
                 )
         }
     }
@@ -79,6 +86,9 @@ private fun Game(
     onCancelPromotion: () -> Unit,
     onUndo: () -> Unit,
     onClaimDraw: (String) -> Unit,
+    onAskToResign: () -> Unit,
+    onResign: () -> Unit,
+    onCancelResignation: () -> Unit,
 ) {
     val game = state.game
 
@@ -115,6 +125,22 @@ private fun Game(
         Button(onClick = { onClaimDraw(claim) }, enabled = !state.submitting) {
             Text(text = OnlineGame.claimLabel(claim))
         }
+    }
+
+    // A player may give up on their opponent's move as readily as on their own
+    // (`docs/PRODUCT.md`), and is asked first because it is final (`D018`).
+    if (!game.isOver) {
+        Button(onClick = onAskToResign, enabled = !state.submitting) { Text(text = RESIGN) }
+    }
+
+    if (state.confirmingResignation) {
+        AlertDialog(
+            onDismissRequest = onCancelResignation,
+            title = { Text(text = RESIGN_TITLE) },
+            text = { Text(text = RESIGN_WARNING) },
+            confirmButton = { TextButton(onClick = onResign) { Text(text = RESIGN) } },
+            dismissButton = { TextButton(onClick = onCancelResignation) { Text(text = KEEP_PLAYING) } },
+        )
     }
 
     // What the server was last asked, and what it said about it.
@@ -156,6 +182,10 @@ private const val SUBMITTING = "Sending…"
 private const val PROMOTE_TO = "Promote to"
 private const val CANCEL = "Cancel"
 private const val UNDO = "Undo"
+private const val RESIGN = "Resign"
+private const val RESIGN_TITLE = "Resign?"
+private const val RESIGN_WARNING = "You lose this game. This cannot be undone."
+private const val KEEP_PLAYING = "Keep playing"
 
 @Preview(showBackground = true)
 @Composable

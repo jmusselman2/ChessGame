@@ -2797,9 +2797,37 @@ stale recovery, and accepted terminal state.
 
 ## M14.15 — Android resignation controls
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M5.6, M14.11, M13.5
+
+**Completed:** 2026-08-28 — a player can give up, in both kinds of game, and is
+asked first because it cannot be taken back (`D018`). Resign is offered whenever
+the game is still running, on the opponent's move as readily as on the player's
+own, and cancelling the question leaves everything exactly as it was — no
+selection cleared, no request sent. On one device both sides are offered, because
+there are two players at one board, and the local game ends through
+`ChessRules.resign`. Online, `POST /games/{gameId}/resignation` carries the
+version it was decided against like every other command (`D021`), and the result
+and termination reason are the server's — the app renders what came back and
+never decides that a game is lost. A resignation that arrives after the game has
+already finished, a stale one, and one for a game that is not the caller's are
+each explained, and none of them changes the board. Verified locally with
+`.\gradlew.bat :android-app:testDebugUnitTest` (7 new `GameControlsTest` cases:
+either player may resign while the game runs, White and Black resigning each end
+it for the other, a player may resign on the opponent's move, resigning clears
+the selection, a finished game offers no resignation, and the label names the
+side; and 7 new `ChessAppTest` cases: the question comes before anything is sent,
+cancelling leaves the game as it was, a confirmed resignation travels with its
+version and comes back as the server's result, resigning is offered on the
+opponent's move, and an already-finished, a stale, and a not-yours refusal are
+each handled without deciding anything locally) and `.\gradlew.bat build` (BUILD
+SUCCESSFUL, 315 Android unit tests, 0 skipped). Two test-harness fixes came with
+it: the recorded requests are now a snapshot-safe list, because assertions read
+them while another job may still be sending, and each test now stops the jobs its
+models started — a realtime loop left running would still be using
+`Dispatchers.Main` when the next test set it. Following the series into its next
+game is `M14.16`.
 
 ### Objective
 
