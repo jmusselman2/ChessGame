@@ -2067,13 +2067,16 @@ Resignation follows the same active-vs-closing series lifecycle.
 
 # M14 — Android Multiplayer Client, Dashboard, and History
 
-**Milestone status:** INCOMPLETE. `M14.1`–`M14.4` completed server queries,
-API-client reads, and isolated Compose presentation components; `M14.5`–`M14.12`
-built the application shell, startup, onboarding, friends, the live dashboard,
-the online game screen, moves, and realtime reloads. Undo, draw claims,
-resignation, the rematch flow, reachable history, and the device play-through
-remain: `M14.13`–`M14.18` are the client integration work required before beta
-deployment.
+**Milestone status:** INCOMPLETE. `M14.1`–`M14.17` are `DONE`: the server
+queries and presentation components, then the application shell, startup,
+username onboarding, friends, the live dashboard, the online game screen, moves,
+realtime reloads, undo, draw claims, resignation, the completion/rematch flow,
+and reachable history. `M14.18` — the two-client play-through on a real
+emulator or device — is the only task left in the milestone, and it cannot be
+run on this machine: there is no AVD (`emulator -list-avds` is empty), no system
+image installed, no `cmdline-tools`/`sdkmanager` to install one, and no device
+attached (`adb devices` lists none). That is the **missing prerequisite** stop
+condition, and it is the same blocker recorded against `M5.7`.
 
 ## M14.1 — Your Turn data and presentation component
 
@@ -2956,9 +2959,24 @@ series history, opening a finished game, and absence of mutating controls.
 
 ## M14.18 — End-to-end Android multiplayer verification
 
-**Status:** TODO
+**Status:** BLOCKED
 
 **Depends on:** M14.6, M14.7, M14.8, M14.9, M14.10, M14.11, M14.12, M14.13, M14.14, M14.15, M14.16, M14.17
+
+**Blocked on (2026-08-28):** no Android emulator or device is available on this
+machine, which is the infrastructure this task names. Checked directly:
+`emulator -list-avds` lists nothing, `~/.android/avd` is empty,
+`Sdk/system-images` does not exist, there is no `cmdline-tools`/`sdkmanager` to
+install an image with, and `adb devices` shows none attached. The SDK itself is
+present (`platforms/android-37.0`, `build-tools`, `platform-tools`,
+`emulator`). Everything this task depends on is `DONE` and the automated seams
+are covered: the shell, startup, onboarding, friends, dashboard, game loading,
+moves, realtime, undo, draw claims, resignation, completion/rematch, and history
+are all exercised by `ChessAppTest` against a stubbed server, and the server side
+by its own tests against PostgreSQL. What is missing is the thing only a real
+client can show: two Android apps, on a real Supabase project and a running
+Ktor server, playing each other. A human with an emulator image or a phone can
+clear this, and clearing it also clears `M5.7`.
 
 ### Objective
 

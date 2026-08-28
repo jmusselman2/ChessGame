@@ -771,10 +771,14 @@ itself, and added the read-only online game screen. `M14.11` connected board
 interaction to `POST /games/{gameId}/moves`, previewing legal destinations by
 replaying the canonical move list and changing the board only from what the
 server answered. `M14.12` added the authenticated WebSocket client: one socket,
-messages used only as invalidation, and every reload over HTTPS (`D022`). Undo,
-draw claims, resignation, the rematch flow, and reachable history remain: the
-integration sequence is documented as `M14.13`–`M14.18`, ending in the
-two-client device verification.
+messages used only as invalidation, and every reload over HTTPS (`D022`).
+`M14.13`–`M14.15` added undo, draw claims, and resignation, each carrying the
+version it was decided against and rendering only what came back; `M14.16` made
+the app follow the series to the game the server created next without ever
+creating a rematch itself; `M14.17` made history reachable and a finished game
+readable. The typical flow above is therefore in place end to end. What remains
+is `M14.18`: the two-client play-through on a real emulator or device, which
+needs infrastructure this repository cannot provide for itself.
 
 ## 30. Server Architecture
 
