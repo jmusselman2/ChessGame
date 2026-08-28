@@ -336,6 +336,89 @@ class ChessApiClientTest {
     }
 
     @Test
+    fun aUserIsLookedUpByExactUsername() {
+        val client = clientReplying("""{"userId":"user-1","username":"Alex"}""")
+
+        val found = runBlocking { client.lookUpUser("Alex") }
+
+        assertEquals("Alex", found.username)
+        assertEquals("/users/Alex", requests.single().url.encodedPath)
+    }
+
+    @Test
+    fun aUsernameThatBelongsToNobodyIsARefusal() {
+        val client = clientReplying("No such user", status = HttpStatusCode.NotFound)
+
+        val failure =
+            try {
+                runBlocking { client.lookUpUser("Nobody") }
+                null
+            } catch (e: ChessApiException) {
+                e
+            }
+
+        assertEquals(404, failure?.status)
+        assertEquals("No such user", failure?.explanation)
+    }
+
+    @Test
+    fun aFriendIsAddedByPostingTheirUsername() {
+        val client = clientReplying("Alex")
+
+        val added = runBlocking { client.addFriend("Alex") }
+
+        val request = requests.single()
+        assertEquals("Alex", added)
+        assertEquals("/friends", request.url.encodedPath)
+        assertEquals(HttpMethod.Post, request.method)
+        assertEquals("Alex", (request.body as TextContent).text)
+    }
+
+    @Test
+    fun addingSomeoneTwiceComesBackWithTheServersExplanation() {
+        val client = clientReplying("Already friends with Alex", status = HttpStatusCode.Conflict)
+
+        val failure =
+            try {
+                runBlocking { client.addFriend("Alex") }
+                null
+            } catch (e: ChessApiException) {
+                e
+            }
+
+        assertEquals(409, failure?.status)
+        assertEquals("Already friends with Alex", failure?.explanation)
+    }
+
+    @Test
+    fun addingYourselfComesBackWithTheServersExplanation() {
+        val client = clientReplying("You cannot add yourself", status = HttpStatusCode.BadRequest)
+
+        val failure =
+            try {
+                runBlocking { client.addFriend("Jordan") }
+                null
+            } catch (e: ChessApiException) {
+                e
+            }
+
+        assertEquals(400, failure?.status)
+        assertEquals("You cannot add yourself", failure?.explanation)
+    }
+
+    @Test
+    fun aFriendIsRemovedByName() {
+        val client = clientReplying("Removed Alex; your current game finishes first")
+
+        val outcome = runBlocking { client.removeFriend("Alex") }
+
+        val request = requests.single()
+        assertEquals("Removed Alex; your current game finishes first", outcome)
+        assertEquals("/friends/Alex", request.url.encodedPath)
+        assertEquals(HttpMethod.Delete, request.method)
+    }
+
+    @Test
     fun theBaseUrlIsJoinedWithoutDoubledSlashes() {
         assertEquals("https://chess.example/dashboard", ChessServerConfig("https://chess.example").url("/dashboard"))
         assertEquals("https://chess.example/dashboard", ChessServerConfig("https://chess.example/").url("dashboard"))

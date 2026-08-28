@@ -9,10 +9,12 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.jmussel.chessgame.app.ChessApp
 import com.jmussel.chessgame.app.ChessAppDependencies
 import com.jmussel.chessgame.app.ChessAppViewModel
+import com.jmussel.chessgame.ui.friends.FriendsActions
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
 /**
@@ -40,16 +42,33 @@ class MainActivity : ComponentActivity() {
                 // A back press the app has nowhere to go with is the system's: the app closes.
                 BackHandler { if (!viewModel.back()) finish() }
 
+                val friendsActions =
+                    remember(viewModel) {
+                        FriendsActions(
+                            onFind = viewModel::findUser,
+                            onAdd = viewModel::addFriend,
+                            onDismissFound = viewModel::dismissFoundUser,
+                            onAskToRemove = viewModel::askToRemoveFriend,
+                            onConfirmRemove = viewModel::removeFriend,
+                            onCancelRemove = viewModel::cancelRemoveFriend,
+                            onPlay = viewModel::playFriend,
+                            onRetry = viewModel::loadFriends,
+                        )
+                    }
+
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     ChessApp(
                         navigation = viewModel.navigation,
                         modifier = Modifier.padding(innerPadding),
                         startup = viewModel.startup,
                         usernameClaim = viewModel.usernameClaim,
+                        friends = viewModel.friends,
                         onOpen = viewModel::open,
+                        onOpenFriends = viewModel::openFriends,
                         onBack = { if (!viewModel.back()) finish() },
                         onRetryStartup = viewModel::start,
                         onClaimUsername = viewModel::claimUsername,
+                        friendsActions = friendsActions,
                     )
                 }
             }

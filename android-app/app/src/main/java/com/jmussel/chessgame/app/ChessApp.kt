@@ -17,6 +17,9 @@ import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
 import com.jmussel.chessgame.ui.board.LocalGameScreen
 import com.jmussel.chessgame.ui.dashboard.DashboardScreen
+import com.jmussel.chessgame.ui.friends.FriendsActions
+import com.jmussel.chessgame.ui.friends.FriendsScreen
+import com.jmussel.chessgame.ui.friends.FriendsUiState
 import com.jmussel.chessgame.ui.history.HistoryScreen
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import com.jmussel.chessgame.ui.onboarding.UsernameScreen
@@ -35,13 +38,16 @@ fun ChessApp(
     modifier: Modifier = Modifier,
     startup: StartupState = StartupState.Loading,
     usernameClaim: UsernameClaim = UsernameClaim.Idle,
+    friends: FriendsUiState = FriendsUiState(),
     onOpen: (Destination) -> Unit = {},
+    onOpenFriends: () -> Unit = {},
     onBack: () -> Unit = {},
     onRetryStartup: () -> Unit = {},
     onClaimUsername: (String) -> Unit = {},
+    friendsActions: FriendsActions = FriendsActions(),
 ) {
     Column(modifier = modifier.fillMaxSize()) {
-        ShellChrome(navigation = navigation, onOpen = onOpen, onBack = onBack)
+        ShellChrome(navigation = navigation, onOpen = onOpen, onOpenFriends = onOpenFriends, onBack = onBack)
 
         when (val destination = navigation.current) {
             Destination.Startup -> StartupScreen(state = startup, onRetry = onRetryStartup)
@@ -56,8 +62,7 @@ fun ChessApp(
                     // series first, which is M14.8.
                     onPlayFriend = { row -> row.gameId?.let { onOpen(Destination.OnlineGame(it)) } },
                 )
-            // Adding and removing friends is M14.8.
-            Destination.Friends -> PendingScreen(title = FRIENDS, detail = NOT_WIRED_UP)
+            Destination.Friends -> FriendsScreen(state = friends, actions = friendsActions)
             // Live history is M14.17.
             Destination.History ->
                 HistoryScreen(
@@ -81,6 +86,7 @@ fun ChessApp(
 private fun ShellChrome(
     navigation: AppNavigation,
     onOpen: (Destination) -> Unit,
+    onOpenFriends: () -> Unit,
     onBack: () -> Unit,
 ) {
     if (navigation.current == Destination.Startup || navigation.current == Destination.UsernameOnboarding) return
@@ -94,7 +100,7 @@ private fun ShellChrome(
             return@Row
         }
 
-        TextButton(onClick = { onOpen(Destination.Friends) }) { Text(text = FRIENDS) }
+        TextButton(onClick = onOpenFriends) { Text(text = FRIENDS) }
         TextButton(onClick = { onOpen(Destination.History) }) { Text(text = HISTORY) }
         TextButton(onClick = { onOpen(Destination.LocalGame) }) { Text(text = LOCAL_GAME) }
     }

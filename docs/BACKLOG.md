@@ -2070,10 +2070,11 @@ Resignation follows the same active-vs-closing series lifecycle.
 **Milestone status:** INCOMPLETE. `M14.1`–`M14.4` completed server queries,
 API-client reads, and isolated Compose presentation components; `M14.5` put an
 application shell and navigation around them, `M14.6` made the app sign itself
-in on startup, and `M14.7` gave it a typed identity and username onboarding. The
-dashboard, friends, and history screens are not yet fed by live data and no
-online game can be played from Android. `M14.8`–`M14.18` are the remaining
-client integration work required before beta deployment.
+in on startup, `M14.7` gave it a typed identity and username onboarding, and
+`M14.8` made friends reachable. The dashboard and history screens are not yet
+fed by live data and no online game can be played from Android.
+`M14.9`–`M14.18` are the remaining client integration work required before beta
+deployment.
 
 ## M14.1 — Your Turn data and presentation component
 
@@ -2400,9 +2401,42 @@ invalid input, duplicate username, and retry.
 
 ## M14.8 — Friend discovery and management on Android
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M14.7, M8
+
+**Completed:** 2026-08-28 — friends are reachable from the app at last. The
+shell's Friends destination now shows `FriendsScreen`: the list as the server
+has it, a box to find someone by their exact username, and two things to do
+about each friend. `ChessApiClient` gained the three calls it was missing —
+`GET /users/{username}`, `POST /friends`, and `DELETE /friends/{username}` — so
+adding is a lookup the player confirms rather than a name typed into the void:
+"Found Alex." comes back before "Add friend" appears. Who exists, who is already
+a friend, and whether you just tried to add yourself stay the server's answers
+(`D009`): the app keeps no copy of those rules and repeats the refusal in the
+server's own words — "No such user", "Already friends with Alex", "You cannot
+add yourself". The list is reloaded from the server after every add and removal
+rather than being edited locally, and it is fetched again each time the screen
+is opened, because the other side of a friendship can change it while the app is
+elsewhere. A load that fails leaves the screen honest — nothing is claimed to
+have arrived — and offers to try again. Removing a friend asks first, and the
+question says what it will really do: the game being played now finishes as
+normal, there just will not be another one (`D013`); the server's own sentence
+about the game in progress is what the player reads afterwards. "Play" posts to
+`/series` and opens whichever game the server says is current, so opening an
+existing series and starting one are the same tap (`D011`); a series between
+games has nothing to open yet and says so instead of pretending. Every request
+from this screen runs one at a time, so a double tap cannot add or remove twice.
+Verified locally with `.\gradlew.bat :android-app:testDebugUnitTest` (6 new
+`ChessApiClientTest` cases for lookup, add, duplicate, self, and removal, 6 new
+`FriendsTest` cases for the wording decided in the app, and 13 new `ChessAppTest`
+cases covering opening and loading the screen, an empty list, a failed load and
+its retry, lookup then add with the refresh, duplicate and self refusals, an
+empty box, the removal confirmation and its cancellation, a confirmed removal
+with its refresh, and Play opening the server-selected game or saying there is
+none) and `.\gradlew.bat build` (BUILD SUCCESSFUL, 223 Android unit tests, 0
+skipped). The dashboard's own Friends section still renders with no data until
+`M14.9` loads it.
 
 ### Objective
 

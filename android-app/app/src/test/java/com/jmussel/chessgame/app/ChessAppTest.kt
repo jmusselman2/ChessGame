@@ -2,6 +2,7 @@ package com.jmussel.chessgame.app
 
 import com.jmussel.chessgame.api.ChessApiClient
 import com.jmussel.chessgame.api.ChessServerConfig
+import com.jmussel.chessgame.api.UserSummaryDto
 import com.jmussel.chessgame.auth.AnonymousSession
 import com.jmussel.chessgame.auth.InMemorySessionStore
 import com.jmussel.chessgame.auth.SessionStore
@@ -16,6 +17,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.HttpRequestData
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
@@ -31,6 +33,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -82,13 +85,18 @@ class ChessAppTest {
     /**
      * One engine for both APIs, as the app has one client for both.
      *
-     * An auth path hands out [newSession], `/me` reports [username], and `/username` accepts
-     * the name that was sent. The first [refusals] calls — to [refusalPath], or to anything
-     * when that is null — are refused instead, which is how a failure and then a retry are
+     * An auth path hands out [newSession], `/me` reports [username], `/username` accepts the
+     * name that was sent, `/friends` lists [friends] or accepts one, a lookup finds whoever
+     * was asked for, a removal answers [removalOutcome], and `/series` opens a series on
+     * [currentGameId]. The first [refusals] calls — to [refusalPath], or to anything when
+     * that is null — are refused instead, which is how a failure and then a retry are
      * staged.
      */
     private fun httpClient(
         username: String? = null,
+        friends: List<String> = emptyList(),
+        removalOutcome: String = "Removed",
+        currentGameId: String? = "game-1",
         refusals: Int = 0,
         refusalPath: String? = null,
         refusalStatus: HttpStatusCode = HttpStatusCode.ServiceUnavailable,
@@ -104,14 +112,7 @@ class ChessAppTest {
                 if (refusable) refused++
 
                 respond(
-                    content =
-                        when {
-                            refuse -> refusalBody
-                            path.startsWith("/auth/") -> newSession
-                            path == "/me" -> identity(username)
-                            path == "/username" -> (request.body as TextContent).text
-                            else -> "[]"
-                        },
+                    content = if (refuse) refusalBody else replyTo(request, path, username, friends, removalOutcome, currentGameId),
                     status = if (refuse) refusalStatus else HttpStatusCode.OK,
                     headers = headersOf("Content-Type", ContentType.Application.Json.toString()),
                 )
@@ -122,9 +123,43 @@ class ChessAppTest {
         }
     }
 
+    /** What the server would say to one request. */
+    private fun replyTo(
+        request: HttpRequestData,
+        path: String,
+        username: String?,
+        friends: List<String>,
+        removalOutcome: String,
+        currentGameId: String?,
+    ): String =
+        when {
+            path.startsWith("/auth/") -> newSession
+            path == "/me" -> identity(username)
+            path == "/username" -> sentText(request)
+            path == "/friends" && request.method == HttpMethod.Get -> friends.joinToString(",", "[", "]", transform = ::user)
+            path == "/friends" -> sentText(request)
+            path.startsWith("/friends/") -> removalOutcome
+            path.startsWith("/users/") -> user(path.removePrefix("/users/"))
+            path == "/series" -> series(sentText(request), currentGameId)
+            else -> "[]"
+        }
+
+    private fun sentText(request: HttpRequestData): String = (request.body as TextContent).text
+
     /** What `/me` says about a player with, or without, a name. */
     private fun identity(username: String?): String =
         if (username == null) """{"userId":"server-1"}""" else """{"userId":"server-1","username":"$username"}"""
+
+    private fun user(username: String): String = """{"userId":"user-$username","username":"$username"}"""
+
+    private fun series(
+        opponent: String,
+        currentGameId: String?,
+    ): String {
+        val game = currentGameId?.let { ""","currentGameId":"$it"""" }.orEmpty()
+
+        return """{"seriesId":"series-1","opponent":${user(opponent)},"status":"ACTIVE"$game}"""
+    }
 
     private val paths: List<String>
         get() = requests.map { it.url.encodedPath }
@@ -405,6 +440,226 @@ class ChessAppTest {
             assertFalse(failure.canRetry)
             assertEquals(Destination.Startup, viewModel.navigation.current)
             assertTrue("a build that cannot sign in must not try", requests.isEmpty())
+        }
+
+    @Test
+    fun openingFriendsShowsTheScreenAndLoadsTheList() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(friends = listOf("Alex", "Sam")))
+
+            viewModel.openFriends()
+            viewModel.friendsJob?.join()
+
+            assertEquals(Destination.Friends, viewModel.navigation.current)
+            assertEquals(listOf("Alex", "Sam"), viewModel.friends.friends.map { it.username })
+            assertTrue(viewModel.friends.loaded)
+            assertFalse(viewModel.friends.loading)
+        }
+
+    @Test
+    fun anAccountWithNoFriendsIsLoadedAndEmptyRatherThanStillWaiting() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+
+            viewModel.loadFriends()
+            viewModel.friendsJob?.join()
+
+            assertTrue(viewModel.friends.friends.isEmpty())
+            assertTrue("an empty list is an answer", viewModel.friends.loaded)
+        }
+
+    @Test
+    fun aListThatCannotBeLoadedLeavesSomethingToReadAndCanBeTriedAgain() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient = httpClient(friends = listOf("Alex"), refusals = 1, refusalPath = "/friends"),
+                )
+
+            viewModel.loadFriends()
+            viewModel.friendsJob?.join()
+
+            assertFalse("nothing arrived, so nothing is claimed to have", viewModel.friends.loaded)
+            assertTrue(
+                viewModel.friends.message
+                    .orEmpty()
+                    .isNotBlank(),
+            )
+
+            viewModel.loadFriends()
+            viewModel.friendsJob?.join()
+
+            assertEquals(listOf("Alex"), viewModel.friends.friends.map { it.username })
+        }
+
+    @Test
+    fun aUsernameIsLookedUpBeforeItIsAdded() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+
+            viewModel.findUser("  Alex ")
+            viewModel.friendsJob?.join()
+
+            assertEquals("Alex", viewModel.friends.found?.username)
+            assertEquals(listOf("/users/Alex"), paths)
+        }
+
+    @Test
+    fun aNameThatBelongsToNobodyIsExplainedAndFindsNobody() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            refusals = 1,
+                            refusalPath = "/users/Nobody",
+                            refusalStatus = HttpStatusCode.NotFound,
+                            refusalBody = "No such user",
+                        ),
+                )
+
+            viewModel.findUser("Nobody")
+            viewModel.friendsJob?.join()
+
+            assertEquals("No such user", viewModel.friends.message)
+            assertNull(viewModel.friends.found)
+        }
+
+    @Test
+    fun addingTheFoundUserRefreshesTheList() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(friends = listOf("Alex")))
+
+            viewModel.findUser("Alex")
+            viewModel.friendsJob?.join()
+
+            viewModel.addFriend("Alex")
+            viewModel.friendsJob?.join()
+
+            assertNull("the found user has been dealt with", viewModel.friends.found)
+            assertEquals(listOf("Alex"), viewModel.friends.friends.map { it.username })
+            assertEquals(listOf("/users/Alex", "/friends", "/friends"), paths)
+        }
+
+    @Test
+    fun addingSomeoneAlreadyAFriendIsExplainedInTheServersWords() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            refusals = 1,
+                            refusalPath = "/friends",
+                            refusalStatus = HttpStatusCode.Conflict,
+                            refusalBody = "Already friends with Alex",
+                        ),
+                )
+
+            viewModel.addFriend("Alex")
+            viewModel.friendsJob?.join()
+
+            assertEquals("Already friends with Alex", viewModel.friends.message)
+        }
+
+    @Test
+    fun addingYourselfIsExplainedInTheServersWords() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            refusals = 1,
+                            refusalPath = "/friends",
+                            refusalStatus = HttpStatusCode.BadRequest,
+                            refusalBody = "You cannot add yourself",
+                        ),
+                )
+
+            viewModel.addFriend("Jordan")
+            viewModel.friendsJob?.join()
+
+            assertEquals("You cannot add yourself", viewModel.friends.message)
+        }
+
+    @Test
+    fun anEmptyNameIsNeitherLookedUpNorAdded() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+
+            viewModel.findUser("   ")
+            viewModel.addFriend("")
+            viewModel.friendsJob?.join()
+
+            assertTrue(paths.isEmpty())
+        }
+
+    @Test
+    fun aRemovalIsConfirmedBeforeItHappens() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            val alex = UserSummaryDto(userId = "user-1", username = "Alex")
+
+            viewModel.askToRemoveFriend(alex)
+
+            assertEquals(alex, viewModel.friends.removing)
+            assertTrue("nothing is sent until it is confirmed", paths.isEmpty())
+
+            viewModel.cancelRemoveFriend()
+
+            assertNull(viewModel.friends.removing)
+            assertTrue(paths.isEmpty())
+        }
+
+    @Test
+    fun aConfirmedRemovalSaysWhatItDidAndRefreshesTheList() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            friends = emptyList(),
+                            removalOutcome = "Removed Alex; your current game finishes first",
+                        ),
+                )
+            val alex = UserSummaryDto(userId = "user-1", username = "Alex")
+
+            viewModel.askToRemoveFriend(alex)
+            viewModel.removeFriend(alex)
+            viewModel.friendsJob?.join()
+
+            assertNull(viewModel.friends.removing)
+            assertEquals("Removed Alex; your current game finishes first", viewModel.friends.message)
+            assertEquals(listOf("/friends/Alex", "/friends"), paths)
+        }
+
+    @Test
+    fun playingAFriendAsksTheServerForTheSeriesAndOpensItsGame() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(currentGameId = "game-7"))
+            viewModel.restartAt(Destination.Friends)
+
+            viewModel.playFriend(UserSummaryDto(userId = "user-1", username = "Alex"))
+            viewModel.friendsJob?.join()
+
+            assertEquals(listOf("/series"), paths)
+            assertEquals(Destination.OnlineGame("game-7"), viewModel.navigation.current)
+        }
+
+    @Test
+    fun aSeriesWithNoGameYetOpensNothingAndSaysSo() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(currentGameId = null))
+            viewModel.restartAt(Destination.Friends)
+
+            viewModel.playFriend(UserSummaryDto(userId = "user-1", username = "Alex"))
+            viewModel.friendsJob?.join()
+
+            assertEquals(Destination.Friends, viewModel.navigation.current)
+            assertTrue(
+                viewModel.friends.message
+                    .orEmpty()
+                    .contains("Alex"),
+            )
         }
 
     private fun viewModel(

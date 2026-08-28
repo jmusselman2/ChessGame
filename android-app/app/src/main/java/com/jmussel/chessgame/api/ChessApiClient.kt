@@ -3,6 +3,7 @@ package com.jmussel.chessgame.api
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.post
@@ -152,6 +153,31 @@ class ChessApiClient(
     /** Everyone the caller is friends with (`D009`). */
     suspend fun friends(): List<UserSummaryDto> = get("/friends")
 
+    /**
+     * The player with exactly this [username], matched however it is capitalised.
+     *
+     * There is no search and no partial match: friends are added by knowing the name
+     * (`D009`), so a name that belongs to nobody is a refusal rather than an empty list.
+     */
+    suspend fun lookUpUser(username: String): UserSummaryDto = get("/users/$username")
+
+    /**
+     * Becomes friends with [username], which is mutual immediately (`D009`).
+     *
+     * Returns the name as the server stored it. Adding yourself, adding someone who is
+     * already a friend, and adding a name that belongs to nobody are refusals carrying the
+     * server's explanation.
+     */
+    suspend fun addFriend(username: String): String = post("/friends", username)
+
+    /**
+     * Stops being friends with [username], and says what that did.
+     *
+     * The game under way is not cancelled: it finishes and the series closes after it
+     * (`D013`), which is what the returned sentence says.
+     */
+    suspend fun removeFriend(username: String): String = delete("/friends/$username")
+
     /** The games the caller has finished, in the series they belong to, newest series first. */
     suspend fun history(): List<SeriesHistoryDto> = get("/history")
 
@@ -177,6 +203,11 @@ class ChessApiClient(
                 header(HttpHeaders.Authorization, "Bearer ${accessToken()}")
                 setBody(body)
             }
+        }
+
+    private suspend inline fun <reified T> delete(path: String): T =
+        read(path) {
+            httpClient.delete(config.url(path)) { header(HttpHeaders.Authorization, "Bearer ${accessToken()}") }
         }
 
     private suspend inline fun <reified T> read(
