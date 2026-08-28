@@ -9,10 +9,12 @@ import com.jmussel.chessgame.auth.AnonymousSession
 import com.jmussel.chessgame.auth.InMemorySessionStore
 import com.jmussel.chessgame.auth.SessionStore
 import com.jmussel.chessgame.auth.SupabaseConfig
+import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
 import com.jmussel.chessgame.ui.dashboard.DashboardSections
+import com.jmussel.chessgame.ui.game.AfterGame
 import com.jmussel.chessgame.ui.game.OnlineGame
 import com.jmussel.chessgame.ui.game.OnlineGameState
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
@@ -144,12 +146,17 @@ class ChessAppTest {
         yourTurn: Boolean = true,
         removalOutcome: String = "Removed",
         currentGameId: String? = "game-1",
+        nextGameId: String? = null,
+        nextSide: String = "WHITE",
+        finished: Boolean = false,
+        finishOnSecondRead: Boolean = false,
         refusals: Int = 0,
         refusalPath: String? = null,
         refusalStatus: HttpStatusCode = HttpStatusCode.ServiceUnavailable,
         refusalBody: String = "nope",
     ): HttpClient {
         var refused = 0
+        var gameReads = 0
         val engine =
             MockEngine { request ->
                 requests += request
@@ -157,6 +164,7 @@ class ChessAppTest {
                 val refusable = refusalPath == null || refusalPath == path
                 val refuse = refusable && refused < refusals
                 if (refusable) refused++
+                if (path.startsWith("/games/") && !path.removePrefix("/games/").contains("/")) gameReads++
 
                 respond(
                     content =
@@ -166,7 +174,19 @@ class ChessAppTest {
                             replyTo(
                                 request,
                                 path,
-                                Replies(username, friends, games, removalOutcome, currentGameId, canUndo, claims, yourTurn),
+                                Replies(
+                                    username = username,
+                                    friends = friends,
+                                    games = games,
+                                    removalOutcome = removalOutcome,
+                                    currentGameId = currentGameId,
+                                    canUndo = canUndo,
+                                    claims = claims,
+                                    yourTurn = yourTurn,
+                                    nextGameId = nextGameId,
+                                    nextSide = nextSide,
+                                    finished = finished || (finishOnSecondRead && gameReads > 1),
+                                ),
                             )
                         },
                     status = if (refuse) refusalStatus else HttpStatusCode.OK,
@@ -189,6 +209,9 @@ class ChessAppTest {
         val canUndo: Boolean,
         val claims: List<String>,
         val yourTurn: Boolean,
+        val nextGameId: String?,
+        val nextSide: String,
+        val finished: Boolean,
     )
 
     /** What the server would say to one request. */
@@ -201,7 +224,7 @@ class ChessAppTest {
             path.startsWith("/auth/") -> newSession
             path == "/me" -> identity(replies.username)
             path == "/username" -> sentText(request)
-            path == "/dashboard" -> replies.games.joinToString(",", "[", "]", transform = ::entry)
+            path == "/dashboard" -> dashboard(replies)
             path == "/friends" && request.method == HttpMethod.Get ->
                 replies.friends.joinToString(",", "[", "]", transform = ::user)
             path == "/friends" -> sentText(request)
@@ -213,9 +236,31 @@ class ChessAppTest {
             path.endsWith("/draw-claims") -> drawnGame(path.removePrefix("/games/").removeSuffix("/draw-claims"))
             path.endsWith("/resignation") -> resignedGame(path.removePrefix("/games/").removeSuffix("/resignation"))
             path.startsWith("/games/") ->
-                gameView(path.removePrefix("/games/"), replies.canUndo, replies.claims, replies.yourTurn)
+                gameView(
+                    gameId = path.removePrefix("/games/"),
+                    canUndo = replies.canUndo,
+                    claims = replies.claims,
+                    yourTurn = replies.yourTurn,
+                    yourSide =
+                        if (path.endsWith(replies.nextGameId.orEmpty()) && replies.nextGameId != null) {
+                            replies.nextSide
+                        } else {
+                            "WHITE"
+                        },
+                    finished = replies.finished,
+                )
             else -> "[]"
         }
+
+    /**
+     * The dashboard: one line per game in [Replies.games], plus the series this game belongs
+     * to when the server has moved it on to a new game.
+     */
+    private fun dashboard(replies: Replies): String {
+        val nextGame = replies.nextGameId?.let { listOf(seriesLine(it)) }.orEmpty()
+
+        return (replies.games.map(::entry) + nextGame).joinToString(",", "[", "]")
+    }
 
     /** One dashboard line: a game with [opponent] that is waiting on the player. */
     private fun entry(opponent: String): String =
@@ -224,20 +269,32 @@ class ChessAppTest {
          "version":1,"yourSide":"WHITE","sideToMove":"WHITE","moveNumber":3,"yourTurn":true}
         """.trimIndent()
 
+    /** The series the stubbed games belong to, now at [gameId]. */
+    private fun seriesLine(gameId: String): String =
+        """
+        {"seriesId":"series-1","opponent":${user("Alex")},"gameId":"$gameId",
+         "version":1,"yourSide":"BLACK","sideToMove":"WHITE","moveNumber":1,"yourTurn":false}
+        """.trimIndent()
+
     /** One game, as the stubbed server has it: a fresh board against Alex. */
     private fun gameView(
         gameId: String,
         canUndo: Boolean = false,
         claims: List<String> = emptyList(),
         yourTurn: Boolean = true,
-    ): String =
-        """
-        {"gameId":"$gameId","seriesId":"series-1","opponent":${user("Alex")},"version":1,
-         "yourSide":"WHITE","sideToMove":"WHITE","yourTurn":$yourTurn,"inCheck":false,
-         "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
-         "moves":[],"moveNumber":1,"halfmoveClock":0,"canUndo":$canUndo,
-         "availableDrawClaims":${claims.joinToString(",", "[", "]") { "\"$it\"" }}}
-        """.trimIndent()
+        yourSide: String = "WHITE",
+        finished: Boolean = false,
+    ): String {
+        val ending = if (finished) ""","result":"WHITE_WINS","terminationReason":"CHECKMATE"""" else ""
+
+        return """
+            {"gameId":"$gameId","seriesId":"series-1","opponent":${user("Alex")},"version":1,
+             "yourSide":"$yourSide","sideToMove":"WHITE","yourTurn":${yourTurn && !finished},"inCheck":false,
+             "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
+             "moves":[],"moveNumber":1,"halfmoveClock":0,"canUndo":${canUndo && !finished},
+             "availableDrawClaims":${claims.joinToString(",", "[", "]") { "\"$it\"" }}$ending}
+            """.trimIndent()
+    }
 
     /** The same game once its White player has resigned. */
     private fun resignedGame(gameId: String): String =
@@ -1771,6 +1828,150 @@ class ChessAppTest {
             val ready = viewModel.game as OnlineGameState.Ready
             assertTrue(ready.message.orEmpty().isNotBlank())
             assertNull("nothing was decided locally", ready.game.result)
+        }
+
+    @Test
+    fun aGameThatEndsUnderThePlayerAsksWhatTheSeriesDidNext() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan", nextGameId = "game-2"))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.askToResign()
+            viewModel.resign()
+            viewModel.moveJob?.join()
+            viewModel.dashboardJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals(AfterGame.NextGame("game-2"), ready.after)
+            assertTrue("the client never creates a rematch", paths.none { it == "/series" })
+            assertEquals("the series is read once", 1, paths.count { it == "/dashboard" })
+        }
+
+    @Test
+    fun theNextGameOpensWithTheColoursTheServerChose() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan", nextGameId = "game-2", nextSide = "BLACK"))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+            viewModel.askToResign()
+            viewModel.resign()
+            viewModel.moveJob?.join()
+            viewModel.dashboardJob?.join()
+
+            viewModel.openNextGame()
+            viewModel.gameJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals(Destination.OnlineGame("game-2"), viewModel.navigation.current)
+            assertEquals("the side comes from canonical data, not from the game before", "BLACK", ready.game.yourSide)
+            assertEquals(Side.BLACK, OnlineGame.sideOf(ready.game))
+        }
+
+    @Test
+    fun aSeriesThatHasClosedOffersNoNextGame() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan"))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.askToResign()
+            viewModel.resign()
+            viewModel.moveJob?.join()
+            viewModel.dashboardJob?.join()
+
+            assertEquals(AfterGame.SeriesOver, (viewModel.game as OnlineGameState.Ready).after)
+        }
+
+    @Test
+    fun aClosedSeriesLeadsBackToTheDashboardWithoutWaiting() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan"))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+            viewModel.askToResign()
+            viewModel.resign()
+            viewModel.moveJob?.join()
+            viewModel.dashboardJob?.join()
+
+            viewModel.returnToDashboard()
+            viewModel.dashboardJob?.join()
+
+            assertEquals(AppNavigation(listOf(Destination.Dashboard)), viewModel.navigation)
+        }
+
+    @Test
+    fun aClaimedDrawEndsTheGameAndFollowsTheSeriesToo() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(username = "Jordan", claims = listOf("THREEFOLD_REPETITION"), nextGameId = "game-2"),
+                )
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.claimDraw("THREEFOLD_REPETITION")
+            viewModel.moveJob?.join()
+            viewModel.dashboardJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals("DRAW", ready.game.result)
+            assertEquals(AfterGame.NextGame("game-2"), ready.after)
+        }
+
+    @Test
+    fun aGameThatEndsWhileTheOpponentMovesIsFollowedTheSameWay() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient = httpClient(username = "Jordan", nextGameId = "game-2", finishOnSecondRead = true),
+                )
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            // The opponent's checkmate arrives as an ordinary invalidation; the reload brings
+            // back a finished game.
+            viewModel.onRealtimeMessage(
+                RealtimeMessageDto(type = RealtimeMessageDto.GAME_UPDATED, gameId = "game-7", version = 5),
+            )
+            viewModel.gameJob?.join()
+            viewModel.dashboardJob?.join()
+
+            assertEquals(AfterGame.NextGame("game-2"), (viewModel.game as OnlineGameState.Ready).after)
+        }
+
+    @Test
+    fun aFinishedGameThatIsOnlyBeingLookedAtDoesNotChaseTheSeries() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan", finished = true))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+            viewModel.dashboardJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertTrue(ready.game.isOver)
+            assertEquals("looking at a game that was already over asks nothing", null, ready.after)
+            assertFalse(paths.contains("/dashboard"))
+        }
+
+    @Test
+    fun nothingCanBePlayedInAGameThatIsOver() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan", finished = true))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+            val before = viewModel.game
+
+            viewModel.tapSquare(Square.parse("e2"))
+            viewModel.undoMove()
+            viewModel.claimDraw("THREEFOLD_REPETITION")
+            viewModel.askToResign()
+            viewModel.resign()
+            viewModel.moveJob?.join()
+
+            assertEquals(before, viewModel.game)
+            assertEquals(listOf("/games/game-7"), paths)
         }
 
     private fun viewModel(

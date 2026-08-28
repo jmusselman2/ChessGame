@@ -46,6 +46,8 @@ fun OnlineGameScreen(
     onAskToResign: () -> Unit = {},
     onResign: () -> Unit = {},
     onCancelResignation: () -> Unit = {},
+    onOpenNextGame: () -> Unit = {},
+    onDone: () -> Unit = {},
 ) {
     Column(
         modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
@@ -72,6 +74,8 @@ fun OnlineGameScreen(
                     onAskToResign = onAskToResign,
                     onResign = onResign,
                     onCancelResignation = onCancelResignation,
+                    onOpenNextGame = onOpenNextGame,
+                    onDone = onDone,
                 )
         }
     }
@@ -89,6 +93,8 @@ private fun Game(
     onAskToResign: () -> Unit,
     onResign: () -> Unit,
     onCancelResignation: () -> Unit,
+    onOpenNextGame: () -> Unit,
+    onDone: () -> Unit,
 ) {
     val game = state.game
 
@@ -131,6 +137,22 @@ private fun Game(
     // (`docs/PRODUCT.md`), and is asked first because it is final (`D018`).
     if (!game.isOver) {
         Button(onClick = onAskToResign, enabled = !state.submitting) { Text(text = RESIGN) }
+    }
+
+    // What the series did next, which the server decided when it finalized this game
+    // (`D014`); nothing here creates or confirms a rematch.
+    when (state.after) {
+        AfterGame.Looking -> Text(text = LOOKING_FOR_NEXT, style = MaterialTheme.typography.bodyMedium)
+
+        is AfterGame.NextGame ->
+            Button(onClick = onOpenNextGame) { Text(text = NEXT_GAME) }
+
+        AfterGame.SeriesOver -> {
+            Text(text = "$NO_MORE_GAMES ${game.opponent.username}.", style = MaterialTheme.typography.bodyMedium)
+            Button(onClick = onDone) { Text(text = BACK_TO_DASHBOARD) }
+        }
+
+        null -> Unit
     }
 
     if (state.confirmingResignation) {
@@ -186,6 +208,10 @@ private const val RESIGN = "Resign"
 private const val RESIGN_TITLE = "Resign?"
 private const val RESIGN_WARNING = "You lose this game. This cannot be undone."
 private const val KEEP_PLAYING = "Keep playing"
+private const val LOOKING_FOR_NEXT = "Looking for the next game…"
+private const val NEXT_GAME = "Play the next game"
+private const val NO_MORE_GAMES = "That was the last game with"
+private const val BACK_TO_DASHBOARD = "Back to your games"
 
 @Preview(showBackground = true)
 @Composable

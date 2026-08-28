@@ -89,6 +89,8 @@ class MainActivity : ComponentActivity() {
                         onAskToResign = viewModel::askToResign,
                         onResign = viewModel::resign,
                         onCancelResignation = viewModel::cancelResignation,
+                        onOpenNextGame = viewModel::openNextGame,
+                        onGameDone = viewModel::returnToDashboard,
                         onClaimUsername = viewModel::claimUsername,
                         friendsActions = friendsActions,
                         dashboardActions = dashboardActions,

@@ -40,6 +40,8 @@ sealed interface OnlineGameState {
         val submitting: Boolean = false,
         /** Whether the player has been asked to confirm giving the game up (`D018`). */
         val confirmingResignation: Boolean = false,
+        /** What follows this game, once it has finished and the series has been asked. */
+        val after: AfterGame? = null,
         val message: String? = null,
     ) : OnlineGameState
 
@@ -54,6 +56,26 @@ sealed interface OnlineGameState {
         val message: String,
         val canRetry: Boolean,
     ) : OnlineGameState
+}
+
+/**
+ * What follows a game that has finished.
+ *
+ * The app never creates or confirms a rematch: the server makes the next game when it
+ * finalizes this one (`D014`), and this is only what the dashboard said about the series
+ * afterwards.
+ */
+sealed interface AfterGame {
+    /** The server has not been asked yet, or the answer has not come back. */
+    data object Looking : AfterGame
+
+    /** The series is at a new game now, which is the one the server chose. */
+    data class NextGame(
+        val gameId: String,
+    ) : AfterGame
+
+    /** There will be no next game: the series has closed (`D013`). */
+    data object SeriesOver : AfterGame
 }
 
 /**

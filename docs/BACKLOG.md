@@ -2853,9 +2853,36 @@ both player colors, server refusals, and accepted resignation.
 
 ## M14.16 — Game completion and automatic rematch flow on Android
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M14.12, M14.14, M14.15, M13
+
+**Completed:** 2026-08-28 — a game that ends leads somewhere. Every terminal path
+— checkmate, stalemate, an automatic draw, a claimed draw, a resignation — is
+the server's persisted result rendered as it was stored, and a finished game
+accepts nothing: no tap selects, no undo, no claim, and no resignation is sent,
+because each control is gated on the canonical state rather than on a screen
+flag. When a game finishes *under* the player — their own last move, or the
+opponent's arriving over the socket — the app asks the dashboard once what the
+series did next and offers whichever game the server put it at (`D014`). It never
+creates or confirms a rematch: `POST /series` is not called, the next game's id
+comes from the dashboard, and opening it loads it fresh, so the colours and the
+board's orientation are canonical rather than flipped locally (`D015`). A series
+that has closed offers no next game and a way back to the dashboard instead, so a
+player is not left waiting for a game that will not exist (`D013`). A game that
+was already over when it was opened is being looked at rather than played to its
+end, so it asks the series nothing — which is what keeps history quiet
+(`M14.17`). One change came with it: a reload of the game already on screen no
+longer blanks it, which is both less flicker on every socket nudge and what lets
+a reload tell that this game has just ended. Verified locally with
+`.\gradlew.bat :android-app:testDebugUnitTest` (8 new `ChessAppTest` cases: a game
+ending under the player asks the series exactly once and never posts to
+`/series`, the next game opens with the colours the server chose, a closed series
+offers no next game and leads back to the dashboard, a claimed draw follows the
+series the same way, an ending that arrives over the socket does too, a finished
+game merely opened does not chase the series, and nothing at all can be played in
+a game that is over) and `.\gradlew.bat build` (BUILD SUCCESSFUL, 323 Android
+unit tests, 0 skipped).
 
 ### Objective
 

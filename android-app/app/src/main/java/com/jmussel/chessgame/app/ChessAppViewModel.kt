@@ -23,6 +23,7 @@ import com.jmussel.chessgame.ui.dashboard.DashboardUiState
 import com.jmussel.chessgame.ui.dashboard.FriendRow
 import com.jmussel.chessgame.ui.friends.Friends
 import com.jmussel.chessgame.ui.friends.FriendsUiState
+import com.jmussel.chessgame.ui.game.AfterGame
 import com.jmussel.chessgame.ui.game.BoardTap
 import com.jmussel.chessgame.ui.game.OnlineGame
 import com.jmussel.chessgame.ui.game.OnlineGameState
@@ -205,30 +206,32 @@ class ChessAppViewModel(
     fun loadGame(gameId: String) {
         if (gameJob?.isActive == true) return
 
-        // Set before the request starts, so the screen is showing this game from the moment
-        // it opens rather than the one before it.
-        game = OnlineGameState.Loading(gameId)
+        // A different game blanks the screen, so it is never showing the one before it; the
+        // game already on screen stays put while it reloads, which is both less flicker and
+        // what lets a reload tell that this game has just ended.
+        if ((game as? OnlineGameState.Ready)?.game?.gameId != gameId) game = OnlineGameState.Loading(gameId)
 
         gameJob =
             viewModelScope.launch {
-                game =
-                    try {
-                        OnlineGameState.Ready(dependencies.chessApi.game(gameId))
-                    } catch (refused: ChessApiException) {
+                try {
+                    show(dependencies.chessApi.game(gameId))
+                } catch (refused: ChessApiException) {
+                    game =
                         OnlineGameState.Failed(
                             gameId = gameId,
                             message = OnlineGame.messageFor(refused),
                             canRetry = OnlineGame.canRetry(refused),
                         )
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
-                    } catch (unreachable: Exception) {
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (unreachable: Exception) {
+                    game =
                         OnlineGameState.Failed(
                             gameId = gameId,
                             message = OnlineGame.unreachableMessage(),
                             canRetry = true,
                         )
-                    }
+                }
             }
     }
 
@@ -450,22 +453,76 @@ class ChessAppViewModel(
 
         moveJob =
             viewModelScope.launch {
-                game =
-                    try {
-                        OnlineGameState.Ready(command(dependencies.chessApi, decidedAt))
-                    } catch (refused: ChessCommandRefusedException) {
-                        OnlineGameState.Ready(
-                            game = refused.game ?: decidedAt,
-                            message = OnlineGame.messageFor(refused),
-                        )
-                    } catch (refused: ChessApiException) {
-                        OnlineGameState.Ready(game = decidedAt, message = OnlineGame.messageFor(refused))
-                    } catch (cancelled: CancellationException) {
-                        throw cancelled
-                    } catch (unreachable: Exception) {
-                        OnlineGameState.Ready(game = decidedAt, message = OnlineGame.unreachableMessage())
-                    }
+                try {
+                    show(command(dependencies.chessApi, decidedAt))
+                } catch (refused: ChessCommandRefusedException) {
+                    show(refused.game ?: decidedAt, OnlineGame.messageFor(refused))
+                } catch (refused: ChessApiException) {
+                    show(decidedAt, OnlineGame.messageFor(refused))
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (unreachable: Exception) {
+                    show(decidedAt, OnlineGame.unreachableMessage())
+                }
             }
+    }
+
+    /**
+     * Puts the canonical state on screen, and asks what follows when it has just ended.
+     *
+     * A game that finishes under the player — their own last move, or the opponent's
+     * arriving over the socket — is the moment to find out what the series did next
+     * (`D014`). A game that was already over when it was opened is not: it is being looked
+     * at, not played to its end.
+     */
+    private fun show(
+        view: GameViewDto,
+        message: String? = null,
+    ) {
+        val showing = (game as? OnlineGameState.Ready)?.takeIf { it.game.gameId == view.gameId }
+        val justEnded = view.isOver && showing != null && !showing.game.isOver
+
+        game = OnlineGameState.Ready(game = view, message = message, after = if (justEnded) AfterGame.Looking else null)
+
+        if (justEnded) followSeries(view)
+    }
+
+    /**
+     * Asks the dashboard what the series is at now.
+     *
+     * The client never creates or confirms a rematch: the server made the next game when it
+     * finalized this one (`D014`), so this only reads the answer — a different current game
+     * to offer, or a series that has gone, which means there will not be another (`D013`).
+     */
+    private fun followSeries(finished: GameViewDto) {
+        dashboardJob =
+            viewModelScope.launch {
+                fetchDashboard()
+
+                val ready = game as? OnlineGameState.Ready ?: return@launch
+                if (ready.game.gameId != finished.gameId) return@launch
+
+                val nextGameId =
+                    dashboard.entries
+                        .firstOrNull { it.seriesId == finished.seriesId }
+                        ?.gameId
+                        ?.takeIf { it != finished.gameId }
+
+                game = ready.copy(after = nextGameId?.let(AfterGame::NextGame) ?: AfterGame.SeriesOver)
+            }
+    }
+
+    /** Opens the game the series moved on to, which the server chose (`D015`). */
+    fun openNextGame() {
+        val next = (game as? OnlineGameState.Ready)?.after as? AfterGame.NextGame ?: return
+
+        openOnlineGame(next.gameId)
+    }
+
+    /** Goes back to the dashboard, which is where a player goes when a series is over. */
+    fun returnToDashboard() {
+        restartAt(Destination.Dashboard)
+        loadDashboard()
     }
 
     /**
