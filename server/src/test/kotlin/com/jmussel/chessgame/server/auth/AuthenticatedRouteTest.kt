@@ -2,16 +2,19 @@
 
 package com.jmussel.chessgame.server.auth
 
+import com.jmussel.chessgame.server.api.CurrentUser
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.testModule
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
+import kotlinx.serialization.json.Json
 import java.time.Instant
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -97,7 +100,7 @@ class AuthenticatedRouteTest {
 
             assertEquals(HttpStatusCode.OK, response.status)
 
-            val userId = Uuid.parse(response.bodyAsText())
+            val userId = Uuid.parse(response.currentUser().userId)
             val stored = users.find(userId)
 
             assertEquals("auth-1", stored?.authSubject)
@@ -138,3 +141,6 @@ class AuthenticatedRouteTest {
         }
     }
 }
+
+/** `GET /me` as the app reads it. */
+private suspend fun HttpResponse.currentUser(): CurrentUser = Json.decodeFromString(bodyAsText())

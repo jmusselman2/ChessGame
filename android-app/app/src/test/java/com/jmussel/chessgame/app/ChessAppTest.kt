@@ -8,6 +8,7 @@ import com.jmussel.chessgame.auth.SessionStore
 import com.jmussel.chessgame.auth.SupabaseConfig
 import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
+import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
@@ -16,9 +17,11 @@ import io.ktor.client.request.HttpRequestData
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
@@ -40,6 +43,7 @@ import org.junit.Test
  * network. The model's coroutines run on a test dispatcher, so "loading" is a state a test
  * can actually observe.
  */
+@OptIn(ExperimentalCoroutinesApi::class)
 class ChessAppTest {
     private val requests = mutableListOf<HttpRequestData>()
 
@@ -75,20 +79,40 @@ class ChessAppTest {
         Dispatchers.resetMain()
     }
 
-    /** Replies to everything with [body]; the first [refusals] calls are refused instead. */
+    /**
+     * One engine for both APIs, as the app has one client for both.
+     *
+     * An auth path hands out [newSession], `/me` reports [username], and `/username` accepts
+     * the name that was sent. The first [refusals] calls — to [refusalPath], or to anything
+     * when that is null — are refused instead, which is how a failure and then a retry are
+     * staged.
+     */
     private fun httpClient(
-        body: String = "[]",
+        username: String? = null,
         refusals: Int = 0,
+        refusalPath: String? = null,
+        refusalStatus: HttpStatusCode = HttpStatusCode.ServiceUnavailable,
+        refusalBody: String = "nope",
     ): HttpClient {
         var refused = 0
         val engine =
             MockEngine { request ->
                 requests += request
-                val refuse = refused < refusals
-                refused++
+                val path = request.url.encodedPath
+                val refusable = refusalPath == null || refusalPath == path
+                val refuse = refusable && refused < refusals
+                if (refusable) refused++
+
                 respond(
-                    content = if (refuse) """{"error":"nope"}""" else body,
-                    status = if (refuse) HttpStatusCode.ServiceUnavailable else HttpStatusCode.OK,
+                    content =
+                        when {
+                            refuse -> refusalBody
+                            path.startsWith("/auth/") -> newSession
+                            path == "/me" -> identity(username)
+                            path == "/username" -> (request.body as TextContent).text
+                            else -> "[]"
+                        },
+                    status = if (refuse) refusalStatus else HttpStatusCode.OK,
                     headers = headersOf("Content-Type", ContentType.Application.Json.toString()),
                 )
             }
@@ -97,6 +121,13 @@ class ChessAppTest {
             install(ContentNegotiation) { json(ChessApiClient.Json) }
         }
     }
+
+    /** What `/me` says about a player with, or without, a name. */
+    private fun identity(username: String?): String =
+        if (username == null) """{"userId":"server-1"}""" else """{"userId":"server-1","username":"$username"}"""
+
+    private val paths: List<String>
+        get() = requests.map { it.url.encodedPath }
 
     private fun dependencies(
         httpClient: HttpClient = httpClient(),
@@ -192,37 +223,49 @@ class ChessAppTest {
     }
 
     @Test
-    fun startupIsLoadingUntilThereIsASessionAndThenTheDashboard() =
+    fun startupIsLoadingUntilThereIsAnIdentityAndThenTheDashboard() =
         runTest(dispatcher) {
-            val viewModel = viewModel()
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan"))
 
             viewModel.start()
 
             assertEquals(StartupState.Loading, viewModel.startup)
-            assertEquals("nothing authenticated before there is a session", Destination.Startup, viewModel.navigation.current)
+            assertEquals("nothing is opened before the server answers", Destination.Startup, viewModel.navigation.current)
 
             viewModel.startupJob?.join()
 
-            assertEquals(StartupState.Ready("auth-user-1"), viewModel.startup)
+            assertEquals("Jordan", viewModel.currentUser?.username)
             assertEquals(AppNavigation(listOf(Destination.Dashboard)), viewModel.navigation)
         }
 
     @Test
-    fun aFirstRunSignsUpAndLandsOnTheDashboard() =
+    fun aReturningNamedPlayerSkipsOnboarding() =
         runTest(dispatcher) {
-            val viewModel = viewModel(httpClient = httpClient(body = newSession), sessionStore = InMemorySessionStore())
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan"))
 
             viewModel.start()
             viewModel.startupJob?.join()
 
-            assertEquals(StartupState.Ready("auth-user-2"), viewModel.startup)
-            assertEquals(listOf("/auth/v1/signup"), requests.map { it.url.encodedPath })
+            assertEquals("restoring a valid session must not call Supabase", listOf("/me"), paths)
+            assertEquals(Destination.Dashboard, viewModel.navigation.current)
+        }
+
+    @Test
+    fun aFirstRunSignsUpAndIsSentToChooseAUsername() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(sessionStore = InMemorySessionStore())
+
+            viewModel.start()
+            viewModel.startupJob?.join()
+
+            assertEquals(listOf("/auth/v1/signup", "/me"), paths)
+            assertEquals(AppNavigation(listOf(Destination.UsernameOnboarding)), viewModel.navigation)
         }
 
     @Test
     fun startingTwiceDoesNotCreateTwoAnonymousAccounts() =
         runTest(dispatcher) {
-            val viewModel = viewModel(httpClient = httpClient(body = newSession), sessionStore = InMemorySessionStore())
+            val viewModel = viewModel(sessionStore = InMemorySessionStore())
 
             viewModel.start()
             viewModel.start()
@@ -230,7 +273,7 @@ class ChessAppTest {
             viewModel.start()
             viewModel.startupJob?.join()
 
-            assertEquals(listOf("/auth/v1/signup"), requests.map { it.url.encodedPath })
+            assertEquals(listOf("/auth/v1/signup", "/me"), paths)
         }
 
     @Test
@@ -238,7 +281,7 @@ class ChessAppTest {
         runTest(dispatcher) {
             val viewModel =
                 viewModel(
-                    httpClient = httpClient(body = newSession, refusals = 1),
+                    httpClient = httpClient(username = "Jordan", refusals = 1),
                     sessionStore = InMemorySessionStore(),
                 )
 
@@ -252,8 +295,98 @@ class ChessAppTest {
             viewModel.start()
             viewModel.startupJob?.join()
 
-            assertEquals(StartupState.Ready("auth-user-2"), viewModel.startup)
+            assertEquals("Jordan", viewModel.currentUser?.username)
             assertEquals(AppNavigation(listOf(Destination.Dashboard)), viewModel.navigation)
+        }
+
+    @Test
+    fun claimingAUsernameGoesStraightOnToTheDashboard() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(sessionStore = InMemorySessionStore())
+            viewModel.start()
+            viewModel.startupJob?.join()
+
+            viewModel.claimUsername("Jordan")
+            viewModel.usernameClaimJob?.join()
+
+            assertEquals(UsernameClaim.Idle, viewModel.usernameClaim)
+            assertEquals("Jordan", viewModel.currentUser?.username)
+            assertEquals(AppNavigation(listOf(Destination.Dashboard)), viewModel.navigation)
+            assertEquals(listOf("/auth/v1/signup", "/me", "/username"), paths)
+        }
+
+    @Test
+    fun aNameTheServerRefusesIsExplainedAndAnotherCanBeTried() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            refusals = 1,
+                            refusalPath = "/username",
+                            refusalStatus = HttpStatusCode.Conflict,
+                            refusalBody = "That username is taken",
+                        ),
+                    sessionStore = InMemorySessionStore(storedSession),
+                )
+            viewModel.start()
+            viewModel.startupJob?.join()
+
+            viewModel.claimUsername("Jordan")
+            viewModel.usernameClaimJob?.join()
+
+            assertEquals(
+                "the server's own words are what the player reads",
+                UsernameClaim.Rejected("That username is taken"),
+                viewModel.usernameClaim,
+            )
+            assertEquals(Destination.UsernameOnboarding, viewModel.navigation.current)
+
+            viewModel.claimUsername("Jordan2")
+            viewModel.usernameClaimJob?.join()
+
+            assertEquals(UsernameClaim.Idle, viewModel.usernameClaim)
+            assertEquals("Jordan2", viewModel.currentUser?.username)
+            assertEquals(Destination.Dashboard, viewModel.navigation.current)
+        }
+
+    @Test
+    fun anEmptyNameIsNotSentAnywhere() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(sessionStore = InMemorySessionStore())
+            viewModel.start()
+            viewModel.startupJob?.join()
+
+            viewModel.claimUsername("   ")
+            viewModel.usernameClaimJob?.join()
+
+            assertEquals(listOf("/auth/v1/signup", "/me"), paths)
+            assertEquals(Destination.UsernameOnboarding, viewModel.navigation.current)
+        }
+
+    @Test
+    fun aServerThatSaysNothingUsefulStillLeavesSomethingToRead() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            refusals = 1,
+                            refusalPath = "/username",
+                            refusalStatus = HttpStatusCode.BadGateway,
+                            refusalBody = "",
+                        ),
+                    sessionStore = InMemorySessionStore(storedSession),
+                )
+            viewModel.start()
+            viewModel.startupJob?.join()
+
+            viewModel.claimUsername("Jordan")
+            viewModel.usernameClaimJob?.join()
+
+            val rejected = viewModel.usernameClaim as UsernameClaim.Rejected
+            assertTrue(rejected.message.isNotBlank())
+            assertEquals(Destination.UsernameOnboarding, viewModel.navigation.current)
         }
 
     @Test

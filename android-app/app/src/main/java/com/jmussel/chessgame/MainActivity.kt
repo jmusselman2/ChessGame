@@ -45,9 +45,11 @@ class MainActivity : ComponentActivity() {
                         navigation = viewModel.navigation,
                         modifier = Modifier.padding(innerPadding),
                         startup = viewModel.startup,
+                        usernameClaim = viewModel.usernameClaim,
                         onOpen = viewModel::open,
                         onBack = { if (!viewModel.back()) finish() },
                         onRetryStartup = viewModel::start,
+                        onClaimUsername = viewModel::claimUsername,
                     )
                 }
             }

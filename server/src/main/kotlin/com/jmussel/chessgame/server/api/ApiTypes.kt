@@ -22,6 +22,23 @@ data class UserSummary(
 /** [StoredUser] as the API shows it, or `null` when they have not claimed a username yet. */
 fun StoredUser.toSummaryOrNull(): UserSummary? = username?.let { UserSummary(userId = id.toString(), username = it) }
 
+/**
+ * The caller, as told to the app signed in as them.
+ *
+ * The only place [username] may be `null`: a new anonymous account has an id from its first
+ * authenticated request but has not chosen a name yet, and telling the two apart is what
+ * sends a returning player past onboarding and a new one into it. Like [UserSummary] it
+ * carries nothing about the account itself — not the auth subject, not `lastSeenAt`.
+ */
+@Serializable
+data class CurrentUser(
+    val userId: String,
+    val username: String? = null,
+)
+
+/** [StoredUser] as the API shows it to that user themselves. */
+fun StoredUser.toCurrentUser(): CurrentUser = CurrentUser(userId = id.toString(), username = username)
+
 /** A series as one of its two players sees it. */
 @Serializable
 data class SeriesSummary(

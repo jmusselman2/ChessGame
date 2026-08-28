@@ -759,13 +759,13 @@ components, and since `M14.5` an application shell — `MainActivity` →
 navigation and the shared HTTP client (`D033`). `M14.6` added `AppStartup`,
 which restores or creates the anonymous session before the app leaves the
 startup screen, and the one access-token provider everything authenticated asks
-per call. The screens are not yet fed by live data: the remaining integration
-sequence is documented as `M14.7`–`M14.18`: onboarding/friends, dashboard
-landing, online game loading and commands, WebSocket invalidation/reload,
-completion/rematch, history review, and two-client device verification. The
-current server `GET /me` returns only a plain user id, so M14.7 also completes
-the narrow current-user read contract needed to bypass onboarding for returning
-named users.
+per call. `M14.7` made `GET /me` a typed `CurrentUser` — the immutable user id
+and a nullable username — so startup can tell a returning player from a new one
+and send each to the dashboard or to username onboarding. The remaining screens
+are not yet fed by live data: the integration sequence is documented as
+`M14.8`–`M14.18`: friends, dashboard landing, online game loading and commands,
+WebSocket invalidation/reload, completion/rematch, history review, and
+two-client device verification.
 
 ## 30. Server Architecture
 

@@ -5,7 +5,6 @@ package com.jmussel.chessgame.server
 import com.jmussel.chessgame.core.GameCore
 import com.jmussel.chessgame.server.auth.SUPABASE_AUTH
 import com.jmussel.chessgame.server.auth.SupabaseTokenVerifier
-import com.jmussel.chessgame.server.auth.authenticatedUser
 import com.jmussel.chessgame.server.auth.installSupabaseAuthentication
 import com.jmussel.chessgame.server.dashboard.dashboardRoutes
 import com.jmussel.chessgame.server.db.DashboardQueries
@@ -25,6 +24,7 @@ import com.jmussel.chessgame.server.realtime.realtimeRoutes
 import com.jmussel.chessgame.server.series.SeriesService
 import com.jmussel.chessgame.server.series.seriesRoutes
 import com.jmussel.chessgame.server.user.LastSeenTracker
+import com.jmussel.chessgame.server.user.identityRoutes
 import com.jmussel.chessgame.server.user.userLookupRoutes
 import com.jmussel.chessgame.server.user.usernameRoutes
 import io.ktor.http.HttpStatusCode
@@ -113,10 +113,7 @@ fun Application.module(
         healthRoute()
 
         authenticate(SUPABASE_AUTH) {
-            get("/me") {
-                call.respondText(call.authenticatedUser().userId.toString(), status = HttpStatusCode.OK)
-            }
-
+            identityRoutes(users)
             usernameRoutes(users)
             userLookupRoutes(users)
             friendRoutes(users, friendships)

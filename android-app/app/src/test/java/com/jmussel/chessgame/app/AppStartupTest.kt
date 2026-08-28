@@ -1,5 +1,8 @@
 package com.jmussel.chessgame.app
 
+import com.jmussel.chessgame.api.ChessApiClient
+import com.jmussel.chessgame.api.ChessServerConfig
+import com.jmussel.chessgame.api.CurrentUserDto
 import com.jmussel.chessgame.auth.AnonymousAuthenticator
 import com.jmussel.chessgame.auth.AnonymousSession
 import com.jmussel.chessgame.auth.InMemorySessionStore
@@ -24,12 +27,13 @@ import org.junit.Test
 import java.io.IOException
 
 /**
- * The first thing the app does: get a session, or say why it could not.
+ * The first thing the app does: get a session, ask the server who it belongs to, or say
+ * why it could not.
  *
  * Runs on the JVM against Ktor's `MockEngine`, so there is no Android runtime and no
- * network. Restoring, refreshing, and creating are `AnonymousAuthenticator`'s decisions and
- * are tested in `AnonymousAuthTest`; what is checked here is what startup makes of each
- * outcome.
+ * network. Restoring, refreshing, and creating the session are `AnonymousAuthenticator`'s
+ * decisions and are tested in `AnonymousAuthTest`; what is checked here is the order of the
+ * two questions and what startup makes of each outcome.
  */
 class AppStartupTest {
     private val config = SupabaseConfig(url = "https://project.supabase.co", anonKey = "publishable-key")
@@ -40,11 +44,11 @@ class AppStartupTest {
         AnonymousSession(
             accessToken = "access-1",
             refreshToken = "refresh-1",
-            userId = "user-1",
+            userId = "subject-1",
             expiresAtEpochSeconds = expiresAt,
         )
 
-    private fun sessionBody(userId: String) =
+    private fun sessionBody(subject: String) =
         """
         {
           "access_token": "access-2",
@@ -52,37 +56,63 @@ class AppStartupTest {
           "expires_in": 3600,
           "expires_at": 5000,
           "token_type": "bearer",
-          "user": { "id": "$userId", "is_anonymous": true }
+          "user": { "id": "$subject", "is_anonymous": true }
         }
         """.trimIndent()
 
+    private fun identityBody(username: String?) =
+        if (username == null) {
+            """{"userId":"server-1"}"""
+        } else {
+            """{"userId":"server-1","username":"$username"}"""
+        }
+
+    /**
+     * Startup over one engine that answers both APIs, exactly as the app has one client for
+     * both.
+     */
     private fun startup(
         store: SessionStore = InMemorySessionStore(),
         supabaseConfig: SupabaseConfig = config,
-        status: HttpStatusCode = HttpStatusCode.OK,
-        newUserId: String = "user-2",
+        signInStatus: HttpStatusCode = HttpStatusCode.OK,
+        identityStatus: HttpStatusCode = HttpStatusCode.OK,
+        subject: String = "subject-2",
+        username: String? = null,
         failWith: Throwable? = null,
     ): AppStartup {
         val engine =
             MockEngine { request ->
-                paths += request.url.encodedPath
+                val path = request.url.encodedPath
+                paths += path
                 failWith?.let { throw it }
+
+                val signIn = path.startsWith("/auth/")
+                val status = if (signIn) signInStatus else identityStatus
+                val body =
+                    when {
+                        !status.isSuccess() -> """{"error":"nope"}"""
+                        signIn -> sessionBody(subject)
+                        else -> identityBody(username)
+                    }
+
                 respond(
-                    content = if (status.isSuccess()) sessionBody(newUserId) else """{"error":"nope"}""",
+                    content = body,
                     status = status,
                     headers = headersOf("Content-Type", ContentType.Application.Json.toString()),
                 )
             }
 
-        val client =
-            SupabaseAuthClient(
-                config = supabaseConfig,
-                httpClient = HttpClient(engine) { install(ContentNegotiation) { json(SupabaseAuthClient.Json) } },
-            )
+        val httpClient = HttpClient(engine) { install(ContentNegotiation) { json(ChessApiClient.Json) } }
+        val authenticator =
+            AnonymousAuthenticator(SupabaseAuthClient(supabaseConfig, httpClient), store, now = { 1_000 })
 
         return AppStartup(
             supabaseConfig = supabaseConfig,
-            authenticator = AnonymousAuthenticator(client, store, now = { 1_000 }),
+            authenticator = authenticator,
+            chessApi =
+                ChessApiClient(ChessServerConfig("https://chess.example"), httpClient) {
+                    authenticator.currentSession().accessToken
+                },
         )
     }
 
@@ -92,73 +122,114 @@ class AppStartupTest {
 
         val state = runBlocking { startup.run() }
 
-        assertEquals(StartupState.Ready("user-1"), state)
-        assertTrue("restoring a valid session must not call Supabase", paths.isEmpty())
+        assertEquals(StartupState.Ready(CurrentUserDto(userId = "server-1")), state)
+        assertEquals("restoring a valid session must not call Supabase", listOf("/me"), paths)
     }
 
     @Test
     fun anAbsentSessionCreatesAnAnonymousAccount() {
         val store = InMemorySessionStore()
-        val startup = startup(store = store, newUserId = "user-2")
+        val startup = startup(store = store)
 
         val state = runBlocking { startup.run() }
 
-        assertEquals(StartupState.Ready("user-2"), state)
-        assertEquals(listOf("/auth/v1/signup"), paths)
+        assertTrue(state is StartupState.Ready)
+        assertEquals(listOf("/auth/v1/signup", "/me"), paths)
         assertNotNull("the new session is kept for the next launch", runBlocking { store.read() })
     }
 
     @Test
     fun anExpiringSessionIsRefreshedRatherThanReplaced() {
-        val startup = startup(store = InMemorySessionStore(storedSession(expiresAt = 1_030)), newUserId = "user-1")
+        val startup = startup(store = InMemorySessionStore(storedSession(expiresAt = 1_030)))
 
         val state = runBlocking { startup.run() }
 
-        assertEquals(StartupState.Ready("user-1"), state)
-        assertEquals(listOf("/auth/v1/token"), paths)
+        assertTrue(state is StartupState.Ready)
+        assertEquals(listOf("/auth/v1/token", "/me"), paths)
     }
 
     @Test
     fun aDeadRefreshTokenEndsWithANewAccountRatherThanAFailure() {
-        // The refresh is refused, so the authenticator signs up again; both calls happen.
-        val store = InMemorySessionStore(storedSession(expiresAt = 1_000))
+        // The refresh is refused, so the authenticator signs up again before /me is asked.
         var call = 0
         val engine =
             MockEngine { request ->
                 paths += request.url.encodedPath
                 call++
+                val refuse = call == 1
                 respond(
-                    content = if (call == 1) """{"error":"nope"}""" else sessionBody("user-3"),
-                    status = if (call == 1) HttpStatusCode.BadRequest else HttpStatusCode.OK,
+                    content =
+                        when {
+                            refuse -> """{"error":"nope"}"""
+                            call == 2 -> sessionBody("subject-3")
+                            else -> identityBody(username = null)
+                        },
+                    status = if (refuse) HttpStatusCode.BadRequest else HttpStatusCode.OK,
                     headers = headersOf("Content-Type", ContentType.Application.Json.toString()),
                 )
             }
+        val httpClient = HttpClient(engine) { install(ContentNegotiation) { json(ChessApiClient.Json) } }
+        val authenticator =
+            AnonymousAuthenticator(
+                SupabaseAuthClient(config, httpClient),
+                InMemorySessionStore(storedSession(expiresAt = 1_000)),
+                now = { 1_000 },
+            )
         val startup =
             AppStartup(
                 supabaseConfig = config,
-                authenticator =
-                    AnonymousAuthenticator(
-                        SupabaseAuthClient(
-                            config,
-                            HttpClient(engine) { install(ContentNegotiation) { json(SupabaseAuthClient.Json) } },
-                        ),
-                        store,
-                        now = { 1_000 },
-                    ),
+                authenticator = authenticator,
+                chessApi =
+                    ChessApiClient(ChessServerConfig("https://chess.example"), httpClient) {
+                        authenticator.currentSession().accessToken
+                    },
             )
 
-        assertEquals(StartupState.Ready("user-3"), runBlocking { startup.run() })
-        assertEquals(listOf("/auth/v1/token", "/auth/v1/signup"), paths)
+        assertTrue(runBlocking { startup.run() } is StartupState.Ready)
+        assertEquals(listOf("/auth/v1/token", "/auth/v1/signup", "/me"), paths)
+    }
+
+    @Test
+    fun aReturningPlayerIsReportedWithTheirUsername() {
+        val startup =
+            startup(store = InMemorySessionStore(storedSession(expiresAt = 5_000)), username = "Jordan")
+
+        val state = runBlocking { startup.run() } as StartupState.Ready
+
+        assertEquals("Jordan", state.user.username)
+    }
+
+    @Test
+    fun aNewPlayerHasNoUsernameYet() {
+        val startup = startup(store = InMemorySessionStore(storedSession(expiresAt = 5_000)))
+
+        val state = runBlocking { startup.run() } as StartupState.Ready
+
+        assertEquals(null, state.user.username)
     }
 
     @Test
     fun aRefusedSignInCanBeTriedAgain() {
-        val startup = startup(status = HttpStatusCode.TooManyRequests)
+        val startup = startup(signInStatus = HttpStatusCode.TooManyRequests)
 
         val state = runBlocking { startup.run() } as StartupState.Failed
 
         assertTrue(state.canRetry)
         assertTrue("the status is what the player is told", state.message.contains("429"))
+    }
+
+    @Test
+    fun aServerThatWillNotSayWhoYouAreCanBeTriedAgain() {
+        val startup =
+            startup(
+                store = InMemorySessionStore(storedSession(expiresAt = 5_000)),
+                identityStatus = HttpStatusCode.InternalServerError,
+            )
+
+        val state = runBlocking { startup.run() } as StartupState.Failed
+
+        assertTrue(state.canRetry)
+        assertTrue(state.message.contains("500"))
     }
 
     @Test
@@ -184,7 +255,7 @@ class AppStartupTest {
 
     @Test
     fun noFailureQuotesATokenOrTheKey() {
-        val refused = runBlocking { startup(status = HttpStatusCode.Unauthorized).run() } as StartupState.Failed
+        val refused = runBlocking { startup(signInStatus = HttpStatusCode.Unauthorized).run() } as StartupState.Failed
         val unreachable = runBlocking { startup(failWith = IOException("boom")).run() } as StartupState.Failed
         val misconfigured =
             runBlocking {
@@ -199,13 +270,13 @@ class AppStartupTest {
     }
 
     @Test
-    fun theSessionIsReadyBeforeAnythingAuthenticatedIsCalled() {
+    fun theSessionIsInHandBeforeTheServerIsAskedAnything() {
         val store = InMemorySessionStore()
         val startup = startup(store = store)
 
-        val state = runBlocking { startup.run() }
+        runBlocking { startup.run() }
 
-        assertTrue(state is StartupState.Ready)
+        assertEquals(listOf("/auth/v1/signup", "/me"), paths)
         assertEquals("access-2", runBlocking { store.read() }?.accessToken)
     }
 }

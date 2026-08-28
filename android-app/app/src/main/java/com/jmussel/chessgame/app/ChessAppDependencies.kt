@@ -38,9 +38,6 @@ class ChessAppDependencies(
             store = sessionStore,
         )
 
-    /** Restores or creates the session the rest of the app needs (`M14.6`). */
-    val startup: AppStartup = AppStartup(supabaseConfig, authenticator)
-
     /**
      * The access token to send, asked for per call rather than captured.
      *
@@ -57,6 +54,9 @@ class ChessAppDependencies(
             httpClient = httpClient,
             accessToken = accessToken,
         )
+
+    /** Restores or creates the session, then asks the server who it belongs to (`M14.6`). */
+    val startup: AppStartup = AppStartup(supabaseConfig, authenticator, chessApi)
 
     /** Releases the HTTP client and the connections it is holding. */
     override fun close() {

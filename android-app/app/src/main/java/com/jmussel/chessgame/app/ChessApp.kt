@@ -18,6 +18,8 @@ import com.jmussel.chessgame.navigation.Destination
 import com.jmussel.chessgame.ui.board.LocalGameScreen
 import com.jmussel.chessgame.ui.dashboard.DashboardScreen
 import com.jmussel.chessgame.ui.history.HistoryScreen
+import com.jmussel.chessgame.ui.onboarding.UsernameClaim
+import com.jmussel.chessgame.ui.onboarding.UsernameScreen
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
 /**
@@ -32,17 +34,18 @@ fun ChessApp(
     navigation: AppNavigation,
     modifier: Modifier = Modifier,
     startup: StartupState = StartupState.Loading,
+    usernameClaim: UsernameClaim = UsernameClaim.Idle,
     onOpen: (Destination) -> Unit = {},
     onBack: () -> Unit = {},
     onRetryStartup: () -> Unit = {},
+    onClaimUsername: (String) -> Unit = {},
 ) {
     Column(modifier = modifier.fillMaxSize()) {
         ShellChrome(navigation = navigation, onOpen = onOpen, onBack = onBack)
 
         when (val destination = navigation.current) {
             Destination.Startup -> StartupScreen(state = startup, onRetry = onRetryStartup)
-            // Claiming a username is M14.7.
-            Destination.UsernameOnboarding -> PendingScreen(title = USERNAME, detail = NOT_WIRED_UP)
+            Destination.UsernameOnboarding -> UsernameScreen(claim = usernameClaim, onClaim = onClaimUsername)
             // Live dashboard data is M14.9.
             Destination.Dashboard ->
                 DashboardScreen(
@@ -152,7 +155,6 @@ private const val LOCAL_GAME = "Local game"
 private const val STARTING = "Starting…"
 private const val SIGN_IN_PROBLEM = "Cannot sign in"
 private const val RETRY = "Try again"
-private const val USERNAME = "Username"
 private const val GAME = "Game"
 private const val NOT_WIRED_UP = "Not wired up yet."
 

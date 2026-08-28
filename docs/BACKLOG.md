@@ -2069,9 +2069,10 @@ Resignation follows the same active-vs-closing series lifecycle.
 
 **Milestone status:** INCOMPLETE. `M14.1`–`M14.4` completed server queries,
 API-client reads, and isolated Compose presentation components; `M14.5` put an
-application shell and navigation around them and `M14.6` made the app sign
-itself in on startup. No screen is yet fed by live authenticated data and no
-online game can be played from Android. `M14.7`–`M14.18` are the remaining
+application shell and navigation around them, `M14.6` made the app sign itself
+in on startup, and `M14.7` gave it a typed identity and username onboarding. The
+dashboard, friends, and history screens are not yet fed by live data and no
+online game can be played from Android. `M14.8`–`M14.18` are the remaining
 client integration work required before beta deployment.
 
 ## M14.1 — Your Turn data and presentation component
@@ -2328,9 +2329,44 @@ Supabase development project.
 
 ## M14.7 — Username onboarding
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M14.6, M7.4
+
+**Completed:** 2026-08-28 — the app can now tell who is playing and let a new
+account say who they are. `GET /me` returns a typed `CurrentUser` — the
+immutable user id and a username that is `null` until it is claimed — which is
+the difference between a returning player and a new one and could not be read
+from the plain user id it used to return. The route moved out of
+`Application.kt` into `user/IdentityRoutes.kt`; its two existing consumers,
+`AuthenticatedRouteTest` and `RealtimeFixture.userId()`, read the typed body
+now. Startup asks the two questions in order — a Supabase session, then the
+identity the server keeps for it — and lands on the dashboard or on username
+onboarding accordingly, so a returning named user never sees onboarding.
+`UsernameScreen` says the name cannot be changed later before the player commits
+to one, and disables its button while a claim is in flight so a second tap
+cannot claim twice. Whether a name is allowed and whether it is still free stay
+the server's and the database's answers (`D007`): the app keeps no copy of the
+rules, `ChessApiException` now carries the server's own explanation, and a
+refusal is shown in those words — "That username is taken" — with the box left
+ready for another try. An empty box is not sent at all. A claim that never
+reaches the server is a message the player can act on rather than a silent
+failure. Verified locally with `.\gradlew.bat :server:test --rerun-tasks`
+against the local test database (6 new `IdentityRouteTest` cases: a new account
+has an id and no username, a named user is reported with theirs, claiming a name
+does not change who you are, the same account is always the same user, two
+accounts are two users, and an unauthenticated or unverifiable request is
+refused), `.\gradlew.bat :android-app:testDebugUnitTest` (5 new
+`ChessApiClientTest` cases for `/me` and the claim, including a taken name and an
+invalid one carrying the server's explanation, 2 new `AppStartupTest` cases for
+a named and an unnamed player and one for a server that will not say who you
+are, and 5 new `ChessAppTest` cases: a named player skips onboarding, a first run
+is sent to choose a name, claiming goes on to the dashboard, a refused name is
+explained and another can be tried, and an empty box is not sent), and
+`.\gradlew.bat build` (BUILD SUCCESSFUL, 372 server tests and 198 Android unit
+tests, 0 skipped). The live Supabase check was re-run with the key exported and
+still passes; `AppStartupLiveTest` now stubs the Chess server half, because a
+unit test has no server to talk to, and says so.
 
 ### Objective
 

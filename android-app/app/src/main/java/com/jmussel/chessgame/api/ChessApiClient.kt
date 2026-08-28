@@ -8,6 +8,7 @@ import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpHeaders
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
@@ -37,9 +38,16 @@ data class ChessServerConfig(
     }
 }
 
-/** Raised when the Chess server refuses a request. */
+/**
+ * Raised when the Chess server refuses a request.
+ *
+ * [explanation] is what the server said about it, when it said anything — "That username is
+ * taken" is worth showing a player, and the app has no business rewriting it. [message] is
+ * for a log; it names the request as well.
+ */
 class ChessApiException(
     val status: Int,
+    val explanation: String,
     override val message: String,
 ) : RuntimeException(message)
 
@@ -48,6 +56,18 @@ class ChessApiException(
 data class UserSummaryDto(
     val userId: String,
     val username: String,
+)
+
+/**
+ * The caller, as the server describes them to themselves.
+ *
+ * [username] is `null` until it is claimed, and that is the whole question the app asks on
+ * startup: a returning player goes to the dashboard, a new one to onboarding.
+ */
+@Serializable
+data class CurrentUserDto(
+    val userId: String,
+    val username: String? = null,
 )
 
 /**
@@ -114,6 +134,18 @@ class ChessApiClient(
     private val httpClient: HttpClient,
     private val accessToken: suspend () -> String,
 ) {
+    /** Who the caller is, and whether they have claimed a username yet. */
+    suspend fun me(): CurrentUserDto = get("/me")
+
+    /**
+     * Claims [username] for the caller, returning the name as the server stored it.
+     *
+     * A name is picked once and never changed (`docs/PRODUCT.md`), and whether it is
+     * available is the database's decision, not the app's (`D007`) — so an invalid or taken
+     * name comes back as a refusal carrying the server's explanation.
+     */
+    suspend fun claimUsername(username: String): String = post("/username", username)
+
     /** The caller's active series, newest first, as the server orders them. */
     suspend fun dashboard(): List<DashboardEntryDto> = get("/dashboard")
 
@@ -154,7 +186,13 @@ class ChessApiClient(
         val response = request()
 
         if (!response.status.isSuccess()) {
-            throw ChessApiException(response.status.value, "Chess server refused $path: ${response.status}")
+            val explanation = response.bodyAsText().trim()
+
+            throw ChessApiException(
+                status = response.status.value,
+                explanation = explanation,
+                message = "Chess server refused $path: ${response.status}",
+            )
         }
 
         return response.body()

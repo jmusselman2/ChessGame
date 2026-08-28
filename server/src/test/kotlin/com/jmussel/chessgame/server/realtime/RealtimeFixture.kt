@@ -2,6 +2,7 @@
 
 package com.jmussel.chessgame.server.realtime
 
+import com.jmussel.chessgame.server.api.CurrentUser
 import com.jmussel.chessgame.server.api.DashboardEntry
 import com.jmussel.chessgame.server.api.GameView
 import com.jmussel.chessgame.server.api.SeriesSummary
@@ -65,9 +66,12 @@ internal class PlayerClient(
     /** The internal id the server knows this player by. */
     suspend fun userId(): Uuid =
         Uuid.parse(
-            builder.client
-                .get("/me") { authorized() }
-                .bodyAsText(),
+            fixtureJson
+                .decodeFromString<CurrentUser>(
+                    builder.client
+                        .get("/me") { authorized() }
+                        .bodyAsText(),
+                ).userId,
         )
 
     suspend fun dashboard(): List<DashboardEntry> =

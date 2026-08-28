@@ -6,7 +6,9 @@ import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.HttpRequestData
 import io.ktor.http.ContentType
+import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
+import io.ktor.http.content.TextContent
 import io.ktor.http.headersOf
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.runBlocking
@@ -267,6 +269,70 @@ class ChessApiClientTest {
 
         assertEquals(401, failure?.status)
         assertTrue(failure?.message.orEmpty().contains("/dashboard"))
+    }
+
+    @Test
+    fun aNewAccountIsReadAsHavingNoUsernameYet() {
+        val client = clientReplying("""{"userId":"user-1"}""")
+
+        val me = runBlocking { client.me() }
+
+        assertEquals("user-1", me.userId)
+        assertNull("a new anonymous account has not chosen a name yet", me.username)
+        assertEquals("/me", requests.single().url.encodedPath)
+    }
+
+    @Test
+    fun aReturningAccountIsReadWithItsUsername() {
+        val client = clientReplying("""{"userId":"user-1","username":"Jordan"}""")
+
+        assertEquals("Jordan", runBlocking { client.me() }.username)
+    }
+
+    @Test
+    fun aUsernameIsClaimedByPostingIt() {
+        val client = clientReplying("Jordan")
+
+        val claimed = runBlocking { client.claimUsername("Jordan") }
+
+        val request = requests.single()
+        assertEquals("Jordan", claimed)
+        assertEquals("/username", request.url.encodedPath)
+        assertEquals(HttpMethod.Post, request.method)
+        assertEquals("Jordan", (request.body as TextContent).text)
+    }
+
+    @Test
+    fun aTakenUsernameComesBackWithTheServersExplanation() {
+        val client = clientReplying("That username is taken", status = HttpStatusCode.Conflict)
+
+        val failure =
+            try {
+                runBlocking { client.claimUsername("Jordan") }
+                null
+            } catch (e: ChessApiException) {
+                e
+            }
+
+        assertEquals(409, failure?.status)
+        assertEquals("That username is taken", failure?.explanation)
+    }
+
+    @Test
+    fun anInvalidUsernameComesBackWithTheServersExplanation() {
+        val client =
+            clientReplying("A username needs at least 3 characters", status = HttpStatusCode.BadRequest)
+
+        val failure =
+            try {
+                runBlocking { client.claimUsername("ab") }
+                null
+            } catch (e: ChessApiException) {
+                e
+            }
+
+        assertEquals(400, failure?.status)
+        assertEquals("A username needs at least 3 characters", failure?.explanation)
     }
 
     @Test

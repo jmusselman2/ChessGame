@@ -6,8 +6,13 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.jmussel.chessgame.api.ChessApiException
+import com.jmussel.chessgame.api.CurrentUserDto
 import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
+import com.jmussel.chessgame.ui.onboarding.UsernameClaim
+import com.jmussel.chessgame.ui.onboarding.UsernameOnboarding
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
@@ -30,8 +35,16 @@ class ChessAppViewModel(
     var navigation: AppNavigation by mutableStateOf(AppNavigation())
         private set
 
-    /** How far getting a session has got. */
+    /** How far getting a session and an identity has got. */
     var startup: StartupState by mutableStateOf(StartupState.Loading)
+        private set
+
+    /** Who the server says the player is, once startup has asked it. */
+    var currentUser: CurrentUserDto? by mutableStateOf(null)
+        private set
+
+    /** How far claiming a username has got. */
+    var usernameClaim: UsernameClaim by mutableStateOf(UsernameClaim.Idle)
         private set
 
     /** What the screens are built from. */
@@ -47,8 +60,13 @@ class ChessAppViewModel(
     internal var startupJob: Job? = null
         private set
 
+    /** The claim in flight, if any. Internal for the same reason as [startupJob]. */
+    internal var usernameClaimJob: Job? = null
+        private set
+
     /**
-     * Restores or creates the anonymous session, then goes to the dashboard.
+     * Restores or creates the anonymous session, asks the server who it belongs to, and
+     * goes wherever that answer says.
      *
      * Safe to call again: a run already under way is left alone and a session already
      * obtained is not obtained twice, so a recreated activity cannot end up with two
@@ -64,9 +82,49 @@ class ChessAppViewModel(
                 val result = dependencies.startup.run()
                 startup = result
 
-                // Where a named user goes instead of the dashboard is M14.7.
-                if (result is StartupState.Ready) restartAt(Destination.Dashboard)
+                if (result is StartupState.Ready) arriveAs(result.user)
             }
+    }
+
+    /**
+     * Claims [requested] as this account's username and goes on to the dashboard.
+     *
+     * Whether the name is allowed and whether it is still free are the server's answers
+     * (`D007`), so a refusal is shown in the server's own words and the player can try
+     * another. An empty box is not sent at all. A claim already in flight is left alone,
+     * so a second tap cannot claim twice.
+     */
+    fun claimUsername(requested: String) {
+        if (usernameClaimJob?.isActive == true) return
+        if (!UsernameOnboarding.isSendable(requested)) return
+
+        usernameClaimJob =
+            viewModelScope.launch {
+                usernameClaim = UsernameClaim.Claiming
+
+                try {
+                    val claimed = dependencies.chessApi.claimUsername(UsernameOnboarding.cleaned(requested))
+                    usernameClaim = UsernameClaim.Idle
+                    arriveAs(CurrentUserDto(userId = currentUser?.userId.orEmpty(), username = claimed))
+                } catch (refused: ChessApiException) {
+                    usernameClaim = UsernameClaim.Rejected(UsernameOnboarding.messageFor(refused))
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (unreachable: Exception) {
+                    usernameClaim = UsernameClaim.Rejected(UsernameOnboarding.unreachableMessage())
+                }
+            }
+    }
+
+    /**
+     * Settles on the screen [user] belongs on.
+     *
+     * A player with a name goes to the dashboard; one without goes to onboarding, which is
+     * the only thing a new account can do. Neither has anything behind it.
+     */
+    private fun arriveAs(user: CurrentUserDto) {
+        currentUser = user
+        restartAt(if (user.username == null) Destination.UsernameOnboarding else Destination.Dashboard)
     }
 
     /** Shows [destination] in front of the current screen. */
