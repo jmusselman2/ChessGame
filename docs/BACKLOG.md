@@ -2909,9 +2909,30 @@ closing-series completion, exactly-once refresh behavior, and color reversal.
 
 ## M14.17 — Reachable history and read-only game review
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M14.5, M14.10, M14.4
+
+**Completed:** 2026-08-28 — what has been played is reachable and readable. The
+shell's History button loads `GET /history` and the screen shows what came back:
+a series per opponent, a closed one still headed "Alex (closed)" because that is
+the thing a player would otherwise wonder about (`D012`, `D013`). `loaded` tells
+"nothing finished yet" from "not fetched yet", so a player who has finished no
+games sees an answer rather than a spinner, and a load that fails says so and
+offers to try again. It is fetched each time the screen is opened, because a game
+finished on another device belongs here as soon as it is over. Tapping a line
+opens that game in the same screen an active game uses — and it is read-only by
+construction rather than by a mode: a finished game carries no `canUndo` and no
+available claims, so no control appears; every command is gated on the canonical
+state, so none can be sent; and a game that was already over when it was opened
+asks the series nothing, so looking at history never offers a next game
+(`M14.16`). Verified locally with `.\gradlew.bat :android-app:testDebugUnitTest`
+(7 new `ChessAppTest` cases: opening history loads it, an empty history is an
+answer rather than a wait, a failed load can be retried, a finished game from
+history opens and shows its result, that game offers nothing that could change
+it, a closed series stays readable, and history is fetched again each time it is
+opened) and `.\gradlew.bat build` (BUILD SUCCESSFUL, 330 Android unit tests, 0
+skipped).
 
 ### Objective
 

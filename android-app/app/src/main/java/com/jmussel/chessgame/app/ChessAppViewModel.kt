@@ -27,6 +27,8 @@ import com.jmussel.chessgame.ui.game.AfterGame
 import com.jmussel.chessgame.ui.game.BoardTap
 import com.jmussel.chessgame.ui.game.OnlineGame
 import com.jmussel.chessgame.ui.game.OnlineGameState
+import com.jmussel.chessgame.ui.history.HistoryMessages
+import com.jmussel.chessgame.ui.history.HistoryUiState
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import com.jmussel.chessgame.ui.onboarding.UsernameOnboarding
 import kotlinx.coroutines.CancellationException
@@ -76,6 +78,10 @@ class ChessAppViewModel(
     var friends: FriendsUiState by mutableStateOf(FriendsUiState())
         private set
 
+    /** The history screen: what has been played, and what is happening to the list of it. */
+    var history: HistoryUiState by mutableStateOf(HistoryUiState())
+        private set
+
     /** The game screen: the canonical state as far as it has been read, or `null` before any game has been opened. */
     var game: OnlineGameState? by mutableStateOf(null)
         private set
@@ -107,6 +113,10 @@ class ChessAppViewModel(
 
     /** The game load in flight, if any. Internal for the same reason. */
     internal var gameJob: Job? = null
+        private set
+
+    /** The history load in flight, if any. Internal for the same reason. */
+    internal var historyJob: Job? = null
         private set
 
     /** The move in flight, if any. Internal for the same reason. */
@@ -607,6 +617,38 @@ class ChessAppViewModel(
         } catch (unreachable: Exception) {
             dashboard = dashboard.copy(loading = false, message = DashboardMessages.unreachableMessage())
         }
+    }
+
+    /**
+     * Opens the history screen and loads it.
+     *
+     * Fetched each time it is opened: a game finished on another device belongs here as
+     * soon as it is over.
+     */
+    fun openHistory() {
+        open(Destination.History)
+        loadHistory()
+    }
+
+    /** Fetches the finished games, keeping whatever is on screen until the new list arrives. */
+    fun loadHistory() {
+        if (historyJob?.isActive == true) return
+
+        historyJob =
+            viewModelScope.launch {
+                history = history.copy(loading = true)
+
+                history =
+                    try {
+                        history.copy(series = dependencies.chessApi.history(), loading = false, loaded = true, message = null)
+                    } catch (refused: ChessApiException) {
+                        history.copy(loading = false, message = HistoryMessages.messageFor(refused))
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (unreachable: Exception) {
+                        history.copy(loading = false, message = HistoryMessages.unreachableMessage())
+                    }
+            }
     }
 
     /**

@@ -9,6 +9,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
@@ -31,13 +32,27 @@ import com.jmussel.chessgame.ui.theme.ChessGameTheme
 fun HistoryScreen(
     series: List<SeriesHistoryDto>,
     modifier: Modifier = Modifier,
+    state: HistoryUiState = HistoryUiState(loaded = true),
     onOpenGame: (HistoryGameRow) -> Unit = {},
+    onRetry: () -> Unit = {},
 ) {
     Column(
         modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(text = HISTORY, style = MaterialTheme.typography.titleSmall)
+
+        state.message?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium) }
+
+        if (!state.loaded) {
+            // Nothing has arrived yet: say which of the two that is rather than "no games".
+            if (state.loading) {
+                Text(text = LOADING, style = MaterialTheme.typography.bodyMedium)
+            } else {
+                TextButton(onClick = onRetry) { Text(text = RETRY) }
+            }
+            return@Column
+        }
 
         val sections = HistoryList.sections(series)
 
@@ -73,6 +88,8 @@ private fun SeriesSection(
 
 private const val HISTORY = "HISTORY"
 private const val NOTHING_YET = "Games you finish will appear here."
+private const val LOADING = "Loading…"
+private const val RETRY = "Try again"
 
 @Preview(showBackground = true)
 @Composable

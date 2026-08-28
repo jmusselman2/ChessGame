@@ -27,6 +27,7 @@ import com.jmussel.chessgame.ui.friends.FriendsUiState
 import com.jmussel.chessgame.ui.game.OnlineGameScreen
 import com.jmussel.chessgame.ui.game.OnlineGameState
 import com.jmussel.chessgame.ui.history.HistoryScreen
+import com.jmussel.chessgame.ui.history.HistoryUiState
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import com.jmussel.chessgame.ui.onboarding.UsernameScreen
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
@@ -46,9 +47,12 @@ fun ChessApp(
     usernameClaim: UsernameClaim = UsernameClaim.Idle,
     friends: FriendsUiState = FriendsUiState(),
     dashboard: DashboardUiState = DashboardUiState(),
+    history: HistoryUiState = HistoryUiState(),
     game: OnlineGameState? = null,
     onOpen: (Destination) -> Unit = {},
     onOpenFriends: () -> Unit = {},
+    onOpenHistory: () -> Unit = {},
+    onRetryHistory: () -> Unit = {},
     onOpenGame: (String) -> Unit = {},
     onBack: () -> Unit = {},
     onRetryStartup: () -> Unit = {},
@@ -68,7 +72,13 @@ fun ChessApp(
     dashboardActions: DashboardActions = DashboardActions(),
 ) {
     Column(modifier = modifier.fillMaxSize()) {
-        ShellChrome(navigation = navigation, onOpen = onOpen, onOpenFriends = onOpenFriends, onBack = onBack)
+        ShellChrome(
+            navigation = navigation,
+            onOpen = onOpen,
+            onOpenFriends = onOpenFriends,
+            onOpenHistory = onOpenHistory,
+            onBack = onBack,
+        )
 
         when (val destination = navigation.current) {
             Destination.Startup -> StartupScreen(state = startup, onRetry = onRetryStartup)
@@ -83,11 +93,12 @@ fun ChessApp(
                     onRetry = dashboardActions.onRetry,
                 )
             Destination.Friends -> FriendsScreen(state = friends, actions = friendsActions)
-            // Live history is M14.17.
             Destination.History ->
                 HistoryScreen(
-                    series = emptyList(),
+                    series = history.series,
+                    state = history,
                     onOpenGame = { row -> onOpenGame(row.gameId) },
+                    onRetry = onRetryHistory,
                 )
             Destination.LocalGame -> LocalGameScreen()
             is Destination.OnlineGame ->
@@ -120,6 +131,7 @@ private fun ShellChrome(
     navigation: AppNavigation,
     onOpen: (Destination) -> Unit,
     onOpenFriends: () -> Unit,
+    onOpenHistory: () -> Unit,
     onBack: () -> Unit,
 ) {
     if (navigation.current == Destination.Startup || navigation.current == Destination.UsernameOnboarding) return
@@ -134,7 +146,7 @@ private fun ShellChrome(
         }
 
         TextButton(onClick = onOpenFriends) { Text(text = FRIENDS) }
-        TextButton(onClick = { onOpen(Destination.History) }) { Text(text = HISTORY) }
+        TextButton(onClick = onOpenHistory) { Text(text = HISTORY) }
         TextButton(onClick = { onOpen(Destination.LocalGame) }) { Text(text = LOCAL_GAME) }
     }
 }

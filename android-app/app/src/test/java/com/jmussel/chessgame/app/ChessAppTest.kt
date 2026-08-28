@@ -17,6 +17,7 @@ import com.jmussel.chessgame.ui.dashboard.DashboardSections
 import com.jmussel.chessgame.ui.game.AfterGame
 import com.jmussel.chessgame.ui.game.OnlineGame
 import com.jmussel.chessgame.ui.game.OnlineGameState
+import com.jmussel.chessgame.ui.history.HistoryList
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -149,6 +150,8 @@ class ChessAppTest {
         nextGameId: String? = null,
         nextSide: String = "WHITE",
         finished: Boolean = false,
+        finishedGames: List<String> = emptyList(),
+        seriesClosed: Boolean = false,
         finishOnSecondRead: Boolean = false,
         refusals: Int = 0,
         refusalPath: String? = null,
@@ -186,6 +189,8 @@ class ChessAppTest {
                                     nextGameId = nextGameId,
                                     nextSide = nextSide,
                                     finished = finished || (finishOnSecondRead && gameReads > 1),
+                                    finishedGames = finishedGames,
+                                    seriesClosed = seriesClosed,
                                 ),
                             )
                         },
@@ -212,6 +217,8 @@ class ChessAppTest {
         val nextGameId: String?,
         val nextSide: String,
         val finished: Boolean,
+        val finishedGames: List<String>,
+        val seriesClosed: Boolean,
     )
 
     /** What the server would say to one request. */
@@ -225,6 +232,7 @@ class ChessAppTest {
             path == "/me" -> identity(replies.username)
             path == "/username" -> sentText(request)
             path == "/dashboard" -> dashboard(replies)
+            path == "/history" -> historyOf(replies)
             path == "/friends" && request.method == HttpMethod.Get ->
                 replies.friends.joinToString(",", "[", "]", transform = ::user)
             path == "/friends" -> sentText(request)
@@ -262,7 +270,27 @@ class ChessAppTest {
         return (replies.games.map(::entry) + nextGame).joinToString(",", "[", "]")
     }
 
+    /** The finished games, as `/history` lists them: one series against Alex. */
+    private fun historyOf(replies: Replies): String {
+        if (replies.finishedGames.isEmpty()) return "[]"
+
+        val games =
+            replies.finishedGames.mapIndexed { index, gameId ->
+                """
+                {"gameId":"$gameId","sequenceNumber":${index + 1},"yourSide":"WHITE",
+                 "result":"WHITE_WINS","terminationReason":"CHECKMATE","moveNumber":31}
+                """.trimIndent()
+            }
+        val status = if (replies.seriesClosed) "CLOSED" else "ACTIVE"
+
+        return """
+            [{"seriesId":"series-1","opponent":${user("Alex")},"status":"$status",
+              "games":${games.joinToString(",", "[", "]")}}]
+            """.trimIndent()
+    }
+
     /** One dashboard line: a game with [opponent] that is waiting on the player. */
+
     private fun entry(opponent: String): String =
         """
         {"seriesId":"series-$opponent","opponent":${user(opponent)},"gameId":"game-$opponent",
@@ -1972,6 +2000,137 @@ class ChessAppTest {
 
             assertEquals(before, viewModel.game)
             assertEquals(listOf("/games/game-7"), paths)
+        }
+
+    @Test
+    fun openingHistoryShowsTheScreenAndLoadsWhatHasBeenPlayed() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan", finishedGames = listOf("game-3")))
+
+            viewModel.openHistory()
+            viewModel.historyJob?.join()
+
+            assertEquals(Destination.History, viewModel.navigation.current)
+            assertEquals(
+                listOf("game-3"),
+                viewModel.history.series
+                    .single()
+                    .games
+                    .map { it.gameId },
+            )
+            assertTrue(viewModel.history.loaded)
+            assertFalse(viewModel.history.loading)
+            assertEquals(listOf("/history"), paths)
+        }
+
+    @Test
+    fun aPlayerWhoHasFinishedNothingHasLoadedEmptyHistory() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan"))
+
+            viewModel.openHistory()
+            viewModel.historyJob?.join()
+
+            assertTrue(viewModel.history.series.isEmpty())
+            assertTrue("an empty history is an answer", viewModel.history.loaded)
+            assertNull(viewModel.history.message)
+        }
+
+    @Test
+    fun aHistoryThatCannotBeLoadedSaysSoAndCanBeTriedAgain() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(username = "Jordan", finishedGames = listOf("game-3"), refusals = 1, refusalPath = "/history"),
+                )
+
+            viewModel.openHistory()
+            viewModel.historyJob?.join()
+
+            assertFalse("nothing arrived, so nothing is claimed to have", viewModel.history.loaded)
+            assertTrue(
+                viewModel.history.message
+                    .orEmpty()
+                    .isNotBlank(),
+            )
+
+            viewModel.loadHistory()
+            viewModel.historyJob?.join()
+
+            assertTrue(viewModel.history.loaded)
+            assertEquals(
+                listOf("game-3"),
+                viewModel.history.series
+                    .single()
+                    .games
+                    .map { it.gameId },
+            )
+        }
+
+    @Test
+    fun aFinishedGameFromHistoryOpensAndShowsItsResult() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan", finished = true))
+            viewModel.openHistory()
+            viewModel.historyJob?.join()
+
+            viewModel.openOnlineGame("game-3")
+            viewModel.gameJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals(Destination.OnlineGame("game-3"), viewModel.navigation.current)
+            assertTrue(ready.game.isOver)
+            assertEquals("WHITE_WINS", ready.game.result)
+        }
+
+    @Test
+    fun aGameOpenedFromHistoryOffersNothingToChangeIt() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan", finished = true))
+            viewModel.openOnlineGame("game-3")
+            viewModel.gameJob?.join()
+            val before = viewModel.game as OnlineGameState.Ready
+
+            viewModel.tapSquare(Square.parse("e2"))
+            viewModel.undoMove()
+            viewModel.claimDraw("THREEFOLD_REPETITION")
+            viewModel.askToResign()
+            viewModel.resign()
+            viewModel.moveJob?.join()
+
+            assertEquals(before, viewModel.game)
+            assertFalse("a game being looked at has nothing to take back", before.game.canUndo)
+            assertTrue(before.game.availableDrawClaims.isEmpty())
+            assertEquals(listOf("/games/game-3"), paths)
+        }
+
+    @Test
+    fun aClosedSeriesStaysReadableInHistory() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(httpClient = httpClient(username = "Jordan", finishedGames = listOf("game-3"), seriesClosed = true))
+
+            viewModel.openHistory()
+            viewModel.historyJob?.join()
+
+            val section = HistoryList.sections(viewModel.history.series).single()
+            assertEquals("Alex (closed)", section.heading)
+            assertEquals(1, section.games.size)
+        }
+
+    @Test
+    fun historyIsFetchedAgainEachTimeItIsOpened() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan", finishedGames = listOf("game-3")))
+
+            viewModel.openHistory()
+            viewModel.historyJob?.join()
+            viewModel.back()
+            viewModel.openHistory()
+            viewModel.historyJob?.join()
+
+            assertEquals(2, paths.count { it == "/history" })
         }
 
     private fun viewModel(
