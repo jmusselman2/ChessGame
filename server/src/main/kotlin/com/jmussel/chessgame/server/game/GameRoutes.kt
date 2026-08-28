@@ -13,6 +13,7 @@ import com.jmussel.chessgame.server.auth.AuthenticatedUser
 import com.jmussel.chessgame.server.auth.authenticatedUser
 import com.jmussel.chessgame.server.commandLogLine
 import com.jmussel.chessgame.server.db.StoredGame
+import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.realtime.RealtimeHub
 import com.jmussel.chessgame.server.realtime.RealtimeMessage
 import io.ktor.http.HttpStatusCode
@@ -69,12 +70,13 @@ data class ClaimDrawRequest(
 fun Route.gameRoutes(
     commands: GameCommandService,
     realtime: RealtimeHub,
+    users: UserRepository,
 ) {
     get("/games/{gameId}") {
         val caller = call.authenticatedUser()
         val gameId = call.gameId() ?: return@get
 
-        call.respondTo(commands.load(caller.userId, gameId), caller)
+        call.respondTo(commands.load(caller.userId, gameId), caller, users)
     }
 
     post("/games/{gameId}/moves") {
@@ -92,6 +94,7 @@ fun Route.gameRoutes(
         call.respondTo(
             commands.makeMove(caller.userId, gameId, request.expectedVersion, move).also { realtime.announce(it) },
             caller,
+            users,
         )
     }
 
@@ -104,6 +107,7 @@ fun Route.gameRoutes(
         call.respondTo(
             commands.undoMove(caller.userId, gameId, request.expectedVersion).also { realtime.announce(it) },
             caller,
+            users,
         )
     }
 
@@ -116,6 +120,7 @@ fun Route.gameRoutes(
         call.respondTo(
             commands.resign(caller.userId, gameId, request.expectedVersion).also { realtime.announce(it) },
             caller,
+            users,
         )
     }
 
@@ -134,6 +139,7 @@ fun Route.gameRoutes(
         call.respondTo(
             commands.claimDraw(caller.userId, gameId, request.expectedVersion, claim).also { realtime.announce(it) },
             caller,
+            users,
         )
     }
 }
@@ -148,12 +154,13 @@ fun Route.gameRoutes(
 private suspend fun ApplicationCall.respondTo(
     result: CommandResult,
     caller: AuthenticatedUser,
+    users: UserRepository,
 ) {
     log(result, caller)
 
     when (result) {
         is CommandResult.Applied ->
-            respond(GameView.of(result.game, caller.userId))
+            respond(viewOf(result.game, caller, users))
 
         CommandResult.NoSuchGame ->
             respondText("No such game", status = HttpStatusCode.NotFound)
@@ -168,6 +175,7 @@ private suspend fun ApplicationCall.respondTo(
                 "This game has finished",
                 result.game,
                 caller,
+                users,
             )
 
         is CommandResult.NotYourTurn ->
@@ -177,6 +185,7 @@ private suspend fun ApplicationCall.respondTo(
                 "It is not your move",
                 result.game,
                 caller,
+                users,
             )
 
         is CommandResult.StaleVersion ->
@@ -186,6 +195,7 @@ private suspend fun ApplicationCall.respondTo(
                 "This game is at version ${result.game.version}",
                 result.game,
                 caller,
+                users,
             )
 
         is CommandResult.IllegalMove ->
@@ -195,6 +205,7 @@ private suspend fun ApplicationCall.respondTo(
                 "${result.move} is not legal here",
                 result.game,
                 caller,
+                users,
             )
 
         is CommandResult.NoSuchClaim ->
@@ -204,6 +215,7 @@ private suspend fun ApplicationCall.respondTo(
                 "No ${result.claim} draw can be claimed here",
                 result.game,
                 caller,
+                users,
             )
 
         is CommandResult.NothingToUndo ->
@@ -213,6 +225,7 @@ private suspend fun ApplicationCall.respondTo(
                 "You have no move to take back",
                 result.game,
                 caller,
+                users,
             )
     }
 }
@@ -288,14 +301,33 @@ private suspend fun ApplicationCall.reject(
     message: String,
     game: StoredGame,
     caller: AuthenticatedUser,
+    users: UserRepository,
 ) = respond(
     status,
     CommandRejection(
         reason = reason,
         message = message,
-        game = GameView.of(game, caller.userId),
+        game = viewOf(game, caller, users),
     ),
 )
+
+/**
+ * The game as [caller] sees it, opponent and all.
+ *
+ * The opponent is read here rather than carried through the command service: a game is
+ * answered a handful of times per move, and the alternative is threading a user lookup
+ * through every command path for one name.
+ */
+private fun viewOf(
+    game: StoredGame,
+    caller: AuthenticatedUser,
+    users: UserRepository,
+): GameView {
+    val opponent =
+        requireNotNull(users.find(game.opponentOf(caller.userId))) { "A game always has two players" }
+
+    return GameView.of(game, caller.userId, opponent)
+}
 
 /**
  * Announces an accepted command to both players' open connections.

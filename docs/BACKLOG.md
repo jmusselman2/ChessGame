@@ -2071,10 +2071,10 @@ Resignation follows the same active-vs-closing series lifecycle.
 API-client reads, and isolated Compose presentation components; `M14.5` put an
 application shell and navigation around them, `M14.6` made the app sign itself
 in on startup, `M14.7` gave it a typed identity and username onboarding, `M14.8`
-made friends reachable, and `M14.9` made the dashboard the live landing screen.
-No online game can be played from Android yet: opening one reaches a
-placeholder. `M14.10`–`M14.18` are the remaining client integration work
-required before beta deployment.
+made friends reachable, `M14.9` made the dashboard the live landing screen, and
+`M14.10` made an online game readable. No move can be played from Android yet.
+`M14.11`–`M14.18` are the remaining client integration work required before beta
+deployment.
 
 ## M14.1 — Your Turn data and presentation component
 
@@ -2516,9 +2516,44 @@ dashboard load/retry, and Play/Open navigation.
 
 ## M14.10 — Load and render a canonical online game
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M14.9, M10.1
+
+**Completed:** 2026-08-28 — an online game can be looked at. `GET /games/{gameId}`
+now carries the two things a screen could otherwise only get from the line it was
+opened from: the opponent, as the `UserSummary` the rest of the API uses, and the
+move just played, as `MoveView` — `from`, `to`, and the promotion — rather than a
+display string to be picked apart. So only a game id travels through navigation,
+and a screen rebuilt after the process was recreated draws the same game as one
+opened from the dashboard. The opponent is read once per answer in the routes
+rather than threaded through every command path for one name. On Android,
+`OnlineGame` turns that answer into what is drawn: the position is read back into
+a `game-core` `Board` so the same renderer draws an online game and a local one;
+the board faces the side the viewer plays; the move just played is highlighted on
+its two squares, which `ChessBoard` now understands; and the status line is the
+server's own — whose move it is, the check, or how it ended and by what, written
+from the viewer's side. Nothing is recomputed from the position, because none of
+it is the app's to decide (`D004`). The version is on screen because a command has
+to carry it (`M14.11`). Loading, "not yours", "gone", a refusal, and an
+unreachable server are all visible states; the first two offer no retry, because
+trying again cannot change either. A finished game and a game in progress are
+drawn the same way and neither can be changed from here — read-only is what the
+screen is, not a mode it is put into. Verified locally with
+`.\gradlew.bat :server:test` against the local test database (8 new
+`GameViewTest` cases: each player is told who their opponent is and which side
+they play, the opponent carries the id the rest of the API uses, a game with no
+moves has no last move, the last move is reported in squares to both players and
+is the latest one rather than the first, a stranger is refused, and a missing game
+is not found), `.\gradlew.bat :android-app:testDebugUnitTest` (17 new
+`OnlineGameTest` cases for the board round trip, orientation for both colours, the
+last-move squares, the heading, the status for a turn, a check and three
+endings, the version line, the numbered move list, and which refusals are worth
+retrying, and 7 new `ChessAppTest` cases for opening, loading, both non-retryable
+refusals, the retry, opening from a dashboard line, and going back), and
+`.\gradlew.bat build` (BUILD SUCCESSFUL, 380 server tests, 255 Android unit
+tests, 323 game-core tests, 0 skipped). Playing a move from this screen is
+`M14.11`.
 
 ### Objective
 

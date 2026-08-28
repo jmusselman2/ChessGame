@@ -10,6 +10,7 @@ import com.jmussel.chessgame.auth.SupabaseConfig
 import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
 import com.jmussel.chessgame.ui.dashboard.DashboardSections
+import com.jmussel.chessgame.ui.game.OnlineGameState
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -156,6 +157,7 @@ class ChessAppTest {
             path.startsWith("/friends/") -> replies.removalOutcome
             path.startsWith("/users/") -> user(path.removePrefix("/users/"))
             path == "/series" -> series(sentText(request), replies.currentGameId)
+            path.startsWith("/games/") -> gameView(path.removePrefix("/games/"))
             else -> "[]"
         }
 
@@ -164,6 +166,15 @@ class ChessAppTest {
         """
         {"seriesId":"series-$opponent","opponent":${user(opponent)},"gameId":"game-$opponent",
          "version":1,"yourSide":"WHITE","sideToMove":"WHITE","moveNumber":3,"yourTurn":true}
+        """.trimIndent()
+
+    /** One game, as the stubbed server has it: a fresh board against Alex. */
+    private fun gameView(gameId: String): String =
+        """
+        {"gameId":"$gameId","seriesId":"series-1","opponent":${user("Alex")},"version":1,
+         "yourSide":"WHITE","sideToMove":"WHITE","yourTurn":true,"inCheck":false,
+         "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
+         "moves":[],"moveNumber":1,"halfmoveClock":0}
         """.trimIndent()
 
     private fun sentText(request: HttpRequestData): String = (request.body as TextContent).text
@@ -868,6 +879,133 @@ class ChessAppTest {
 
             assertEquals(Destination.Dashboard, viewModel.navigation.current)
             assertEquals("Not friends with Alex", viewModel.dashboard.message)
+        }
+
+    @Test
+    fun openingAGameLoadsItFromTheServerWithNothingButItsId() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan"))
+
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            assertEquals(Destination.OnlineGame("game-7"), viewModel.navigation.current)
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals("game-7", ready.game.gameId)
+            assertEquals("Alex", ready.game.opponent.username)
+            assertEquals(listOf("/games/game-7"), paths)
+        }
+
+    @Test
+    fun aGameIsLoadingUntilTheServerHasAnswered() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+
+            viewModel.openOnlineGame("game-7")
+
+            assertEquals(OnlineGameState.Loading("game-7"), viewModel.game)
+
+            viewModel.gameJob?.join()
+
+            assertTrue(viewModel.game is OnlineGameState.Ready)
+        }
+
+    @Test
+    fun aGameThatIsNotYoursSaysSoAndOffersNoRetry() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            refusals = 1,
+                            refusalPath = "/games/game-7",
+                            refusalStatus = HttpStatusCode.Forbidden,
+                            refusalBody = "You are not playing this game",
+                        ),
+                )
+
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            val failed = viewModel.game as OnlineGameState.Failed
+            assertFalse(failed.canRetry)
+            assertTrue(failed.message.isNotBlank())
+        }
+
+    @Test
+    fun aGameThatDoesNotExistSaysSoAndOffersNoRetry() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            refusals = 1,
+                            refusalPath = "/games/game-7",
+                            refusalStatus = HttpStatusCode.NotFound,
+                            refusalBody = "No such game",
+                        ),
+                )
+
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            assertFalse((viewModel.game as OnlineGameState.Failed).canRetry)
+        }
+
+    @Test
+    fun aGameThatFailedToLoadCanBeTriedAgain() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            refusals = 1,
+                            refusalPath = "/games/game-7",
+                            refusalStatus = HttpStatusCode.ServiceUnavailable,
+                            refusalBody = "later",
+                        ),
+                )
+
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            assertTrue((viewModel.game as OnlineGameState.Failed).canRetry)
+
+            viewModel.reloadGame()
+            viewModel.gameJob?.join()
+
+            assertEquals("game-7", (viewModel.game as OnlineGameState.Ready).game.gameId)
+        }
+
+    @Test
+    fun aGameOpenedFromTheDashboardIsLoadedTheSameWay() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan", games = listOf("Alex")))
+            viewModel.start()
+            viewModel.startupJob?.join()
+            viewModel.dashboardJob?.join()
+
+            viewModel.openGame(DashboardSections.yourTurn(viewModel.dashboard.entries).single())
+            viewModel.gameJob?.join()
+
+            assertEquals(Destination.OnlineGame("game-Alex"), viewModel.navigation.current)
+            assertEquals("game-Alex", (viewModel.game as OnlineGameState.Ready).game.gameId)
+        }
+
+    @Test
+    fun goingBackFromAGameReturnsToTheDashboard() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan", games = listOf("Alex")))
+            viewModel.start()
+            viewModel.startupJob?.join()
+            viewModel.dashboardJob?.join()
+
+            viewModel.openGame(DashboardSections.yourTurn(viewModel.dashboard.entries).single())
+            viewModel.gameJob?.join()
+
+            assertTrue(viewModel.back())
+            assertEquals(Destination.Dashboard, viewModel.navigation.current)
         }
 
     private fun viewModel(

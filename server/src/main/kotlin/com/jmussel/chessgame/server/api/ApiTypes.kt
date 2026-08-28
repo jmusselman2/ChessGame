@@ -154,11 +154,35 @@ data class SeriesHistoryEntry(
     }
 }
 
-/** A game as one of its two players sees it: the canonical state, from their side. */
+/** One move, in the pieces a client needs to draw it: where it came from and where it went. */
+@Serializable
+data class MoveView(
+    val from: String,
+    val to: String,
+    val promotion: String? = null,
+) {
+    companion object {
+        fun of(move: com.jmussel.chessgame.core.chess.Move): MoveView =
+            MoveView(
+                from = move.from.toString(),
+                to = move.to.toString(),
+                promotion = move.promotion?.name,
+            )
+    }
+}
+
+/**
+ * A game as one of its two players sees it: the canonical state, from their side.
+ *
+ * Everything a client needs to draw the game is here, including who the opponent is and
+ * which move was last played, so a screen opened from a notification or rebuilt after the
+ * process was recreated shows the same thing as one opened from the dashboard.
+ */
 @Serializable
 data class GameView(
     val gameId: String,
     val seriesId: String,
+    val opponent: UserSummary,
     val version: Long,
     val yourSide: String,
     val sideToMove: String,
@@ -167,6 +191,8 @@ data class GameView(
     /** Eight rows, rank 8 first, FEN-style letters with `.` for an empty square. */
     val board: List<String>,
     val moves: List<String>,
+    /** The move just played, or `null` before the first one. */
+    val lastMove: MoveView? = null,
     val moveNumber: Int,
     val halfmoveClock: Int,
     val result: String? = null,
@@ -183,10 +209,12 @@ data class GameView(
         fun of(
             stored: com.jmussel.chessgame.server.db.StoredGame,
             viewer: kotlin.uuid.Uuid,
+            opponent: StoredUser,
         ): GameView {
             require(viewer == stored.whiteUserId || viewer == stored.blackUserId) {
                 "That player is not in this game"
             }
+            require(opponent.id == stored.opponentOf(viewer)) { "That opponent is not in this game" }
 
             val yourSide =
                 if (viewer == stored.whiteUserId) {
@@ -199,6 +227,7 @@ data class GameView(
             return GameView(
                 gameId = stored.id.toString(),
                 seriesId = stored.seriesId.toString(),
+                opponent = requireNotNull(opponent.toSummaryOrNull()) { "An opponent always has a username" },
                 version = stored.version,
                 yourSide = yourSide.name,
                 sideToMove = state.sideToMove.name,
@@ -209,6 +238,10 @@ data class GameView(
                             .isSideToMoveInCheck(state),
                 board = state.board.toString().lines(),
                 moves = stored.game.moves.map { it.toString() },
+                lastMove =
+                    stored.game.moves
+                        .lastOrNull()
+                        ?.let(MoveView::of),
                 moveNumber = state.fullmoveNumber,
                 halfmoveClock = state.halfmoveClock,
                 result =

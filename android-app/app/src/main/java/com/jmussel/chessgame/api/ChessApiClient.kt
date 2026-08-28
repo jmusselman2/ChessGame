@@ -100,6 +100,47 @@ data class SeriesSummaryDto(
     val currentGameId: String? = null,
 )
 
+/** One move, in the pieces needed to draw it. */
+@Serializable
+data class MoveDto(
+    val from: String,
+    val to: String,
+    val promotion: String? = null,
+)
+
+/**
+ * A game as the server tells one of its two players about it.
+ *
+ * This is the whole of what the game screen draws: the server owns the position, whose move
+ * it is, and how it ended (`D004`). Everything needed is here, so a screen rebuilt after the
+ * process was recreated shows the same thing as one opened from the dashboard.
+ */
+@Serializable
+data class GameViewDto(
+    val gameId: String,
+    val seriesId: String,
+    val opponent: UserSummaryDto,
+    val version: Long,
+    val yourSide: String,
+    val sideToMove: String,
+    val yourTurn: Boolean = false,
+    val inCheck: Boolean = false,
+    /** Eight rows, rank 8 first, FEN-style letters with `.` for an empty square. */
+    val board: List<String> = emptyList(),
+    val moves: List<String> = emptyList(),
+    val lastMove: MoveDto? = null,
+    val moveNumber: Int = 1,
+    val halfmoveClock: Int = 0,
+    val result: String? = null,
+    val terminationReason: String? = null,
+    val availableDrawClaims: List<String> = emptyList(),
+    val canUndo: Boolean = false,
+) {
+    /** Whether the game is over, which is the server's word and never worked out here. */
+    val isOver: Boolean
+        get() = result != null
+}
+
 /** One finished game, as history lists it. */
 @Serializable
 data class FinishedGameDto(
@@ -180,6 +221,14 @@ class ChessApiClient(
 
     /** The games the caller has finished, in the series they belong to, newest series first. */
     suspend fun history(): List<SeriesHistoryDto> = get("/history")
+
+    /**
+     * One game, as the server has it now.
+     *
+     * The whole screen is drawn from this: the app never keeps a canonical position of its
+     * own (`D004`). A game the caller is not playing is a refusal, not an empty board.
+     */
+    suspend fun game(gameId: String): GameViewDto = get("/games/$gameId")
 
     /**
      * The active series with [username], opening the existing one or starting it.

@@ -120,7 +120,7 @@ fun Application.module(
             seriesRoutes(users, friendships, series)
             dashboardRoutes(dashboard)
             historyRoutes(history)
-            gameRoutes(commands, realtime)
+            gameRoutes(commands, realtime, users)
             realtimeRoutes(realtime)
         }
     }

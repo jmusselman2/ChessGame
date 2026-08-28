@@ -22,6 +22,8 @@ import com.jmussel.chessgame.ui.dashboard.DashboardUiState
 import com.jmussel.chessgame.ui.friends.FriendsActions
 import com.jmussel.chessgame.ui.friends.FriendsScreen
 import com.jmussel.chessgame.ui.friends.FriendsUiState
+import com.jmussel.chessgame.ui.game.OnlineGameScreen
+import com.jmussel.chessgame.ui.game.OnlineGameState
 import com.jmussel.chessgame.ui.history.HistoryScreen
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import com.jmussel.chessgame.ui.onboarding.UsernameScreen
@@ -42,10 +44,13 @@ fun ChessApp(
     usernameClaim: UsernameClaim = UsernameClaim.Idle,
     friends: FriendsUiState = FriendsUiState(),
     dashboard: DashboardUiState = DashboardUiState(),
+    game: OnlineGameState? = null,
     onOpen: (Destination) -> Unit = {},
     onOpenFriends: () -> Unit = {},
+    onOpenGame: (String) -> Unit = {},
     onBack: () -> Unit = {},
     onRetryStartup: () -> Unit = {},
+    onRetryGame: () -> Unit = {},
     onClaimUsername: (String) -> Unit = {},
     friendsActions: FriendsActions = FriendsActions(),
     dashboardActions: DashboardActions = DashboardActions(),
@@ -70,11 +75,14 @@ fun ChessApp(
             Destination.History ->
                 HistoryScreen(
                     series = emptyList(),
-                    onOpenGame = { row -> onOpen(Destination.OnlineGame(row.gameId)) },
+                    onOpenGame = { row -> onOpenGame(row.gameId) },
                 )
             Destination.LocalGame -> LocalGameScreen()
-            // Loading a server-owned game is M14.10.
-            is Destination.OnlineGame -> PendingScreen(title = GAME, detail = destination.gameId)
+            is Destination.OnlineGame ->
+                OnlineGameScreen(
+                    state = game ?: OnlineGameState.Loading(destination.gameId),
+                    onRetry = onRetryGame,
+                )
         }
     }
 }
@@ -142,21 +150,6 @@ private fun StartupScreen(
     }
 }
 
-/** A screen whose contents are a later task: what it will be, and nothing pretending to be it. */
-@Composable
-private fun PendingScreen(
-    title: String,
-    detail: String?,
-) {
-    Column(
-        modifier = Modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-        Text(text = title, style = MaterialTheme.typography.titleSmall)
-        detail?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium) }
-    }
-}
-
 private const val BACK = "Back"
 private const val FRIENDS = "Friends"
 private const val HISTORY = "History"
@@ -164,8 +157,6 @@ private const val LOCAL_GAME = "Local game"
 private const val STARTING = "Starting…"
 private const val SIGN_IN_PROBLEM = "Cannot sign in"
 private const val RETRY = "Try again"
-private const val GAME = "Game"
-private const val NOT_WIRED_UP = "Not wired up yet."
 
 @Preview(showBackground = true)
 @Composable

@@ -18,6 +18,8 @@ import com.jmussel.chessgame.ui.dashboard.DashboardUiState
 import com.jmussel.chessgame.ui.dashboard.FriendRow
 import com.jmussel.chessgame.ui.friends.Friends
 import com.jmussel.chessgame.ui.friends.FriendsUiState
+import com.jmussel.chessgame.ui.game.OnlineGame
+import com.jmussel.chessgame.ui.game.OnlineGameState
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import com.jmussel.chessgame.ui.onboarding.UsernameOnboarding
 import kotlinx.coroutines.CancellationException
@@ -65,6 +67,10 @@ class ChessAppViewModel(
     var friends: FriendsUiState by mutableStateOf(FriendsUiState())
         private set
 
+    /** The game screen: the canonical state as far as it has been read, or `null` before any game has been opened. */
+    var game: OnlineGameState? by mutableStateOf(null)
+        private set
+
     /** What the screens are built from. */
     val app: ChessAppDependencies
         get() = dependencies
@@ -88,6 +94,10 @@ class ChessAppViewModel(
 
     /** Whatever the dashboard has asked for, if anything. Internal for the same reason. */
     internal var dashboardJob: Job? = null
+        private set
+
+    /** The game load in flight, if any. Internal for the same reason. */
+    internal var gameJob: Job? = null
         private set
 
     /**
@@ -161,6 +171,62 @@ class ChessAppViewModel(
     }
 
     /**
+     * Opens a server-owned game and loads it.
+     *
+     * Only the id travels: everything the screen draws — the opponent, the side, the
+     * position, the move just played — comes back from the server, so a game opened from a
+     * dashboard line and one reached after the process was recreated show the same thing.
+     */
+    fun openOnlineGame(gameId: String) {
+        open(Destination.OnlineGame(gameId))
+        loadGame(gameId)
+    }
+
+    /** Fetches [gameId] as the server has it now. */
+    fun loadGame(gameId: String) {
+        if (gameJob?.isActive == true) return
+
+        // Set before the request starts, so the screen is showing this game from the moment
+        // it opens rather than the one before it.
+        game = OnlineGameState.Loading(gameId)
+
+        gameJob =
+            viewModelScope.launch {
+                game =
+                    try {
+                        OnlineGameState.Ready(dependencies.chessApi.game(gameId))
+                    } catch (refused: ChessApiException) {
+                        OnlineGameState.Failed(
+                            gameId = gameId,
+                            message = OnlineGame.messageFor(refused),
+                            canRetry = OnlineGame.canRetry(refused),
+                        )
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (unreachable: Exception) {
+                        OnlineGameState.Failed(
+                            gameId = gameId,
+                            message = OnlineGame.unreachableMessage(),
+                            canRetry = true,
+                        )
+                    }
+            }
+    }
+
+    /** Loads the game showing now again, which is what "try again" does. */
+    fun reloadGame() {
+        val gameId =
+            when (val showing = game) {
+                is OnlineGameState.Loading -> showing.gameId
+                is OnlineGameState.Ready -> showing.game.gameId
+                is OnlineGameState.Failed -> showing.gameId
+                null -> return
+            }
+
+        loadGame(gameId)
+    }
+
+    /**
      * Loads the dashboard and the friends list together.
      *
      * They are one screen — the games waiting on the player, the games waiting on the
@@ -180,7 +246,7 @@ class ChessAppViewModel(
      * sent (`D004`).
      */
     fun openGame(row: DashboardRow) {
-        open(Destination.OnlineGame(row.gameId))
+        openOnlineGame(row.gameId)
     }
 
     /**
@@ -206,7 +272,7 @@ class ChessAppViewModel(
                         dashboard = dashboard.copy(message = "No game with ${row.username} to open yet.")
                     } else {
                         dashboard = dashboard.copy(message = null)
-                        open(Destination.OnlineGame(gameId))
+                        openOnlineGame(gameId)
                     }
                 } catch (refused: ChessApiException) {
                     dashboard = dashboard.copy(message = DashboardMessages.messageFor(refused))
@@ -336,7 +402,7 @@ class ChessAppViewModel(
                 friends = friends.copy(message = "No game with ${friend.username} to open yet.")
             } else {
                 friends = friends.copy(message = null)
-                open(Destination.OnlineGame(gameId))
+                openOnlineGame(gameId)
             }
         }
     }

@@ -31,6 +31,7 @@ private val DarkSquare = Color(0xFFB58863)
 private val WhitePiece = Color(0xFFFFFFFF)
 private val BlackPiece = Color(0xFF2B2B2B)
 private val SelectedSquare = Color(0x8046A5FF)
+private val LastMoveSquare = Color(0x66FFD54F)
 private val DestinationMarker = Color(0x9925691E)
 
 /** How much of a square's width a piece glyph fills. */
@@ -46,8 +47,9 @@ private const val CAPTURE_RING_WIDTH = 0.07f
  *
  * Everything shown comes from `game-core` through [BoardRendering]; this composable holds
  * no chess rules of its own. The board is drawn with [orientation]'s own side at the
- * bottom. [selectedSquare] is highlighted, and tapping any square calls
- * [onSquareClick] — deciding what a tap means belongs to [BoardInteraction].
+ * bottom. [selectedSquare] is highlighted, [lastMove] marks the move just played, and
+ * tapping any square calls [onSquareClick] — deciding what a tap means belongs to
+ * [BoardInteraction].
  */
 @Composable
 fun ChessBoard(
@@ -55,6 +57,7 @@ fun ChessBoard(
     modifier: Modifier = Modifier,
     selectedSquare: Square? = null,
     legalDestinations: Set<Square> = emptySet(),
+    lastMove: Set<Square> = emptySet(),
     orientation: Side = Side.WHITE,
     onSquareClick: (Square) -> Unit = {},
 ) {
@@ -76,6 +79,7 @@ fun ChessBoard(
                         square = square,
                         isSelected = square.square == selectedSquare,
                         isLegalDestination = square.square in legalDestinations,
+                        isLastMove = square.square in lastMove,
                         onClick = { onSquareClick(square.square) },
                         modifier =
                             Modifier
@@ -93,6 +97,7 @@ private fun SquareCell(
     square: BoardSquare,
     isSelected: Boolean,
     isLegalDestination: Boolean,
+    isLastMove: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -101,6 +106,7 @@ private fun SquareCell(
             modifier
                 .background(if (square.isLight) LightSquare else DarkSquare)
                 .clickable(onClick = onClick)
+                .then(if (isLastMove) Modifier.background(LastMoveSquare) else Modifier)
                 .then(if (isSelected) Modifier.background(SelectedSquare) else Modifier),
         contentAlignment = Alignment.Center,
     ) {

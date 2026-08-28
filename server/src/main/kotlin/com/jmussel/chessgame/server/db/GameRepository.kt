@@ -42,6 +42,9 @@ data class StoredGame(
 ) {
     val isComplete: Boolean
         get() = game.isOver
+
+    /** The other player in this game. */
+    fun opponentOf(userId: Uuid): Uuid = if (userId == whiteUserId) blackUserId else whiteUserId
 }
 
 /** One recorded audit event (`ARCHITECTURE.md` §9). */
