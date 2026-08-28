@@ -260,12 +260,13 @@ tests, and Android build/lint. Deprecated action majors were updated
 (`actions/checkout@v7`, `actions/setup-java@v5`, `gradle/actions/setup-gradle@v6`)
 to clear runner deprecation warnings.
 
-The required CI run passed for the exact `claude-autopilot` HEAD: GitHub Actions
-run [32922786058](https://github.com/jmusselman2/ChessGame/actions/runs/32922786058)
+The required M1.7 CI verification passed for commit
+`595c124c7e1e757b15a7cbeb7c9dbefd9c42fa8e`: GitHub Actions run
+[32922786058](https://github.com/jmusselman2/ChessGame/actions/runs/32922786058)
 (workflow `CI`, job `Build and Test`), `event` `push`, `headBranch`
-`claude-autopilot`, `headSha` `595c124c7e1e757b15a7cbeb7c9dbefd9c42fa8e`,
-`conclusion` `success` — verified with `gh run view` and a `check-runs` query
-against that SHA.
+`claude-autopilot`, `conclusion` `success` — verified with `gh run view` and a
+`check-runs` query against that SHA. This is a historical milestone record, not
+a statement about the branch's current HEAD.
 
 ### Objective
 
@@ -1015,7 +1016,7 @@ Verified locally with `.\gradlew.bat :android-app:testDebugUnitTest` (13 new
 
 **Status:** BLOCKED
 
-**Depends on:** M5.4, M5.6
+**Depends on:** M5.4, M5.6, M14.15
 
 **Blocked on:** the one remaining verification step — a representative *manual*
 local game on an emulator or device. This machine has the Android SDK but no
@@ -1034,6 +1035,12 @@ kingside castling in a real opening. `.\gradlew.bat :game-core:test` passes
 (315 tests), `.\gradlew.bat :android-app:testDebugUnitTest` passes (79 tests),
 and `.\gradlew.bat build` succeeds (BUILD SUCCESSFUL, including the Android
 APKs and Android lint).
+
+**Scope correction (2026-08-28):** this task covers the existing local
+pass-and-play path; it is not evidence that Android multiplayer is integrated.
+The MVP's missing Android resignation control is now `M14.15`. Clear this
+blocker during `M14.18`, after that control exists, by verifying a representative
+local game and persisted session on an emulator or device.
 
 ### Acceptance Criteria
 
@@ -1247,14 +1254,17 @@ PostgreSQL and anonymous Auth configured for development environment.
 
 ---
 
-## M7.2 — Android anonymous auth
+## M7.2 — Android anonymous auth primitives
 
 **Status:** DONE
 
 **Depends on:** M7.1
 
-**Completed:** 2026-08-26 — the app creates an anonymous Supabase session on
-first run and restores it afterwards, without ever showing a sign-in (`D006`).
+**Completed:** 2026-08-26 — the Android auth layer can create an anonymous
+Supabase session and restore it afterwards, without requiring a sign-in UI
+(`D006`). This task completed the client, persistence, and orchestration
+primitives; invoking them from the real application startup path is tracked
+separately by `M14.6`.
 `SupabaseAuthClient` makes the two calls the app needs directly rather than
 adding the Supabase SDK (`D031`), `SessionStore` keeps the session in
 app-private DataStore across launches, and `AnonymousAuthenticator` restores it,
@@ -1269,12 +1279,13 @@ and sign-out) and 3 `SupabaseLiveAuthTest` cases run against the real
 `ChessGame Dev` project with the key exported, which created, refreshed, and
 restored a real anonymous session; those live tests no-op without the key, which
 was confirmed by a run with it cleared. `.\gradlew.bat build` succeeds
-(92 Android unit tests). The DataStore-backed store is the one piece that needs
-a device to exercise; the same launch that clears `M5.7` covers it.
+(92 Android unit tests). The DataStore-backed store and real startup invocation
+still need device coverage; `M14.6` wires the invocation and `M14.18` performs
+the end-to-end device verification.
 
 ### Acceptance Criteria
 
-Anonymous session can be created and restored.
+The Android auth layer can create and restore an anonymous session.
 
 ---
 
@@ -2054,9 +2065,15 @@ Resignation follows the same active-vs-closing series lifecycle.
 
 ---
 
-# M14 — Dashboard and History
+# M14 — Android Multiplayer Client, Dashboard, and History
 
-## M14.1 — Your Turn
+**Milestone status:** INCOMPLETE. `M14.1`–`M14.4` completed server queries,
+API-client reads, and isolated Compose presentation components. They did not
+wire those pieces into `MainActivity`, provide an authenticated application
+shell, or make an online game playable from Android. `M14.5`–`M14.18` are the
+remaining client integration work required before beta deployment.
+
+## M14.1 — Your Turn data and presentation component
 
 **Status:** DONE
 
@@ -2072,9 +2089,9 @@ about fields it does not know so a newer server does not break an older app.
 player, in the order the server sent them, each reading "Alex / White • Move 18"
 as `docs/PRODUCT.md` lays out — and it is pure, so the grouping and the wording
 are tested without a screen. `DashboardScreen` renders that section and nothing
-else; Their Turn is `M14.2` and Friends is `M14.3`, and making the dashboard the
-app's landing screen belongs with them rather than half-done here. A series
-between games contributes no line, because there is nothing yet to open.
+else; Their Turn is `M14.2` and Friends is `M14.3`. Wiring the screen into the
+authenticated application and making it the landing destination is `M14.9`. A
+series between games contributes no line, because there is nothing yet to open.
 `ChessServerConfig` defaults to `http://10.0.2.2:8080`, the host machine as an
 emulator sees it, which is what a developer running the server locally needs;
 the beta endpoint is `M15.4`. Verified locally with
@@ -2087,7 +2104,7 @@ without doubled slashes — and 8 new `DashboardSectionsTest` cases) and
 
 ---
 
-## M14.2 — Their Turn
+## M14.2 — Their Turn presentation component
 
 **Status:** DONE
 
@@ -2111,7 +2128,7 @@ game-less series is in neither, and the server's order is kept) and
 
 ---
 
-## M14.3 — Friends
+## M14.3 — Friends dashboard component
 
 **Status:** DONE
 
@@ -2137,7 +2154,7 @@ Verified locally with `.\gradlew.bat :android-app:testDebugUnitTest` (8 new
 
 ---
 
-## M14.4 — Completed game and closed-series history
+## M14.4 — History API and presentation components
 
 **Status:** DONE
 
@@ -2171,55 +2188,613 @@ server tests and 140 Android unit tests, 0 skipped).
 
 ### Acceptance Criteria
 
-Historical games/series are read-only and remain accessible.
+The authenticated server API keeps historical games/series read-only and the
+Android presentation components can render their summaries. Reachable app
+navigation and full-game review are `M14.17`.
+
+---
+
+## M14.5 — Android application shell and navigation
+
+**Status:** TODO
+
+**Depends on:** M5.6, M7.2, M14.1, M14.4
+
+### Objective
+
+Replace the direct `MainActivity` local-game entry point with a small
+application shell that owns top-level state and navigation between startup,
+username onboarding, dashboard, friends, online game, local game, and history.
+
+### Acceptance Criteria
+
+- `MainActivity` renders the application shell rather than unconditionally
+  creating a local game.
+- The Android manifest permits network access, and development builds can reach
+  the emulator-loopback HTTP server without weakening beta/release transport
+  security.
+- The shell owns and closes its shared HTTP client at an appropriate lifecycle
+  boundary, defines the owner for the later realtime client, and never
+  constructs clients per recomposition.
+- Destinations and back behavior are explicit and testable.
+- Screen dependencies are constructed outside leaf composables.
+- Process recreation can rebuild the shell from persisted/session state
+  without retaining an `Activity` reference.
+- The implementation remains proportionate; no speculative navigation or
+  Clean Architecture framework is introduced.
+
+### Verification
+
+Navigation/state tests cover the startup destination and every supported
+top-level transition; Android unit tests and aggregate build pass.
+
+---
+
+## M14.6 — Restore or create the anonymous session on startup
+
+**Status:** TODO
+
+**Depends on:** M14.5, M7.2
+
+### Objective
+
+Run `AnonymousAuthenticator` from the real application startup flow, expose
+loading/recoverable-error state, and provide the current access token to the
+Chess server client.
+
+### Acceptance Criteria
+
+- A valid stored session is restored before authenticated Chess API calls.
+- An absent or irrecoverably expired session creates a new anonymous account.
+- The shell exposes a current-session/token provider: HTTP calls use it now and
+  the WebSocket client added in `M14.12` can use the same provider, so a token
+  that nears expiry after startup is refreshed without rebuilding the shell.
+- Startup does not create duplicate sessions when recomposed or retried.
+- Missing build-time Supabase configuration produces an actionable UI error,
+  not a crash or a permanently blank screen.
+- No token, refresh token, or publishable key is logged.
+
+### Verification
+
+Application-shell tests cover restored, refreshed, newly created, loading, and
+failed startup states; a configured development build authenticates against the
+Supabase development project.
+
+---
+
+## M14.7 — Username onboarding
+
+**Status:** TODO
+
+**Depends on:** M14.6, M7.4
+
+### Objective
+
+Complete the authenticated identity-read contract and add the Android API/UI
+flow needed to discover whether the current identity already has a username and
+to claim one when it does not. The current server `GET /me` returns only a plain
+user id, so it cannot yet distinguish a returning named user from a new one.
+
+### Acceptance Criteria
+
+- Returning named users bypass onboarding.
+- `GET /me` (or an equivalently narrow authenticated endpoint) returns a typed
+  current-user response with the immutable user id and nullable username.
+- A new anonymous user can claim a valid username.
+- Validation, conflict, authentication, and retryable network errors are
+  presented clearly.
+- Successful onboarding transitions to the dashboard without restarting the
+  app.
+
+### Verification
+
+Server identity-route tests cover named and unnamed users, stable user ids, and
+authentication failures. If `GET /me` changes from plain text to a typed
+response, update its existing response consumers, including
+`AuthenticatedRouteTest` and `RealtimeFixture.userId()`.
+
+API-client and screen-state tests cover existing usernames, successful claim,
+invalid input, duplicate username, and retry.
+
+---
+
+## M14.8 — Friend discovery and management on Android
+
+**Status:** TODO
+
+**Depends on:** M14.7, M8
+
+### Objective
+
+Expose the existing username lookup, add-friend, list-friends, and
+remove-friend server behavior through the Android API client and reachable UI.
+
+### Acceptance Criteria
+
+- Exact username lookup can lead to adding a friend.
+- Self, missing-user, and duplicate-friend responses are handled.
+- The friends list refreshes after add or remove.
+- Removal requires a clear confirmation and explains that the current game is
+  preserved while the next rematch is disabled.
+- A friend row can open an existing game or request the active series through
+  the server.
+
+### Verification
+
+API-client and UI-state tests cover lookup, add, duplicate/self rejection,
+remove, refresh, and Play/Open behavior.
+
+---
+
+## M14.9 — Authenticated dashboard landing flow
+
+**Status:** TODO
+
+**Depends on:** M14.6, M14.7, M14.8, M14.1, M14.2, M14.3
+
+### Objective
+
+Make the useful dashboard the landing destination after identity restoration
+and username onboarding, backed by live authenticated server data.
+
+### Acceptance Criteria
+
+- Startup reaches the dashboard without first opening a local game.
+- Your Turn, Their Turn, and Friends load together with loading, empty, error,
+  and retry states.
+- Selecting a game navigates using its server `gameId`.
+- Play/Open uses `POST /series`, refreshes the dashboard, and navigates to the
+  server-selected current game.
+- History, friend management, and optional local play are reachable from the
+  application shell.
+
+### Verification
+
+Application-flow tests cover restored-user landing, new-user onboarding,
+dashboard load/retry, and Play/Open navigation.
+
+---
+
+## M14.10 — Load and render a canonical online game
+
+**Status:** TODO
+
+**Depends on:** M14.9, M10.1
+
+### Objective
+
+Add the Android game DTO/API mapping and online screen state needed to load
+`GET /games/{gameId}` and render server-authoritative state using the existing
+board presentation. Extend the narrow server read contract where the current
+`GameView` lacks display metadata required by the product, rather than relying
+on transient navigation arguments.
+
+### Acceptance Criteria
+
+- The screen can recover opponent identity and structured last-move data after
+  process recreation, not only when it was opened from a populated dashboard.
+- It shows opponent, player side, board orientation, side to move, move history,
+  last move, check state, version, and terminal result from canonical server
+  data.
+- Loading, forbidden, missing-game, offline, and retry states are visible.
+- Finished historical games open read-only.
+- Online state is distinct from the local pass-and-play state: rendering may
+  use `game-core`, but opening a screen never invents or mutates canonical
+  state locally.
+
+### Verification
+
+DTO mapping and screen-state tests cover active games for both colors,
+completed games, history, and error/retry paths.
+
+---
+
+## M14.11 — Submit moves through the authoritative server
+
+**Status:** TODO
+
+**Depends on:** M14.10, M10.2
+
+### Objective
+
+Connect board interaction and promotion selection to the authenticated
+`MakeMove` endpoint using the currently loaded expected game version.
+
+### Acceptance Criteria
+
+- Legal destinations may be previewed locally, but the board changes only from
+  a canonical server response.
+- Move and promotion commands carry `expectedVersion`.
+- Input is disabled while a command is in flight.
+- Accepted, illegal, not-your-turn, game-over, and stale-version responses are
+  handled; a stale response replaces local screen state with the attached
+  canonical state.
+- Retrying a lost response cannot apply a move twice.
+
+### Verification
+
+API-client and online-game state tests cover normal moves, promotion, server
+refusals, stale recovery, duplicate submission protection, and rendering of the
+returned state.
+
+---
+
+## M14.12 — Receive opponent updates through WebSockets
+
+**Status:** TODO
+
+**Depends on:** M14.11, M12
+
+### Objective
+
+Add an authenticated Android WebSocket client and use realtime messages only
+as invalidation signals that trigger an HTTPS reload of canonical state.
+
+### Acceptance Criteria
+
+- The client connects to `/ws` with the current access token and closes with
+  the owning application lifecycle.
+- The `connected` greeting triggers a safe dashboard/open-game refresh.
+- A `game-updated` message for the visible game reloads it over HTTPS; messages
+  for other games refresh dashboard state without corrupting the open game.
+- Duplicate, delayed, or out-of-order notifications are harmless.
+- Reconnect never treats a pushed version as game state.
+
+### Verification
+
+Client tests cover authentication, connection greeting, matching and
+non-matching updates, duplicate messages, close/reconnect, and HTTPS reload.
+
+---
+
+## M14.13 — Authoritative undo integration
+
+**Status:** TODO
+
+**Depends on:** M14.11, M11
+
+### Objective
+
+Expose `UndoMove` through the Android API client and online game controls.
+
+### Acceptance Criteria
+
+- Undo is offered only when the canonical state says the current user is
+  eligible.
+- The command carries `expectedVersion` and accepted state replaces the screen
+  state.
+- Nothing-to-undo, not-your-move, game-over, and stale-version responses are
+  explained and recovered without local board rewrites.
+- The opponent receives the resulting update through the normal realtime path.
+
+### Verification
+
+API-client and screen-state tests cover eligible undo, all refusals, stale
+recovery, and realtime reload.
+
+---
+
+## M14.14 — Authoritative draw-claim integration
+
+**Status:** TODO
+
+**Depends on:** M14.11, M10.3
+
+### Objective
+
+Expose `ClaimDraw` through the Android API client and show claim actions only
+when the canonical state allows them.
+
+### Acceptance Criteria
+
+- Threefold-repetition and fifty-move claims are labeled distinctly.
+- Claims carry `expectedVersion`; the client does not decide that a draw was
+  accepted before the server does.
+- Invalid, stale, and game-over responses are handled with canonical recovery.
+- An accepted claim enters the shared completion/rematch flow.
+
+### Verification
+
+API-client and screen-state tests cover each claim type, unavailable claims,
+stale recovery, and accepted terminal state.
+
+---
+
+## M14.15 — Android resignation controls
+
+**Status:** TODO
+
+**Depends on:** M5.6, M14.11, M13.5
+
+### Objective
+
+Add the missing resign action to local pass-and-play and authenticated online
+games, with the confirmation required by `D018`.
+
+### Acceptance Criteria
+
+- Resign is available whether or not it is the player's turn.
+- Cancellation leaves the game unchanged.
+- Local resignation uses `ChessRules.resign`; online resignation sends
+  `expectedVersion` to the server and renders only the returned canonical
+  result.
+- Accepted online resignation enters the shared completion/rematch flow.
+- Duplicate, stale, unauthorized, and already-finished responses are handled.
+
+### Verification
+
+Local-control, API-client, and online-game tests cover confirmation, cancel,
+both player colors, server refusals, and accepted resignation.
+
+---
+
+## M14.16 — Game completion and automatic rematch flow on Android
+
+**Status:** TODO
+
+**Depends on:** M14.12, M14.14, M14.15, M13
+
+### Objective
+
+Make every terminal path understandable on Android and follow the server-created
+next game when the series remains active.
+
+### Acceptance Criteria
+
+- Checkmate, stalemate, automatic draws, claimed draws, and resignation show
+  the persisted result and disable further commands.
+- The client never creates or confirms a rematch.
+- After terminal state, the app refreshes the series/dashboard and opens or
+  clearly offers the server-created current game.
+- Rematch colors and board orientation update from canonical data.
+- A series marked to close returns the user to history/dashboard without
+  waiting for a game that will not exist.
+
+### Verification
+
+Application-flow tests cover every terminal class, active-series rematch,
+closing-series completion, exactly-once refresh behavior, and color reversal.
+
+---
+
+## M14.17 — Reachable history and read-only game review
+
+**Status:** TODO
+
+**Depends on:** M14.5, M14.10, M14.4
+
+### Objective
+
+Wire the completed history API and Compose components into navigation and allow
+a finished game to be opened in the shared read-only game renderer.
+
+### Acceptance Criteria
+
+- History is reachable from dashboard/application navigation.
+- Loading, empty, error, and retry states are implemented.
+- Selecting a historical game loads its canonical final position and move
+  history.
+- No move, undo, draw-claim, or resign action is available in review mode.
+
+### Verification
+
+Navigation and screen-state tests cover history loading, closed and active
+series history, opening a finished game, and absence of mutating controls.
+
+---
+
+## M14.18 — End-to-end Android multiplayer verification
+
+**Status:** TODO
+
+**Depends on:** M14.6, M14.7, M14.8, M14.9, M14.10, M14.11, M14.12, M14.13, M14.14, M14.15, M14.16, M14.17
+
+### Objective
+
+Verify the actual Android application—not only isolated clients and server test
+fixtures—through the complete MVP path with two authenticated users.
+
+### Acceptance Criteria
+
+- Two Android clients can restore/create identities, claim usernames, become
+  friends, start a series, alternate legal moves, undo when eligible, claim a
+  draw when eligible, resign, observe game completion, and enter the automatic
+  rematch.
+- Opponent changes arrive without manual refresh while connected.
+- Dashboard and history reflect the same canonical state after returning from
+  the game.
+- A representative local pass-and-play game and the DataStore-backed session
+  restore are manually verified on an emulator or device, clearing `M5.7`.
+
+### Verification
+
+Automate application/state seams where practical, run the aggregate build
+against PostgreSQL, and complete a documented two-client emulator/device
+play-through against the development server and Supabase auth project.
+
+This task needs infrastructure, not permission: an accessible emulator or
+device, plus the existing development credentials. Where those are available it
+is ordinary autonomous work. Where they are not, it is the **missing
+prerequisite** Stop Condition and the report should name what is missing. That
+is a different kind of stop from `M15`, which requires human authorization even
+when everything needed is to hand.
 
 ---
 
 # M15 — Beta Deployment Environment
 
-> **Held for a human decision (2026-08-26).** Every task in this milestone
-> triggers a Stop Condition in `docs/AUTONOMOUS-DEVELOPMENT.md`, so the
-> autonomous loop excludes them from selection and carries on with the next
-> selectable task rather than stopping: `M15.1` commits to a **new recurring
-> cost**, `M15.2` is a **beta deployment**, and `M15.3` needs a **Supabase
-> project and credentials** that are not available to the loop. `M15.4` follows
-> `M15.2`. These need an authorized human to choose the provider, pay for it,
-> and hold the credentials.
+> **Proposed target: a $0 beta.** `D032` proposes one Dockerized Ktor service on
+> Render's Free Web Service tier, with auth and PostgreSQL on a second Supabase
+> Free project, `ChessGame Beta`. The hard budget means no payment method is
+> attached to Render and no service is upgraded automatically: reaching a free
+> limit suspends the beta until a human decides what to do. Render sleep and
+> cold starts, shared usage quotas, Supabase inactivity pauses and storage/
+> egress limits, lack of automatic database backups, and the one-instance
+> topology must be accepted explicitly rather than discovered in use.
+>
+> External state (2026-08-28): a Render Free Web Service named `ChessGame`
+> already exists at `https://chessgame-hi7.onrender.com`, created by hand as an
+> early test of the hosting resource. **Do not create another one.** It is not
+> functional: its first deploy, of `0ef3228`, failed during the Docker build
+> because the repository has no `Dockerfile` yet. Nothing else about the beta
+> follows from the service existing — being deployment-ready (`M15.2`), a
+> successful deploy with a reachable `/health` (`M15.2`), the beta Supabase
+> environment (`M15.3`), and the Android beta endpoint (`M15.4`) are all still
+> outstanding. `docs/DEVELOPMENT.md` **Beta Deployment** holds the service
+> details and that breakdown.
+>
+> Sequencing: this milestone begins only after `M14.18` proves the Android
+> multiplayer client end to end.
+>
+> Authorization: `D032` is a proposal until a human accepts it in the
+> conversation. Accepting its hard-$0/no-payment-method boundary clears the
+> recurring-cost Stop Condition, but does not authorize deployment. `M15.2` is
+> a **beta deployment**; `M15.3` needs **accounts and credentials** the loop
+> cannot create or hold; and `M15.4` follows `M15.2`. An agent may prepare
+> deployable artifacts — a Dockerfile, configuration, documentation — but may
+> not create accounts, deploy, or handle live credentials. Do not mark any
+> `M15` task `IN PROGRESS` without explicit human authorization in the
+> conversation.
+>
+> The loop therefore excludes this milestone from selection. It does **not**
+> route around it: in the current dependency graph `M16.1`/`M16.2` require
+> `M15`, `M17.1` requires `M15` and `M16`, and `M18.1` requires `M17`, so once
+> `M14.18` is `DONE` nothing selectable remains. The loop reaches the **backlog
+> exhausted** Stop Condition and reports, which is the intended outcome — `M15`
+> is where autonomous development ends until a human authorizes it. Do not mark
+> any `M15` task `IN PROGRESS` without explicit human authorization in the
+> conversation.
 
-## M15.1 — Select Ktor hosting provider
+## M15.1 — Confirm Ktor hosting provider and current terms
 
 **Status:** TODO  
-**Depends on:** M14
+**Depends on:** M14.18
 
 ### Objective
 
-Choose an inexpensive provider appropriate for a small beta.
+After the local Android play-through is complete, confirm or replace `D032`'s
+proposed provider using the terms available at deployment time.
 
 ### Acceptance Criteria
 
-Decision recorded with cost/operational rationale.
+- A human explicitly accepts the provider decision and its operational limits;
+  `D032` is then changed from `Proposed` to `Accepted`.
+- The chosen provider is shown to support what the server actually needs:
+  public HTTPS, WebSocket connections held open, environment secrets,
+  outbound connectivity to the beta PostgreSQL, and a health check.
+- The hard `$0` boundary is enforceable. For the Render proposal, no payment
+  method is attached, the service uses the Free instance type, and quota
+  exhaustion suspends the beta rather than creating a charge.
+- The topology is a single Ktor instance, or shared realtime pub/sub is
+  implemented first. `RealtimeHub` is process-local, so a horizontally scaled
+  service would silently fail to deliver moves between players on different
+  processes (`ARCHITECTURE.md` §12, `D032`).
+- Current limits are rechecked from provider documentation, including Render
+  instance hours, outbound bandwidth, build minutes, external-database traffic,
+  sleeping/cold starts, and Supabase project, storage, egress, pausing, and
+  backup limits.
+
+**Proposed 2026-08-28 (`D032`):** one Render Free Web Service with no payment
+method, plus a second Supabase Free project. Keep this task `TODO` until
+`M14.18` is complete, a human accepts the proposal, and the current terms have
+been checked. The task therefore has real work remaining rather than becoming
+`DONE` automatically when its dependency clears.
 
 ---
 
 ## M15.2 — Deploy Ktor beta server
 
 **Status:** TODO  
-**Depends on:** M15.1
+**Depends on:** M15.1, M15.3
+
+The beta database and auth project come first, even though they are numbered
+second: without `DATABASE_URL` and `SUPABASE_URL` the server starts in
+health-only mode, so deploying before `M15.3` would put up a service that
+cannot serve the API.
+
+### Objective
+
+Run the server on Render Free as a Docker image, reachable over HTTPS.
+
+The Render service already exists (see the milestone note and
+`docs/DEVELOPMENT.md`): this task makes the repository deployable to it and
+gets a successful deploy, rather than provisioning hosting.
 
 ### Acceptance Criteria
 
-Android test build can reach deployed server securely.
+- A `Dockerfile` builds the server distribution and runs it on the port Render
+  provides, without baking any secret into the image. Its absence is why the
+  first manual deploy failed.
+- The branch Render deploys from holds that `Dockerfile`; the service currently
+  tracks `main`.
+- `DATABASE_URL` and `SUPABASE_URL` are supplied as Render environment
+  secrets and never committed.
+- The server preserves the PostgreSQL SSL settings supplied by the beta
+  configuration and connects securely through the Supabase session-pooler URL
+  selected in `M15.3`.
+- `/health` is configured as the service's health check.
+- The Android test build reaches the deployed server over HTTPS, and a
+  WebSocket connects over WSS.
+- The service runs as exactly one instance (`D032`); horizontal scaling stays
+  off while `RealtimeHub` is process-local.
+- Cold starts after idle sleep are exercised and their observed durations are
+  recorded. Measurements are evidence for `M15.4` and `M16.1`, not a guaranteed
+  upper bound or the sole source of a client timeout value.
+- Render usage is checked after the play-through, including outbound traffic
+  to Supabase; no payment method is attached and no automatic upgrade is
+  enabled.
+
+### Verification
+
+Documented deploy; a successful authenticated, database-backed request and
+WebSocket connection from an Android build; recorded cold-start observations;
+and confirmation that the service remains on one free instance with no payment
+method.
 
 ---
 
 ## M15.3 — Configure beta Supabase environment
 
 **Status:** TODO  
-**Depends on:** M7, M15.1
+**Depends on:** M7.1, M7.2, M7.3, M15.1
+
+### Objective
+
+Stand up `ChessGame Beta` as a second Supabase Free project so beta players'
+data never shares a database with disposable development data.
 
 ### Acceptance Criteria
 
-Beta environment separated from local disposable development data.
+- `ChessGame Beta` exists separately from `ChessGame Dev`, with anonymous auth
+  enabled (`D006`), and an active-project slot is available within the current
+  Free-plan limit.
+- The Flyway migrations are applied to the beta database, which is that
+  project's PostgreSQL rather than Render's free PostgreSQL (`D032`).
+- `DATABASE_URL` uses the Supabase Shared Pooler (Supavisor) in **session mode
+  on port 5432** because Render is IPv4-only and the Free direct database
+  endpoint is IPv6-only. Transaction mode on port 6543 is not used because it
+  does not support prepared statements.
+- The server preserves explicit PostgreSQL SSL connection properties instead
+  of dropping URL query parameters, and the beta connection is verified to use
+  SSL.
+- The server's `SUPABASE_URL` and the Android beta build's Supabase
+  configuration name the *same* project, so issued tokens verify against the
+  JWKS the server reads.
+- Beta credentials live in the deployment environment and in a git-ignored
+  local `.env`; only names and non-secret URLs are committed.
+- The project's pause-after-inactivity, database-size and egress limits are
+  noted for whoever runs the beta (`D032`). The absence of automatic backups
+  and point-in-time recovery is explicitly accepted, or a manual export runbook
+  is documented before beta data is treated as durable.
+
+### Verification
+
+Using the exact session-pooler and SSL configuration intended for Render, an
+anonymous sign-in against the beta project produces a token the server accepts,
+the server completes a database-backed request, and the beta database shows the
+migrated schema. This is checked without the deployment — `M15.2` depends on
+this task, so deployment cannot be a prerequisite for it. The same flow against
+the deployed service is `M15.2` and `M15.4`.
 
 ---
 
@@ -2228,9 +2803,30 @@ Beta environment separated from local disposable development data.
 **Status:** TODO  
 **Depends on:** M15.2
 
+### Objective
+
+Point a beta Android build at the deployed API without hard-coding secrets.
+
 ### Acceptance Criteria
 
-Beta build targets deployed beta API without hard-coded production secrets.
+- The beta build targets the Render HTTPS base URL through build configuration,
+  not a literal in source; development builds keep the emulator-loopback
+  default.
+- Beta and release traffic is HTTPS/WSS only; the development-only cleartext
+  allowance from `M14.5` does not apply to them.
+- No Supabase key or server secret is committed; the beta build reads its
+  configuration the same way the development build does.
+- Safe startup probes and canonical reloads use capped retry/backoff with a
+  conservative, configurable deadline. The cold-start observations from
+  `M15.2` inform that policy but are not treated as a guaranteed upper bound.
+- The UI distinguishes a service that is waking from a terminal network error,
+  eventually offers an actionable retry, and never blindly retries a mutating
+  command outside the existing version/idempotency safeguards.
+
+### Verification
+
+A beta build authenticates, loads the dashboard, and plays a move against the
+deployed server, including one request issued after the service has slept.
 
 ---
 
@@ -2239,14 +2835,22 @@ Beta build targets deployed beta API without hard-coded production secrets.
 ## M16.1 — Network interruption
 
 **Status:** TODO  
-**Depends on:** M12, M15
+**Depends on:** M12, M14.18, M15
+
+### Acceptance Criteria
+
+- HTTP and WebSocket interruption during an active game recovers by reconnecting
+  and reloading canonical state without duplicating or losing a move.
+- Recovery is exercised after a Render idle cold start as well as an ordinary
+  short disconnect; the Android waking, retry, and terminal-error states remain
+  distinguishable.
 
 ---
 
 ## M16.2 — App restart/reconnect
 
 **Status:** TODO  
-**Depends on:** M12, M15
+**Depends on:** M12, M14.18, M15
 
 ---
 
@@ -2354,7 +2958,7 @@ Log enough for debugging without credentials/secrets.
 ## M17.1 — Small beta distribution
 
 **Status:** TODO  
-**Depends on:** M15, M16
+**Depends on:** M14.18, M15, M16
 
 ### Observe
 

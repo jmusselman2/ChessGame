@@ -2,13 +2,12 @@
 
 This file records the exact commands and environment details used to build, run, and verify the project.
 
-Milestone 1 is complete: the commands in the **Verified Commands** section below
-have all been executed successfully against this repository locally (last
-confirmed 2026-08-25), and the CI workflow ran green on `claude-autopilot` HEAD
-(`595c124`, GitHub Actions run 32922786058). Sections covering later milestones
-(migrations, beta deployment) still contain placeholders and must be filled in
-when that work is done. The local PostgreSQL section is verified as of
-2026-08-26 (`M6.1`).
+The engine, authoritative server, database integration, and existing Android
+components build successfully. The aggregate command was last confirmed
+locally on 2026-08-28 at `claude-autopilot` commit `0ef3228`; the same commit
+passed GitHub Actions run 33022371135. Database migrations and local PostgreSQL
+are configured. Beta deployment is not configured, and the Android application
+shell/online game flow remains `M14.5`–`M14.18` in `docs/BACKLOG.md`.
 
 Do not treat an unverified example command as authoritative. When you add or
 change a command, run it, then record it here with `Status: VERIFIED` and the
@@ -43,7 +42,8 @@ Expected:
 - Docker (for the disposable local PostgreSQL — see **Local PostgreSQL**)
 - Gradle wrapper committed to repository
 
-Record exact required versions after bootstrap.
+Keep these versions synchronized with `gradle/libs.versions.toml`, Android build
+configuration, `compose.yaml`, and CI.
 
 ## Verified Commands
 
@@ -59,7 +59,7 @@ Linux/macOS/CI:
 
     ./gradlew build
 
-Status: VERIFIED (2026-08-25)
+Status: VERIFIED (2026-08-28; 134 tasks, BUILD SUCCESSFUL)
 
 `build` is the one command that verifies the whole repository. Across every
 module it runs:
@@ -172,7 +172,11 @@ Linux/macOS/CI:
 
 Status: VERIFIED (2026-08-25)
 
-The Android application has also been manually verified to launch successfully.
+The bootstrap-era Android application was manually verified to launch. The
+current local chess screen builds and is covered by host-side tests, but its
+representative emulator/device play-through is still the blocker on `M5.7`.
+The authenticated dashboard and online game flow are not yet wired into the
+application entry point; see `M14.5`–`M14.18`.
 
 ### Android Lint / Static Checks
 
@@ -181,6 +185,10 @@ Windows:
     .\gradlew.bat check
 
 Status: VERIFIED
+
+The current lint report completes with zero errors. At the 2026-08-28 audit it
+contained 20 non-blocking warnings and 2 hints, mainly dependency-update notices
+and generated-template cleanup.
 
 ktlint is the current Kotlin formatting/style enforcement tool.
 
@@ -197,6 +205,44 @@ Linux/macOS/CI:
     ./gradlew :server:test
 
 Status: VERIFIED
+
+Most server tests exercise PostgreSQL transactions and constraints. To run them
+for real locally, start the Compose database, set `TEST_DATABASE_URL`, and force
+the task:
+
+    $env:TEST_DATABASE_URL = "postgresql://chessgame:chessgame@localhost:55432/chessgame_test"
+    .\gradlew.bat :server:test --rerun-tasks
+
+Status: VERIFIED (2026-08-28; 366 tests, 0 failed, 0 skipped)
+
+When `TEST_DATABASE_URL` is absent, `DatabaseTestSupport` returns without
+running database assertions. Those methods are currently reported by Gradle as
+passed rather than skipped, so a green local build without the variable is not
+evidence that PostgreSQL integration ran. CI always supplies the variable.
+
+`--rerun-tasks` is required here, not belt-and-braces. `tasks.test` reads the
+variable with `System.getenv` at configuration time and passes it on with
+`environment(...)`, and neither is a declared task input: setting or changing
+the variable invalidates Gradle's *configuration cache* but leaves the test
+task's own inputs untouched. When the task has usable outputs from a previous
+run, it may therefore be reported `UP-TO-DATE` and the database tests do not
+execute at all — verified empirically (2026-08-28), where the configuration
+cache was invalidated and `:server:test` was still `UP-TO-DATE`. With no cached
+outputs, or after a source change, the task runs normally; the hazard is a
+*silently reused* result, not a guaranteed skip, which is exactly why a green
+run without the flag proves nothing about PostgreSQL.
+
+Keep the flag on any run whose purpose is to prove PostgreSQL integration works.
+Declaring the variable as a task input in `server/build.gradle.kts` (for example
+an `inputs.property` backed by `providers.environmentVariable(...)`) would fix
+reuse *across* configured and unconfigured states, so an ordinary run could no
+longer be satisfied by output produced without the database. It still would not
+guarantee that a given invocation reached the database now: an unchanged input
+set with the variable already present remains up to date whether or not
+PostgreSQL is currently running. For verification meant to prove the database is
+reachable and exercised at this moment, use `--rerun-tasks` regardless. The
+plain `:server:test` above remains the everyday command for runs that do not
+depend on the database.
 
 ### Server Build
 
@@ -235,9 +281,17 @@ The endpoint has been verified to return HTTP 200.
 The server starts in one of two modes:
 
 - with `DATABASE_URL` and `SUPABASE_URL` set, it migrates the database and serves
-  the authenticated API (`/me` and, later, the game commands);
+  the authenticated users, friends, series, game-command, realtime, dashboard,
+  and history APIs;
 - without them it logs a warning and serves `/health` alone, so the command still
   works on a machine with no database configured.
+
+`ChessServerConfig` points development Android clients at
+`http://10.0.2.2:8080`, but the current manifest does not yet grant network
+access or permit that development-only cleartext connection. Do not interpret
+the configured URL or host-side API-client tests as a successful device
+connection; `M14.5` owns the runtime networking setup while beta/release traffic
+remains HTTPS-only.
 
 ### Gradle Project Structure
 
@@ -313,7 +367,7 @@ These are also in `.env.example` as `DATABASE_URL` and `TEST_DATABASE_URL`.
 Integration tests read them from the environment (`.env` is git-ignored); the
 committed template holds only these local throwaway values.
 
-How migrations are applied: documented after `M6.3`.
+How migrations are applied is documented in the next section.
 
 Do not put real secrets in this document.
 
@@ -361,13 +415,18 @@ tests with the test database configured:
 Windows (PowerShell):
 
     $env:TEST_DATABASE_URL = "postgresql://chessgame:chessgame@localhost:55432/chessgame_test"
-    .\gradlew.bat :server:test
+    .\gradlew.bat :server:test --rerun-tasks
 
 Linux/macOS:
 
-    TEST_DATABASE_URL=postgresql://chessgame:chessgame@localhost:55432/chessgame_test ./gradlew :server:test
+    TEST_DATABASE_URL=postgresql://chessgame:chessgame@localhost:55432/chessgame_test ./gradlew :server:test --rerun-tasks
 
 Status: VERIFIED (2026-08-26)
+
+`--rerun-tasks` is part of the recipe: the variable is not a declared task
+input, so without the flag Gradle may reuse prior output and report
+`:server:test UP-TO-DATE`; when that happens, the database tests do not run. See
+**Server Tests** for the detail.
 
 When `TEST_DATABASE_URL` is not set, the database-backed tests report themselves
 as passing without touching a database, so `./gradlew build` works on a machine
@@ -470,11 +529,22 @@ Each live run leaves one throwaway anonymous user in the development project.
 
 ## Local Logs
 
-Document:
+Status: VERIFIED (2026-08-26, `M16.5`)
 
-- where Ktor logs appear,
-- log level used for development,
-- how to enable useful debugging without logging secrets.
+Ktor logs to standard output through `server/src/main/resources/logback.xml`,
+which is suitable locally and for a beta host that collects process output.
+The root level is `INFO`; Netty, Exposed, and Hikari are reduced to `WARN`.
+
+Request logging records only method, path, and response status. `/health` is
+filtered out. It deliberately does not record headers or bodies, so bearer
+tokens, refresh tokens, the Supabase key, and duplicate copies of game state do
+not enter logs.
+
+Accepted commands log their decision at `DEBUG` because the durable audit event
+already records them. Refused commands log at `INFO` with action, user id, game
+id, expected version, and outcome. Do not enable generic header/body logging to
+debug a request; add narrowly scoped structured context and a test proving that
+credentials and canonical state are absent.
 
 ## CI
 
@@ -497,8 +567,9 @@ Actions used (kept current to avoid GitHub runner deprecation warnings):
 - `gradle/actions/setup-gradle@v6`
 
 The job also starts a disposable `postgres:18-alpine` service container and sets
-`TEST_DATABASE_URL` to point at it, so the server's database-backed tests run for
-real in CI instead of skipping. Its credentials are throwaway CI values.
+`TEST_DATABASE_URL` to point at it, so the server's database-backed assertions
+run for real in CI instead of returning without exercising PostgreSQL. Its
+credentials are throwaway CI values.
 
 The workflow runs a single aggregate step:
 
@@ -517,11 +588,14 @@ Required policy:
 - After changing the workflow file or action versions, confirm the next run on
   `main` or `claude-autopilot` is green.
 
-Status: the workflow (single `./gradlew build` step, `actions/checkout@v7`,
-`actions/setup-java@v5`, `gradle/actions/setup-gradle@v6`) ran green on
-`claude-autopilot` commit `595c124` — GitHub Actions run
-[32922786058](https://github.com/jmusselman2/ChessGame/actions/runs/32922786058),
-job `Build and Test`, conclusion `success` (2026-08-25). `M1.7` is `DONE`.
+Status: the current workflow (single `./gradlew build` step plus PostgreSQL,
+`actions/checkout@v7`, `actions/setup-java@v5`, and
+`gradle/actions/setup-gradle@v6`) ran green on `claude-autopilot` commit
+`0ef3228d5e509faa2fb9be4df3efcd125d283042` — GitHub Actions run
+[33022371135](https://github.com/jmusselman2/ChessGame/actions/runs/33022371135),
+job `Build and Test`, conclusion `success` (2026-08-26). The CI configuration
+is current through `M16.5`; later work must continue using the same per-commit
+remote gate.
 
 ### Remote CI Gate (autonomous workflow)
 
@@ -573,7 +647,9 @@ Do not mark a test skipped or weaken an assertion merely to obtain a green build
 
 ## Beta Deployment
 
-After M15, document separately from local development:
+Do not begin M15 until `M14.18` has verified the Android multiplayer flow end
+to end and an authorized human has approved the provider/cost and beta
+credentials. During M15, document the beta separately from local development:
 
 ```text
 Ktor beta host:
@@ -582,5 +658,38 @@ How beta deployment is performed:
 How Android selects beta endpoint:
 How beta Supabase differs from local/test:
 ```
+
+### Hosting resource already created (2026-08-28)
+
+A Render Web Service exists. It was created by hand as an early test of the
+hosting resource, **not** as M15 deployment work, and it is not functional.
+**Do not create a second service** — M15.2 configures and deploys to this one.
+
+```text
+Render service name: ChessGame
+Type / runtime:      Web Service, Docker
+Plan:                Free ($0/month)
+Repository / branch: jmusselman2/ChessGame, main
+Public URL:          https://chessgame-hi7.onrender.com
+```
+
+Where the beta actually stands, so no step is assumed from the existence of the
+service:
+
+| State | Status |
+|---|---|
+| 1. Hosting resource exists | **Done**, manually, outside the backlog |
+| 2. Ktor is deployment-ready for Render | Not done — `M15.2` |
+| 3. Deployment succeeds and `/health` is reachable | Not done — `M15.2` |
+| 4. Beta Supabase/database/auth configured | Not done — `M15.3` |
+| 5. Android beta points at the deployed service | Not done — `M15.4` |
+
+The first deploy, of commit `0ef3228`, failed during the Docker build with exit
+status 1. That is expected: the repository has no `Dockerfile` yet, which is
+`M15.2`'s first acceptance criterion. Do not treat the failed build as a
+regression to chase.
+
+Free-plan behaviour to expect once it does run: the service spins down after
+inactivity and the next request pays a significant cold start (`D032`).
 
 Do not put production or beta secrets directly in Git.

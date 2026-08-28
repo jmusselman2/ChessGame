@@ -1022,3 +1022,115 @@ new kind of dependency.
 - The session is stored in app-private storage. That is the platform's
   protection, and it is enough here because the server trusts no client (`D004`)
   and the token only ever represents an anonymous account.
+
+---
+
+## D032 — Beta Runs on Free Tiers: Render Free Web Service + a Second Supabase Free Project
+
+**Date:** 2026-08-28
+
+**Status:** Proposed
+
+### Decision
+
+The beta environment targets `$0` out of pocket while it remains within the
+providers' current free quotas:
+
+- **Ktor server:** one Render Free Web Service, deployed as a Docker image
+  because Kotlin/JVM is not one of Render's native runtimes. No payment method
+  is attached to the Render workspace, and the service is never upgraded
+  automatically.
+- **Auth and PostgreSQL:** a second Supabase Free project, `ChessGame Beta`,
+  separate from `ChessGame Dev`. The Free plan allows two active projects, so
+  development data and beta data never share a database.
+
+If a free-tier limit gets in the way, the beta stops until a human decides
+whether to reduce usage, wait for a quota reset, or authorize paid hosting.
+
+### Rationale
+
+The beta exists to answer questions that do not need paid infrastructure: can
+Android authenticate against a real project, reach an internet-hosted Ktor
+server over HTTPS, hold a WebSocket, and let two people play from different
+places. A free tier answers all of them.
+
+Render's free tier gives public HTTPS, WebSockets, environment secrets, health
+checks, and Docker deploys, and does not scale past a single instance — which
+matches the process-local `RealtimeHub` (`ARCHITECTURE.md` §12) instead of
+fighting it.
+
+### Alternatives Considered
+
+- **Railway Free or Hobby** — still viable. Railway currently describes its
+  Free tier as `$0` with a small usage allowance and Hobby as `$5` minimum usage
+  with `$5` of monthly usage included. Render is proposed because its documented
+  no-payment-method failure mode makes the hard `$0` boundary explicit and its
+  idle-sleep model is acceptable for this beta.
+- **Render's free PostgreSQL** — rejected: free databases expire after 30 days,
+  which would destroy beta data mid-test. Supabase's free project has no such
+  expiry and is already the authentication provider.
+- **A single Supabase project for both development and beta** — rejected: it
+  would mix disposable development data with beta players' games, and `M15.3`
+  exists precisely to keep them apart.
+
+### Consequences
+
+Limitations to accept explicitly before changing this decision to `Accepted`:
+
+- **The server sleeps.** After roughly 15 minutes with no HTTP request or
+  WebSocket traffic, Render spins the instance down; the next connection wakes
+  it, and a cold start can take about a minute. That is not a guaranteed upper
+  bound. Android needs a conservative, configurable deadline with capped
+  retry/backoff, and a first call after idleness should read as "waking up"
+  before it becomes an actionable failure.
+- **The socket drops when it sleeps.** That is the reconnect path `M12.3` and
+  `M14.12` already specify — canonical state reloads over HTTPS — so sleeping
+  costs latency, not correctness.
+- **A free Supabase project pauses after about a week of inactivity.** A beta
+  that goes quiet for a week needs the project resumed before the next session,
+  or the server will fail to reach its database.
+- **Free quotas are hard operating limits.** Render currently grants 750 Free
+  instance hours per workspace per month and its Hobby workspace includes 5 GB
+  of outbound bandwidth. Without a payment method, exhausting bandwidth spins
+  down the workspace instead of creating an overage charge. Build minutes and
+  instance hours are also shared at workspace level and can stop builds or
+  services until reset.
+- **The external database is public-internet traffic.** Render counts traffic
+  to Supabase as service-initiated outbound traffic and may suspend a Free
+  service for unusually high volume. Usage must be monitored during the beta.
+- **Render and Supabase need a compatible database route.** Render is IPv4-only
+  while a Supabase Free direct database endpoint is IPv6-only. The server must
+  use the Shared Pooler (Supavisor) in session mode on port 5432. Transaction
+  mode on port 6543 is unsuitable because it does not support prepared
+  statements. PostgreSQL SSL settings must survive `DATABASE_URL` parsing and
+  be verified before deployment.
+- **Supabase Free has data limits but no managed recovery guarantee for this
+  beta.** It currently includes a 500 MB database and 5 GB egress, allows two
+  active projects, and has no automatic backups or point-in-time recovery. Beta
+  data is not treated as durable unless a manual export process is documented.
+- **One instance only.** Do not scale the Render service horizontally while
+  `RealtimeHub` is process-local; a second instance would silently fail to
+  deliver moves between players connected to different processes.
+- Free-tier terms change. Re-check both providers' current limits at deploy
+  time rather than trusting this record.
+
+### Current State
+
+The Render side of this proposal has a resource already: a Free Web Service
+named `ChessGame` at `https://chessgame-hi7.onrender.com`, created by hand on
+2026-08-28 to test the hosting path. It is not functional — its first Docker
+build failed, there being no `Dockerfile` — and creating it does not accept
+this decision or complete any `M15` task. The status above stays `Proposed`
+until `M15.1`.
+
+### Provider References
+
+Checked 2026-08-28:
+
+- [Render Free services and limits](https://render.com/docs/free)
+- [Render outbound bandwidth](https://render.com/docs/outbound-bandwidth)
+- [Supabase database connection modes](https://supabase.com/docs/guides/database/connecting-to-postgres)
+- [Supabase IPv4/IPv6 compatibility](https://supabase.com/docs/guides/troubleshooting/supabase--your-network-ipv4-and-ipv6-compatibility-cHe3BP)
+- [Supabase pricing and Free-plan limits](https://supabase.com/pricing)
+- [Supabase Free-project pausing](https://supabase.com/docs/guides/platform/free-project-pausing)
+- [Railway pricing](https://railway.com/pricing)

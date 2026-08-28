@@ -4,18 +4,19 @@ A native Android multiplayer chess game built as the first implementation of a r
 
 The long-term goal is not to remain a chess application. Chess is being used to learn and validate the architecture needed for a future custom deck-building strategy game.
 
-## Planned Stack
+## Current Stack
 
 - **Android:** Kotlin + Jetpack Compose
 - **Shared game logic:** pure Kotlin/JVM `game-core`
 - **Backend:** Kotlin + Ktor
-- **Database:** PostgreSQL hosted by Supabase
+- **Database:** PostgreSQL 18 locally/CI; beta hosting not selected
+- **Persistence:** JetBrains Exposed + HikariCP; Flyway + SQL migrations
 - **Authentication:** Supabase anonymous authentication for MVP
 - **Realtime:** HTTPS commands + WebSocket updates
 - **Build:** Gradle Kotlin DSL
 - **Repository:** Monorepo
 
-## Planned Repository Structure
+## Repository Structure
 
 ```text
 .
@@ -53,24 +54,42 @@ The root `CLAUDE.md` defines document precedence and autonomous-development rule
 
 ## Current Status
 
-**Milestone 1 (Repository and Build Bootstrap) is complete.** `M1.1`–`M1.7` are
-`DONE`; the CI workflow ran green on `claude-autopilot` HEAD (`595c124`, GitHub
-Actions run
-[32922786058](https://github.com/jmusselman2/ChessGame/actions/runs/32922786058)).
-See `docs/BACKLOG.md`.
+The domain engine and authoritative backend are substantially implemented and
+tested. The project is **not yet an end-to-end playable multiplayer Android
+MVP** because the completed Android auth/API/presentation components have not
+been wired into the application entry point and online game flow.
 
-- monorepo structure (`game-core/`, `android-app/`, `server/`,
-  `database/migrations/`, `docs/`),
-- pure Kotlin/JVM `game-core` with a passing unit test,
-- Android app (Kotlin + Compose) that depends on and references `game-core`,
-- Ktor server with a verified `/health` endpoint that references `game-core`,
-- ktlint formatting + Android lint wired into `check`,
-- verified developer commands recorded in `docs/DEVELOPMENT.md`,
-- GitHub Actions CI running the single aggregate `./gradlew build`, green on the
-  current `claude-autopilot` HEAD.
+Current backlog state after reconciling it with the implementation:
 
-Milestone-by-milestone progress is tracked in `docs/BACKLOG.md`. Milestone 2
-(Chess Domain Model) has not been started.
+- 71 tasks `DONE`, 22 `TODO`, 1 `BLOCKED`, and none `IN PROGRESS`,
+- M1–M4 and M6–M13 are complete,
+- M5.1–M5.6 are complete; M5.7 awaits device/emulator verification,
+- M14.1–M14.4 completed dashboard/history data and presentation components,
+- M14.5–M14.18 track the missing Android application/network shell and
+  multiplayer integration,
+- M15 beta hosting is deliberately not started and depends on M14.18,
+- M16.3–M16.5 server hardening is complete; client/network hardening remains,
+- M17 beta distribution and M18 architecture review remain.
+
+Implemented foundations include:
+
+- a pure Kotlin/JVM chess engine covering legal moves, terminal results, draw
+  rules, active history, undo, and resignation,
+- a Ktor server with Supabase JWT verification, PostgreSQL persistence,
+  friends, series, authoritative commands, WebSockets, automatic rematches,
+  dashboard/history queries, idempotency safeguards, and safe logging,
+- a Flyway-managed PostgreSQL schema exercised against disposable PostgreSQL in
+  local development and CI,
+- a Compose local pass-and-play screen plus separate Android anonymous-auth,
+  API-client, dashboard, and history components,
+- aggregate Gradle verification with ktlint, Android lint, JVM tests, Android
+  unit tests, APK assembly, and server distributions.
+
+The most recent completed CI-verified implementation baseline at this
+documentation update was commit `0ef3228`, which passed GitHub Actions run
+[33022371135](https://github.com/jmusselman2/ChessGame/actions/runs/33022371135).
+Milestone-by-milestone scope and dependencies are tracked in
+`docs/BACKLOG.md`; the next coding task is `M14.5`.
 
 ## Getting Started
 
@@ -91,6 +110,9 @@ Common narrower commands:
 ./gradlew :android-app:assembleDebug
 ./gradlew ktlintCheck
 ```
+
+Database-backed server tests require `TEST_DATABASE_URL`; CI supplies it and
+the local Docker setup is documented in `docs/DEVELOPMENT.md`.
 
 ## Continuous Autonomous Development
 

@@ -24,7 +24,9 @@ Do not build a universal board-game engine during the chess MVP.
 | Android UI | Jetpack Compose |
 | Shared game logic | Pure Kotlin/JVM module |
 | Backend | Kotlin + Ktor |
-| Database | PostgreSQL hosted by Supabase |
+| Database | PostgreSQL 18 locally/CI; beta PostgreSQL host not selected |
+| SQL access | JetBrains Exposed DSL over HikariCP |
+| Migrations | Flyway applying forward-only SQL files |
 | Authentication | Supabase anonymous auth |
 | Serialization | Kotlin serialization + JSON |
 | Commands / queries | HTTPS |
@@ -33,6 +35,11 @@ Do not build a universal board-game engine during the chess MVP.
 | Repository | Monorepo |
 
 `game-core` starts as Kotlin/JVM because both current consumers are JVM-based: Android and the Ktor server.
+
+The shared Supabase development project currently provides anonymous
+authentication only. The application schema is applied to disposable local/CI
+PostgreSQL, not to that Supabase database. M15 will choose and configure the
+separate beta hosting/database environment after the Android client is complete.
 
 Do not introduce Kotlin Multiplatform until a concrete non-JVM consumer exists.
 
@@ -104,25 +111,36 @@ game-core ──→ database
 game-core ──→ Supabase
 ```
 
+### Current implementation boundary
+
+As of `0ef3228`, `game-core`, the Ktor command/query surface, PostgreSQL
+persistence, and server realtime publication are implemented. Android contains
+a working local pass-and-play screen plus tested auth, API-read, dashboard, and
+history components, but `MainActivity` still opens local play directly. The
+application/runtime-network shell, startup authentication, online game client,
+command calls, WebSocket consumption, and navigation are `M14.5`–`M14.18`;
+isolated Android components must not be mistaken for an integrated multiplayer
+application. The manifest does not yet grant network access or define a
+development-only policy for the cleartext emulator-loopback server.
+
 ## 5. `game-core`
 
 `game-core` contains pure chess rules and state.
 
-Expected concrete chess concepts include:
+Implemented concrete chess concepts include:
 
 ```text
-ChessGameState
-ChessBoard
-ChessPiece
-ChessPosition
-ChessMove
+ChessGame
+GameState
+Board
+Piece
+Square
+Move
 ChessRules
-ChessResult
+GameResult
 CastlingRights
-DrawClaimState
+DrawRuleState
 ```
-
-The exact class names may change.
 
 `game-core` must not depend on:
 
@@ -352,6 +370,18 @@ messages therefore cost a client a reload and nothing else.
 A push names only the game and the version it reached. Clients must not treat
 one as state, and a command built on a version the server has moved past is
 refused with the canonical state attached rather than applied.
+
+`RealtimeHub` is currently process-local and in-memory. That is sufficient for
+a single Ktor beta instance because HTTPS/PostgreSQL remain authoritative, but
+running more than one instance needs shared pub/sub first. Sticky sessions
+alone would not deliver a move to an opponent connected to another process.
+
+`D032` proposes resolving this for the beta with a single Render Free Web
+Service. If that proposal is accepted at `M15.1`, the process-local hub is
+appropriate because a Free Web Service cannot scale beyond one instance. Treat
+that as a deployment constraint, not a coincidence — moving to a topology with
+more than one server process without shared pub/sub would silently lose moves
+between players connected to different processes.
 
 ## 13. Authentication
 
@@ -635,14 +665,16 @@ The server owns privileged access to canonical application/game tables.
 
 Android does not receive general database-write authority.
 
-The precise Kotlin/JVM PostgreSQL library is deferred until bootstrap and should be selected based on:
+The implemented persistence stack is:
 
-- current maintenance,
-- PostgreSQL support,
-- clear transaction support,
-- Kotlin ergonomics,
-- migration compatibility,
-- testability.
+- JetBrains Exposed's typed SQL DSL (not its DAO/entity layer),
+- HikariCP connection pooling,
+- the PostgreSQL JDBC driver at runtime,
+- Flyway applying forward-only SQL files from `database/migrations/`.
+
+The SQL migrations are the schema source of truth. Exposed maps queries and
+transactions but does not generate or own the schema. `D030` records the
+selection and rationale.
 
 ## 27. Database Tables
 
@@ -713,6 +745,23 @@ Compose UI
 ```
 
 Do not introduce heavyweight Clean Architecture ceremony merely for pattern compliance.
+
+The online game state must be separate from local pass-and-play state. Android
+may use `game-core` for board rendering, legal-move previews, and deterministic
+UX, but an online board changes only when an authenticated server response is
+accepted or canonical state is reloaded. Every command carries the currently
+loaded expected version.
+
+The current Android source has `AnonymousAuthenticator`, `SessionStore`,
+`ChessApiClient`, `DashboardScreen`, `HistoryScreen`, and reusable board
+components. These are not yet composed into the typical flow above. The
+remaining integration sequence is documented as `M14.5`–`M14.18`: application
+shell/navigation and runtime networking, startup auth, onboarding/friends,
+dashboard landing, online game loading and commands, WebSocket
+invalidation/reload, completion/rematch, history review, and two-client device
+verification. The current server `GET /me` returns only a plain user id, so
+M14.7 also completes the narrow current-user read contract needed to bypass
+onboarding for returning named users.
 
 ## 30. Server Architecture
 
