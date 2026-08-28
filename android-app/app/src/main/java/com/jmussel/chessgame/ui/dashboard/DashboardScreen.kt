@@ -32,13 +32,27 @@ fun DashboardScreen(
     entries: List<DashboardEntryDto>,
     modifier: Modifier = Modifier,
     friends: List<UserSummaryDto> = emptyList(),
+    state: DashboardUiState = DashboardUiState(loaded = true),
     onOpenGame: (DashboardRow) -> Unit = {},
     onPlayFriend: (FriendRow) -> Unit = {},
+    onRetry: () -> Unit = {},
 ) {
     Column(
         modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        state.message?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium) }
+
+        if (!state.loaded) {
+            // Nothing has arrived yet, so there is nothing to show but what is happening.
+            if (state.loading) {
+                Text(text = LOADING, style = MaterialTheme.typography.bodyMedium)
+            } else {
+                TextButton(onClick = onRetry) { Text(text = RETRY) }
+            }
+            return@Column
+        }
+
         Section(
             heading = YOUR_TURN,
             emptyMessage = NOTHING_WAITING,
@@ -141,6 +155,8 @@ private const val THEIR_TURN = "THEIR TURN"
 private const val FRIENDS = "FRIENDS"
 private const val NOTHING_WAITING = "Nothing waiting on you."
 private const val NO_FRIENDS_YET = "Add a friend by username to start playing."
+private const val LOADING = "Loading…"
+private const val RETRY = "Try again"
 
 @Preview(showBackground = true)
 @Composable

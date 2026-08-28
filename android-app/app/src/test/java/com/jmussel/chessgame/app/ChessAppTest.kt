@@ -9,6 +9,7 @@ import com.jmussel.chessgame.auth.SessionStore
 import com.jmussel.chessgame.auth.SupabaseConfig
 import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
+import com.jmussel.chessgame.ui.dashboard.DashboardSections
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -95,6 +96,7 @@ class ChessAppTest {
     private fun httpClient(
         username: String? = null,
         friends: List<String> = emptyList(),
+        games: List<String> = emptyList(),
         removalOutcome: String = "Removed",
         currentGameId: String? = "game-1",
         refusals: Int = 0,
@@ -112,7 +114,12 @@ class ChessAppTest {
                 if (refusable) refused++
 
                 respond(
-                    content = if (refuse) refusalBody else replyTo(request, path, username, friends, removalOutcome, currentGameId),
+                    content =
+                        if (refuse) {
+                            refusalBody
+                        } else {
+                            replyTo(request, path, Replies(username, friends, games, removalOutcome, currentGameId))
+                        },
                     status = if (refuse) refusalStatus else HttpStatusCode.OK,
                     headers = headersOf("Content-Type", ContentType.Application.Json.toString()),
                 )
@@ -123,26 +130,41 @@ class ChessAppTest {
         }
     }
 
+    /** Everything the stubbed server has to say, so one parameter carries it all. */
+    private data class Replies(
+        val username: String?,
+        val friends: List<String>,
+        val games: List<String>,
+        val removalOutcome: String,
+        val currentGameId: String?,
+    )
+
     /** What the server would say to one request. */
     private fun replyTo(
         request: HttpRequestData,
         path: String,
-        username: String?,
-        friends: List<String>,
-        removalOutcome: String,
-        currentGameId: String?,
+        replies: Replies,
     ): String =
         when {
             path.startsWith("/auth/") -> newSession
-            path == "/me" -> identity(username)
+            path == "/me" -> identity(replies.username)
             path == "/username" -> sentText(request)
-            path == "/friends" && request.method == HttpMethod.Get -> friends.joinToString(",", "[", "]", transform = ::user)
+            path == "/dashboard" -> replies.games.joinToString(",", "[", "]", transform = ::entry)
+            path == "/friends" && request.method == HttpMethod.Get ->
+                replies.friends.joinToString(",", "[", "]", transform = ::user)
             path == "/friends" -> sentText(request)
-            path.startsWith("/friends/") -> removalOutcome
+            path.startsWith("/friends/") -> replies.removalOutcome
             path.startsWith("/users/") -> user(path.removePrefix("/users/"))
-            path == "/series" -> series(sentText(request), currentGameId)
+            path == "/series" -> series(sentText(request), replies.currentGameId)
             else -> "[]"
         }
+
+    /** One dashboard line: a game with [opponent] that is waiting on the player. */
+    private fun entry(opponent: String): String =
+        """
+        {"seriesId":"series-$opponent","opponent":${user(opponent)},"gameId":"game-$opponent",
+         "version":1,"yourSide":"WHITE","sideToMove":"WHITE","moveNumber":3,"yourTurn":true}
+        """.trimIndent()
 
     private fun sentText(request: HttpRequestData): String = (request.body as TextContent).text
 
@@ -660,6 +682,192 @@ class ChessAppTest {
                     .orEmpty()
                     .contains("Alex"),
             )
+        }
+
+    @Test
+    fun landingOnTheDashboardLoadsTheGamesAndTheFriendsTogether() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(httpClient = httpClient(username = "Jordan", friends = listOf("Alex"), games = listOf("Alex")))
+
+            viewModel.start()
+            viewModel.startupJob?.join()
+            viewModel.dashboardJob?.join()
+
+            assertEquals(Destination.Dashboard, viewModel.navigation.current)
+            assertEquals(listOf("Alex"), viewModel.dashboard.entries.map { it.opponent.username })
+            assertEquals(listOf("Alex"), viewModel.friends.friends.map { it.username })
+            assertTrue(viewModel.dashboard.loaded)
+            assertFalse(viewModel.dashboard.loading)
+            assertTrue(paths.containsAll(listOf("/me", "/dashboard", "/friends")))
+        }
+
+    @Test
+    fun aPlayerWithNothingToPlayHasALoadedEmptyDashboard() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan"))
+
+            viewModel.start()
+            viewModel.startupJob?.join()
+            viewModel.dashboardJob?.join()
+
+            assertTrue(viewModel.dashboard.entries.isEmpty())
+            assertTrue("an empty dashboard is an answer", viewModel.dashboard.loaded)
+            assertNull(viewModel.dashboard.message)
+        }
+
+    @Test
+    fun aDashboardThatCannotBeLoadedSaysSoAndCanBeTriedAgain() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            username = "Jordan",
+                            games = listOf("Alex"),
+                            refusals = 1,
+                            refusalPath = "/dashboard",
+                        ),
+                )
+
+            viewModel.start()
+            viewModel.startupJob?.join()
+            viewModel.dashboardJob?.join()
+
+            assertFalse("nothing arrived, so nothing is claimed to have", viewModel.dashboard.loaded)
+            assertTrue(
+                viewModel.dashboard.message
+                    .orEmpty()
+                    .isNotBlank(),
+            )
+            assertEquals("the player is still at home", Destination.Dashboard, viewModel.navigation.current)
+
+            viewModel.loadDashboard()
+            viewModel.dashboardJob?.join()
+
+            assertTrue(viewModel.dashboard.loaded)
+            assertEquals(listOf("Alex"), viewModel.dashboard.entries.map { it.opponent.username })
+            assertNull(viewModel.dashboard.message)
+        }
+
+    @Test
+    fun aNewPlayerSeesOnboardingAndNoDashboardRequest() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(sessionStore = InMemorySessionStore())
+
+            viewModel.start()
+            viewModel.startupJob?.join()
+            viewModel.dashboardJob?.join()
+
+            assertEquals(Destination.UsernameOnboarding, viewModel.navigation.current)
+            assertFalse("there is nothing to show a player without a name", paths.contains("/dashboard"))
+        }
+
+    @Test
+    fun claimingAUsernameLandsOnALoadedDashboard() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(httpClient = httpClient(friends = listOf("Alex")), sessionStore = InMemorySessionStore())
+            viewModel.start()
+            viewModel.startupJob?.join()
+
+            viewModel.claimUsername("Jordan")
+            viewModel.usernameClaimJob?.join()
+            viewModel.dashboardJob?.join()
+
+            assertEquals(Destination.Dashboard, viewModel.navigation.current)
+            assertEquals(listOf("Alex"), viewModel.friends.friends.map { it.username })
+            assertTrue(viewModel.dashboard.loaded)
+        }
+
+    @Test
+    fun selectingAGameOpensTheIdTheServerGaveIt() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan", games = listOf("Alex")))
+            viewModel.start()
+            viewModel.startupJob?.join()
+            viewModel.dashboardJob?.join()
+
+            val row = DashboardSections.yourTurn(viewModel.dashboard.entries).single()
+            viewModel.openGame(row)
+
+            assertEquals(Destination.OnlineGame("game-Alex"), viewModel.navigation.current)
+            assertEquals(Destination.Dashboard, viewModel.navigation.back()?.current)
+        }
+
+    @Test
+    fun playingAFriendFromTheDashboardAsksTheServerRefreshesAndOpensTheGame() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient = httpClient(username = "Jordan", friends = listOf("Alex"), currentGameId = "game-7"),
+                )
+            viewModel.start()
+            viewModel.startupJob?.join()
+            viewModel.dashboardJob?.join()
+
+            val row = DashboardSections.friends(viewModel.friends.friends, viewModel.dashboard.entries).single()
+            assertEquals("Play", row.action)
+
+            viewModel.playFriend(row)
+            viewModel.dashboardJob?.join()
+
+            assertEquals(Destination.OnlineGame("game-7"), viewModel.navigation.current)
+            assertEquals("the dashboard is reloaded after a series is opened", 2, paths.count { it == "/dashboard" })
+        }
+
+    @Test
+    fun openingAFriendWithAGameUnderWayGoesThroughTheServerToo() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            username = "Jordan",
+                            friends = listOf("Alex"),
+                            games = listOf("Alex"),
+                            currentGameId = "game-Alex",
+                        ),
+                )
+            viewModel.start()
+            viewModel.startupJob?.join()
+            viewModel.dashboardJob?.join()
+
+            val row = DashboardSections.friends(viewModel.friends.friends, viewModel.dashboard.entries).single()
+            assertEquals("Open", row.action)
+
+            viewModel.playFriend(row)
+            viewModel.dashboardJob?.join()
+
+            assertTrue("the server decides which game that is", paths.contains("/series"))
+            assertEquals(Destination.OnlineGame("game-Alex"), viewModel.navigation.current)
+        }
+
+    @Test
+    fun aSeriesThatWillNotOpenLeavesThePlayerOnTheDashboardWithSomethingToRead() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            username = "Jordan",
+                            friends = listOf("Alex"),
+                            refusals = 1,
+                            refusalPath = "/series",
+                            refusalStatus = HttpStatusCode.Forbidden,
+                            refusalBody = "Not friends with Alex",
+                        ),
+                )
+            viewModel.start()
+            viewModel.startupJob?.join()
+            viewModel.dashboardJob?.join()
+
+            val row = DashboardSections.friends(viewModel.friends.friends, viewModel.dashboard.entries).single()
+            viewModel.playFriend(row)
+            viewModel.dashboardJob?.join()
+
+            assertEquals(Destination.Dashboard, viewModel.navigation.current)
+            assertEquals("Not friends with Alex", viewModel.dashboard.message)
         }
 
     private fun viewModel(

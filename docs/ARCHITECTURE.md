@@ -763,11 +763,12 @@ per call. `M14.7` made `GET /me` a typed `CurrentUser` — the immutable user id
 and a nullable username — so startup can tell a returning player from a new one
 and send each to the dashboard or to username onboarding. `M14.8` added the
 friends screen: lookup by exact username, add, remove with its confirmation, and
-"Play", which opens whichever game `POST /series` says is current. The dashboard
-and history screens are not yet fed by live data: the integration sequence is
-documented as `M14.9`–`M14.18`: dashboard landing, online game loading and
-commands, WebSocket invalidation/reload, completion/rematch, history review, and
-two-client device verification.
+"Play", which opens whichever game `POST /series` says is current. `M14.9` made
+the dashboard the live landing screen, loading the active series and the friends
+list together. No online game can be opened yet: the integration sequence is
+documented as `M14.10`–`M14.18`: online game loading and commands, WebSocket
+invalidation/reload, completion/rematch, history review, and two-client device
+verification.
 
 ## 30. Server Architecture
 

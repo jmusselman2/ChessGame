@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import com.jmussel.chessgame.app.ChessApp
 import com.jmussel.chessgame.app.ChessAppDependencies
 import com.jmussel.chessgame.app.ChessAppViewModel
+import com.jmussel.chessgame.ui.dashboard.DashboardActions
 import com.jmussel.chessgame.ui.friends.FriendsActions
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
@@ -42,6 +43,15 @@ class MainActivity : ComponentActivity() {
                 // A back press the app has nowhere to go with is the system's: the app closes.
                 BackHandler { if (!viewModel.back()) finish() }
 
+                val dashboardActions =
+                    remember(viewModel) {
+                        DashboardActions(
+                            onOpenGame = viewModel::openGame,
+                            onPlayFriend = viewModel::playFriend,
+                            onRetry = viewModel::loadDashboard,
+                        )
+                    }
+
                 val friendsActions =
                     remember(viewModel) {
                         FriendsActions(
@@ -63,12 +73,14 @@ class MainActivity : ComponentActivity() {
                         startup = viewModel.startup,
                         usernameClaim = viewModel.usernameClaim,
                         friends = viewModel.friends,
+                        dashboard = viewModel.dashboard,
                         onOpen = viewModel::open,
                         onOpenFriends = viewModel::openFriends,
                         onBack = { if (!viewModel.back()) finish() },
                         onRetryStartup = viewModel::start,
                         onClaimUsername = viewModel::claimUsername,
                         friendsActions = friendsActions,
+                        dashboardActions = dashboardActions,
                     )
                 }
             }

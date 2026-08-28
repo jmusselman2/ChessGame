@@ -12,12 +12,18 @@ import com.jmussel.chessgame.api.CurrentUserDto
 import com.jmussel.chessgame.api.UserSummaryDto
 import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
+import com.jmussel.chessgame.ui.dashboard.DashboardMessages
+import com.jmussel.chessgame.ui.dashboard.DashboardRow
+import com.jmussel.chessgame.ui.dashboard.DashboardUiState
+import com.jmussel.chessgame.ui.dashboard.FriendRow
 import com.jmussel.chessgame.ui.friends.Friends
 import com.jmussel.chessgame.ui.friends.FriendsUiState
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import com.jmussel.chessgame.ui.onboarding.UsernameOnboarding
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
 /**
@@ -51,6 +57,10 @@ class ChessAppViewModel(
     var usernameClaim: UsernameClaim by mutableStateOf(UsernameClaim.Idle)
         private set
 
+    /** The home screen: the active series, and what is happening to them. */
+    var dashboard: DashboardUiState by mutableStateOf(DashboardUiState())
+        private set
+
     /** The friends screen: who they are, and what is happening on it. */
     var friends: FriendsUiState by mutableStateOf(FriendsUiState())
         private set
@@ -74,6 +84,10 @@ class ChessAppViewModel(
 
     /** Whatever the friends screen has asked for, if anything. Internal for the same reason. */
     internal var friendsJob: Job? = null
+        private set
+
+    /** Whatever the dashboard has asked for, if anything. Internal for the same reason. */
+    internal var dashboardJob: Job? = null
         private set
 
     /**
@@ -136,7 +150,98 @@ class ChessAppViewModel(
      */
     private fun arriveAs(user: CurrentUserDto) {
         currentUser = user
-        restartAt(if (user.username == null) Destination.UsernameOnboarding else Destination.Dashboard)
+
+        if (user.username == null) {
+            restartAt(Destination.UsernameOnboarding)
+            return
+        }
+
+        restartAt(Destination.Dashboard)
+        loadDashboard()
+    }
+
+    /**
+     * Loads the dashboard and the friends list together.
+     *
+     * They are one screen — the games waiting on the player, the games waiting on the
+     * opponent, and everyone else worth playing — so they arrive together or not at all,
+     * and a half-drawn dashboard is never shown.
+     */
+    fun loadDashboard() {
+        if (dashboardJob?.isActive == true) return
+
+        dashboardJob = viewModelScope.launch { fetchDashboard() }
+    }
+
+    /**
+     * Opens the game on a dashboard line, by the id the server gave it.
+     *
+     * The app never works out which game that is; it opens the one named in the line it was
+     * sent (`D004`).
+     */
+    fun openGame(row: DashboardRow) {
+        open(Destination.OnlineGame(row.gameId))
+    }
+
+    /**
+     * "Play with this friend", from the dashboard.
+     *
+     * Whether that opens the series already running or starts one is the server's business
+     * (`D011`), so both the friend with a game under way and the friend without go through
+     * the same request. The dashboard is reloaded afterwards, because starting a series
+     * changes it.
+     */
+    fun playFriend(row: FriendRow) {
+        if (dashboardJob?.isActive == true) return
+
+        dashboardJob =
+            viewModelScope.launch {
+                dashboard = dashboard.copy(busy = true)
+
+                try {
+                    val gameId = dependencies.chessApi.openSeries(row.username).currentGameId
+                    fetchDashboard()
+
+                    if (gameId == null) {
+                        dashboard = dashboard.copy(message = "No game with ${row.username} to open yet.")
+                    } else {
+                        dashboard = dashboard.copy(message = null)
+                        open(Destination.OnlineGame(gameId))
+                    }
+                } catch (refused: ChessApiException) {
+                    dashboard = dashboard.copy(message = DashboardMessages.messageFor(refused))
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (unreachable: Exception) {
+                    dashboard = dashboard.copy(message = DashboardMessages.unreachableMessage())
+                } finally {
+                    dashboard = dashboard.copy(busy = false)
+                }
+            }
+    }
+
+    /** The dashboard and the friends list as the server has them now. */
+    private suspend fun fetchDashboard() {
+        dashboard = dashboard.copy(loading = true)
+
+        try {
+            coroutineScope {
+                val entries = async { dependencies.chessApi.dashboard() }
+                val list = async { dependencies.chessApi.friends() }
+                val loadedEntries = entries.await()
+                val loadedFriends = list.await()
+
+                dashboard = dashboard.copy(entries = loadedEntries, loading = false, loaded = true, message = null)
+                // The same list the friends screen shows; there is only one of it.
+                friends = friends.copy(friends = loadedFriends, loaded = true)
+            }
+        } catch (refused: ChessApiException) {
+            dashboard = dashboard.copy(loading = false, message = DashboardMessages.messageFor(refused))
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (unreachable: Exception) {
+            dashboard = dashboard.copy(loading = false, message = DashboardMessages.unreachableMessage())
+        }
     }
 
     /**

@@ -16,7 +16,9 @@ import androidx.compose.ui.unit.dp
 import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
 import com.jmussel.chessgame.ui.board.LocalGameScreen
+import com.jmussel.chessgame.ui.dashboard.DashboardActions
 import com.jmussel.chessgame.ui.dashboard.DashboardScreen
+import com.jmussel.chessgame.ui.dashboard.DashboardUiState
 import com.jmussel.chessgame.ui.friends.FriendsActions
 import com.jmussel.chessgame.ui.friends.FriendsScreen
 import com.jmussel.chessgame.ui.friends.FriendsUiState
@@ -39,12 +41,14 @@ fun ChessApp(
     startup: StartupState = StartupState.Loading,
     usernameClaim: UsernameClaim = UsernameClaim.Idle,
     friends: FriendsUiState = FriendsUiState(),
+    dashboard: DashboardUiState = DashboardUiState(),
     onOpen: (Destination) -> Unit = {},
     onOpenFriends: () -> Unit = {},
     onBack: () -> Unit = {},
     onRetryStartup: () -> Unit = {},
     onClaimUsername: (String) -> Unit = {},
     friendsActions: FriendsActions = FriendsActions(),
+    dashboardActions: DashboardActions = DashboardActions(),
 ) {
     Column(modifier = modifier.fillMaxSize()) {
         ShellChrome(navigation = navigation, onOpen = onOpen, onOpenFriends = onOpenFriends, onBack = onBack)
@@ -52,15 +56,14 @@ fun ChessApp(
         when (val destination = navigation.current) {
             Destination.Startup -> StartupScreen(state = startup, onRetry = onRetryStartup)
             Destination.UsernameOnboarding -> UsernameScreen(claim = usernameClaim, onClaim = onClaimUsername)
-            // Live dashboard data is M14.9.
             Destination.Dashboard ->
                 DashboardScreen(
-                    entries = emptyList(),
-                    friends = emptyList(),
-                    onOpenGame = { row -> onOpen(Destination.OnlineGame(row.gameId)) },
-                    // Opening a friend with no game yet has to ask the server for the
-                    // series first, which is M14.8.
-                    onPlayFriend = { row -> row.gameId?.let { onOpen(Destination.OnlineGame(it)) } },
+                    entries = dashboard.entries,
+                    friends = friends.friends,
+                    state = dashboard,
+                    onOpenGame = dashboardActions.onOpenGame,
+                    onPlayFriend = dashboardActions.onPlayFriend,
+                    onRetry = dashboardActions.onRetry,
                 )
             Destination.Friends -> FriendsScreen(state = friends, actions = friendsActions)
             // Live history is M14.17.

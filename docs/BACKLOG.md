@@ -2070,11 +2070,11 @@ Resignation follows the same active-vs-closing series lifecycle.
 **Milestone status:** INCOMPLETE. `M14.1`–`M14.4` completed server queries,
 API-client reads, and isolated Compose presentation components; `M14.5` put an
 application shell and navigation around them, `M14.6` made the app sign itself
-in on startup, `M14.7` gave it a typed identity and username onboarding, and
-`M14.8` made friends reachable. The dashboard and history screens are not yet
-fed by live data and no online game can be played from Android.
-`M14.9`–`M14.18` are the remaining client integration work required before beta
-deployment.
+in on startup, `M14.7` gave it a typed identity and username onboarding, `M14.8`
+made friends reachable, and `M14.9` made the dashboard the live landing screen.
+No online game can be played from Android yet: opening one reaches a
+placeholder. `M14.10`–`M14.18` are the remaining client integration work
+required before beta deployment.
 
 ## M14.1 — Your Turn data and presentation component
 
@@ -2462,9 +2462,34 @@ remove, refresh, and Play/Open behavior.
 
 ## M14.9 — Authenticated dashboard landing flow
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M14.6, M14.7, M14.8, M14.1, M14.2, M14.3
+
+**Completed:** 2026-08-28 — the dashboard is real. A returning named player lands
+on it straight from startup, never on a local game, and the games and the friends
+list are fetched together in one load, because they are one screen: what is
+waiting on the player, what is waiting on the opponent, and everyone else worth
+playing. There is one friends list in the app, loaded by whichever screen asks
+first and shared by both. `loaded` is what tells "no games" from "not yet", so a
+player with nothing to play sees an answer rather than a spinner, and a load that
+fails says so and offers to try again instead of pretending the account is empty.
+Selecting a line opens the `gameId` the server put in it — the app never works
+out which game that is (`D004`). Play and Open are the same request: both post to
+`/series` and open whichever game the server says is current, which is the only
+thing that can tell an existing series from a new one (`D011`); the dashboard is
+reloaded afterwards, because starting a series changes it. A refusal is shown in
+the server's words and leaves the player where they were. Friends, history, and
+the local game stay reachable from the shell's chrome, which `M14.5` put there.
+Verified locally with `.\gradlew.bat :android-app:testDebugUnitTest` (9 new
+`ChessAppTest` cases: landing loads both lists, an empty dashboard is loaded
+rather than waiting, a failed load can be retried, a new player goes to
+onboarding and no dashboard is fetched for them, claiming a name lands on a
+loaded dashboard, selecting a game opens the server's id, Play asks the server
+and refreshes, Open goes through the server too, and a refused series leaves a
+message on the dashboard) and `.\gradlew.bat build` (BUILD SUCCESSFUL, 232
+Android unit tests, 0 skipped). Opening a game still reaches a placeholder;
+loading and rendering canonical game state is `M14.10`.
 
 ### Objective
 
