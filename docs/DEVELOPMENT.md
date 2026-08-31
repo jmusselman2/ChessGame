@@ -570,7 +570,9 @@ Each live run leaves one throwaway anonymous user in the development project.
 
 - The schema in `database/migrations/` has **not** been applied to the Supabase
   database. Only the local disposable database has it so far.
-- The beta environment is separate again and is `M15.3`.
+- Applying it is `M15.3`, which under `D035` targets this same project rather
+  than a separate beta one. Once that happens this project holds beta game data,
+  and the warnings under **Beta Deployment** apply to it.
 
 ## Local Logs
 
@@ -714,6 +716,23 @@ Confirmed terms as of 2026-08-31 (numbers and references in `D032`):
 | Supabase Free over-quota | notified, grace period, then restricted under Fair Use (`402`); no charge |
 | Supabase Free backups | none; no point-in-time recovery |
 
+**The beta reuses `ChessGame Dev` (`D035`).** No second Supabase project is
+created. Development and beta share that project's identities (`auth.users`),
+its quotas, and its availability; a pause or a Fair Use restriction stops both.
+Game data does **not** mix: local development and CI keep using the disposable
+Docker PostgreSQL under **Local PostgreSQL**, and the application schema goes
+into the Supabase database only for the beta. That separation is the
+`DATABASE_URL` / `TEST_DATABASE_URL` value, so treat those variables as the
+thing protecting beta data.
+
+Two rules follow, and `M15.5` enforces the first in code:
+
+- **Never point `TEST_DATABASE_URL` at the Supabase database.** The server tests
+  call `Migrations.reset`, which runs a Flyway `clean()` and drops everything in
+  the schema. Supabase Free has no backups or point-in-time recovery.
+- **Keep the beta `DATABASE_URL` out of your `.env`.** It belongs only in the
+  Render environment.
+
 **The beta `DATABASE_URL` must go through the Shared Pooler.** Render is
 IPv4-only and a Supabase project's direct database endpoint
 (`db.<ref>.supabase.co`) is IPv6-only unless the paid IPv4 add-on is bought,
@@ -729,7 +748,8 @@ Ktor beta host:
 Beta API base URL:
 How beta deployment is performed:
 How Android selects beta endpoint:
-How beta Supabase differs from local/test:
+How beta Supabase differs from local/test (`D035`: same project as development
+for auth and the beta database; local/test remain the Docker PostgreSQL):
 ```
 
 ### Hosting resource already created (2026-08-28)

@@ -38,8 +38,11 @@ Do not build a universal board-game engine during the chess MVP.
 
 The shared Supabase development project currently provides anonymous
 authentication only. The application schema is applied to disposable local/CI
-PostgreSQL, not to that Supabase database. M15 will choose and configure the
-separate beta hosting/database environment after the Android client is complete.
+PostgreSQL, not to that Supabase database. `M15.3` will additionally apply it to
+that same project's PostgreSQL to serve the beta: `D035` reuses `ChessGame Dev`
+rather than creating a separate beta project, so development and beta share
+identities and quotas while local/CI game data stays in the disposable
+PostgreSQL. Beta hosting for the Ktor server is Render Free (`D032`).
 
 Do not introduce Kotlin Multiplatform until a concrete non-JVM consumer exists.
 

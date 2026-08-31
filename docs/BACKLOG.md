@@ -3068,9 +3068,11 @@ when everything needed is to hand.
 
 # M15 — Beta Deployment Environment
 
-> **Proposed target: a $0 beta.** `D032` proposes one Dockerized Ktor service on
-> Render's Free Web Service tier, with auth and PostgreSQL on a second Supabase
-> Free project, `ChessGame Beta`. The hard budget means no payment method is
+> **Target: a $0 beta.** `D032` (Accepted) puts one Dockerized Ktor service on
+> Render's Free Web Service tier. Auth and PostgreSQL come from the existing
+> `ChessGame Dev` Supabase project: `D035` superseded `D032`'s second
+> `ChessGame Beta` project, so development and beta share identities, quotas,
+> and availability while game data stays apart through `DATABASE_URL`. The hard budget means no payment method is
 > attached to Render and no service is upgraded automatically: reaching a free
 > limit suspends the beta until a human decides what to do. Render sleep and
 > cold starts, shared usage quotas, Supabase inactivity pauses and storage/
@@ -3084,8 +3086,8 @@ when everything needed is to hand.
 > because the repository has no `Dockerfile` yet. Nothing else about the beta
 > follows from the service existing — being deployment-ready (`M15.2`), a
 > successful deploy with a reachable `/health` (`M15.2`), the beta Supabase
-> environment (`M15.3`), and the Android beta endpoint (`M15.4`) are all still
-> outstanding. `docs/DEVELOPMENT.md` **Beta Deployment** holds the service
+> environment (`M15.3`), the destructive-reset guard that `M15.3` now depends on
+> (`M15.5`), and the Android beta endpoint (`M15.4`) are all still outstanding. `docs/DEVELOPMENT.md` **Beta Deployment** holds the service
 > details and that breakdown.
 >
 > Sequencing: this milestone began after `M14.18` proved the Android
@@ -3099,9 +3101,11 @@ when everything needed is to hand.
 > deploying the beta server, triggering a Render deployment, or handling beta
 > database credentials beyond planning.
 >
-> So `M15.2` is still a **beta deployment** and `M15.3` still needs **accounts
-> and credentials** the loop cannot create or hold, each requiring its own
-> explicit human authorization; `M15.4` follows `M15.2`. An agent may prepare
+> So `M15.2` is still a **beta deployment** and `M15.3` still needs
+> **credentials** the loop cannot hold, each requiring its own explicit human
+> authorization; `M15.4` follows `M15.2`. `M15.5` is the exception: it is a
+> guard in the server's own test support, needs no credentials, account, or
+> deployment, and is ordinary autonomous work. An agent may prepare
 > deployable artifacts — a Dockerfile, configuration, documentation — but may
 > not create accounts, deploy, or handle live credentials. Do not mark `M15.2`,
 > `M15.3`, or `M15.4` `IN PROGRESS` without explicit human authorization in the
@@ -3147,7 +3151,9 @@ proposed provider using the terms available at deployment time.
 **Completed 2026-08-31 (locally verified).** `M14.18` is `DONE`, the project
 owner accepted `D032` and its operational limits in conversation, and the
 provider terms were rechecked from current documentation. `D032` is now
-`Accepted`; the provider stays Render Free plus a second Supabase Free project.
+`Accepted`; the provider stays Render Free. (The second Supabase Free project
+this task confirmed was later dropped by `D035`, which reuses `ChessGame Dev`
+for the beta; nothing else in the recheck below is affected.)
 Against this task's criteria:
 
 - **Provider accepted.** The owner accepted Render Free sleep and cold starts,
@@ -3256,48 +3262,66 @@ method.
 
 ---
 
-## M15.3 — Configure beta Supabase environment
+## M15.3 — Configure the beta Supabase environment
 
-**Status:** TODO  
-**Depends on:** M7.1, M7.2, M7.3, M15.1
+**Status:** TODO
+
+**Depends on:** M7.1, M7.2, M7.3, M15.1, M15.5
 
 ### Objective
 
-Stand up `ChessGame Beta` as a second Supabase Free project so beta players'
-data never shares a database with disposable development data.
+Make the existing `ChessGame Dev` Supabase project serve the beta as well as
+development, applying the application schema to its PostgreSQL and proving the
+exact connection the deployed server will use.
+
+`D035` replaced `D032`'s second `ChessGame Beta` project with this one: nothing
+in the migrations, the auth configuration, the server, or the remaining roadmap
+requires two projects. Development and beta therefore share identities, quotas,
+and availability, while game data stays apart because local development and CI
+keep using the disposable Docker PostgreSQL. Read `D035`'s Consequences before
+starting — the shared-project costs are accepted, not overlooked.
 
 ### Acceptance Criteria
 
-- `ChessGame Beta` exists separately from `ChessGame Dev`, with anonymous auth
-  enabled (`D006`), and an active-project slot is available within the current
-  Free-plan limit.
-- The Flyway migrations are applied to the beta database, which is that
-  project's PostgreSQL rather than Render's free PostgreSQL (`D032`).
+- `ChessGame Dev` has anonymous auth enabled (`D006`) — already true — and no
+  second project is created.
+- `M15.5`'s destructive-reset guard is `DONE` **before** the application schema
+  is applied to the Supabase database. Sharing the project removes the
+  separation that previously kept a mistaken `TEST_DATABASE_URL` away from beta
+  data, and the Free plan has no backups (`D035`).
+- The Flyway migrations are applied to the `ChessGame Dev` PostgreSQL, which is
+  that project's database rather than Render's free PostgreSQL (`D032`).
 - `DATABASE_URL` uses the Supabase Shared Pooler (Supavisor) in **session mode
-  on port 5432** because Render is IPv4-only and the Free direct database
-  endpoint is IPv6-only. Transaction mode on port 6543 is not used because it
-  does not support prepared statements.
-- The server preserves explicit PostgreSQL SSL connection properties instead
-  of dropping URL query parameters, and the beta connection is verified to use
-  SSL.
+  on port 5432** because Render is IPv4-only and the direct database endpoint is
+  IPv6-only. Transaction mode on port 6543 is not used because it does not
+  support prepared statements (`M15.1`).
+- The server preserves explicit PostgreSQL SSL connection properties instead of
+  dropping URL query parameters, and the beta connection is verified to use SSL.
 - The server's `SUPABASE_URL` and the Android beta build's Supabase
-  configuration name the *same* project, so issued tokens verify against the
-  JWKS the server reads.
-- Beta credentials live in the deployment environment and in a git-ignored
-  local `.env`; only names and non-secret URLs are committed.
+  configuration name this same project, so issued tokens verify against the
+  JWKS the server reads. That is now automatic rather than a thing to keep in
+  step, which is one benefit of sharing.
+- The beta `DATABASE_URL` lives only in the Render environment. It is **not**
+  added to any developer's `.env`, and `.env.example` says so. Only names and
+  non-secret URLs are committed.
 - The project's pause-after-inactivity, database-size and egress limits are
-  noted for whoever runs the beta (`D032`). The absence of automatic backups
-  and point-in-time recovery is explicitly accepted, or a manual export runbook
-  is documented before beta data is treated as durable.
+  noted for whoever runs the beta, and are now shared with development
+  (`D032`, `D035`). The absence of automatic backups and point-in-time recovery
+  is explicitly accepted, or a manual export runbook is documented before beta
+  data is treated as durable — which matters more under `D035`, since there is
+  no longer an untouched second project to fall back on.
 
 ### Verification
 
 Using the exact session-pooler and SSL configuration intended for Render, an
-anonymous sign-in against the beta project produces a token the server accepts,
-the server completes a database-backed request, and the beta database shows the
+anonymous sign-in against the project produces a token the server accepts, the
+server completes a database-backed request, and the Supabase database shows the
 migrated schema. This is checked without the deployment — `M15.2` depends on
 this task, so deployment cannot be a prerequisite for it. The same flow against
 the deployed service is `M15.2` and `M15.4`.
+
+A local `.\gradlew.bat build` still passes against the Docker PostgreSQL
+afterwards, proving development and CI were not moved onto the shared database.
 
 ---
 
@@ -3330,6 +3354,51 @@ Point a beta Android build at the deployed API without hard-coding secrets.
 
 A beta build authenticates, loads the dashboard, and plays a move against the
 deployed server, including one request issued after the service has slept.
+
+---
+
+## M15.5 — Refuse a destructive database reset outside a disposable database
+
+**Status:** TODO
+
+**Depends on:** M6.3
+
+### Objective
+
+Make `Migrations.reset` refuse to run against anything that is not a disposable
+local database, so no environment-variable mistake can drop the beta schema.
+
+`Migrations.reset` performs a Flyway `clean()` — it drops everything in the
+schema — and `DatabaseTestSupport.withMigratedDatabase` calls it on every server
+test run, against whatever `TEST_DATABASE_URL` names. Nothing checks what that
+is. Under `D032` this could not reach beta data because the beta lived in a
+different Supabase project whose credentials never appeared in a developer's
+`.env`. `D035` removes that separation, and Supabase Free has no backups or
+point-in-time recovery, so the loss would be permanent.
+
+This is a prerequisite of `M15.3` and is ordinary autonomous work: it needs no
+credentials, no account, and no deployment.
+
+### Acceptance Criteria
+
+- `Migrations.reset` refuses, with a clear error naming the host, unless the
+  target database is recognisably disposable — a `localhost` or `127.0.0.1`
+  host — or an explicit opt-out environment variable is set for the rare case
+  that is genuinely wanted.
+- The opt-out is explicit, named so it cannot be set by accident, and documented
+  in `docs/DEVELOPMENT.md`.
+- `Migrations.migrate` is unaffected: it still runs against any database, since
+  it is idempotent and forward-only and the server calls it on startup.
+- Tests cover both a permitted disposable target and a refused remote one,
+  including that the refusal happens before anything is dropped.
+- `DatabaseTestSupport` continues to work unchanged against the documented
+  Docker database, and CI stays green.
+
+### Verification
+
+`.\gradlew.bat :server:test --rerun-tasks` against the local PostgreSQL passes,
+and a test proves that a `reset` aimed at a non-local host is refused without
+dropping anything.
 
 ---
 

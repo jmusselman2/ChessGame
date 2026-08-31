@@ -1043,6 +1043,8 @@ providers' current free quotas:
 - **Auth and PostgreSQL:** a second Supabase Free project, `ChessGame Beta`,
   separate from `ChessGame Dev`. The Free plan allows two active projects, so
   development data and beta data never share a database.
+  **Superseded 2026-08-31 by `D035`:** the beta reuses `ChessGame Dev` instead,
+  and no second project is created. Everything else in this decision stands.
 
 If a free-tier limit gets in the way, the beta stops until a human decides
 whether to reduce usage, wait for a quota reset, or authorize paid hosting.
@@ -1085,9 +1087,12 @@ fighting it.
 - **Render's free PostgreSQL** — rejected: free databases expire after 30 days,
   which would destroy beta data mid-test. Supabase's free project has no such
   expiry and is already the authentication provider.
-- **A single Supabase project for both development and beta** — rejected: it
-  would mix disposable development data with beta players' games, and `M15.3`
-  exists precisely to keep them apart.
+- **A single Supabase project for both development and beta** — rejected here:
+  it would mix disposable development data with beta players' games, and `M15.3`
+  existed precisely to keep them apart. **Reversed 2026-08-31 by `D035`**, which
+  accepts that mixing for the identity pool and the quotas, keeps game data
+  apart through `DATABASE_URL`, and adds `M15.5`'s destructive-reset guard to
+  replace the protection separation gave.
 
 ### Consequences
 
@@ -1138,9 +1143,10 @@ Limitations to accept explicitly before changing this decision to `Accepted`:
   `402` and a reason such as `exceed_egress_quota` while the dashboard still
   reaches the data. Beta data is not treated as durable unless a manual export
   process is documented.
-- **Two active Free projects is the whole allowance.** `ChessGame Dev` plus
-  `ChessGame Beta` uses both, so no third Free project is available in that
-  organization and neither may be paused or deleted casually.
+- **Two active Free projects is the whole allowance.** Under `D035` the beta
+  reuses `ChessGame Dev`, so one slot stays spare — but that single project may
+  no longer be paused or deleted casually, because it now holds beta data as
+  well as development identities.
 - **One instance only.** Do not scale the Render service horizontally while
   `RealtimeHub` is process-local; a second instance would silently fail to
   deliver moves between players connected to different processes.
@@ -1317,3 +1323,114 @@ matches how `SUPABASE_URL` and `SUPABASE_ANON_KEY` are already supplied.
   re-established after a cold boot.
 - A release build is unaffected: `D033` forbids cleartext outright, so it can
   reach only an HTTPS server, which is what `M15.4` will configure.
+
+---
+
+## D035 — The Beta Reuses `ChessGame Dev` Rather Than a Second Supabase Project
+
+**Date:** 2026-08-31
+
+**Status:** Accepted
+
+**Supersedes:** the "second Supabase Free project" half of `D032`. The rest of
+`D032` — Render Free for the Ktor server, the hard `$0` boundary, the
+single-instance topology, and the Supavisor session-mode database route — is
+unchanged.
+
+### Decision
+
+The beta uses the existing `ChessGame Dev` Supabase project for both
+authentication and the beta PostgreSQL database. `ChessGame Beta` is not
+created.
+
+Development and beta therefore share one Supabase project. What that does and
+does not mix:
+
+- **Shared: identities.** `auth.users` holds development, test, and beta
+  anonymous accounts together. Every debug app launch and every
+  `SupabaseLiveAuthTest` / `AppStartupLiveTest` run adds a throwaway account to
+  the same pool beta players are in.
+- **Shared: quotas and availability.** One 500 MB database, 5 GB egress, 1 GB
+  storage, one 50,000-MAU allowance, one pause-after-a-week timer, one Fair Use
+  restriction. Development usage counts against the beta, and a pause or
+  restriction takes both down at once.
+- **Not shared: game data.** Local development and CI keep using the disposable
+  Docker PostgreSQL from `docs/DEVELOPMENT.md`. The application schema goes into
+  the Supabase database only for the beta, so `users`, `games`, `moves`, and
+  the rest exist in two unrelated databases and never mix. The separation is
+  the `DATABASE_URL` / `TEST_DATABASE_URL` value, not the project.
+
+### Rationale
+
+Nothing in the implementation, the migrations, the auth configuration, or the
+remaining roadmap requires two projects. Checked directly:
+
+- **Migrations.** `database/migrations/V1__initial_schema.sql` creates every
+  table in `public` and never references Supabase's `auth` schema.
+  `users.auth_subject` is an opaque `text ... unique` holding the Supabase
+  subject. The application schema is fully decoupled from Supabase auth and can
+  be applied to any PostgreSQL.
+- **Auth configuration.** The beta needs exactly what development needs:
+  anonymous sign-ins enabled (`D006`). There are no redirect URLs, OAuth
+  providers, or other per-environment settings to diverge.
+  `SupabaseTokenVerifier` checks the signature against the project's JWKS, the
+  issuer `<SUPABASE_URL>/auth/v1`, and the `authenticated` audience — identical
+  for both.
+- **Server configuration.** `SUPABASE_URL` and `DATABASE_URL` are independent
+  environment variables, and the server needs no exclusive ownership of the
+  database: `Migrations.migrate` is idempotent and runs with Flyway's clean
+  disabled.
+- **Roadmap.** `M15.4` (Android beta endpoint), `M16.1`/`M16.2` (interruption
+  and restart), `M17.1` (small beta distribution), and `M18.1` (architecture
+  review) need a reachable beta, not a second project.
+
+The separation in `D032` was blast-radius hygiene, not a technical constraint,
+and the project owner has chosen to trade it for a simpler single-project setup.
+Reusing the project also leaves a Free project slot spare instead of consuming
+the organization's whole allowance of two.
+
+### Consequences
+
+Accepted costs of sharing:
+
+- **Beta user counts are approximate.** Anonymous accounts created by
+  development and by the live tests are indistinguishable from beta players'.
+  `M17.1` observes onboarding against a pool that includes developer noise.
+- **The project can no longer be wiped freely.** Deleting or recreating
+  `ChessGame Dev` to clear development clutter would destroy beta data, and the
+  Free plan has no backups or point-in-time recovery.
+- **One outage, both environments.** A week of inactivity pauses the project, and
+  a Fair Use restriction (`402`) stops development sign-in as well as the beta.
+- **A development token is valid at the beta server.** Both environments trust
+  the same issuer. This does not change the trust model in kind — every MVP
+  identity is anonymous and unprivileged (`D004`, `D006`), and the server
+  already treats every client as untrusted — but development and beta are no
+  longer isolated identity domains.
+
+Required safeguard, because sharing removes the one that separation provided:
+
+- **`Migrations.reset` must refuse a non-disposable database.**
+  `DatabaseTestSupport.withMigratedDatabase` calls it on every server test run,
+  and it performs a Flyway `clean()` that drops everything in the schema, driven
+  entirely by whatever `TEST_DATABASE_URL` names. Under `D032` a developer's
+  `.env` never held beta credentials, so this could not reach beta data. Under
+  this decision the same project holds both, so one mistaken environment
+  variable destroys the beta irrecoverably. `M15.5` adds the guard, and `M15.3`
+  depends on it.
+- The beta `DATABASE_URL` belongs only in the Render environment. It must not be
+  put in a developer's `.env`, and `.env.example` says so.
+
+### Alternatives Considered
+
+- **Keep `D032`'s second project** — the safest option and the reason `D032`
+  specified it. Rejected by the owner in favour of a single project; the cost is
+  the shared identity pool, quota, and availability listed above.
+- **One project, separate PostgreSQL schema for the beta** — putting beta tables
+  in a `beta` schema rather than `public` would survive a `clean()` aimed at
+  `public`. Rejected as the primary safeguard: it depends on Flyway's configured
+  schema staying right, which is the same class of mistake it is meant to
+  prevent, and `M15.5`'s guard addresses the actual hazard directly. Worth
+  revisiting only if the beta later shares a database with something else.
+- **A separate Supabase project for auth only, sharing the database** — mixes the
+  two concerns in the least useful direction: identities are the cheap thing to
+  separate and the database is the expensive one.

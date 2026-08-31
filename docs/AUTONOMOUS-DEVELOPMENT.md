@@ -358,5 +358,19 @@ Never autonomously:
 - run destructive migrations against non-disposable environments,
 - delete user data.
 
-A development/test environment must be disposable and separate from
-production/beta data.
+The **database** a development or test run touches must be disposable and
+separate from beta data. That is the part of this rule that carries the safety:
+`Migrations.reset` runs a Flyway `clean()` and drops everything in the schema,
+and `DatabaseTestSupport` calls it on every server test run against whatever
+`TEST_DATABASE_URL` names.
+
+The Supabase **project** is no longer separate. `D035` reuses `ChessGame Dev`
+for the beta, so one project holds development identities and beta data, and
+Supabase Free has no backups. Concretely:
+
+- Point `DATABASE_URL` and `TEST_DATABASE_URL` only at the disposable Docker
+  PostgreSQL in `docs/DEVELOPMENT.md`. Never at the Supabase database.
+- Do not run `Migrations.reset`, `docker compose down -v`, or any other
+  destructive operation against anything but that disposable database.
+- `M15.5` turns the first rule into a guard in code; until it is `DONE`, nothing
+  but care enforces it.
