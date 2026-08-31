@@ -2,6 +2,9 @@ package com.jmussel.chessgame.server.db
 
 import com.zaxxer.hikari.HikariConfig
 import com.zaxxer.hikari.HikariDataSource
+import java.net.URI
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
 import javax.sql.DataSource
 
 /**
@@ -28,22 +31,42 @@ data class DatabaseConfig(
         /**
          * Reads a config from a `postgresql://user:password@host:port/database` URL, the
          * form `.env.example` and every hosting provider use.
+         *
+         * Any query string is carried through onto the JDBC URL, because that is where
+         * connection properties live: a managed database is reached with `?sslmode=require`
+         * or similar, and dropping it would quietly downgrade the connection (`M15.3`).
+         *
+         * The user info is percent-decoded, since a generated database password routinely
+         * contains characters that have to be escaped in a URL.
          */
         fun fromUrl(url: String): DatabaseConfig {
-            val uri = java.net.URI(url)
+            val uri = URI(url)
             require(uri.scheme == "postgresql" || uri.scheme == "postgres") {
-                "Not a PostgreSQL URL: $url"
+                "Not a PostgreSQL URL: ${redact(url)}"
             }
+            requireNotNull(uri.host) { "PostgreSQL URL has no host: ${redact(url)}" }
 
-            val userInfo = uri.userInfo.orEmpty().split(':', limit = 2)
+            val userInfo = uri.rawUserInfo.orEmpty().split(':', limit = 2)
             val port = if (uri.port == -1) DEFAULT_PORT else uri.port
+            val query =
+                uri.rawQuery
+                    ?.takeIf { it.isNotBlank() }
+                    ?.let { "?$it" }
+                    .orEmpty()
 
             return DatabaseConfig(
-                jdbcUrl = "jdbc:postgresql://${uri.host}:$port${uri.path}",
-                username = userInfo.getOrElse(0) { "" },
-                password = userInfo.getOrElse(1) { "" },
+                jdbcUrl = "jdbc:postgresql://${uri.host}:$port${uri.path}$query",
+                username = decode(userInfo.getOrElse(0) { "" }),
+                password = decode(userInfo.getOrElse(1) { "" }),
             )
         }
+
+        private fun decode(value: String): String = URLDecoder.decode(value, StandardCharsets.UTF_8)
+
+        /** [url] with any user info removed, so a failure message cannot carry a password. */
+        private fun redact(url: String): String = url.replace(USER_INFO, "//<credentials>@")
+
+        private val USER_INFO = Regex("//[^/@]*@")
 
         /** Reads the config from [variable], or returns `null` when it is not set. */
         fun fromEnvironmentOrNull(variable: String = DATABASE_URL): DatabaseConfig? =

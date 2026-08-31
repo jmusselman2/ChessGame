@@ -763,6 +763,51 @@ which the `$0` boundary forbids. Use Supavisor at
 on every tier including Free. Do not use transaction mode on port 6543: it does
 not support prepared statements, which Exposed over HikariCP relies on.
 
+### Beta database connection (`M15.3`)
+
+Status: VERIFIED (2026-08-31) for everything that does not need the database
+password; applying the migrations is blocked on that one value.
+
+The beta database is this same project's PostgreSQL (`D035`), reached through the
+Supavisor **session** pooler:
+
+    postgresql://postgres.rkwymrtqayyyfahfgmbm:<password>@aws-0-us-east-2.pooler.supabase.com:5432/postgres?sslmode=require
+
+Every part of that is settled:
+
+| | |
+|---|---|
+| Cluster | `aws-0-us-east-2` — confirmed against the pooler on 2026-08-31: `aws-0` reaches password authentication, `aws-1` answers `(ENOTFOUND) tenant/user postgres.rkwymrtqayyyfahfgmbm not found` |
+| Port | `5432`, session mode — transaction mode on `6543` has no prepared statements, which Exposed over HikariCP needs (`M15.1`) |
+| Username | `postgres.<project-ref>`, the pooler's tenant form, not plain `postgres` |
+| `sslmode` | `require`, carried in the URL |
+| Why not direct | `db.rkwymrtqayyyfahfgmbm.supabase.co` is IPv6-only and does not resolve on an IPv4-only host such as Render, which was reconfirmed here |
+
+`DatabaseConfig.fromUrl` now carries the query string through onto the JDBC URL
+and percent-decodes the credentials, so `?sslmode=require` survives and a
+generated password with escaped characters works. Before `M15.3` the query string
+was dropped, which would have connected in the clear.
+
+**The one value that is not here.** The database password cannot be read from the
+CLI — `supabase projects api-keys` returns API keys, not it — so it has to come
+from the project dashboard under *Settings → Database*. Put the whole URL above,
+with the password filled in, into your git-ignored `.env` as `BETA_DATABASE_URL`.
+It is never committed, and it must never be set as `DATABASE_URL` or
+`TEST_DATABASE_URL`, which stay pointed at the disposable container (`M15.5`
+enforces the second of those).
+
+Then apply the migrations and verify the whole chain with one command — it starts
+the server against the beta database, which migrates on startup, signs in
+anonymously, and calls `/me` so Supabase issuing, JWKS verification, and a
+database-backed write are all exercised:
+
+```bash
+bash scripts/verify-beta-database.sh
+```
+
+In normal operation `BETA_DATABASE_URL`'s value belongs in Render's environment
+as `DATABASE_URL`, not in anyone's `.env`.
+
 During M15, document the beta separately from local development:
 
 ```text

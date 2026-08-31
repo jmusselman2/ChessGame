@@ -3264,7 +3264,7 @@ method.
 
 ## M15.3 — Configure the beta Supabase environment
 
-**Status:** TODO
+**Status:** IN PROGRESS
 
 **Depends on:** M7.1, M7.2, M7.3, M15.1, M15.5
 
@@ -3322,6 +3322,42 @@ the deployed service is `M15.2` and `M15.4`.
 
 A local `.\gradlew.bat build` still passes against the Docker PostgreSQL
 afterwards, proving development and CI were not moved onto the shared database.
+
+**Progress 2026-08-31.** Everything that does not need the database password is
+done and verified:
+
+- **The connection is fully determined.** `postgres.rkwymrtqayyyfahfgmbm` at
+  `aws-0-us-east-2.pooler.supabase.com:5432` with `sslmode=require`. The cluster
+  was confirmed against the pooler rather than assumed: `aws-0` reaches password
+  authentication while `aws-1` answers
+  `(ENOTFOUND) tenant/user postgres.rkwymrtqayyyfahfgmbm not found`. The direct
+  `db.<ref>.supabase.co` endpoint was reconfirmed to be IPv6-only and does not
+  resolve here, which is why the pooler is required.
+- **The SSL criterion is implemented.** `DatabaseConfig.fromUrl` dropped the URL
+  query string, so `?sslmode=require` would have been silently discarded and the
+  beta would have connected in the clear. It now carries the query through onto
+  the JDBC URL and percent-decodes the credentials, so a generated password with
+  escaped characters works. Failure messages redact the user info instead of
+  echoing the password. Covered by five new `DatabaseConfigTest` cases.
+- **The runbook and a one-command verifier exist:**
+  `scripts/verify-beta-database.sh` connects through the pooler, checks the
+  connection is encrypted, starts the server against the beta database so Flyway
+  migrates on startup, signs in anonymously, calls `/me`, and prints the
+  resulting schema. `docs/DEVELOPMENT.md` **Beta database connection** holds the
+  detail, and `.env.example` carries the URL shape with no secret in it.
+
+**Remaining, and it is a genuine manual step:** the Supabase database password.
+It is not retrievable from the CLI — `supabase projects api-keys` returns API
+keys, not the database password — so it has to be copied from the project
+dashboard (*Settings → Database*) into the git-ignored `.env` as
+`BETA_DATABASE_URL`. Resetting it instead would be a credential change and would
+break anything already using the old one, so it is not done autonomously. Once
+that value is present, `bash scripts/verify-beta-database.sh` completes the
+remaining acceptance criteria — applying the migrations and the end-to-end check.
+
+Verified so far with `.\gradlew.bat :server:test --rerun-tasks` against the local
+PostgreSQL (392 tests, 0 failed, 0 skipped) and `.\gradlew.bat build`
+(BUILD SUCCESSFUL).
 
 ---
 
