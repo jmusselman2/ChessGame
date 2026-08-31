@@ -1117,7 +1117,7 @@ Limitations to accept explicitly before changing this decision to `Accepted`:
 ### Current State
 
 The Render side of this proposal has a resource already: a Free Web Service
-named `ChessGame` at `https://chessgame-hi7.onrender.com`, created by hand on
+named `ChessGame` at `https://chessgame-hit7.onrender.com`, created by hand on
 2026-08-28 to test the hosting path. It is not functional — its first Docker
 build failed, there being no `Dockerfile` — and creating it does not accept
 this decision or complete any `M15` task. The status above stays `Proposed`

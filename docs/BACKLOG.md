@@ -1019,12 +1019,16 @@ Verified locally with `.\gradlew.bat :android-app:testDebugUnitTest` (13 new
 **Depends on:** M5.4, M5.6, M14.15
 
 **Blocked on:** the one remaining verification step — a representative *manual*
-local game on an emulator or device. This machine has the Android SDK but no
-AVD configured (`emulator -list-avds` is empty) and no device attached
-(`adb devices` lists none), so the on-device play-through could not be
-performed here. Everything else this task asks for is implemented and verified;
-a human with an emulator or phone can clear this by playing one game and
-switching the status to `DONE`.
+local game on an emulator or device. Everything else this task asks for is
+implemented and verified.
+
+The emulator half of this is no longer missing: as of 2026-08-31 the machine
+has two AVDs (`ChessPlayer1`, `ChessPlayer2`, both `android-37.1`) and the
+`android-37.1` system image, superseding the earlier note that
+`emulator -list-avds` was empty. This task stays `BLOCKED` because its
+documented resolution path runs through `M14.18`, whose acceptance criteria
+already include this play-through and the DataStore-backed session restore —
+not because the infrastructure is unavailable. Clearing `M14.18` clears this.
 
 **Verified 2026-08-26 (automated):** pass-and-play is complete end to end
 through the same interaction layer taps go through — `LocalGameTest` plays
@@ -2959,24 +2963,30 @@ series history, opening a finished game, and absence of mutating controls.
 
 ## M14.18 — End-to-end Android multiplayer verification
 
-**Status:** BLOCKED
+**Status:** TODO
 
 **Depends on:** M14.6, M14.7, M14.8, M14.9, M14.10, M14.11, M14.12, M14.13, M14.14, M14.15, M14.16, M14.17
 
-**Blocked on (2026-08-28):** no Android emulator or device is available on this
-machine, which is the infrastructure this task names. Checked directly:
-`emulator -list-avds` lists nothing, `~/.android/avd` is empty,
-`Sdk/system-images` does not exist, there is no `cmdline-tools`/`sdkmanager` to
-install an image with, and `adb devices` shows none attached. The SDK itself is
-present (`platforms/android-37.0`, `build-tools`, `platform-tools`,
-`emulator`). Everything this task depends on is `DONE` and the automated seams
-are covered: the shell, startup, onboarding, friends, dashboard, game loading,
-moves, realtime, undo, draw claims, resignation, completion/rematch, and history
-are all exercised by `ChessAppTest` against a stubbed server, and the server side
-by its own tests against PostgreSQL. What is missing is the thing only a real
-client can show: two Android apps, on a real Supabase project and a running
-Ktor server, playing each other. A human with an emulator image or a phone can
-clear this, and clearing it also clears `M5.7`.
+**Unblocked (2026-08-31):** the emulator infrastructure this task names is now
+present, so the 2026-08-28 block no longer applies. Re-checked directly:
+`emulator -list-avds` lists `ChessPlayer1` and `ChessPlayer2`; both `.ini`
+files resolve to real AVD directories (`Pixel_7.avd` and `ChessPlayer2.avd`,
+the latter already carrying `bootcompleted.ini`); both target `android-37.1`;
+the `android-37.1` system image is installed; and `cmdline-tools/latest` is
+present. `adb devices` shows none attached only because no emulator is
+running, which is a start-up step rather than a missing prerequisite. Two
+distinct AVDs are exactly the two-client infrastructure this task requires,
+which by this task's own terms makes it ordinary autonomous work.
+
+What remains is the verification itself, not its prerequisites. Everything
+this task depends on is `DONE` and the automated seams are covered: the shell,
+startup, onboarding, friends, dashboard, game loading, moves, realtime, undo,
+draw claims, resignation, completion/rematch, and history are all exercised by
+`ChessAppTest` against a stubbed server, and the server side by its own tests
+against PostgreSQL. What is missing is the thing only a real client can show:
+two Android apps, on a real Supabase project and a running Ktor server,
+playing each other. It needs the existing development credentials
+and a running development server; completing it also clears `M5.7`.
 
 ### Objective
 
@@ -3022,7 +3032,7 @@ when everything needed is to hand.
 > topology must be accepted explicitly rather than discovered in use.
 >
 > External state (2026-08-28): a Render Free Web Service named `ChessGame`
-> already exists at `https://chessgame-hi7.onrender.com`, created by hand as an
+> already exists at `https://chessgame-hit7.onrender.com`, created by hand as an
 > early test of the hosting resource. **Do not create another one.** It is not
 > functional: its first deploy, of `0ef3228`, failed during the Docker build
 > because the repository has no `Dockerfile` yet. Nothing else about the beta

@@ -678,7 +678,7 @@ Render service name: ChessGame
 Type / runtime:      Web Service, Docker
 Plan:                Free ($0/month)
 Repository / branch: jmusselman2/ChessGame, main
-Public URL:          https://chessgame-hi7.onrender.com
+Public URL:          https://chessgame-hit7.onrender.com
 ```
 
 Where the beta actually stands, so no step is assumed from the existence of the
