@@ -11,6 +11,10 @@ import kotlin.test.assertTrue
  * When `TEST_DATABASE_URL` is not set the database is simply not available on that
  * machine, and these tests report themselves as skipped rather than failing. CI sets the
  * variable, so they always run there.
+ *
+ * Both entry points here empty the database before handing it over, so both go through
+ * [DisposableDatabase] first: since `D035` the beta shares the `ChessGame Dev` Supabase
+ * project, and a `TEST_DATABASE_URL` pointing there would destroy beta data (`M15.5`).
  */
 object DatabaseTestSupport {
     /** The configured test database, or `null` when this machine has none. */
@@ -66,6 +70,9 @@ object DatabaseTestSupport {
     private const val VALIDATION_TIMEOUT_SECONDS = 5
 
     private fun clean(dataSource: DataSource) {
+        // Drops the schema outright, so it is guarded exactly like Migrations.reset (M15.5).
+        DisposableDatabase.requireDisposable(Migrations.urlOf(dataSource))
+
         dataSource.connection.use { connection ->
             connection.createStatement().use { statement ->
                 statement.execute("drop schema if exists public cascade")

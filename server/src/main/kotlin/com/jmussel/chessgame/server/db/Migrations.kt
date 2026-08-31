@@ -36,13 +36,21 @@ object Migrations {
     /**
      * Drops everything in the database and re-applies every migration.
      *
-     * Only ever point this at the disposable development or test database.
+     * Refuses unless the database is disposable (see [DisposableDatabase]), and asks the
+     * live connection where it is actually connected rather than trusting a caller to say
+     * — the whole point is to catch a `TEST_DATABASE_URL` pointing somewhere it should
+     * not. The refusal happens before anything is dropped.
      */
     fun reset(dataSource: DataSource): Int {
+        DisposableDatabase.requireDisposable(urlOf(dataSource))
+
         val flyway = flywayFor(dataSource, cleanDisabled = false)
         flyway.clean()
         return flyway.migrate().migrationsExecuted
     }
+
+    /** Where [dataSource] is really connected, as the JDBC driver reports it. */
+    fun urlOf(dataSource: DataSource): String = dataSource.connection.use { it.metaData.url.orEmpty() }
 
     private fun flywayFor(
         dataSource: DataSource,

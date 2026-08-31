@@ -3359,7 +3359,7 @@ deployed server, including one request issued after the service has slept.
 
 ## M15.5 — Refuse a destructive database reset outside a disposable database
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M6.3
 
@@ -3399,6 +3399,40 @@ credentials, no account, and no deployment.
 `.\gradlew.bat :server:test --rerun-tasks` against the local PostgreSQL passes,
 and a test proves that a `reset` aimed at a non-local host is refused without
 dropping anything.
+
+**Completed 2026-08-31 (locally verified).** `DisposableDatabase` holds the rule:
+only a `localhost`, `127.0.0.1`, or `::1` host is disposable — the `compose.yaml`
+container and CI's service container — and everything else is refused, including
+a URL that cannot be parsed, which fails closed. It is pure and free of I/O, so
+every case is checked without a database.
+
+`Migrations.reset` calls it before `flyway.clean()`, reading the address from the
+live JDBC connection's metadata rather than from a caller, since the mistake being
+guarded against is precisely a caller pointing somewhere wrong.
+`DatabaseTestSupport.clean` — which drops and recreates the `public` schema
+directly for `withEmptyDatabase` — goes through the same check.
+`Migrations.migrate` is deliberately unguarded: it is forward-only and idempotent,
+and the server calls it on startup against whatever database it is deployed with.
+
+The override is `CHESSGAME_ALLOW_DESTRUCTIVE_RESET=i-know-this-destroys-data` and
+accepts that exact value only, so no truthy value anyone already exports can switch
+it on; it is documented in `docs/DEVELOPMENT.md` under **Applying migrations**.
+
+Tests: `DisposableDatabaseTest` (6 tests, no database needed) covers the loopback
+forms including the plain `postgresql://` URL, uppercase hosts and a missing port;
+the rejected forms including both Supabase routes, a Render host, a LAN address,
+and `localhost.evil.example` and `notlocalhost`, which merely contain the allowed
+name; unparseable URLs failing closed; the refusal naming the host and the override
+variable; and the override accepting one exact value and nothing else.
+`MigrationsTest.resettingIsRefusedWhenTheDatabaseIsNotDisposableAndNothingIsDropped`
+exercises the real destructive path against the real local database, with only the
+address the driver reports relabelled to the Supabase pooler, and asserts the
+migrated schema and the `users` table both survive. Removing the guard was
+confirmed to make that test fail, so it is not passing vacuously.
+
+Verified with `.\gradlew.bat :server:test --rerun-tasks` against the local
+PostgreSQL (387 tests, 0 failed, 0 skipped) and `.\gradlew.bat build`
+(BUILD SUCCESSFUL).
 
 ---
 

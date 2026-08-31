@@ -440,8 +440,30 @@ exactly the same files.
 
 `migrate` is repeatable: Flyway records applied versions in `flyway_schema_history`,
 so the same call is safe on a fresh database, a half-migrated one, and one that is
-already current. `reset` is destructive and belongs only to the disposable
-development and test databases.
+already current.
+
+`reset` is destructive — it runs a Flyway `clean()`, which drops everything in the
+schema — so since `M15.5` it refuses unless the database is disposable. The rule is
+in `DisposableDatabase` and is deliberately narrow: only a `localhost`,
+`127.0.0.1`, or `::1` host qualifies, which is the `compose.yaml` container and CI's
+service container. Anything else, including a URL that cannot be parsed, is refused
+with a `NotADisposableDatabaseException` naming the host, and the refusal happens
+before anything is dropped. The address checked is the one the live JDBC connection
+reports, not one a caller passes in.
+
+This matters because `D035` makes the beta share the `ChessGame Dev` Supabase
+project: without the guard, a `TEST_DATABASE_URL` pointing there would drop beta
+data that the Supabase Free plan cannot restore. `DatabaseTestSupport` calls the
+destructive path on every server test run.
+
+To destroy a non-loopback database deliberately, set the override to exactly this
+value — no other value is accepted, so nothing already exported can enable it by
+accident:
+
+    CHESSGAME_ALLOW_DESTRUCTIVE_RESET=i-know-this-destroys-data
+
+`migrate` is not guarded. It is forward-only and idempotent, and the server calls it
+on startup against whatever database it is deployed with.
 
 `DatabaseConfig.fromEnvironment()` builds the pooled `DataSource` from
 `DATABASE_URL` (or `TEST_DATABASE_URL`).

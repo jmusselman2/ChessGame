@@ -372,5 +372,6 @@ Supabase Free has no backups. Concretely:
   PostgreSQL in `docs/DEVELOPMENT.md`. Never at the Supabase database.
 - Do not run `Migrations.reset`, `docker compose down -v`, or any other
   destructive operation against anything but that disposable database.
-- `M15.5` turns the first rule into a guard in code; until it is `DONE`, nothing
-  but care enforces it.
+- `M15.5` turned the first rule into a guard in code (`DisposableDatabase`):
+  `Migrations.reset` and the test support's schema drop both refuse anything that
+  is not a loopback database. The remaining rules are still yours to keep.
