@@ -692,9 +692,37 @@ Do not mark a test skipped or weaken an assertion merely to obtain a green build
 
 ## Beta Deployment
 
-Do not begin M15 until `M14.18` has verified the Android multiplayer flow end
-to end and an authorized human has approved the provider/cost and beta
-credentials. During M15, document the beta separately from local development:
+`M14.18` verified the Android multiplayer flow end to end on 2026-08-31, and
+the project owner accepted `D032`'s free-tier provider decision and its
+operational limits the same day, which completed `M15.1`. That acceptance
+cleared the recurring-cost stop condition **only**. It did not authorize
+creating or changing paid resources, attaching a payment method, deploying, or
+handling beta credentials — `M15.2` and `M15.3` each still need their own
+explicit human authorization.
+
+Confirmed terms as of 2026-08-31 (numbers and references in `D032`):
+
+| | |
+|---|---|
+| Render Free instance hours | 750 per workspace per calendar month; Free web services suspended until next month when gone |
+| Render Hobby workspace (`$0`) | 5 GB outbound bandwidth, 500 build pipeline minutes, up to 25 services |
+| Render Free sleep | spins down after 15 min without traffic; roughly a one-minute cold start |
+| Render over-quota, no payment method | services spin down until the next month; no charge |
+| Render scaling | Free instance type is single-instance; autoscaling needs Pro |
+| Supabase Free | 2 active projects per org, 500 MB database, 1 GB storage, 5 GB egress + 5 GB cached, 50k MAU |
+| Supabase Free pausing | project paused after one week of inactivity |
+| Supabase Free over-quota | notified, grace period, then restricted under Fair Use (`402`); no charge |
+| Supabase Free backups | none; no point-in-time recovery |
+
+**The beta `DATABASE_URL` must go through the Shared Pooler.** Render is
+IPv4-only and a Supabase project's direct database endpoint
+(`db.<ref>.supabase.co`) is IPv6-only unless the paid IPv4 add-on is bought,
+which the `$0` boundary forbids. Use Supavisor at
+`aws-<region>.pooler.supabase.com` in **session mode on port 5432** — IPv4-only
+on every tier including Free. Do not use transaction mode on port 6543: it does
+not support prepared statements, which Exposed over HikariCP relies on.
+
+During M15, document the beta separately from local development:
 
 ```text
 Ktor beta host:

@@ -1029,7 +1029,7 @@ new kind of dependency.
 
 **Date:** 2026-08-28
 
-**Status:** Proposed
+**Status:** Accepted
 
 ### Decision
 
@@ -1046,6 +1046,22 @@ providers' current free quotas:
 
 If a free-tier limit gets in the way, the beta stops until a human decides
 whether to reduce usage, wait for a quota reset, or authorize paid hosting.
+
+### Acceptance
+
+Accepted by the project owner on 2026-08-31, in conversation, together with the
+operational limits below: Render Free sleep and cold starts and the rest of the
+free-tier limits, Supabase Free limits and inactivity pausing, no paid backups
+or point-in-time recovery, no automatic upgrade to a paid tier, and stopping or
+suspending the beta rather than incurring cost whenever a free limit is reached.
+The beta must remain `$0`/month.
+
+That acceptance clears the recurring-cost Stop Condition for this decision. It
+authorizes nothing else. It explicitly does **not** authorize creating or
+changing paid resources, attaching or using a payment method, deploying the beta
+server, triggering a Render deployment, or handling beta database credentials
+beyond what planning requires. `M15.2` and `M15.3` remain gated on their own
+separate human authorization.
 
 ### Rationale
 
@@ -1083,18 +1099,27 @@ Limitations to accept explicitly before changing this decision to `Accepted`:
   bound. Android needs a conservative, configurable deadline with capped
   retry/backoff, and a first call after idleness should read as "waking up"
   before it becomes an actionable failure.
-- **The socket drops when it sleeps.** That is the reconnect path `M12.3` and
+- **The socket drops when it sleeps, and whenever the instance is replaced.**
+  Render imposes no fixed WebSocket idle timeout but closes every connection
+  when an instance is replaced, by a deploy or by platform maintenance, and asks
+  services to send keepalive ping/pong frames and clients to reconnect with
+  exponential backoff. That is the reconnect path `M12.3` and
   `M14.12` already specify — canonical state reloads over HTTPS — so sleeping
   costs latency, not correctness.
 - **A free Supabase project pauses after about a week of inactivity.** A beta
   that goes quiet for a week needs the project resumed before the next session,
   or the server will fail to reach its database.
-- **Free quotas are hard operating limits.** Render currently grants 750 Free
-  instance hours per workspace per month and its Hobby workspace includes 5 GB
-  of outbound bandwidth. Without a payment method, exhausting bandwidth spins
-  down the workspace instead of creating an overage charge. Build minutes and
-  instance hours are also shared at workspace level and can stop builds or
-  services until reset.
+- **Free quotas are hard operating limits.** Rechecked 2026-08-31: Render
+  grants 750 Free instance hours per workspace per calendar month and suspends
+  every Free web service in the workspace until the next month once they are
+  gone. The Hobby workspace (`$0`) includes 5 GB of outbound bandwidth and 500
+  build pipeline minutes, and caps the workspace at 25 services. Without a
+  payment method, exceeding bandwidth spins the workspace's services down until
+  the start of the next month rather than creating a charge; exhausting pipeline
+  minutes stops new builds for the rest of the month. This is the mechanism that
+  makes the hard `$0` boundary enforceable at the provider rather than by
+  convention. Render revised its workspace plans on 2026-04-23, so these
+  numbers are the post-revision ones.
 - **The external database is public-internet traffic.** Render counts traffic
   to Supabase as service-initiated outbound traffic and may suspend a Free
   service for unusually high volume. Usage must be monitored during the beta.
@@ -1105,9 +1130,17 @@ Limitations to accept explicitly before changing this decision to `Accepted`:
   statements. PostgreSQL SSL settings must survive `DATABASE_URL` parsing and
   be verified before deployment.
 - **Supabase Free has data limits but no managed recovery guarantee for this
-  beta.** It currently includes a 500 MB database and 5 GB egress, allows two
-  active projects, and has no automatic backups or point-in-time recovery. Beta
-  data is not treated as durable unless a manual export process is documented.
+  beta.** Rechecked 2026-08-31: 500 MB database, 1 GB file storage, 5 GB egress
+  plus 5 GB cached egress, 50,000 monthly active users, and no automatic backups
+  or point-in-time recovery. Exceeding a Free quota does not create a charge —
+  Supabase notifies the billing address, allows a grace period, and then applies
+  service restrictions under its Fair Use Policy, with the project answering
+  `402` and a reason such as `exceed_egress_quota` while the dashboard still
+  reaches the data. Beta data is not treated as durable unless a manual export
+  process is documented.
+- **Two active Free projects is the whole allowance.** `ChessGame Dev` plus
+  `ChessGame Beta` uses both, so no third Free project is available in that
+  organization and neither may be paused or deleted casually.
 - **One instance only.** Do not scale the Render service horizontally while
   `RealtimeHub` is process-local; a second instance would silently fail to
   deliver moves between players connected to different processes.
@@ -1120,12 +1153,18 @@ The Render side of this proposal has a resource already: a Free Web Service
 named `ChessGame` at `https://chessgame-hit7.onrender.com`, created by hand on
 2026-08-28 to test the hosting path. It is not functional — its first Docker
 build failed, there being no `Dockerfile` — and creating it does not accept
-this decision or complete any `M15` task. The status above stays `Proposed`
-until `M15.1`.
+this decision or complete any `M15` task.
+
+`M15.1` completed the recheck and the owner accepted the decision on 2026-08-31,
+so the status above is now `Accepted`. Two facts about the Render workspace
+itself — that no payment method is attached and that the service uses the Free
+instance type — are account state this repository cannot read and cannot keep
+true. They must be confirmed by a human in the Render dashboard before `M15.2`,
+and they are what the `$0` boundary rests on.
 
 ### Provider References
 
-Checked 2026-08-28:
+Checked 2026-08-28; rechecked in full for `M15.1` on 2026-08-31:
 
 - [Render Free services and limits](https://render.com/docs/free)
 - [Render outbound bandwidth](https://render.com/docs/outbound-bandwidth)
@@ -1134,6 +1173,12 @@ Checked 2026-08-28:
 - [Supabase pricing and Free-plan limits](https://supabase.com/pricing)
 - [Supabase Free-project pausing](https://supabase.com/docs/guides/platform/free-project-pausing)
 - [Railway pricing](https://railway.com/pricing)
+- [Render web services (HTTPS, health checks, secrets)](https://render.com/docs/web-services)
+- [Render WebSocket support](https://render.com/docs/websocket)
+- [Render scaling (autoscaling is Pro and above)](https://render.com/docs/scaling)
+- [Render new workspace plans, 2026-04-23](https://render.com/docs/new-workspace-plans)
+- [Render outbound IP addresses (IPv4)](https://render.com/docs/outbound-ip-addresses)
+- [Supabase billing FAQ (Free plan is restricted, not billed)](https://supabase.com/docs/guides/platform/billing-faq)
 
 ---
 

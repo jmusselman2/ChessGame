@@ -3088,31 +3088,36 @@ when everything needed is to hand.
 > outstanding. `docs/DEVELOPMENT.md` **Beta Deployment** holds the service
 > details and that breakdown.
 >
-> Sequencing: this milestone begins only after `M14.18` proves the Android
-> multiplayer client end to end.
+> Sequencing: this milestone began after `M14.18` proved the Android
+> multiplayer client end to end (2026-08-31).
 >
-> Authorization: `D032` is a proposal until a human accepts it in the
-> conversation. Accepting its hard-$0/no-payment-method boundary clears the
-> recurring-cost Stop Condition, but does not authorize deployment. `M15.2` is
-> a **beta deployment**; `M15.3` needs **accounts and credentials** the loop
-> cannot create or hold; and `M15.4` follows `M15.2`. An agent may prepare
+> Authorization state (2026-08-31): the project owner accepted `D032` and its
+> operational limits in conversation, which changed `D032` to `Accepted`,
+> cleared the recurring-cost Stop Condition, and completed `M15.1`. That
+> acceptance authorized **nothing further**. It explicitly did not authorize
+> creating or changing paid resources, attaching or using a payment method,
+> deploying the beta server, triggering a Render deployment, or handling beta
+> database credentials beyond planning.
+>
+> So `M15.2` is still a **beta deployment** and `M15.3` still needs **accounts
+> and credentials** the loop cannot create or hold, each requiring its own
+> explicit human authorization; `M15.4` follows `M15.2`. An agent may prepare
 > deployable artifacts — a Dockerfile, configuration, documentation — but may
-> not create accounts, deploy, or handle live credentials. Do not mark any
-> `M15` task `IN PROGRESS` without explicit human authorization in the
+> not create accounts, deploy, or handle live credentials. Do not mark `M15.2`,
+> `M15.3`, or `M15.4` `IN PROGRESS` without explicit human authorization in the
 > conversation.
 >
-> The loop therefore excludes this milestone from selection. It does **not**
-> route around it: in the current dependency graph `M16.1`/`M16.2` require
-> `M15`, `M17.1` requires `M15` and `M16`, and `M18.1` requires `M17`, so once
-> `M14.18` is `DONE` nothing selectable remains. The loop reaches the **backlog
-> exhausted** Stop Condition and reports, which is the intended outcome — `M15`
-> is where autonomous development ends until a human authorizes it. Do not mark
-> any `M15` task `IN PROGRESS` without explicit human authorization in the
-> conversation.
+> The loop therefore still excludes the rest of this milestone from selection,
+> and does **not** route around it: `M16.1`/`M16.2` require `M15`, `M17.1`
+> requires `M15` and `M16`, and `M18.1` requires `M17`, so with `M15.1` `DONE`
+> nothing selectable remains. The loop reaches the **backlog exhausted** Stop
+> Condition and reports, which is the intended outcome — `M15.2` onward is
+> where autonomous development ends until a human authorizes each step.
 
 ## M15.1 — Confirm Ktor hosting provider and current terms
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M14.18
 
 ### Objective
@@ -3139,11 +3144,64 @@ proposed provider using the terms available at deployment time.
   sleeping/cold starts, and Supabase project, storage, egress, pausing, and
   backup limits.
 
-**Proposed 2026-08-28 (`D032`):** one Render Free Web Service with no payment
-method, plus a second Supabase Free project. Keep this task `TODO` until
-`M14.18` is complete, a human accepts the proposal, and the current terms have
-been checked. The task therefore has real work remaining rather than becoming
-`DONE` automatically when its dependency clears.
+**Completed 2026-08-31 (locally verified).** `M14.18` is `DONE`, the project
+owner accepted `D032` and its operational limits in conversation, and the
+provider terms were rechecked from current documentation. `D032` is now
+`Accepted`; the provider stays Render Free plus a second Supabase Free project.
+Against this task's criteria:
+
+- **Provider accepted.** The owner accepted Render Free sleep and cold starts,
+  Supabase Free limits and inactivity pausing, no paid backups or
+  point-in-time recovery, no automatic upgrade to a paid tier, and stopping the
+  beta rather than incurring cost at any free limit. The acceptance is recorded
+  in `D032` together with what it does **not** authorize.
+- **The provider supports what the server needs.** Render web services give
+  free managed TLS on an `onrender.com` subdomain, a configurable health-check
+  path, environment variables and secret files, Docker deploys, and WebSocket
+  connections with no fixed idle timeout — closed only when an instance is
+  replaced, which is the reconnect path `M12.3`/`M14.12` already implement.
+  Outbound connectivity to the beta PostgreSQL works over Supabase's Shared
+  Pooler (see below).
+- **The hard `$0` boundary is enforceable at the provider.** With no payment
+  method attached, Render spins the workspace's services down until the start of
+  the next month instead of billing for excess outbound bandwidth, and exhausting
+  the 750 monthly Free instance hours suspends Free web services until the next
+  month. Supabase does not charge for Free-plan over-usage either; it notifies,
+  allows a grace period, then restricts the project under its Fair Use Policy
+  (`402`, e.g. `exceed_egress_quota`) with dashboard access to the data retained.
+  Neither provider upgrades a plan automatically.
+- **The topology is a single instance.** `RealtimeHub` holds connections in an
+  in-process `ConcurrentHashMap` (`server/.../realtime/RealtimeHub.kt`,
+  `ARCHITECTURE.md` §12), and Render's Free instance type cannot be scaled —
+  autoscaling requires a Pro workspace. The free tier therefore enforces the
+  single-instance topology this design needs, so no shared pub/sub is required
+  first. Do not move the service off Free without revisiting that.
+- **Current limits rechecked (2026-08-31).** Render: 750 Free instance hours per
+  workspace per calendar month; Hobby workspace (`$0`) includes 5 GB outbound
+  bandwidth, 500 build pipeline minutes, and up to 25 services; Free web
+  services spin down after 15 minutes without traffic with roughly a one-minute
+  cold start; Render revised its workspace plans on 2026-04-23. Supabase Free:
+  two active projects per organization, 500 MB database, 1 GB file storage, 5 GB
+  egress plus 5 GB cached egress, 50,000 monthly active users, paused after one
+  week of inactivity, no automatic backups or point-in-time recovery. Every
+  figure and the reference list are in `D032`.
+
+**One finding that constrains `M15.3`.** Render is IPv4-only and a Supabase
+project's direct database endpoint is IPv6-only unless the paid IPv4 add-on is
+bought — which the `$0` boundary forbids. The beta `DATABASE_URL` must therefore
+use the Shared Pooler (Supavisor) at `aws-<region>.pooler.supabase.com` in
+**session mode on port 5432**, which is IPv4-only on every tier including Free.
+Transaction mode on port 6543 is unsuitable: it does not support prepared
+statements, which Exposed over HikariCP relies on.
+
+**Two facts a human must confirm before `M15.2`.** That the Render workspace has
+no payment method attached and that the `ChessGame` service uses the Free
+instance type are account state this repository cannot read, and they are what
+the `$0` boundary rests on. No Render MCP tooling was available in this session,
+so they were not machine-verified.
+
+Verified with `.\gradlew.bat build` (BUILD SUCCESSFUL); this task changed
+documentation only.
 
 ---
 
