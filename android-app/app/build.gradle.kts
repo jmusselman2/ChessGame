@@ -20,6 +20,16 @@ val supabaseAnonKey: String =
         .orElse(providers.environmentVariable("SUPABASE_ANON_KEY"))
         .getOrElse("")
 
+// Where the Chess server is, for a build that is not talking to the beta endpoint. The
+// default is the host machine as an emulator normally sees it; an Android 16/17 emulator
+// cannot reach the host that way, so a development build there is given
+// http://localhost:8080 alongside `adb reverse`. See docs/DEVELOPMENT.md.
+val chessServerUrl: String =
+    providers
+        .gradleProperty("chessServerUrl")
+        .orElse(providers.environmentVariable("CHESS_SERVER_URL"))
+        .getOrElse("http://10.0.2.2:8080")
+
 android {
     namespace = "com.jmussel.chessgame"
     compileSdk {
@@ -37,6 +47,7 @@ android {
 
         buildConfigField("String", "SUPABASE_URL", "\"$supabaseUrl\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"$supabaseAnonKey\"")
+        buildConfigField("String", "CHESS_SERVER_URL", "\"$chessServerUrl\"")
     }
 
     buildTypes {

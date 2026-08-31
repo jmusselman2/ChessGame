@@ -2,12 +2,12 @@
 
 This file records the exact commands and environment details used to build, run, and verify the project.
 
-The engine, authoritative server, database integration, and existing Android
-components build successfully. The aggregate command was last confirmed
-locally on 2026-08-28 at `claude-autopilot` commit `0ef3228`; the same commit
-passed GitHub Actions run 33022371135. Database migrations and local PostgreSQL
-are configured. Beta deployment is not configured, and the Android application
-shell/online game flow remains `M14.5`–`M14.18` in `docs/BACKLOG.md`.
+The engine, authoritative server, database integration, and the Android
+application all build successfully. Database migrations and local PostgreSQL are
+configured. The Android multiplayer flow has been verified end to end on two
+emulators against a development server and the `ChessGame Dev` Supabase project
+(`M14.18`, 2026-08-31) — see **Reaching the development server from an
+emulator**. Beta deployment is still not configured; that is `M15`.
 
 Do not treat an unverified example command as authoritative. When you add or
 change a command, run it, then record it here with `Status: VERIFIED` and the
@@ -291,9 +291,46 @@ The server starts in one of two modes:
 `M14.5` the manifest grants `INTERNET`, and the `debug` source set's
 `res/xml/network_security_config.xml` permits cleartext to `10.0.2.2` and
 `localhost` only; the release configuration forbids cleartext entirely, so beta
-and release traffic remains HTTPS-only (`D033`). Do not interpret the configured
-URL or host-side API-client tests as a successful device connection — no
-emulator play-through has been run yet, which is `M14.18`.
+and release traffic remains HTTPS-only (`D033`). The two-client emulator
+play-through that proves this end to end was run for `M14.18` (2026-08-31); see
+**Reaching the development server from an emulator** below for the one setup
+step it needs.
+
+### Reaching the development server from an emulator
+
+Status: VERIFIED (2026-08-31, `M14.18`)
+
+**On an Android 16/17 emulator an app cannot reach the host through
+`10.0.2.2`.** Measured on both `ChessPlayer1` and `ChessPlayer2`
+(`android-37.1`, `ro.build.version.release` 17, API 37): a plain
+`HttpURLConnection` to `http://10.0.2.2:8080/health` returns 200 as the `shell`
+user and times out after 10–15 s as the app's own uid, while the same app uid
+reaches `https://example.com` and the host's LAN address on the same port
+without trouble. The app therefore signs in to Supabase and then fails on its
+first call to the Chess server, which the shell reports only as
+`Could not reach the server`.
+
+Use `adb reverse` and point the build at `localhost` instead:
+
+    adb -s emulator-5554 reverse tcp:8080 tcp:8080
+    adb -s emulator-5556 reverse tcp:8080 tcp:8080
+
+Windows:
+
+    $env:SUPABASE_ANON_KEY = "<publishable key>"
+    .\gradlew.bat :android-app:assembleDebug "-PchessServerUrl=http://localhost:8080"
+
+Linux/macOS:
+
+    SUPABASE_ANON_KEY=<publishable key>       ./gradlew :android-app:assembleDebug -PchessServerUrl=http://localhost:8080
+
+`chessServerUrl` follows the same pattern as `supabaseAnonKey`: a Gradle
+property, a `gradle.properties` entry, or the `CHESS_SERVER_URL` environment
+variable, defaulting to `http://10.0.2.2:8080` when none is given (`D034`).
+`localhost` is already one of the two addresses the debug network security
+configuration permits in the clear, and a `reverse` map does not survive the
+emulator restarting, so re-run it after a cold boot. A release build is
+unaffected: it forbids cleartext outright.
 
 ### Gradle Project Structure
 

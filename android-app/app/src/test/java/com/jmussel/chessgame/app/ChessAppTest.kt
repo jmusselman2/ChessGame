@@ -1473,6 +1473,25 @@ class ChessAppTest {
         assertEquals("ws://10.0.2.2:8080/ws", ChessServerConfig("http://10.0.2.2:8080").webSocketUrl("/ws"))
     }
 
+    /**
+     * An Android 16/17 emulator cannot reach the host through `10.0.2.2`, so a development
+     * build there is pointed at `http://localhost:8080` with `adb reverse` behind it
+     * (`M14.18`, `docs/DEVELOPMENT.md`). Whichever address is supplied has to carry through
+     * to both the HTTP calls and the socket.
+     */
+    @Test
+    fun aBuildCanBePointedAtADifferentDevelopmentServer() {
+        val localhost = ChessServerConfig("http://localhost:8080")
+
+        assertEquals("http://localhost:8080/me", localhost.url("/me"))
+        assertEquals("ws://localhost:8080/ws", localhost.webSocketUrl("/ws"))
+        assertEquals(
+            "the compiled-in default stays the ordinary emulator address",
+            "http://10.0.2.2:8080",
+            ChessServerConfig().baseUrl,
+        )
+    }
+
     @Test
     fun undoIsSentOnlyWhenTheServerSaysThisPlayerMay() =
         runTest(dispatcher) {

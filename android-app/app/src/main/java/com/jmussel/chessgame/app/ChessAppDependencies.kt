@@ -78,14 +78,15 @@ class ChessAppDependencies(
 
     companion object {
         /**
-         * The real dependencies, reading the Supabase configuration baked in at build time.
+         * The real dependencies, reading the Supabase and Chess server configuration baked
+         * in at build time.
          *
          * Takes the application context, never an `Activity`, so nothing here keeps a
          * destroyed screen alive.
          */
         fun create(context: Context): ChessAppDependencies =
             ChessAppDependencies(
-                serverConfig = ChessServerConfig(),
+                serverConfig = ChessServerConfig(BuildConfig.CHESS_SERVER_URL),
                 supabaseConfig = SupabaseConfig(url = BuildConfig.SUPABASE_URL, anonKey = BuildConfig.SUPABASE_ANON_KEY),
                 httpClient = defaultHttpClient(),
                 sessionStore = DataStoreSessionStore(context.applicationContext),

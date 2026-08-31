@@ -1014,21 +1014,23 @@ Verified locally with `.\gradlew.bat :android-app:testDebugUnitTest` (13 new
 
 ## M5.7 — Local game completion
 
-**Status:** BLOCKED
+**Status:** DONE
 
 **Depends on:** M5.4, M5.6, M14.15
 
-**Blocked on:** the one remaining verification step — a representative *manual*
-local game on an emulator or device. Everything else this task asks for is
-implemented and verified.
+**Completed 2026-08-31 (locally verified), during `M14.18`.** The one step this
+task was waiting on — a representative *manual* local game on an emulator —
+was played on `ChessPlayer1` (`emulator-5554`): pass-and-play through the real
+Compose UI to Fool's mate, `1. f2f3 e7e5 2. g2g4 d8h4`, ending
+`BLACK wins — CHECKMATE`. The board turned to whichever side was to move, the
+`Undo` control was offered between moves and disappeared once the game-ending
+move was played, and a further tap on the finished board changed nothing. The
+DataStore-backed session restore that `M14.18` pairs with it was verified in the
+same session (see that task's note).
 
-The emulator half of this is no longer missing: as of 2026-08-31 the machine
-has two AVDs (`ChessPlayer1`, `ChessPlayer2`, both `android-37.1`) and the
-`android-37.1` system image, superseding the earlier note that
-`emulator -list-avds` was empty. This task stays `BLOCKED` because its
-documented resolution path runs through `M14.18`, whose acceptance criteria
-already include this play-through and the DataStore-backed session restore —
-not because the infrastructure is unavailable. Clearing `M14.18` clears this.
+This closes the blocker recorded on 2026-08-28: the resignation control the
+scope correction named is `M14.15`, which is `DONE`, and the play-through ran
+after it existed.
 
 **Verified 2026-08-26 (automated):** pass-and-play is complete end to end
 through the same interaction layer taps go through — `LocalGameTest` plays
@@ -2963,30 +2965,74 @@ series history, opening a finished game, and absence of mutating controls.
 
 ## M14.18 — End-to-end Android multiplayer verification
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M14.6, M14.7, M14.8, M14.9, M14.10, M14.11, M14.12, M14.13, M14.14, M14.15, M14.16, M14.17
 
-**Unblocked (2026-08-31):** the emulator infrastructure this task names is now
-present, so the 2026-08-28 block no longer applies. Re-checked directly:
-`emulator -list-avds` lists `ChessPlayer1` and `ChessPlayer2`; both `.ini`
-files resolve to real AVD directories (`Pixel_7.avd` and `ChessPlayer2.avd`,
-the latter already carrying `bootcompleted.ini`); both target `android-37.1`;
-the `android-37.1` system image is installed; and `cmdline-tools/latest` is
-present. `adb devices` shows none attached only because no emulator is
-running, which is a start-up step rather than a missing prerequisite. Two
-distinct AVDs are exactly the two-client infrastructure this task requires,
-which by this task's own terms makes it ordinary autonomous work.
+**Completed 2026-08-31 (locally verified).** Two Android emulators
+(`ChessPlayer1` on `emulator-5554`, `ChessPlayer2` on `emulator-5556`, both
+`android-37.1`/Android 17/API 37) ran the release-shaped debug APK against a
+`.\gradlew.bat :server:run` development server on the local Docker PostgreSQL,
+with anonymous authentication on the real `ChessGame Dev` Supabase project. The
+play-through and what it showed:
 
-What remains is the verification itself, not its prerequisites. Everything
-this task depends on is `DONE` and the automated seams are covered: the shell,
-startup, onboarding, friends, dashboard, game loading, moves, realtime, undo,
-draw claims, resignation, completion/rematch, and history are all exercised by
-`ChessAppTest` against a stubbed server, and the server side by its own tests
-against PostgreSQL. What is missing is the thing only a real client can show:
-two Android apps, on a real Supabase project and a running Ktor server,
-playing each other. It needs the existing development credentials
-and a running development server; completing it also clears `M5.7`.
+- **Identity and onboarding.** Both clients created anonymous Supabase sessions
+  and claimed usernames (`alice`, `bob`); the server recorded both, and a later
+  lookup of a name that was never claimed was correctly refused.
+- **Friends.** `alice` found `bob` by username and added him; `bob`'s own
+  friends list showed `alice` without any action on his side — friendships are
+  mutual immediately.
+- **Series and colours.** `Play` created the series (`POST /series -> 201`) and
+  game 1 with `alice` as White. Colours alternated across all three games of the
+  series (White: `alice`, `bob`, `alice`), matching the rows in PostgreSQL.
+- **Moves.** Alternating legal moves went through the server and the version
+  incremented on every accepted one (game 1 reached version 13).
+- **Realtime.** `bob`'s dashboard changed from `Nothing waiting on you` to
+  `YOUR TURN … Black • Move 1` after `alice` moved, with nothing touched on his
+  device; `alice`'s open game screen followed `bob`'s move, his take-back, and
+  his replacement move the same way.
+- **Undo.** `bob` took back `e7e6` while it was the latest unanswered move
+  (version 3, pawn back on `e7`, history back to `1. e2e4`) and replaced it with
+  `e7e5`.
+- **Claimable draw.** A knight shuffle repeated the position three times, the
+  server offered `Claim draw (threefold repetition)` to `alice` alone, and
+  claiming it finished the game as `Drawn by threefold repetition claim` on both
+  screens.
+- **Resignation.** In game 2 `alice` resigned through the confirmation dialog;
+  both clients showed the result from their own side (`bob won by resignation` /
+  `You won by resignation`).
+- **Completion and automatic rematch.** Each finished game offered
+  `Play the next game`, and taking it opened the next game with the colours
+  swapped.
+- **Dashboard and history.** After returning from the game both dashboards
+  reflected the same canonical state from each player's side, history listed
+  `Game 1 • White • Drawn by threefold repetition claim • 6 moves` and
+  `Game 2 • Black • Lost by resignation • 2 moves`, and opening a finished game
+  restored its final position and move list with no `Undo`, `Resign`, or
+  draw-claim control present.
+- **Canonical state.** The `games` rows in PostgreSQL matched the clients
+  exactly: `DRAW`/`THREEFOLD_REPETITION_CLAIM` at version 13,
+  `WHITE_WINS`/`RESIGNATION` at version 4, then an `IN_PROGRESS` game 3.
+- **`M5.7`'s remaining step.** A local pass-and-play game was played on the
+  emulator to Fool's mate (`1. f2f3 e7e5 2. g2g4 d8h4`), ending
+  `BLACK wins — CHECKMATE`; the board turned to each side in turn, the `Undo`
+  control disappeared on the final move, and a further tap changed nothing.
+  Session restore was verified by killing the process without clearing app data:
+  the app came back straight to `alice`'s dashboard, `users` stayed at five rows,
+  and `files/datastore/anonymous_session.preferences_pb` was present on the
+  device.
+
+**One defect found and fixed.** On these Android 16/17 emulators an app uid
+cannot reach the host through `10.0.2.2`, so the app signed in to Supabase and
+then failed on its first Chess-server call with `Could not reach the server`.
+The address is now a build input (`D034`, `docs/DEVELOPMENT.md` **Reaching the
+development server from an emulator**) and the play-through ran with
+`-PchessServerUrl=http://localhost:8080` behind `adb reverse tcp:8080 tcp:8080`.
+
+Verified with `.\gradlew.bat :server:test --rerun-tasks` against the local
+PostgreSQL (380 tests, 0 failed, 0 skipped) and `.\gradlew.bat build`
+(BUILD SUCCESSFUL; 323 `game-core`, 331 `android-app`, 380 `server` tests, 0
+failed, 0 skipped, including Android lint and both APKs).
 
 ### Objective
 

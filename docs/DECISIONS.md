@@ -1204,3 +1204,71 @@ a runtime flag someone can leave on.
   than restored — which `D004` requires anyway.
 - A beta or release build cannot reach a plain-HTTP server at all. `M15.4`'s
   endpoint has to be HTTPS, which is what `D032`'s hosting provides.
+
+---
+
+## D034 — The Development Server Address Is a Build Input, Because `10.0.2.2` Does Not Work on Android 16/17
+
+**Date:** 2026-08-31
+
+**Status:** Accepted
+
+### Decision
+
+`BuildConfig.CHESS_SERVER_URL` supplies the Chess server address the Android app
+uses, filled from a `chessServerUrl` Gradle property, a `gradle.properties`
+entry, or the `CHESS_SERVER_URL` environment variable, and defaulting to
+`http://10.0.2.2:8080` when none is given. `ChessAppDependencies.create` reads
+it; `ChessServerConfig`'s own default is unchanged.
+
+A development build running against an Android 16/17 emulator is built with
+`-PchessServerUrl=http://localhost:8080` and paired with
+`adb reverse tcp:8080 tcp:8080`.
+
+### Rationale
+
+`10.0.2.2` is the emulator's alias for the host loopback and has been the
+development address since `M14.5`. It does not work on the emulators this
+project actually has. Measured during `M14.18` on both `ChessPlayer1` and
+`ChessPlayer2` (`android-37.1`, Android 17, API 37, the project's own
+`compileSdk`/`targetSdk`), a plain `HttpURLConnection` to
+`http://10.0.2.2:8080/health`:
+
+- returns 200 as the `shell` uid,
+- times out after 10–15 s as the app's uid,
+
+while that same app uid reaches `https://example.com` and the host's LAN address
+on port 8080 without trouble. So it is neither the app's HTTP stack, nor the
+`INTERNET` permission, nor the debug cleartext configuration, nor a general
+local-network restriction — connections from an ordinary app uid to the
+`10.0.2.2` host-loopback alias simply do not complete.
+
+`adb reverse` puts the server on the device's own loopback, which an app uid
+reaches normally. `localhost` was already one of the two addresses the debug
+network security configuration permits in the clear (`D033`), so nothing about
+the trust boundary changes.
+
+Making the address a build input rather than moving the default keeps the
+documented behaviour for anyone on an older emulator or a physical device, and
+matches how `SUPABASE_URL` and `SUPABASE_ANON_KEY` are already supplied.
+
+### Alternatives Considered
+
+- **Change the default to `http://localhost:8080`** — would silently require
+  every developer to have run `adb reverse`, and would break a physical-device
+  or older-emulator setup that works today.
+- **Point the app at the host's LAN address** — verified to work, but it hard-codes
+  a machine-specific address, stops working off that network, and puts session
+  tokens on the LAN in the clear.
+- **Keep `10.0.2.2` and find the kernel-level cause** — the behaviour is a
+  property of the emulator image, not of this repository, and no change here
+  would alter it.
+
+### Consequences
+
+- A debug build carries whatever address it was built with, so a build made for
+  an emulator is not automatically right for a device, and vice versa.
+- `adb reverse` maps do not survive an emulator restart; the map has to be
+  re-established after a cold boot.
+- A release build is unaffected: `D033` forbids cleartext outright, so it can
+  reach only an HTTPS server, which is what `M15.4` will configure.
