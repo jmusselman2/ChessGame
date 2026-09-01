@@ -261,6 +261,53 @@ class EnPassantTest {
     }
 
     @Test
+    fun recognitionAndGenerationAgreeOnEveryPawnMove() {
+        // The two paths have to answer identically, or applying a move removes a pawn that
+        // generating it never accounted for. Checked against a real target and a stale one.
+        listOf("e6", "e5").forEach { target ->
+            val position =
+                state(
+                    "d5" to white(PieceType.PAWN),
+                    "f5" to white(PieceType.PAWN),
+                    "e5" to black(PieceType.PAWN),
+                    "e1" to white(PieceType.KING),
+                    "h8" to black(PieceType.KING),
+                    enPassantTarget = target,
+                )
+            val generated = EnPassant.availableMoves(position).toSet()
+            val candidates =
+                listOf("d5", "f5", "e5", "e1").flatMap { from ->
+                    Square.ALL.filter { it != Square.parse(from) }.map { Move(Square.parse(from), it) }
+                }
+
+            candidates.forEach { move ->
+                assertEquals(move in generated, EnPassant.isCapture(position, move), "$move with target $target")
+            }
+        }
+    }
+
+    @Test
+    fun aBlackEnPassantCaptureStillWorks() {
+        val position =
+            state(
+                "e4" to black(PieceType.PAWN),
+                "d4" to white(PieceType.PAWN),
+                "e1" to white(PieceType.KING),
+                "h8" to black(PieceType.KING),
+                sideToMove = Side.BLACK,
+                enPassantTarget = "d3",
+            )
+        val move = Move.of("e4", "d3")
+
+        assertTrue(EnPassant.isCapture(position, move))
+        assertEquals(listOf(move), EnPassant.availableMoves(position))
+
+        val after = ChessRules.applyMove(position, move)
+        assertEquals(black(PieceType.PAWN), after.board.pieceAt(Square.parse("d3")))
+        assertNull(after.board.pieceAt(Square.parse("d4")))
+    }
+
+    @Test
     fun anOrdinaryDiagonalCaptureIsNotEnPassant() {
         val position =
             state(
