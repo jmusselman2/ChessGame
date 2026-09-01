@@ -1,39 +1,33 @@
 # Codex Evaluation State
 
-- **Current baseline:** `ab3472628e5468831d0c2ec326a90dbe7dc581d2`
+- **Current baseline:** `c2f7af9fb34981861ac086d7e5fb3842ff135a5f`
 - **Current milestone:** M2 — Chess Domain Model
-- **Status:** `DEFECT FOUND — ADDRESSED ON THE IMPLEMENTATION BRANCH, NOT YET
-  RE-EVALUATED`
+- **Status:** `DEFECT FOUND`
 - **Evaluation artifacts:** `evals/M2/critic-report.md`,
-  `evals/M2/test-report.md`, `evals/M2/re-evaluation-report.md`, and
-  `game-core/src/test/kotlin/com/jmussel/chessgame/core/chess/M2DomainInvariantTest.kt`
+  `evals/M2/test-report.md`, `evals/M2/re-evaluation-report.md`,
+  `evals/M2/collection-immutability-audit.md`, and the M2 regression tests in
+  `game-core/src/test/kotlin/com/jmussel/chessgame/core/chess/`
 
-## Finding and its disposition
+## Outstanding findings
 
-- **Confirmed → addressed:** `DrawRuleState` snapshotted the constructor input,
-  but exposed its multi-entry `positionCounts` backing map as a mutable JVM map.
-  A caller could mutate an existing state and manufacture a fivefold-repetition
-  decision without a game-state transition. Independently reviewed and accepted:
-  `toMap()` returns an immutable map for none or one entry but a plain
-  `LinkedHashMap` for two or more, which is the normal case for a game in
-  progress. The snapshot is now published unmodifiable, so writes through the
-  published map or its entries are rejected rather than applied.
+- **Confirmed:** `ChessGame.history` neither snapshots a constructor-supplied
+  list nor prevents mutation through its public JVM list.
+- **Confirmed:** shared lists remain mutable through their JVM implementations:
+  `Square.ALL`, `PieceType.PROMOTION_CHOICES`,
+  `StandardPosition.BACK_RANK`, all three shared `Direction` lists, and
+  `PseudoLegalMoves.KNIGHT_STEPS`.
 
-The two defects from the first M2 evaluation remain resolved: their retained
-regression tests pass. `M2DomainInvariantTest` is retained unchanged, all three
-cases, and now passes.
+The three earlier `DrawRuleState` findings are resolved on this baseline. Its
+input is snapshotted and its published map, entries, keys, and values reject
+mutation in the retained and expanded regressions.
 
 ## Exact next action
 
-1. **Human integration:** merge `claude-autopilot` into `main`. Integration
-   stays human-controlled; the autonomous loop does not do it.
-2. **Codex realignment:** realign `codex-autopilot` to the updated
-   `origin/main`.
-3. **Codex re-evaluation:** independently re-evaluate M2 from the beginning,
-   confirming this finding is genuinely resolved rather than trusting this note.
-
-M2 has **not** passed. Only Codex's own re-evaluation of the updated `main` can
-change that, and M3 does not begin until it does.
+Have the complete M2 collection-immutability finding batch independently
+reviewed and fixed, and merge the legitimate fixes into `main`. Then realign
+`codex-autopilot` to the updated `origin/main` and independently re-evaluate M2
+from the beginning, including this systematic collection audit. Do not proceed
+to M3 until M2 passes.
 
 ## Completed milestones
 

@@ -60,6 +60,21 @@ class DrawRuleStateTest {
     }
 
     @Test
+    fun theExposedKeysAndValuesRejectMutation() {
+        val state = DrawRuleState(positionCounts = mapOf(position to 1, PositionKey("other") to 2))
+
+        @Suppress("UNCHECKED_CAST")
+        val keys = state.positionCounts.keys as MutableSet<PositionKey>
+
+        @Suppress("UNCHECKED_CAST")
+        val values = state.positionCounts.values as MutableCollection<Int>
+
+        assertFailsWith<UnsupportedOperationException> { keys.remove(position) }
+        assertFailsWith<UnsupportedOperationException> { values.remove(1) }
+        assertEquals(1, state.repetitionsOf(position))
+    }
+
+    @Test
     fun tracksTheHalfmoveClock() {
         assertEquals(7, DrawRuleState().withHalfmoveClock(7).halfmoveClock)
         assertEquals(0, DrawRuleState(halfmoveClock = 7).withHalfmoveClock(0).halfmoveClock)
