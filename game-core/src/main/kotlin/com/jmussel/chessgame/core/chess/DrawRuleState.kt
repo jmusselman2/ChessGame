@@ -24,22 +24,42 @@ enum class DrawClaim {
  * Bookkeeping for the repetition and move-count draw rules.
  *
  * [halfmoveClock] counts plies since the last pawn move or capture. [positionCounts]
- * records how often each repetition-relevant position has occurred in the current game.
+ * records how often each repetition-relevant position has occurred in the current game;
+ * a position that has not occurred simply has no entry, so every recorded count is
+ * positive.
+ *
+ * The state is immutable. `Map` is only a read-only view, so the supplied counts are
+ * snapshotted: a caller that keeps its own mutable map cannot change an already-built
+ * state — and therefore cannot change a repetition draw — outside a game-state
+ * transition.
  */
-data class DrawRuleState(
+class DrawRuleState(
     val halfmoveClock: Int = 0,
-    val positionCounts: Map<PositionKey, Int> = emptyMap(),
+    positionCounts: Map<PositionKey, Int> = emptyMap(),
 ) {
+    val positionCounts: Map<PositionKey, Int> = positionCounts.toMap()
+
     init {
         require(halfmoveClock >= 0) { "halfmoveClock cannot be negative: $halfmoveClock" }
+        this.positionCounts.forEach { (key, count) ->
+            require(count > 0) { "A recorded position has occurred at least once: $key occurred $count times" }
+        }
     }
 
     fun repetitionsOf(key: PositionKey): Int = positionCounts[key] ?: 0
 
     /** Returns a copy that has seen [key] one more time. */
-    fun recording(key: PositionKey): DrawRuleState = copy(positionCounts = positionCounts + (key to repetitionsOf(key) + 1))
+    fun recording(key: PositionKey): DrawRuleState = DrawRuleState(halfmoveClock, positionCounts + (key to repetitionsOf(key) + 1))
 
-    fun withHalfmoveClock(halfmoveClock: Int): DrawRuleState = copy(halfmoveClock = halfmoveClock)
+    fun withHalfmoveClock(halfmoveClock: Int): DrawRuleState = DrawRuleState(halfmoveClock, positionCounts)
+
+    override fun equals(other: Any?): Boolean =
+        this === other ||
+            (other is DrawRuleState && halfmoveClock == other.halfmoveClock && positionCounts == other.positionCounts)
+
+    override fun hashCode(): Int = 31 * halfmoveClock + positionCounts.hashCode()
+
+    override fun toString(): String = "DrawRuleState(halfmoveClock=$halfmoveClock, positionCounts=$positionCounts)"
 
     companion object {
         /** Occurrences of one position that entitle a player to claim a draw. */
