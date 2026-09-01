@@ -1,5 +1,7 @@
 package com.jmussel.chessgame.core.chess
 
+import java.util.Collections
+
 /**
  * Identity of a position for repetition purposes: piece placement, side to move,
  * castling rights, and the en passant target square.
@@ -28,16 +30,19 @@ enum class DrawClaim {
  * a position that has not occurred simply has no entry, so every recorded count is
  * positive.
  *
- * The state is immutable. `Map` is only a read-only view, so the supplied counts are
- * snapshotted: a caller that keeps its own mutable map cannot change an already-built
- * state — and therefore cannot change a repetition draw — outside a game-state
- * transition.
+ * The state is immutable, which takes two steps because `Map` is only a read-only view
+ * rather than an immutable type. The supplied counts are snapshotted, so a caller that
+ * keeps its own mutable map cannot reach an already-built state; and the snapshot is
+ * published unmodifiable, because `toMap()` hands back a plain `LinkedHashMap` for two
+ * or more entries — the normal case for a game in progress — which a cast or a Java
+ * caller could otherwise write through. Between them, a repetition draw can only change
+ * by a game-state transition.
  */
 class DrawRuleState(
     val halfmoveClock: Int = 0,
     positionCounts: Map<PositionKey, Int> = emptyMap(),
 ) {
-    val positionCounts: Map<PositionKey, Int> = positionCounts.toMap()
+    val positionCounts: Map<PositionKey, Int> = Collections.unmodifiableMap(positionCounts.toMap())
 
     init {
         require(halfmoveClock >= 0) { "halfmoveClock cannot be negative: $halfmoveClock" }

@@ -33,6 +33,33 @@ class DrawRuleStateTest {
     }
 
     @Test
+    fun theExposedCountsRejectMutationAtEverySize() {
+        // toMap() returns a different implementation for none, one, and several entries, and
+        // only the several-entry LinkedHashMap was writable, so every size has to be checked.
+        listOf(
+            emptyMap(),
+            mapOf(position to 1),
+            mapOf(position to 1, PositionKey("other") to 2),
+        ).forEach { counts ->
+            @Suppress("UNCHECKED_CAST")
+            val exposed = DrawRuleState(positionCounts = counts).positionCounts as MutableMap<PositionKey, Int>
+
+            assertFailsWith<UnsupportedOperationException>("${counts.size} entries") { exposed[position] = 5 }
+        }
+    }
+
+    @Test
+    fun theExposedEntriesRejectMutation() {
+        val state = DrawRuleState(positionCounts = mapOf(position to 1, PositionKey("other") to 2))
+
+        @Suppress("UNCHECKED_CAST")
+        val entry = state.positionCounts.entries.first() as MutableMap.MutableEntry<PositionKey, Int>
+
+        assertFailsWith<UnsupportedOperationException> { entry.setValue(5) }
+        assertEquals(1, state.repetitionsOf(position))
+    }
+
+    @Test
     fun tracksTheHalfmoveClock() {
         assertEquals(7, DrawRuleState().withHalfmoveClock(7).halfmoveClock)
         assertEquals(0, DrawRuleState(halfmoveClock = 7).withHalfmoveClock(0).halfmoveClock)
