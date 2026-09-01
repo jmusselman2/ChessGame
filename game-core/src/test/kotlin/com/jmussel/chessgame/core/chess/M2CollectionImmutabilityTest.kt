@@ -2,6 +2,7 @@ package com.jmussel.chessgame.core.chess
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class M2CollectionImmutabilityTest {
@@ -56,6 +57,16 @@ class M2CollectionImmutabilityTest {
         runCatching { exposed.clear() }
 
         assertEquals(expected, game.history)
+    }
+
+    @Test
+    fun chessGameCopySnapshotsReplacementHistory() {
+        val source = mutableListOf(moveRecord("e2", "e4"))
+        val copied = ChessGame.newGame().copy(history = source)
+
+        source.clear()
+
+        assertEquals(listOf(moveRecord("e2", "e4")), copied.history)
     }
 
     @Test
@@ -116,6 +127,40 @@ class M2CollectionImmutabilityTest {
     fun knightStepsCannotBeMutated() {
         assertSharedListCannotBeChanged({ PseudoLegalMoves.KNIGHT_STEPS }, 0, Direction(0, 0))
         assertEquals(Direction(1, 2), PseudoLegalMoves.KNIGHT_STEPS.first())
+    }
+
+    @Test
+    fun publishedListsRejectIteratorListIteratorAndSubListMutation() {
+        val played =
+            listOf(Move.of("e2", "e4"), Move.of("e7", "e5")).fold(ChessGame.newGame()) { current, move ->
+                ChessRules.applyMove(current, move)
+            }
+        val lists =
+            listOf(
+                played.history,
+                Square.ALL,
+                PieceType.PROMOTION_CHOICES,
+                StandardPosition.BACK_RANK,
+                Direction.ORTHOGONAL,
+                Direction.DIAGONAL,
+                Direction.ALL,
+                PseudoLegalMoves.KNIGHT_STEPS,
+            )
+
+        lists.forEachIndexed { index, list ->
+            @Suppress("UNCHECKED_CAST")
+            val exposed = list as MutableList<Any?>
+
+            val iterator = exposed.iterator()
+            iterator.next()
+            assertFailsWith<UnsupportedOperationException>("iterator for list $index") { iterator.remove() }
+
+            val listIterator = exposed.listIterator()
+            val first = listIterator.next()
+            assertFailsWith<UnsupportedOperationException>("list iterator for list $index") { listIterator.set(first) }
+
+            assertFailsWith<UnsupportedOperationException>("sublist for list $index") { exposed.subList(0, 1).clear() }
+        }
     }
 
     private fun moveRecord(

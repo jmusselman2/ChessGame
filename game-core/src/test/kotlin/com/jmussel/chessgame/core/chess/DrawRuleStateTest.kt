@@ -75,6 +75,26 @@ class DrawRuleStateTest {
     }
 
     @Test
+    fun theExposedMapViewsRejectIteratorRemoval() {
+        val state = DrawRuleState(positionCounts = mapOf(position to 1, PositionKey("other") to 2))
+        val iterators =
+            listOf(
+                state.positionCounts.entries.iterator(),
+                state.positionCounts.keys.iterator(),
+                state.positionCounts.values.iterator(),
+            )
+
+        iterators.forEachIndexed { index, iterator ->
+            iterator.next()
+
+            @Suppress("UNCHECKED_CAST")
+            val mutable = iterator as MutableIterator<Any?>
+            assertFailsWith<UnsupportedOperationException>("view iterator $index") { mutable.remove() }
+        }
+        assertEquals(1, state.repetitionsOf(position))
+    }
+
+    @Test
     fun tracksTheHalfmoveClock() {
         assertEquals(7, DrawRuleState().withHalfmoveClock(7).halfmoveClock)
         assertEquals(0, DrawRuleState(halfmoveClock = 7).withHalfmoveClock(0).halfmoveClock)
