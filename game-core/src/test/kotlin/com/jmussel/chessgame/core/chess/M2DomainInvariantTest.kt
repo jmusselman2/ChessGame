@@ -20,6 +20,30 @@ class M2DomainInvariantTest {
     }
 
     @Test
+    fun exposedPositionCountsCannotManufactureAnAutomaticDraw() {
+        val initial = StandardPosition.newGame()
+        val position = Repetition.keyOf(initial)
+        val state =
+            initial.copy(
+                drawRuleState =
+                    DrawRuleState(
+                        positionCounts =
+                            mapOf(
+                                position to Repetition.occurrences(initial),
+                                PositionKey("another position") to 1,
+                            ),
+                    ),
+            )
+
+        @Suppress("UNCHECKED_CAST")
+        val exposedCounts = state.drawRuleState.positionCounts as MutableMap<PositionKey, Int>
+        runCatching { exposedCounts[position] = DrawRuleState.FIVEFOLD_REPETITION_COUNT }
+
+        assertFalse(Repetition.isFivefold(state))
+        assertEquals(1, state.drawRuleState.repetitionsOf(position))
+    }
+
+    @Test
     fun rejectsNonPositiveRepetitionCounts() {
         listOf(0, -1).forEach { count ->
             assertFailsWith<IllegalArgumentException>("count $count") {
