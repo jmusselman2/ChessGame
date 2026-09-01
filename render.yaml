@@ -1,0 +1,43 @@
+# The beta server's Render configuration (M15.2, D032, D035).
+#
+# The `ChessGame` service already exists and is configured through the Render dashboard —
+# it was created by hand on 2026-08-28 and its settings are recorded in
+# docs/DEVELOPMENT.md. This file is the same configuration written down, so a change to it
+# is reviewable here rather than only in a dashboard.
+#
+# Do NOT create a second service from this file. Render can adopt the existing one into a
+# Blueprint, but that is a deliberate human step in the dashboard, and applying this as a
+# new Blueprint alongside the existing service is what D032 warns against.
+#
+# The one thing this file must never carry is the beta DATABASE_URL. `sync: false` is that
+# rule in machine-readable form: Render prompts for the value and stores it, and it stays
+# out of the repository (M15.3).
+
+services:
+  - type: web
+    name: ChessGame
+    runtime: docker
+    # Free. The $0 boundary in D032 rests on this and on there being no payment method on
+    # the workspace. A free instance also cannot be scaled horizontally, which is what
+    # keeps the process-local RealtimeHub correct (ARCHITECTURE.md 12).
+    plan: free
+    region: oregon
+    # The branch Render deploys from. It must be a branch that contains this Dockerfile.
+    branch: main
+    rootDir: .
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # An open endpoint, and the one Render polls to decide a deploy is live. Note that a
+    # server started without the variables below still answers it — check the body, which
+    # says "health-only" in that case, not only the status.
+    healthCheckPath: /health
+    autoDeployTrigger: commit
+    envVars:
+      # The Supabase session-pooler URL, with its password and ?sslmode=require. Supplied
+      # in Render's environment and never committed (M15.3).
+      - key: DATABASE_URL
+        sync: false
+      # Not a secret — the same project URL committed in .env.example (D035) — but left
+      # unsynced so both halves of the beta's configuration are set in one place.
+      - key: SUPABASE_URL
+        sync: false

@@ -1,0 +1,34 @@
+# What the build context does not need. Keeping it small matters on a free tier, where
+# every deploy uploads it and rebuilds without a layer cache.
+
+# Build output and tool state
+.gradle/
+.kotlin/
+build/
+**/build/
+
+# The Android app, which -PserverOnly leaves out of the server build anyway
+android-app/
+local.properties
+*.apk
+*.aab
+
+# History and CI
+.git/
+.github/
+
+# Documentation and local tooling
+docs/
+scripts/
+supabase/
+compose.yaml
+*.md
+
+# Secrets. .env is git-ignored, so it is absent from Render's checkout, but a local
+# `docker build .` runs against the working tree, where it is not.
+.env
+.env.*
+
+# NOT ignored, and easy to break by ignoring: database/migrations, which
+# server/build.gradle.kts copies onto the server's classpath. Without it the server starts
+# and finds no schema to apply.

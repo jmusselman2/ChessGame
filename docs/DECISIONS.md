@@ -1434,3 +1434,97 @@ Required safeguard, because sharing removes the one that separation provided:
 - **A separate Supabase project for auth only, sharing the database** — mixes the
   two concerns in the least useful direction: identities are the cheap thing to
   separate and the database is the expensive one.
+
+---
+
+## D036 — The Beta Server Ships as a Two-Stage Docker Image That Takes Its Port and Its Secrets From the Host
+
+**Date:** 2026-09-01
+
+**Status:** Accepted
+
+**Relates to:** `D032` (Render Free, one instance), `D035` (the beta reuses
+`ChessGame Dev`), `M15.2`
+
+### Decision
+
+The Ktor server is deployed as a `Dockerfile` at the repository root, built in
+two stages: a JDK image runs `:server:installDist`, and a JRE image runs the
+resulting distribution as a non-root user. Six things follow from the host being
+a container platform rather than a developer's machine:
+
+- **The build leaves `:android-app` out.** `settings.gradle.kts` includes it only
+  when `-PserverOnly=true` (or `CHESSGAME_SERVER_ONLY=true`) is absent. A build
+  image carries no Android SDK, and configuring that module without one fails
+  before any server code compiles.
+- **The port comes from `PORT`.** `serverPort` reads it and falls back to `8080`
+  only when nothing sets it. A value that is not a port fails the start rather
+  than falling back.
+- **Secrets come from the environment, never the image.** `DATABASE_URL` and
+  `SUPABASE_URL` are supplied by the host. The image holds no credential and is
+  not itself a thing that has to be kept secret.
+- **`/health` stays `200` in health-only mode, and says so in its body.** A
+  server with no database still answers, because that is a documented local
+  affordance; the body names the missing variables so a misconfigured deploy is
+  one `curl` away from being understood rather than a healthy-looking service
+  that serves nothing.
+- **The WebSocket transport sends keepalive frames** — a 30-second ping with a
+  60-second answer window — because a hosted connection crosses proxies that
+  close a silent socket, and a game is silent while a player thinks.
+- **The JVM is told the container's size.** `-XX:MaxRAMPercentage=75.0` instead
+  of the default quarter of 512 MB, and `-XX:+UseSerialGC` because a free
+  instance is a fraction of one CPU.
+
+`render.yaml` records the service's configuration in the repository. The
+`ChessGame` service stays dashboard-managed; the file is the reviewable copy of
+those settings, not a second service.
+
+### Rationale
+
+Every one of these is a difference between "runs on a laptop" and "runs on
+Render", and each was a way the first deploy could have failed or, worse,
+succeeded while serving nothing. Doing them as configuration the repository owns
+means the next host change is a diff rather than a dashboard archaeology
+exercise.
+
+Excluding the Android module is the least obvious and the most necessary: the
+repository is a monorepo whose root build configures an Android application, and
+a JDK build image has no SDK. Making it conditional in `settings.gradle.kts`
+keeps the exclusion in the one place that decides what a build contains, rather
+than spreading `-x` flags through a Dockerfile that could not fix it anyway,
+because the failure is at configuration time.
+
+### Consequences
+
+- **`-PserverOnly=true` is a supported build mode that CI does not run.** A
+  change that breaks it — a new server dependency on `:android-app`, say — is
+  caught by building the image, not by `./gradlew build`.
+  `scripts/verify-server-image.sh` is where that is checked.
+- **A health-only deploy looks successful to Render.** The health check passes
+  because the process is alive. Whoever deploys must read the body, which is why
+  it names the missing variables.
+- **The image must be rebuilt to pick up a migration.** The SQL lives on the
+  server's classpath, so `database/migrations/` has to stay out of
+  `.dockerignore`; the verification script asserts the migrations are inside the
+  image for exactly that reason.
+- **`render.yaml` can drift from the dashboard.** Nothing enforces the match
+  while the service is dashboard-managed. Adopting the service into a Blueprint
+  would remove the drift and is a deliberate human step, not something the
+  autonomous loop does.
+
+### Alternatives Considered
+
+- **Build the distribution outside Docker and `COPY` it in.** Faster builds, but
+  the image would then depend on an artifact built somewhere else, and Render
+  builds from a repository checkout. Rejected: the Dockerfile has to be
+  self-contained to be what Render runs.
+- **Install an Android SDK in the build image.** Hundreds of megabytes and
+  several minutes of a 500-minute monthly budget to build a module the server
+  does not use. Rejected outright.
+- **Make `/health` fail in health-only mode.** It would turn a misconfigured
+  deploy into a failed deploy, which is arguably the louder signal. Rejected
+  because health-only is a deliberate local affordance and `/health` is the
+  liveness check; the body carries the distinction instead.
+- **A Blueprint-managed service created from `render.yaml`.** Rejected for now:
+  the service already exists and was created by hand, and applying the file as a
+  new Blueprint would create the second service `D032` warns against.

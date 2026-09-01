@@ -278,6 +278,10 @@ Expected response:
 
 The endpoint has been verified to return HTTP 200.
 
+`8080` is only the fallback. The server listens on `PORT` whenever the
+environment sets it, which is how a host routes to it (`M15.2`, `D036`); a value
+that is not a port number fails the start rather than quietly using `8080`.
+
 The server starts in one of two modes:
 
 - with `DATABASE_URL` and `SUPABASE_URL` set, it migrates the database and serves
@@ -285,6 +289,14 @@ The server starts in one of two modes:
   and history APIs;
 - without them it logs a warning and serves `/health` alone, so the command still
   works on a machine with no database configured.
+
+`/health` answers `200` in **both** modes, so read the body and not only the
+status. In health-only mode it says so, and names what is missing:
+
+    ChessGame server is healthy (health-only: DATABASE_URL and SUPABASE_URL are not set)
+
+That matters most on a host: a deploy whose environment was never filled in
+passes its health check and is reported live while serving nothing.
 
 `ChessServerConfig` points development Android clients at
 `http://10.0.2.2:8080`, which is this machine as an emulator sees it. Since
@@ -295,6 +307,53 @@ and release traffic remains HTTPS-only (`D033`). The two-client emulator
 play-through that proves this end to end was run for `M14.18` (2026-08-31); see
 **Reaching the development server from an emulator** below for the one setup
 step it needs.
+
+### Server Image (Docker)
+
+The image Render runs. Built and run locally exactly as the host builds and runs
+it, which is the only way to check a deploy without deploying (`M15.2`, `D036`).
+
+Build:
+
+    docker build -t chessgame-server:local .
+
+Run it the way a host does — the port from the environment, a free instance's
+memory, secrets passed in rather than baked in:
+
+    docker run --rm -p 10000:10000 --memory 512m       -e PORT=10000       -e DATABASE_URL="postgresql://chessgame:chessgame@postgres:5432/chessgame_dev"       -e SUPABASE_URL="https://rkwymrtqayyyfahfgmbm.supabase.co"       --network chessgame_default       chessgame-server:local
+
+Status: VERIFIED (2026-09-01)
+
+The whole of that, plus what a deploy actually depends on, runs as one command:
+
+```bash
+bash scripts/verify-server-image.sh
+```
+
+Status: VERIFIED (2026-09-01) — 8/8. It builds the image, runs it on the compose
+network against the disposable local PostgreSQL, and checks that the server runs
+as a non-root user, binds the port `PORT` names, answers `/health` without
+claiming health-only, gets `MaxRAMPercentage`/`UseSerialGC` through to the JVM,
+carries `db/migration/V1__initial_schema.sql` inside `server.jar`, verifies an
+anonymous Supabase token and serves `/me` from the database, upgrades an
+authenticated WebSocket and delivers the `connected` greeting, and refuses an
+unauthenticated one with `401`. It never touches the beta database — that is
+`scripts/verify-beta-database.sh`.
+
+Two things about the build worth knowing before changing it:
+
+- **`-PserverOnly=true` leaves `:android-app` out.** `settings.gradle.kts` reads
+  it (and `CHESSGAME_SERVER_ONLY`). Without it the build image would need an
+  Android SDK and would fail at configuration time. Nothing else sets either, so
+  `./gradlew build` and CI are unaffected — which also means CI does **not**
+  exercise this mode. Build the image after changing module wiring.
+- **`database/migrations/` must stay out of `.dockerignore`.**
+  `server/build.gradle.kts` copies it onto the server's classpath, and a server
+  that shipped without it starts cleanly and finds no schema to apply.
+
+Local startup inside a 512 MB container was 2.6 seconds (2026-09-01). That is a
+floor for a Render cold start, not an estimate of one: the host also has to
+schedule an instance and pull the image.
 
 ### Reaching the development server from an emulator
 
@@ -508,6 +567,7 @@ TEST_DATABASE_URL
 SUPABASE_URL
 SUPABASE_ANON_KEY
 SUPABASE_JWKS_URL
+PORT
 ```
 
 `.env.example` at the repository root is the committed template. `DATABASE_URL`
@@ -517,6 +577,10 @@ PostgreSQL**); `SUPABASE_URL` and `SUPABASE_JWKS_URL` are filled in (see
 to fill in locally.
 
 Copy it to `.env`, which is git-ignored, for local values.
+
+`PORT` is not in `.env.example` and should not be set locally: it is supplied by
+whatever runs the process. Render sets it, the server binds it, and `8080` is the
+fallback for a machine where nothing does (`D036`).
 
 Never commit:
 
@@ -838,30 +902,64 @@ restorable into a database with different role names.
 Write the dump somewhere outside the repository: it contains beta players' data
 and `.gitignore` does not know about it.
 
-During M15, document the beta separately from local development:
+The beta, as distinct from local development:
 
 ```text
-Ktor beta host:
-Beta API base URL:
+Ktor beta host:      Render Free Web Service "ChessGame" (Oregon), Docker runtime
+Beta API base URL:   https://chessgame-hit7.onrender.com  (not yet serving; see below)
 How beta deployment is performed:
+                     Render builds ./Dockerfile from the tracked branch and runs
+                     the image; auto-deploy fires on each commit to that branch.
+                     DATABASE_URL and SUPABASE_URL come from the service's
+                     environment. Nothing is deployed from a developer machine.
 How Android selects beta endpoint:
+                     Not yet — M15.4. Build configuration, not a literal in
+                     source; development builds keep the emulator-loopback
+                     default (D033, D034).
 How beta Supabase differs from local/test (`D035`: same project as development
 for auth and the beta database; local/test remain the Docker PostgreSQL):
+                     Auth is the one ChessGame Dev project everywhere. The beta's
+                     game data is that project's PostgreSQL, reached through the
+                     Supavisor session pooler; local and CI game data stay in the
+                     disposable Docker PostgreSQL. DATABASE_URL is the whole of
+                     that separation.
 ```
 
-### Hosting resource already created (2026-08-28)
+### The Render service, and what is configured on it
 
-A Render Web Service exists. It was created by hand as an early test of the
-hosting resource, **not** as M15 deployment work, and it is not functional.
-**Do not create a second service** — M15.2 configures and deploys to this one.
+A Render Web Service exists. It was created by hand on 2026-08-28 as an early
+test of the hosting resource, **not** as M15 deployment work. **Do not create a
+second service** — `M15.2` configures and deploys to this one.
+
+Read back from the Render API on 2026-09-01, so this is the service's actual
+state rather than a plan:
 
 ```text
 Render service name: ChessGame
+Service id:          srv-da8qq8afngtc7388b690
+Workspace:           ChessGame (tea-da8qj0e7bikc73d17ov0)
 Type / runtime:      Web Service, Docker
-Plan:                Free ($0/month)
+Plan:                free
+Region:              oregon
 Repository / branch: jmusselman2/ChessGame, main
+Dockerfile / context: ./Dockerfile, .
+Health check path:   /health
+Auto-deploy:         yes, on commit
+Instances:           1
+Suspended:           no
 Public URL:          https://chessgame-hit7.onrender.com
 ```
+
+`render.yaml` at the repository root is that configuration written down, so a
+change to it is reviewable in a diff. The service stays dashboard-managed;
+adopting it into a Blueprint is a deliberate human step and applying the file as
+a *new* Blueprint would create the second service `D032` warns against (`D036`).
+
+Note what is **not** in that list: `DATABASE_URL` and `SUPABASE_URL`. They are
+supplied in Render's environment and are what `render.yaml` marks `sync: false`.
+Without them the service starts in health-only mode, passes its health check, and
+reports as a successful deploy while serving nothing — so check the `/health`
+body after the first deploy, not just the status.
 
 Where the beta actually stands, so no step is assumed from the existence of the
 service:
@@ -869,17 +967,54 @@ service:
 | State | Status |
 |---|---|
 | 1. Hosting resource exists | **Done**, manually, outside the backlog |
-| 2. Ktor is deployment-ready for Render | Not done — `M15.2` |
-| 3. Deployment succeeds and `/health` is reachable | Not done — `M15.2` |
-| 4. Beta Supabase/database/auth configured | Not done — `M15.3` |
+| 2. Ktor is deployment-ready for Render | **Done** — `M15.2`, verified 2026-09-01 |
+| 3. Beta Supabase/database/auth configured | **Done** — `M15.3`, verified 2026-08-31 |
+| 4. Deployment succeeds and `/health` is reachable | Not done — `M15.2`, needs a human |
 | 5. Android beta points at the deployed service | Not done — `M15.4` |
 
-The first deploy, of commit `0ef3228`, failed during the Docker build with exit
-status 1. That is expected: the repository has no `Dockerfile` yet, which is
-`M15.2`'s first acceptance criterion. Do not treat the failed build as a
-regression to chase.
+Three deploys have failed, the last of `b54a40e` on 2026-08-31, all during the
+Docker build. That was expected and is now addressed: the repository had no
+`Dockerfile`, which was `M15.2`'s first acceptance criterion. Do not treat those
+failures as a regression to chase.
 
 Free-plan behaviour to expect once it does run: the service spins down after
 inactivity and the next request pays a significant cold start (`D032`).
 
 Do not put production or beta secrets directly in Git.
+
+### What the first live deployment still needs
+
+Everything below needs a human. The autonomous loop prepared and verified the
+artifacts and stops here (`D032` acceptance, `M15` milestone note).
+
+1. **Confirm no payment method is attached to the `ChessGame` workspace.** This
+   is what the hard `$0` boundary rests on and it cannot be read from the
+   repository or the service API. The Free plan and the single instance *were*
+   confirmed from the API above. Render dashboard → workspace → Billing.
+2. **Put the beta environment variables on the service.** In the Render
+   dashboard, or by an authorized agent using the Render MCP
+   `update_environment_variables`:
+   - `DATABASE_URL` — the session-pooler URL under **Beta database connection**
+     above, with the password, keeping `?sslmode=require`. It is in the owner's
+     git-ignored `.env` as `BETA_DATABASE_URL`.
+   - `SUPABASE_URL` — `https://rkwymrtqayyyfahfgmbm.supabase.co`.
+3. **Give the service a branch that contains the `Dockerfile`.** It tracks
+   `main`, and this work is on `claude-autopilot`. Either merge
+   `claude-autopilot` into `main` by pull request (the normal integration path,
+   and auto-deploy will then deploy it), or point the service's branch at
+   `claude-autopilot`. Nothing deploys until one of those happens.
+4. **Deploy, and read the `/health` body.** Auto-deploy fires on the commit;
+   otherwise trigger it manually. `curl https://chessgame-hit7.onrender.com/health`
+   must return `ChessGame server is healthy` **without** `(health-only: ...)`. If
+   it says health-only, step 2 did not take effect.
+5. **Measure cold starts.** Let the service sleep past 15 idle minutes, then time
+   the first request, several times. Record the observations here and in
+   `M15.2`. They inform `M15.4`'s client deadline; they are not a guaranteed
+   upper bound.
+6. **Check Render usage after the play-through**, including outbound traffic to
+   Supabase, and confirm no payment method appeared and no automatic upgrade is
+   enabled.
+
+`M15.4` — the Android beta endpoint — follows, and the HTTPS/WSS play-through
+against the deployed service is verified there and in `M15.2`'s remaining
+criteria.

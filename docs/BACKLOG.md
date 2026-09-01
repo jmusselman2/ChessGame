@@ -3081,14 +3081,15 @@ when everything needed is to hand.
 >
 > External state (2026-08-28): a Render Free Web Service named `ChessGame`
 > already exists at `https://chessgame-hit7.onrender.com`, created by hand as an
-> early test of the hosting resource. **Do not create another one.** It is not
-> functional: its first deploy, of `0ef3228`, failed during the Docker build
-> because the repository has no `Dockerfile` yet. Nothing else about the beta
-> follows from the service existing — being deployment-ready (`M15.2`), a
-> successful deploy with a reachable `/health` (`M15.2`), the beta Supabase
-> environment (`M15.3`), the destructive-reset guard that `M15.3` now depends on
-> (`M15.5`), and the Android beta endpoint (`M15.4`) are all still outstanding. `docs/DEVELOPMENT.md` **Beta Deployment** holds the service
-> details and that breakdown.
+> early test of the hosting resource. **Do not create another one.** It was not
+> functional: its deploys failed during the Docker build because the repository
+> had no `Dockerfile`. Nothing else about the beta follows from the service
+> existing, and the parts have been closed one at a time: the destructive-reset
+> guard (`M15.5`) and the beta Supabase environment (`M15.3`) are `DONE`, the
+> repository is deployment-ready as of 2026-09-01 (`M15.2`), and what remains is
+> a successful deploy with a reachable `/health` (`M15.2`) and the Android beta
+> endpoint (`M15.4`). `docs/DEVELOPMENT.md` **Beta Deployment** holds the
+> service's read-back configuration and the remaining steps.
 >
 > Sequencing: this milestone began after `M14.18` proved the Android
 > multiplayer client end to end (2026-08-31).
@@ -3213,7 +3214,8 @@ documentation only.
 
 ## M15.2 — Deploy Ktor beta server
 
-**Status:** TODO  
+**Status:** IN PROGRESS
+
 **Depends on:** M15.1, M15.3
 
 The beta database and auth project come first, even though they are numbered
@@ -3259,6 +3261,74 @@ Documented deploy; a successful authenticated, database-backed request and
 WebSocket connection from an Android build; recorded cold-start observations;
 and confirmation that the service remains on one free instance with no payment
 method.
+
+**Progress 2026-09-01 (locally verified).** Everything that can be built and
+checked without deploying is done. The remaining criteria all require the
+deployment itself, which needs human authorization and two dashboard steps.
+
+Done and verified:
+
+- **The `Dockerfile` exists and produces a working server.** Two stages: a JDK
+  image runs `:server:installDist`, a `24-jre-alpine` image runs the
+  distribution as a non-root user. No secret is baked in — `DATABASE_URL` and
+  `SUPABASE_URL` come from the host's environment. The first deploy failed for
+  want of this file; it now builds in about five minutes, which is affordable
+  against the 500 free build minutes a month.
+- **The build no longer needs an Android SDK.** `settings.gradle.kts` includes
+  `:android-app` only when `-PserverOnly=true` / `CHESSGAME_SERVER_ONLY=true` is
+  absent, so a JDK build image configures `:game-core` and `:server` alone.
+  Without this the deploy fails before any server code compiles.
+- **The port comes from `PORT`.** `serverPort` reads it, falls back to `8080`
+  only when nothing sets it, and refuses a value that is not a port rather than
+  binding the wrong one and failing later as "no open ports detected". Six tests.
+- **The PostgreSQL SSL settings survive.** `M15.3` fixed `DatabaseConfig.fromUrl`
+  to carry the query string onto the JDBC URL, and verified `sslmode=require`
+  reaching the beta over TLSv1.3. Nothing in this task changed that path; the
+  image passes `DATABASE_URL` through untouched.
+- **`/health` is the service's health check, and now says which mode it is in.**
+  Render already has `healthCheckPath: /health`. A server started without the two
+  variables still answers `200`, so the body names them — otherwise a deploy with
+  an unfilled environment reports as live while serving nothing.
+- **WebSockets are configured for a hosted connection.** A 30-second ping with a
+  60-second answer window, because a game is silent while a player thinks and the
+  proxies between a client and the server close silent sockets. Asserted against
+  the installed plugin, not the constants.
+- **The single-instance assumption is enforced by the tier and said out loud.**
+  The Render API reports `plan: free`, `numInstances: 1`; the free instance type
+  cannot scale horizontally, which is what keeps the process-local `RealtimeHub`
+  correct. The server now logs it at startup, and `render.yaml` records it.
+- **The Render configuration is written down.** `render.yaml` mirrors the live
+  service, read back from the API: Docker runtime, `./Dockerfile`, `plan: free`,
+  Oregon, `healthCheckPath: /health`, auto-deploy on commit, and both environment
+  variables as `sync: false`. The service stays dashboard-managed (`D036`).
+- **The whole artifact is verified as one command.**
+  `bash scripts/verify-server-image.sh` — 8/8 on 2026-09-01. It builds the image
+  and runs it with a host-chosen `PORT` in 512 MB, then checks non-root
+  execution, the bound port, a `/health` that does not say health-only, the JVM
+  sizing reaching the process, the SQL migrations being inside `server.jar`, an
+  anonymous Supabase token verifying and `/me` answering from the database, an
+  authenticated WebSocket upgrading and delivering `connected`, and an
+  unauthenticated one getting `401`. Startup inside that container was 2.6s — a
+  floor for a cold start, not a measurement of one.
+- **Decision recorded** as `D036`, and `docs/DEVELOPMENT.md` has the build/run
+  commands, the service's read-back configuration, and the remaining steps.
+
+Not done, and each needs a human (`D032`'s acceptance authorized none of it):
+
+- A branch Render deploys from that contains the `Dockerfile`. The service tracks
+  `main`; this work is on `claude-autopilot`. Either merge by pull request or
+  repoint the service's branch.
+- `DATABASE_URL` and `SUPABASE_URL` set as Render environment secrets.
+- Confirmation that no payment method is attached to the workspace. The Free plan
+  and single instance were confirmed from the API; billing state cannot be read
+  from here.
+- A successful deploy with a reachable `/health` that is not in health-only mode.
+- The Android test build reaching it over HTTPS with a WSS connection.
+- Recorded cold-start observations and the post-play-through usage check.
+
+Verified with `bash scripts/verify-server-image.sh` (8/8),
+`.\gradlew.bat :server:test` for the new `DeploymentTest` and
+`WebSocketKeepAliveTest`, and `.\gradlew.bat build`.
 
 ---
 

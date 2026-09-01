@@ -26,8 +26,19 @@ dependencyResolutionManagement {
 
 rootProject.name = "ChessGame"
 
-include(":android-app")
-project(":android-app").projectDir = file("android-app/app")
+// The server's Docker image builds only the JVM modules. `:android-app` needs an Android
+// SDK, and a JDK build image has no reason to carry one, so configuring it there would
+// fail the deploy before a line of server code compiled. `-PserverOnly=true` (or
+// `CHESSGAME_SERVER_ONLY=true`) leaves it out; nothing else sets either, so a normal build
+// and CI still include it.
+val serverOnly =
+    startParameter.projectProperties["serverOnly"].toBoolean() ||
+        System.getenv("CHESSGAME_SERVER_ONLY").toBoolean()
+
+if (!serverOnly) {
+    include(":android-app")
+    project(":android-app").projectDir = file("android-app/app")
+}
 
 include(":game-core")
 

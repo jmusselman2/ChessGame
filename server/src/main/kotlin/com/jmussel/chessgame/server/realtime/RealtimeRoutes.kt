@@ -3,12 +3,19 @@
 package com.jmussel.chessgame.server.realtime
 
 import com.jmussel.chessgame.server.auth.authenticatedUser
+import io.ktor.serialization.kotlinx.KotlinxWebsocketSerializationConverter
+import io.ktor.server.application.Application
+import io.ktor.server.application.install
 import io.ktor.server.routing.Route
+import io.ktor.server.websocket.WebSockets
 import io.ktor.server.websocket.sendSerialized
 import io.ktor.server.websocket.webSocket
 import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
+import kotlinx.serialization.json.Json
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.ExperimentalUuidApi
 
 /**
@@ -51,5 +58,37 @@ fun Route.realtimeRoutes(hub: RealtimeHub) {
             hub.unsubscribe(caller.userId, connection)
             close(CloseReason(CloseReason.Codes.NORMAL, "Bye"))
         }
+    }
+}
+
+/**
+ * How often the server pings an open WebSocket.
+ *
+ * A game is idle for as long as a player thinks, and a connection that carries nothing in
+ * that time is indistinguishable from a dead one to whatever sits between the client and
+ * here. Thirty seconds stays well inside the idle windows a hosted connection crosses.
+ */
+val webSocketPingPeriod: Duration = 30.seconds
+
+/**
+ * How long a client has to answer a ping before the server closes its connection.
+ *
+ * Closing is the right outcome rather than a loss: the client reconnects and reloads
+ * canonical state over HTTPS (`D022`), whereas a half-open connection would stay in the
+ * hub and quietly swallow every update sent to it.
+ */
+val webSocketPongTimeout: Duration = 60.seconds
+
+/**
+ * The WebSocket transport the realtime route runs on.
+ *
+ * Separate from the route so the keepalive above is one decision in one place, and so a
+ * test can assert the server is actually configured with it.
+ */
+fun Application.installRealtimeWebSockets() {
+    install(WebSockets) {
+        pingPeriodMillis = webSocketPingPeriod.inWholeMilliseconds
+        timeoutMillis = webSocketPongTimeout.inWholeMilliseconds
+        contentConverter = KotlinxWebsocketSerializationConverter(Json)
     }
 }
