@@ -7,12 +7,33 @@ import kotlin.test.assertTrue
 
 class M3AdversarialTest {
     @Test
-    fun standardPositionMatchesKnownPerftThroughDepthThree() {
+    fun standardPositionMatchesKnownPerftThroughDepthFour() {
         val start = StandardPosition.newGame()
 
         assertEquals(20, perft(start, 1))
         assertEquals(400, perft(start, 2))
         assertEquals(8_902, perft(start, 3))
+        assertEquals(197_281, perft(start, 4))
+    }
+
+    @Test
+    fun aFinishedGameHasNoLegalMoves() {
+        val finished =
+            StandardPosition.newGame().copy(
+                result = GameResult.draw(TerminationReason.STALEMATE),
+            )
+
+        assertTrue(ChessRules.legalMoves(finished).isEmpty())
+    }
+
+    @Test
+    fun noMoveIsLegalAfterTheGameIsFinished() {
+        val finished =
+            StandardPosition.newGame().copy(
+                result = GameResult.draw(TerminationReason.STALEMATE),
+            )
+
+        assertFalse(ChessRules.isLegal(finished, Move.of("e2", "e4")))
     }
 
     @Test

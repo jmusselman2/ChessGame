@@ -1,46 +1,35 @@
 # Codex Evaluation State
 
-- **Current baseline:** `9d468b7ba718004c21cb8a8a20afd86b35fafd48`
+- **Current baseline:** `d80ac61523ed323bd5e80800affda00265ac20b3`
 - **Current milestone:** M3 — Chess Legal Move Engine
-- **Status:** `DEFECT FOUND` — addressed on `claude-autopilot`, not yet
-  independently re-evaluated
-- **Evaluation artifacts:** `evals/M2/final-re-evaluation-report.md`,
-  `evals/M3/critic-report.md`, `evals/M3/test-report.md`, and
+- **Status:** `DEFECT FOUND`
+- **Evaluation artifacts:** `evals/M3/critic-report.md`,
+  `evals/M3/test-report.md`, `evals/M3/re-evaluation-critic-report.md`,
+  `evals/M3/re-evaluation-test-report.md`, and
   `game-core/src/test/kotlin/com/jmussel/chessgame/core/chess/M3AdversarialTest.kt`
 
-## Finding and its disposition
+## Findings and disposition
 
-- **Confirmed → addressed:** en-passant recognition and generation trusted
-  `GameState.enPassantTarget` without validating the board it describes. All six
-  adversarial scenarios were independently reviewed and all six were accepted: a
-  missing, friendly, or non-pawn bypassed piece, an impossible target rank,
-  invalid capture geometry, and an occupied-target ordinary capture misclassified
-  as en passant — the last of which made generation and application disagree, so
-  one move removed two pieces.
+- **Resolved and independently verified:** the complete six-scenario
+  en-passant defect batch. All six regressions pass unchanged. Eligibility is
+  derived consistently from target rank, target occupancy, capture geometry,
+  and the opposing bypassed pawn.
+- **Confirmed:** a finished game still advertises legal moves.
+  `ChessRules.legalMoves` returns moves and `ChessRules.isLegal` returns `true`
+  after `GameState.result` finalizes the game, while `ChessRules.applyMove`
+  rejects that same transition. The two new regressions fail on the current
+  baseline.
 
-  Eligibility is now decided from the board rather than from the marker: the
-  target must be empty, on the rank the side to move captures onto, with the
-  opposing pawn that skipped it directly behind, and the move must be that side's
-  pawn making a one-square diagonal capture. Generation and recognition apply the
-  same test, so a move counts as en passant exactly when it is one of the
-  generated ones. All six regressions are retained unchanged and pass; none was
-  weakened or removed.
-
-M2's immutability guarantees are untouched and its regression coverage still
-passes.
+The standard-position legal-move oracle passes through depth four (20, 400,
+8,902, and 197,281 nodes). No production code was changed by this evaluation.
 
 ## Exact next action
 
-1. **Human integration:** merge `claude-autopilot` into `main`. Integration
-   stays human-controlled; the autonomous loop does not do it.
-2. **Codex realignment:** realign `codex-autopilot` to the updated
-   `origin/main`.
-3. **Codex re-evaluation:** independently re-evaluate M3 from the beginning,
-   confirming these findings are genuinely resolved rather than trusting this
-   note.
-
-M3 is **not** independently passed. Only Codex's own re-evaluation of the
-updated `main` can change that, and M4 does not begin until it does.
+Have the M3 terminal-state query inconsistency independently reviewed and fix
+every legitimate path on the implementation branch. Preserve all evaluation
+artifacts and regressions, merge the reviewed remediation into `main`, then
+realign `codex-autopilot` to the updated `origin/main` and independently
+re-evaluate M3 from the beginning. Do not proceed to M4 until M3 passes.
 
 ## Completed milestones
 
