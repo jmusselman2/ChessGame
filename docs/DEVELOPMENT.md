@@ -808,6 +808,36 @@ bash scripts/verify-beta-database.sh
 In normal operation `BETA_DATABASE_URL`'s value belongs in Render's environment
 as `DATABASE_URL`, not in anyone's `.env`.
 
+**TLS is the client's job here.** The pooler accepts `sslmode=disable` — verified
+2026-08-31, it connected in the clear when asked — so nothing but `sslmode=require`
+in the URL keeps beta traffic encrypted. Check the client's own view rather than
+`pg_stat_ssl`: behind Supavisor that view describes the pooler-to-PostgreSQL hop
+inside Supabase and reads `false` even over a TLS client link.
+
+    docker compose exec -T postgres psql "$BETA_DATABASE_URL" -c '\conninfo'
+
+Status: VERIFIED (2026-08-31) — `SSL Connection | true`, TLSv1.3,
+`TLS_AES_256_GCM_SHA384`.
+
+### Exporting the beta database
+
+Status: VERIFIED (2026-08-31)
+
+Supabase Free has no automatic backups and no point-in-time recovery, and since
+`D035` there is no second project holding an untouched copy. This is the whole of
+the recovery story, so run it before anything risky and on whatever cadence the
+beta deserves:
+
+    docker compose exec -T postgres pg_dump "$BETA_DATABASE_URL"       --schema=public --no-owner --no-acl > beta-backup.sql
+
+`--schema=public` keeps it to the application's own seven tables — roughly 14 KB
+empty. Without it the dump also carries Supabase's internal `auth` and `storage`
+schemas, which are not yours to restore. `--no-owner --no-acl` keeps it
+restorable into a database with different role names.
+
+Write the dump somewhere outside the repository: it contains beta players' data
+and `.gitignore` does not know about it.
+
 During M15, document the beta separately from local development:
 
 ```text

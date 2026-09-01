@@ -35,9 +35,18 @@ set +a
 log() { printf '\n== %s\n' "$1"; }
 
 log "1/5 Reaching the beta database through the session pooler"
-docker compose exec -T postgres psql "$BETA_DATABASE_URL" -A -t \
-  -c "select 'server=' || version();" \
-  -c "select 'encrypted=' || (select ssl from pg_stat_ssl where pid = pg_backend_pid());"
+docker compose exec -T postgres psql "$BETA_DATABASE_URL" -A -t -c "select version();"
+
+# The client's own view, not pg_stat_ssl: behind Supavisor that view reports the
+# pooler-to-Postgres hop inside Supabase and reads false even over a TLS client
+# link. The pooler also accepts sslmode=disable, so nothing but the URL keeps this
+# connection encrypted -- which is why DatabaseConfig must not drop the query.
+CONNINFO=$(docker compose exec -T postgres psql "$BETA_DATABASE_URL" -c '\conninfo')
+echo "$CONNINFO" | grep -E 'SSL (Connection|Protocol|Cipher)'
+echo "$CONNINFO" | grep -qE 'SSL Connection[[:space:]]*\|[[:space:]]*true' || {
+  echo "the beta connection is NOT encrypted" >&2
+  exit 1
+}
 
 log "2/5 Starting the server against the beta database (it migrates on startup)"
 DATABASE_URL="$BETA_DATABASE_URL" ./gradlew.bat :server:run --console=plain > /tmp/beta-server.log 2>&1 &

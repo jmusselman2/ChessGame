@@ -3264,7 +3264,7 @@ method.
 
 ## M15.3 — Configure the beta Supabase environment
 
-**Status:** IN PROGRESS
+**Status:** DONE
 
 **Depends on:** M7.1, M7.2, M7.3, M15.1, M15.5
 
@@ -3346,18 +3346,53 @@ done and verified:
   resulting schema. `docs/DEVELOPMENT.md` **Beta database connection** holds the
   detail, and `.env.example` carries the URL shape with no secret in it.
 
-**Remaining, and it is a genuine manual step:** the Supabase database password.
-It is not retrievable from the CLI — `supabase projects api-keys` returns API
-keys, not the database password — so it has to be copied from the project
-dashboard (*Settings → Database*) into the git-ignored `.env` as
-`BETA_DATABASE_URL`. Resetting it instead would be a credential change and would
-break anything already using the old one, so it is not done autonomously. Once
-that value is present, `bash scripts/verify-beta-database.sh` completes the
-remaining acceptance criteria — applying the migrations and the end-to-end check.
+**Completed 2026-08-31 (locally verified).** The owner supplied the database
+password into the git-ignored `.env` as `BETA_DATABASE_URL` — the one step that
+could not be automated, since the CLI does not expose it and resetting it would
+have been a credential change. `bash scripts/verify-beta-database.sh` then ran
+the rest, and every acceptance criterion is met:
 
-Verified so far with `.\gradlew.bat :server:test --rerun-tasks` against the local
-PostgreSQL (392 tests, 0 failed, 0 skipped) and `.\gradlew.bat build`
-(BUILD SUCCESSFUL).
+- **Connected through the session pooler.** PostgreSQL 17.6 answered at
+  `postgres.rkwymrtqayyyfahfgmbm@aws-0-us-east-2.pooler.supabase.com:5432`.
+- **The connection is encrypted, and that is load-bearing.** `\conninfo` reports
+  `SSL Connection | true`, TLSv1.3, `TLS_AES_256_GCM_SHA384`. The pooler was also
+  shown to accept `sslmode=disable` and connect in the clear, so nothing but the
+  preserved query string protects beta traffic — which is what the
+  `DatabaseConfig` fix above exists for. `pg_stat_ssl` is the wrong probe behind
+  Supavisor: it describes the pooler-to-PostgreSQL hop and reads `false` even
+  over a TLS client link.
+- **The migrations are applied.** The beta database went from zero `public`
+  tables to `users`, `friendships`, `game_series`, `games`, `moves`,
+  `game_events`, and `flyway_schema_history`, with `flyway_schema_history`
+  recording version `1`.
+- **The whole authentication chain works against the beta database.** An
+  anonymous sign-in against the project produced a token, and `/me` returned
+  `{"userId":"e111c5be-…","username":null}` — so Supabase issued it, the server
+  verified it against that project's JWKS, and the identity row was written to
+  the beta database. The `users` count went to 1.
+- **The same project serves both sides.** The server's `SUPABASE_URL` and the
+  Android build's default are the one project, which under `D035` is automatic
+  rather than something to keep in step.
+- **Development and CI were not moved onto it.** After the run, the beta database
+  held 1 user and 0 games while the local Docker database still held the 5 users
+  and 3 games from `M14.18`. `.\gradlew.bat build` passes against the Docker
+  database unchanged.
+- **Credentials stayed out of the repository.** `BETA_DATABASE_URL` lives only in
+  the git-ignored `.env`; `.env.example` carries the URL shape with no secret.
+  For deployment the value belongs in Render's environment as `DATABASE_URL`.
+- **Recovery is documented rather than assumed.** The owner accepted the absence
+  of backups and point-in-time recovery when accepting `D032`, and
+  `docs/DEVELOPMENT.md` **Exporting the beta database** now holds a verified
+  `pg_dump --schema=public` runbook — the only recovery path, since `D035` leaves
+  no untouched second project.
+
+One consequence to expect, and it is `D035`'s accepted tradeoff rather than a
+defect: the verification left a throwaway anonymous account in the beta database,
+and every development sign-in will do the same. Beta user counts are approximate.
+
+Verified with `bash scripts/verify-beta-database.sh` against the beta database,
+`.\gradlew.bat :server:test --rerun-tasks` against the local PostgreSQL
+(392 tests, 0 failed, 0 skipped), and `.\gradlew.bat build` (BUILD SUCCESSFUL).
 
 ---
 
