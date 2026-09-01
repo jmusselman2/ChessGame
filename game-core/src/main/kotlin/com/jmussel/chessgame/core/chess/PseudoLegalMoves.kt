@@ -1,5 +1,7 @@
 package com.jmussel.chessgame.core.chess
 
+import java.util.Collections
+
 /**
  * Movement geometry for a single piece, ignoring check.
  *
@@ -61,17 +63,24 @@ object PseudoLegalMoves {
             }
         }
 
-    /** The eight knight steps: two squares one way and one the other. */
+    /**
+     * The eight knight steps: two squares one way and one the other.
+     *
+     * Published unmodifiable: knight move generation and attack detection iterate this
+     * shared list, so a write to it would change how every knight moves.
+     */
     val KNIGHT_STEPS: List<Direction> =
-        listOf(
-            Direction(1, 2),
-            Direction(2, 1),
-            Direction(2, -1),
-            Direction(1, -2),
-            Direction(-1, -2),
-            Direction(-2, -1),
-            Direction(-2, 1),
-            Direction(-1, 2),
+        Collections.unmodifiableList(
+            listOf(
+                Direction(1, 2),
+                Direction(2, 1),
+                Direction(2, -1),
+                Direction(1, -2),
+                Direction(-1, -2),
+                Direction(-2, -1),
+                Direction(-2, 1),
+                Direction(-1, 2),
+            ),
         )
 
     /**

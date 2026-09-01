@@ -1,5 +1,7 @@
 package com.jmussel.chessgame.core.chess
 
+import java.util.Collections
+
 /**
  * A single step across the board, in files and ranks.
  *
@@ -19,14 +21,21 @@ data class Direction(
         val SOUTH_EAST = Direction(1, -1)
         val SOUTH_WEST = Direction(-1, -1)
 
-        /** The four rook directions. */
-        val ORTHOGONAL: List<Direction> = listOf(NORTH, SOUTH, EAST, WEST)
+        /**
+         * The four rook directions.
+         *
+         * Move generation hands these shared lists straight back to callers, so they are
+         * published unmodifiable: a `listOf` result is a mutable JVM list, and one indexed
+         * write would change how every rook, bishop, queen, and king moves for the rest of
+         * the process.
+         */
+        val ORTHOGONAL: List<Direction> = Collections.unmodifiableList(listOf(NORTH, SOUTH, EAST, WEST))
 
         /** The four bishop directions. */
-        val DIAGONAL: List<Direction> = listOf(NORTH_EAST, NORTH_WEST, SOUTH_EAST, SOUTH_WEST)
+        val DIAGONAL: List<Direction> = Collections.unmodifiableList(listOf(NORTH_EAST, NORTH_WEST, SOUTH_EAST, SOUTH_WEST))
 
         /** All eight queen and king directions. */
-        val ALL: List<Direction> = ORTHOGONAL + DIAGONAL
+        val ALL: List<Direction> = Collections.unmodifiableList(ORTHOGONAL + DIAGONAL)
     }
 }
 

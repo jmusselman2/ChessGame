@@ -1,20 +1,30 @@
 package com.jmussel.chessgame.core.chess
 
+import java.util.Collections
+
 /**
  * The standard chess starting position.
  */
 object StandardPosition {
-    /** Back-rank piece types from the a file to the h file. */
+    /**
+     * Back-rank piece types from the a file to the h file.
+     *
+     * Published unmodifiable, like the other shared constants: [BOARD] is built once at
+     * initialization and would not change, but a caller reading this definition must get
+     * RNBQKBNR.
+     */
     val BACK_RANK: List<PieceType> =
-        listOf(
-            PieceType.ROOK,
-            PieceType.KNIGHT,
-            PieceType.BISHOP,
-            PieceType.QUEEN,
-            PieceType.KING,
-            PieceType.BISHOP,
-            PieceType.KNIGHT,
-            PieceType.ROOK,
+        Collections.unmodifiableList(
+            listOf(
+                PieceType.ROOK,
+                PieceType.KNIGHT,
+                PieceType.BISHOP,
+                PieceType.QUEEN,
+                PieceType.KING,
+                PieceType.BISHOP,
+                PieceType.KNIGHT,
+                PieceType.ROOK,
+            ),
         )
 
     /** The rank a side's back-rank pieces start on: `0` (rank 1) for White, `7` (rank 8) for Black. */

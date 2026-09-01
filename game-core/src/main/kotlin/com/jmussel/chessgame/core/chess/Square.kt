@@ -1,5 +1,7 @@
 package com.jmussel.chessgame.core.chess
 
+import java.util.Collections
+
 /**
  * A square on the 8x8 board, stored as an index in `0..63`.
  *
@@ -37,8 +39,13 @@ value class Square private constructor(
         const val RANKS: Int = 8
         const val COUNT: Int = FILES * RANKS
 
-        /** Every square, ordered a1, b1, ... h1, a2, ... h8. */
-        val ALL: List<Square> = (0 until COUNT).map { Square(it) }
+        /**
+         * Every square, ordered a1, b1, ... h1, a2, ... h8.
+         *
+         * Published unmodifiable: every square lookup goes through this shared registry, so
+         * replacing an entry would misplace that square for the rest of the process.
+         */
+        val ALL: List<Square> = Collections.unmodifiableList((0 until COUNT).map { Square(it) })
 
         fun ofIndex(index: Int): Square {
             require(index in 0 until COUNT) { "Square index out of range: $index" }
