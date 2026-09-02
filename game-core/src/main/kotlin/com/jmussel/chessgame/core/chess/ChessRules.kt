@@ -5,20 +5,35 @@ package com.jmussel.chessgame.core.chess
  * position becomes after one is played.
  */
 object ChessRules {
-    /** Every legal move for the side to move. */
-    fun legalMoves(state: GameState): List<Move> = LegalMoves.forSideToMove(state)
+    /**
+     * Every legal move for the side to move, or nothing once the game is over.
+     *
+     * A finished game admits no move: a terminal result is final the moment it is recorded,
+     * with no pending-final state (`D017`), and [applyMove] rejects any move in that state.
+     * This query and that transition must not disagree.
+     */
+    fun legalMoves(state: GameState): List<Move> = if (state.isOver) emptyList() else LegalMoves.forSideToMove(state)
 
-    /** Whether [move] is legal for the side to move. */
+    /**
+     * Whether [move] is legal for the side to move. Always `false` once the game is over,
+     * for the same reason [legalMoves] is empty then.
+     */
     fun isLegal(
         state: GameState,
         move: Move,
-    ): Boolean = LegalMoves.isLegal(state, move)
+    ): Boolean = !state.isOver && LegalMoves.isLegal(state, move)
 
     /** Whether the side to move is in check. */
     fun isInCheck(state: GameState): Boolean = Attacks.isSideToMoveInCheck(state)
 
-    /** Whether the side to move has no legal move at all. */
-    fun hasNoLegalMoves(state: GameState): Boolean = legalMoves(state).isEmpty()
+    /**
+     * Whether the side to move has no legal move at all in this position.
+     *
+     * This asks about the position geometry itself, which [terminalResult] must decide
+     * before any result exists, so it deliberately does not consult [GameState.isOver]; the
+     * game-over guard belongs on the public [legalMoves] / [isLegal] entry points.
+     */
+    fun hasNoLegalMoves(state: GameState): Boolean = LegalMoves.forSideToMove(state).isEmpty()
 
     /** Whether the side to move is checkmated: in check with no legal move. */
     fun isCheckmate(state: GameState): Boolean = isInCheck(state) && hasNoLegalMoves(state)

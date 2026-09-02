@@ -37,6 +37,35 @@ class M3AdversarialTest {
     }
 
     @Test
+    fun theChessGameQueryOverloadsAlsoStopAtAFinishedGame() {
+        val finished =
+            ChessGame(
+                StandardPosition.newGame().copy(
+                    result = GameResult.draw(TerminationReason.STALEMATE),
+                ),
+            )
+
+        assertTrue(ChessRules.legalMoves(finished).isEmpty())
+        assertFalse(ChessRules.isLegal(finished, Move.of("e2", "e4")))
+    }
+
+    @Test
+    fun aRealCheckmateEmptiesTheLegalMoveList() {
+        var mated = StandardPosition.newGame()
+        listOf(
+            Move.of("f2", "f3"),
+            Move.of("e7", "e5"),
+            Move.of("g2", "g4"),
+            Move.of("d8", "h4"),
+        ).forEach { mated = ChessRules.applyMove(mated, it) }
+
+        assertTrue(mated.isOver)
+        assertEquals(TerminationReason.CHECKMATE, mated.result?.reason)
+        assertTrue(ChessRules.legalMoves(mated).isEmpty())
+        assertFalse(ChessRules.isLegal(mated, Move.of("e1", "f2")))
+    }
+
+    @Test
     fun enPassantTargetWithoutBypassedPawnOffersNoCapture() {
         val state = enPassantState()
 

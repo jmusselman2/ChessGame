@@ -70,8 +70,11 @@ class ResignTest {
         val resigned = ChessRules.resign(afterOpeningMoves(), Side.WHITE)
 
         assertTrue(resigned.isOver)
-        assertTrue(ChessRules.legalMoves(resigned).isNotEmpty(), "the position still has moves in it")
-        assertFalse(ChessRules.canUndo(resigned, Side.BLACK), "but nobody may take one back (`D017`)")
+        // Once the game is over the move-query API reports nothing playable, matching
+        // applyMove's own refusal (`D017`, M3 terminal-state remediation); and nobody may
+        // take a move back either.
+        assertTrue(ChessRules.legalMoves(resigned).isEmpty(), "a finished game has no moves to offer")
+        assertFalse(ChessRules.canUndo(resigned, Side.BLACK))
         assertFalse(ChessRules.canUndo(resigned, Side.WHITE))
     }
 
