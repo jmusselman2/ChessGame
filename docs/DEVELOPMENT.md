@@ -906,7 +906,7 @@ The beta, as distinct from local development:
 
 ```text
 Ktor beta host:      Render Free Web Service "ChessGame" (Oregon), Docker runtime
-Beta API base URL:   https://chessgame-hit7.onrender.com  (not yet serving; see below)
+Beta API base URL:   https://chessgame-hit7.onrender.com  (live since 2026-09-02)
 How beta deployment is performed:
                      Render builds ./Dockerfile from the tracked branch and runs
                      the image; auto-deploy fires on each commit to that branch.
@@ -969,52 +969,72 @@ service:
 | 1. Hosting resource exists | **Done**, manually, outside the backlog |
 | 2. Ktor is deployment-ready for Render | **Done** — `M15.2`, verified 2026-09-01 |
 | 3. Beta Supabase/database/auth configured | **Done** — `M15.3`, verified 2026-08-31 |
-| 4. Deployment succeeds and `/health` is reachable | Not done — `M15.2`, needs a human |
+| 4. Deployment succeeds and `/health` is reachable | **Done** — building since 2026-09-01; `dep-dabqj2eq1p3s73fs2sog` (`2be1f06`) is `live`, serving out of health-only mode, confirmed 2026-09-02 |
 | 5. Android beta points at the deployed service | Not done — `M15.4` |
 
-Three deploys have failed, the last of `b54a40e` on 2026-08-31, all during the
-Docker build. That was expected and is now addressed: the repository had no
-`Dockerfile`, which was `M15.2`'s first acceptance criterion. Do not treat those
-failures as a regression to chase.
+Three deploys failed, the last of `b54a40e` on 2026-08-31, all during the Docker
+build (`build_failed`). That was expected and is now addressed: the repository
+had no `Dockerfile`, which was `M15.2`'s first acceptance criterion. Do not treat
+those failures as a regression to chase. Every deploy since the `Dockerfile`
+landed has built successfully, starting with `036a1a18` at `2026-09-01T04:44:10Z`
+— note that Render's `deactivated` status means a deploy that went live and was
+later superseded, **not** one that failed.
 
-Free-plan behaviour to expect once it does run: the service spins down after
-inactivity and the next request pays a significant cold start (`D032`).
+**The service is live as of 2026-09-02.** `claude-autopilot` is integrated into
+`main` (both are `2be1f06`), auto-deploy fires on each commit to it, and deploy
+`dep-dabqj2eq1p3s73fs2sog` finished `live` at `2026-09-02T04:47:28Z`.
+`curl https://chessgame-hit7.onrender.com/health` returns `200`
+`ChessGame server is healthy` with **no** `(health-only: ...)` suffix, so both
+`DATABASE_URL` and `SUPABASE_URL` are set on the service and it is serving the
+real API rather than the health-only fallback.
+
+Free-plan behaviour, now measured rather than expected: the service spins down
+after about 15 idle minutes and the next request pays a significant cold start.
+Observed 2026-09-02 after ~21 idle minutes: **59.0 s** for the first request,
+then **0.43 s** and **0.20 s** warm. That is one sample and not a guaranteed
+upper bound (`D032`) — take more before fixing `M15.4`'s client deadline.
 
 Do not put production or beta secrets directly in Git.
 
-### What the first live deployment still needs
+### What the live deployment still needs
 
-Everything below needs a human. The autonomous loop prepared and verified the
-artifacts and stops here (`D032` acceptance, `M15` milestone note).
+Steps 1–3 below were done by a human — the integration and the environment
+variables between 2026-09-01 and 2026-09-02, the deploy automatically from the
+commit — and step 4 was measured from here. They are kept for the record; what
+remains is under **Still outstanding**. The autonomous loop prepares and verifies
+artifacts and may read service state, but does not deploy, set environment
+variables, or handle credentials (`D032` acceptance, `M15` milestone note).
+
+1. ~~**Give the service a branch that contains the `Dockerfile`.**~~ **Done** —
+   `claude-autopilot` was integrated into `main`; both are `2be1f06`.
+2. ~~**Put the beta environment variables on the service.**~~ **Done** — proven
+   by the `/health` body, which no longer reports health-only. For reference, the
+   two are `DATABASE_URL` (the session-pooler URL under **Beta database
+   connection** above, with the password and `?sslmode=require`, held in the
+   owner's git-ignored `.env` as `BETA_DATABASE_URL`) and `SUPABASE_URL`
+   (`https://rkwymrtqayyyfahfgmbm.supabase.co`).
+3. ~~**Deploy, and read the `/health` body.**~~ **Done** — builds have succeeded
+   since `036a1a18` on 2026-09-01; auto-deploy then fired on `2be1f06` and
+   `dep-dabqj2eq1p3s73fs2sog` went `live` at `2026-09-02T04:47:28Z`.
+   `curl https://chessgame-hit7.onrender.com/health` returns
+   `ChessGame server is healthy` without `(health-only: ...)`.
+4. ~~**Take a first cold-start measurement.**~~ **Done** — 59.0 s after ~21 idle
+   minutes, against 0.43 s / 0.20 s warm.
+
+#### Still outstanding
 
 1. **Confirm no payment method is attached to the `ChessGame` workspace.** This
    is what the hard `$0` boundary rests on and it cannot be read from the
    repository or the service API. The Free plan and the single instance *were*
    confirmed from the API above. Render dashboard → workspace → Billing.
-2. **Put the beta environment variables on the service.** In the Render
-   dashboard, or by an authorized agent using the Render MCP
-   `update_environment_variables`:
-   - `DATABASE_URL` — the session-pooler URL under **Beta database connection**
-     above, with the password, keeping `?sslmode=require`. It is in the owner's
-     git-ignored `.env` as `BETA_DATABASE_URL`.
-   - `SUPABASE_URL` — `https://rkwymrtqayyyfahfgmbm.supabase.co`.
-3. **Give the service a branch that contains the `Dockerfile`.** It tracks
-   `main`, and this work is on `claude-autopilot`. Either merge
-   `claude-autopilot` into `main` by pull request (the normal integration path,
-   and auto-deploy will then deploy it), or point the service's branch at
-   `claude-autopilot`. Nothing deploys until one of those happens.
-4. **Deploy, and read the `/health` body.** Auto-deploy fires on the commit;
-   otherwise trigger it manually. `curl https://chessgame-hit7.onrender.com/health`
-   must return `ChessGame server is healthy` **without** `(health-only: ...)`. If
-   it says health-only, step 2 did not take effect.
-5. **Measure cold starts.** Let the service sleep past 15 idle minutes, then time
-   the first request, several times. Record the observations here and in
-   `M15.2`. They inform `M15.4`'s client deadline; they are not a guaranteed
+2. **Measure more cold starts.** Let the service sleep past 15 idle minutes, then
+   time the first request, several times, and record the observations here and in
+   `M15.2`. They inform `M15.4`'s client deadline; one sample is not a guaranteed
    upper bound.
-6. **Check Render usage after the play-through**, including outbound traffic to
+3. **Check Render usage after the play-through**, including outbound traffic to
    Supabase, and confirm no payment method appeared and no automatic upgrade is
    enabled.
 
 `M15.4` — the Android beta endpoint — follows, and the HTTPS/WSS play-through
 against the deployed service is verified there and in `M15.2`'s remaining
-criteria.
+criteria. `M15.4` needs its own explicit human authorization before it is started.

@@ -3085,11 +3085,13 @@ when everything needed is to hand.
 > functional: its deploys failed during the Docker build because the repository
 > had no `Dockerfile`. Nothing else about the beta follows from the service
 > existing, and the parts have been closed one at a time: the destructive-reset
-> guard (`M15.5`) and the beta Supabase environment (`M15.3`) are `DONE`, the
-> repository is deployment-ready as of 2026-09-01 (`M15.2`), and what remains is
-> a successful deploy with a reachable `/health` (`M15.2`) and the Android beta
-> endpoint (`M15.4`). `docs/DEVELOPMENT.md` **Beta Deployment** holds the
-> service's read-back configuration and the remaining steps.
+> guard (`M15.5`) and the beta Supabase environment (`M15.3`) are `DONE`, and the
+> repository became deployment-ready on 2026-09-01 (`M15.2`). As of 2026-09-02
+> the service is **live** and serving out of health-only mode on commit
+> `2be1f06`, so what remains of `M15.2` is the payment-method confirmation, more
+> cold-start samples, and the usage check, plus the Android beta endpoint
+> (`M15.4`). `docs/DEVELOPMENT.md` **Beta Deployment** holds the service's
+> read-back configuration and the remaining steps.
 >
 > Sequencing: this milestone began after `M14.18` proved the Android
 > multiplayer client end to end (2026-08-31).
@@ -3329,6 +3331,53 @@ Not done, and each needs a human (`D032`'s acceptance authorized none of it):
 Verified with `bash scripts/verify-server-image.sh` (8/8),
 `.\gradlew.bat :server:test` for the new `DeploymentTest` and
 `WebSocketKeepAliveTest`, and `.\gradlew.bat build`.
+
+**Deployment state observed 2026-09-02.** Three of the six items above are now
+satisfied — a human did the integration and the environment variables, and the
+deploy followed from the commit — and the service is live. This entry records
+what was *observed*, read-only, through the Render API and the public health
+endpoint; the loop deployed nothing and set no environment variable.
+
+- **The tracked branch now contains the `Dockerfile`.** `claude-autopilot` was
+  integrated into `main` — `origin/main` and `origin/claude-autopilot` are both
+  `2be1f06` — and the service still tracks `main` with auto-deploy on commit.
+- **The deploy succeeded.** Deploy `dep-dabqj2eq1p3s73fs2sog`, trigger
+  `new_commit`, commit `2be1f06`, started `2026-09-02T04:43:53Z`, finished
+  `2026-09-02T04:47:28Z`, status `live`. Builds have in fact succeeded since the
+  `Dockerfile` landed — `036a1a18` at `2026-09-01T04:44:10Z` was the first — and
+  only three deploys ever failed (`build_failed`, the last `b54a40e`), all for
+  the missing `Dockerfile`. Render's `deactivated` marks a deploy that went live
+  and was later superseded, not one that failed.
+- **The environment variables took effect.**
+  `curl https://chessgame-hit7.onrender.com/health` returns `200`
+  `ChessGame server is healthy` with **no** `(health-only: ...)` suffix — exactly
+  the signal `M15.2` built for this purpose, so the server found both
+  `DATABASE_URL` and `SUPABASE_URL`. Their values were not read and are not here.
+- **The service is still one free instance.** The API reports `plan: free`,
+  `numInstances: 1`, `suspended: not_suspended`, `healthCheckPath: /health`,
+  region `oregon`, Docker runtime from `./Dockerfile` — unchanged from
+  `render.yaml`, so the recorded configuration has not drifted (`D036`).
+- **First cold-start observation.** The first request after the service had sat
+  idle for about 21 minutes since going live took **59.0 s** (HTTP 200); the two
+  warm requests immediately after took **0.43 s** and **0.20 s**. One sample is
+  evidence, not a bound — `D032` records that the cold start has no guaranteed
+  upper limit — but it matches Render's documented "roughly a minute" and is the
+  order of magnitude `M15.4`'s client deadline has to tolerate.
+
+Still open, so the task stays `IN PROGRESS`:
+
+- **Confirmation that no payment method is attached to the workspace.** Billing
+  state is not readable from the repository or the service API; only a human in
+  the Render dashboard can confirm it, and it is what the hard `$0` boundary
+  rests on.
+- **The Android test build reaching the service over HTTPS with a WSS
+  connection.** That build configuration is `M15.4`, which is `TODO` and gated on
+  this task.
+- **Further cold-start samples, and the post-play-through Render usage check**
+  including outbound traffic to Supabase.
+
+None of this changes the authorization position: `M15.4` still needs explicit
+human authorization before it is marked `IN PROGRESS` (see the milestone note).
 
 ---
 
