@@ -177,6 +177,17 @@ private fun StartupScreen(
                 }
             }
 
+            // Not a failure, and it must not read as one. The beta's free instance sleeps
+            // after about fifteen idle minutes and takes roughly a minute to come back
+            // (`M15.2`), so this is the ordinary experience of being the first to open the
+            // app in a while. The retry is offered anyway — waiting is the app's job, but
+            // deciding to stop waiting is the player's.
+            is StartupState.Waking -> {
+                Text(text = WAKING, style = MaterialTheme.typography.titleSmall)
+                Text(text = WAKING_DETAIL, style = MaterialTheme.typography.bodyMedium)
+                TextButton(onClick = onRetry) { Text(text = RETRY) }
+            }
+
             // Waiting, and the moment between a session arriving and the dashboard
             // replacing this screen, look the same: there is nothing to report.
             else -> Text(text = STARTING, style = MaterialTheme.typography.titleSmall)
@@ -189,6 +200,9 @@ private const val FRIENDS = "Friends"
 private const val HISTORY = "History"
 private const val LOCAL_GAME = "Local game"
 private const val STARTING = "Starting…"
+private const val WAKING = "Waking the server…"
+private const val WAKING_DETAIL =
+    "The server sleeps when nobody has played for a while. The first game of the day takes about a minute to start."
 private const val SIGN_IN_PROBLEM = "Cannot sign in"
 private const val RETRY = "Try again"
 

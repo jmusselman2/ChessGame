@@ -12,7 +12,9 @@ import com.jmussel.chessgame.api.ChessCommandRefusedException
 import com.jmussel.chessgame.api.CurrentUserDto
 import com.jmussel.chessgame.api.GameViewDto
 import com.jmussel.chessgame.api.RealtimeMessageDto
+import com.jmussel.chessgame.api.ServerWakePolicy
 import com.jmussel.chessgame.api.UserSummaryDto
+import com.jmussel.chessgame.api.withServerWake
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.navigation.AppNavigation
@@ -53,6 +55,7 @@ import kotlinx.coroutines.launch
  */
 class ChessAppViewModel(
     private val dependencies: ChessAppDependencies,
+    private val wakePolicy: ServerWakePolicy = ServerWakePolicy(),
 ) : ViewModel() {
     /** Which screen is showing, and what is behind it. */
     var navigation: AppNavigation by mutableStateOf(AppNavigation())
@@ -136,13 +139,25 @@ class ChessAppViewModel(
      * anonymous accounts. Calling it after a failure is the retry.
      */
     fun start() {
-        if (startupJob?.isActive == true || startup is StartupState.Ready) return
+        if (startup is StartupState.Ready) return
+
+        // A run that is only waiting out a sleeping server may be restarted by the player,
+        // because the screen offers them that button and a dead button is worse than none.
+        // A run genuinely in flight is left alone, so a second tap still cannot end up
+        // creating two anonymous accounts (`D006`).
+        if (startupJob?.isActive == true) {
+            if (startup !is StartupState.Waking) return
+            startupJob?.cancel()
+        }
 
         startupJob =
             viewModelScope.launch {
                 startup = StartupState.Loading
 
-                val result = dependencies.startup.run()
+                // Reported as it happens rather than at the end: a free instance's cold
+                // start takes about a minute (`M15.2`), and a screen that says nothing for
+                // that long reads as broken.
+                val result = dependencies.startup.run(onWaking = { waking -> startup = waking })
                 startup = result
 
                 if (result is StartupState.Ready) {
@@ -224,7 +239,12 @@ class ChessAppViewModel(
         gameJob =
             viewModelScope.launch {
                 try {
-                    show(dependencies.chessApi.game(gameId))
+                    // A reload is a read, so it is safe to repeat while the service wakes.
+                    // This is the reconnect path too (`M12.3`): the socket drops when a free
+                    // instance is replaced or spins down, and canonical state is reloaded
+                    // over HTTPS immediately afterwards — against a server that is, by
+                    // definition, only just coming back.
+                    show(waitingForServer { dependencies.chessApi.game(gameId) })
                 } catch (refused: ChessApiException) {
                     game =
                         OnlineGameState.Failed(
@@ -448,12 +468,26 @@ class ChessAppViewModel(
     }
 
     /**
+     * Runs a **safe, repeatable** read, waiting through a service that is merely asleep.
+     *
+     * Only reads come through here. A mutating command must not: it carries the version it
+     * was decided against, and re-sending it is the server's question to settle through the
+     * version guard, not a thing a client loop should do on its own (`D021`). [sendCommand]
+     * deliberately does not call this, and `commandsAreNotRetriedBlindly` locks that.
+     */
+    private suspend fun <T> waitingForServer(read: suspend () -> T): T = withServerWake(policy = wakePolicy, attempt = read)
+
+    /**
      * Sends one command about the game on screen and shows whatever came back.
      *
      * Every command works the same way: it carries the version it was decided against,
      * which is what makes it unique (`D021`), and the screen is replaced by the canonical
      * state — the accepted one, or the one attached to the refusal. A retry whose first
      * reply was lost therefore sees its own effect rather than doing it twice.
+     *
+     * Exactly one attempt is made. A command is not safe to repeat on the client's own
+     * initiative, so a transport failure is reported rather than waited through — unlike a
+     * read, which goes through [waitingForServer].
      */
     private fun sendCommand(
         decidedAt: GameViewDto,
@@ -600,12 +634,13 @@ class ChessAppViewModel(
         dashboard = dashboard.copy(loading = true)
 
         try {
-            coroutineScope {
-                val entries = async { dependencies.chessApi.dashboard() }
-                val list = async { dependencies.chessApi.friends() }
-                val loadedEntries = entries.await()
-                val loadedFriends = list.await()
-
+            waitingForServer {
+                coroutineScope {
+                    val entries = async { dependencies.chessApi.dashboard() }
+                    val list = async { dependencies.chessApi.friends() }
+                    entries.await() to list.await()
+                }
+            }.let { (loadedEntries, loadedFriends) ->
                 dashboard = dashboard.copy(entries = loadedEntries, loading = false, loaded = true, message = null)
                 // The same list the friends screen shows; there is only one of it.
                 friends = friends.copy(friends = loadedFriends, loaded = true)

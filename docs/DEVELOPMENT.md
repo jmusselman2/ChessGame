@@ -654,11 +654,51 @@ Each live run leaves one throwaway anonymous user in the development project.
 
 ### What is not configured yet
 
-- The schema in `database/migrations/` has **not** been applied to the Supabase
-  database. Only the local disposable database has it so far.
-- Applying it is `M15.3`, which under `D035` targets this same project rather
-  than a separate beta one. Once that happens this project holds beta game data,
-  and the warnings under **Beta Deployment** apply to it.
+- The schema in `database/migrations/` has been applied to the Supabase database
+  since `M15.3` (2026-08-31). Under `D035` that is this same project rather than
+  a separate beta one, so it now holds beta game data and the warnings under
+  **Beta Deployment** apply to it.
+
+### Building the Android beta (`M15.4`)
+
+Status: VERIFIED (2026-09-02) for everything that does not need a device; the
+play-through against the deployed service is the remaining manual step.
+
+A beta build is an ordinary release build pointed at the deployed HTTPS endpoint
+through the same `chessServerUrl` input a development build uses (`D034`) — the
+address is build configuration, never a literal in application source:
+
+    .\gradlew.bat :android-app:assembleRelease `
+      "-PchessServerUrl=https://chessgame-hit7.onrender.com" `
+      "-PsupabaseAnonKey=<publishable key>"
+
+What makes that a beta rather than a development build:
+
+- **HTTPS and WSS only.** The release network security configuration forbids
+  cleartext outright, and only the `debug` source set permits it, to `10.0.2.2`
+  and `localhost` (`D033`). `ChessServerConfig.webSocketUrl` turns `https` into
+  `wss`, so the socket is exactly as protected as the rest of the traffic.
+- **Forgetting the address is a loud failure, not a silent one.**
+  `ChessAppDependencies` passes `BuildConfig.DEBUG` as the cleartext allowance,
+  so a release build left on the emulator-loopback default refuses at startup and
+  says how to fix it. Without that it would install, launch, and fail every
+  request against the network security configuration, explaining nothing.
+- **No secret is committed.** The publishable key is supplied at build time
+  exactly as it is for a development build, and the beta `DATABASE_URL` never
+  reaches the app at all — it is the server's, and lives only in Render's
+  environment.
+
+The check is *not* a Gradle-configuration failure on purpose: `.\gradlew.bat
+build` assembles the release APK with the ordinary defaults, so failing there
+would break the normal build and CI with it.
+
+**The service sleeps, and the app has to say so.** Startup and canonical reloads
+retry with capped exponential backoff under a configurable deadline
+(`ServerWakePolicy`, default 150 s against the 59.0 s / 64.5 s cold starts
+measured in `M15.2`), and the startup screen shows *"Waking the server…"* rather
+than an error while that is happening. Mutating commands are deliberately **not**
+retried: a move carries the version it was decided against, and re-sending it is
+settled by the server's version guard, not by a client loop (`D021`).
 
 ## Local Logs
 
@@ -1033,13 +1073,14 @@ variables, or handle credentials (`D032` acceptance, `M15` milestone note).
 4. ~~**Measure cold starts.**~~ **Done** — two samples, 59.0 s and 64.5 s after
    ~20 idle minutes, against 0.20–0.43 s warm. See the table above.
 
+5. ~~**Confirm no payment method is attached to the `ChessGame` workspace.**~~
+   **Done** — confirmed by the project owner on 2026-09-02. It cannot be read
+   from the repository or the service API, so this rests on that report; the Free
+   plan and the single instance were confirmed from the API above.
+
 #### Still outstanding
 
-1. **Confirm no payment method is attached to the `ChessGame` workspace.** This
-   is what the hard `$0` boundary rests on and it cannot be read from the
-   repository or the service API. The Free plan and the single instance *were*
-   confirmed from the API above. Render dashboard → workspace → Billing.
-2. **Check Render usage after the play-through**, including outbound traffic to
+1. **Check Render usage after the play-through**, including outbound traffic to
    Supabase, and confirm no payment method appeared and no automatic upgrade is
    enabled.
 

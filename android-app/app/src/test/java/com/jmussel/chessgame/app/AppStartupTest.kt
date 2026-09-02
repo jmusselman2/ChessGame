@@ -3,6 +3,7 @@ package com.jmussel.chessgame.app
 import com.jmussel.chessgame.api.ChessApiClient
 import com.jmussel.chessgame.api.ChessServerConfig
 import com.jmussel.chessgame.api.CurrentUserDto
+import com.jmussel.chessgame.api.ServerWakePolicy
 import com.jmussel.chessgame.auth.AnonymousAuthenticator
 import com.jmussel.chessgame.auth.AnonymousSession
 import com.jmussel.chessgame.auth.InMemorySessionStore
@@ -39,6 +40,16 @@ class AppStartupTest {
     private val config = SupabaseConfig(url = "https://project.supabase.co", anonKey = "publishable-key")
 
     private val paths = mutableListOf<String>()
+
+    /**
+     * The wake policy for tests that are not about waking.
+     *
+     * These run under `runBlocking` with real delays, so the shipped policy — which waits
+     * out a minute-long cold start on purpose (`M15.4`) — would make every unreachable-server
+     * case take that long. A few milliseconds exercises the same decisions.
+     */
+    private val impatient =
+        ServerWakePolicy(deadlineMillis = 30, initialDelayMillis = 1, maxDelayMillis = 4)
 
     private fun storedSession(expiresAt: Long) =
         AnonymousSession(
@@ -79,6 +90,7 @@ class AppStartupTest {
         subject: String = "subject-2",
         username: String? = null,
         failWith: Throwable? = null,
+        wakePolicy: ServerWakePolicy = impatient,
     ): AppStartup {
         val engine =
             MockEngine { request ->
@@ -113,6 +125,7 @@ class AppStartupTest {
                 ChessApiClient(ChessServerConfig("https://chess.example"), httpClient) {
                     authenticator.currentSession().accessToken
                 },
+            wakePolicy = wakePolicy,
         )
     }
 
@@ -267,6 +280,98 @@ class AppStartupTest {
                 assertFalse("$secret must not appear in \"${failure.message}\"", failure.message.contains(secret))
             }
         }
+    }
+
+    @Test
+    fun aSleepingServerIsWaitedThroughAndReportedAsWakingNotAsAFailure() {
+        // The free instance is down for the first two calls and then answers, which is what
+        // a cold start looks like from the app (`M15.2` measured 59.0s and 64.5s).
+        var call = 0
+        val engine =
+            MockEngine { request ->
+                paths += request.url.encodedPath
+                call++
+                if (call <= 2) throw IOException("connection refused")
+
+                respond(
+                    content = identityBody(username = "Jordan"),
+                    status = HttpStatusCode.OK,
+                    headers = headersOf("Content-Type", ContentType.Application.Json.toString()),
+                )
+            }
+        val httpClient = HttpClient(engine) { install(ContentNegotiation) { json(ChessApiClient.Json) } }
+        val authenticator =
+            AnonymousAuthenticator(
+                SupabaseAuthClient(config, httpClient),
+                InMemorySessionStore(storedSession(expiresAt = 5_000)),
+                now = { 1_000 },
+            )
+        val startup =
+            AppStartup(
+                supabaseConfig = config,
+                authenticator = authenticator,
+                chessApi =
+                    ChessApiClient(ChessServerConfig("https://chess.example"), httpClient) {
+                        authenticator.currentSession().accessToken
+                    },
+                wakePolicy = ServerWakePolicy(deadlineMillis = 5_000, initialDelayMillis = 1, maxDelayMillis = 4),
+            )
+
+        val waking = mutableListOf<StartupState.Waking>()
+        val state = runBlocking { startup.run(onWaking = { waking += it }) }
+
+        // The cold start is survived rather than reported, which is the whole point.
+        assertEquals(StartupState.Ready(CurrentUserDto(userId = "server-1", username = "Jordan")), state)
+        assertEquals("the player should have been told it was waking", listOf(1, 2), waking.map { it.failures })
+    }
+
+    @Test
+    fun aRefusedSignInIsNotWaitedThroughBecauseSupabaseAnswered() {
+        val startup = startup(signInStatus = HttpStatusCode.Unauthorized)
+
+        val waking = mutableListOf<StartupState.Waking>()
+        val state = runBlocking { startup.run(onWaking = { waking += it }) } as StartupState.Failed
+
+        // Supabase is a separate always-on service; a refusal from it is an answer, and
+        // asking again would only get the same one more slowly.
+        assertTrue(state.canRetry)
+        assertTrue("a refusal is not a cold start", waking.isEmpty())
+        assertEquals("it should have been asked exactly once", 1, paths.size)
+    }
+
+    @Test
+    fun aServerRefusalIsNotWaitedThroughEither() {
+        val startup =
+            startup(
+                store = InMemorySessionStore(storedSession(expiresAt = 5_000)),
+                identityStatus = HttpStatusCode.InternalServerError,
+            )
+
+        val waking = mutableListOf<StartupState.Waking>()
+        runBlocking { startup.run(onWaking = { waking += it }) }
+
+        assertTrue("the Chess server answered, so it is awake", waking.isEmpty())
+        assertEquals(listOf("/me"), paths)
+    }
+
+    @Test
+    fun aServerThatNeverWakesEventuallyFailsWithAnOfferToTryAgain() {
+        // A real deadline, because this asserts that retrying actually happened. These run
+        // under `runBlocking`, so the deadline is spent against the real clock and a budget
+        // as small as `impatient`'s would be used up by the first request alone -- the
+        // assertion would then pass without a single retry having occurred.
+        val startup =
+            startup(
+                failWith = IOException("still down"),
+                wakePolicy = ServerWakePolicy(deadlineMillis = 1_000, initialDelayMillis = 1, maxDelayMillis = 2),
+            )
+
+        val state = runBlocking { startup.run() } as StartupState.Failed
+
+        // It gives up rather than waiting forever, and what the player gets is a button.
+        assertTrue(state.canRetry)
+        assertTrue(state.message.contains("connection"))
+        assertTrue("it should have tried more than once before giving up", paths.size > 1)
     }
 
     @Test

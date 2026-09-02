@@ -6,6 +6,7 @@ import com.jmussel.chessgame.api.ChessApiClient
 import com.jmussel.chessgame.api.ChessRealtimeClient
 import com.jmussel.chessgame.api.ChessServerConfig
 import com.jmussel.chessgame.api.RealtimeSource
+import com.jmussel.chessgame.api.ServerWakePolicy
 import com.jmussel.chessgame.auth.AnonymousAuthenticator
 import com.jmussel.chessgame.auth.DataStoreSessionStore
 import com.jmussel.chessgame.auth.SessionStore
@@ -34,6 +35,7 @@ class ChessAppDependencies(
     private val httpClient: HttpClient,
     sessionStore: SessionStore,
     realtime: RealtimeSource? = null,
+    wakePolicy: ServerWakePolicy = ServerWakePolicy(),
 ) : AutoCloseable {
     /** Keeps one anonymous account alive across launches (`D006`). */
     val authenticator: AnonymousAuthenticator =
@@ -60,7 +62,7 @@ class ChessAppDependencies(
         )
 
     /** Restores or creates the session, then asks the server who it belongs to (`M14.6`). */
-    val startup: AppStartup = AppStartup(supabaseConfig, authenticator, chessApi)
+    val startup: AppStartup = AppStartup(supabaseConfig, authenticator, chessApi, wakePolicy)
 
     /**
      * Where realtime updates come from.
@@ -86,7 +88,16 @@ class ChessAppDependencies(
          */
         fun create(context: Context): ChessAppDependencies =
             ChessAppDependencies(
-                serverConfig = ChessServerConfig(BuildConfig.CHESS_SERVER_URL),
+                // Only a debug build may talk to a development server in the clear, which is
+                // what its network security configuration permits and no other build's does
+                // (`D033`). Passing the same fact here turns a beta built without
+                // `-PchessServerUrl` into an immediate, named failure rather than every
+                // request failing for an unexplained reason (`M15.4`).
+                serverConfig =
+                    ChessServerConfig(
+                        baseUrl = BuildConfig.CHESS_SERVER_URL,
+                        allowCleartext = BuildConfig.DEBUG,
+                    ),
                 supabaseConfig = SupabaseConfig(url = BuildConfig.SUPABASE_URL, anonKey = BuildConfig.SUPABASE_ANON_KEY),
                 httpClient = defaultHttpClient(),
                 sessionStore = DataStoreSessionStore(context.applicationContext),

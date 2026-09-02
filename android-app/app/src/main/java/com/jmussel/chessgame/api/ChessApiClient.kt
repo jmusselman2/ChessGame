@@ -22,15 +22,32 @@ import kotlinx.serialization.json.Json
  * Where the Chess server lives.
  *
  * The default is the host machine as seen from an Android emulator, which is what a
- * developer running `.\gradlew.bat :server:run` needs. The beta endpoint is configured in
- * `M15.4`.
+ * developer running `.\gradlew.bat :server:run` needs. A beta build is given the deployed
+ * HTTPS endpoint through build configuration instead (`M15.4`).
+ *
+ * [allowCleartext] is the build's cleartext allowance, and it exists so a misconfigured
+ * beta fails immediately and legibly. Everything this app sends carries a session token, so
+ * only a debug build may use plain HTTP, and only to a development server (`D033`). A
+ * release build whose address is cleartext would otherwise install, launch, and fail every
+ * request for a reason nothing on screen explains — which is exactly what forgetting
+ * `-PchessServerUrl` would produce.
  */
 data class ChessServerConfig(
     val baseUrl: String = EMULATOR_LOOPBACK,
+    val allowCleartext: Boolean = true,
 ) {
     init {
         require(baseUrl.isNotBlank()) { "The server needs an address" }
+        require(allowCleartext || isSecure) {
+            "This build may not use a cleartext server address, but was given \"$baseUrl\". " +
+                "Build the beta with -PchessServerUrl=https://… (see docs/DEVELOPMENT.md); plain HTTP is " +
+                "for a debug build against a development server only."
+        }
     }
+
+    /** Whether traffic to this server is encrypted, which a non-debug build requires. */
+    val isSecure: Boolean
+        get() = baseUrl.startsWith(HTTPS, ignoreCase = true)
 
     /** [path] against this server, with no doubled slash however the base was written. */
     fun url(path: String): String = "${baseUrl.trimEnd('/')}/${path.trimStart('/')}"
@@ -45,7 +62,7 @@ data class ChessServerConfig(
      */
     fun webSocketUrl(path: String): String =
         when {
-            baseUrl.startsWith(HTTPS, ignoreCase = true) -> url(path).replaceFirst(HTTPS, "wss://")
+            isSecure -> url(path).replaceFirst(HTTPS, "wss://")
             baseUrl.startsWith(HTTP, ignoreCase = true) -> url(path).replaceFirst(HTTP, "ws://")
             else -> url(path)
         }

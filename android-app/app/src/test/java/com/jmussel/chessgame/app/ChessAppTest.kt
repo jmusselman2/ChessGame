@@ -4,6 +4,7 @@ import com.jmussel.chessgame.api.ChessApiClient
 import com.jmussel.chessgame.api.ChessServerConfig
 import com.jmussel.chessgame.api.RealtimeMessageDto
 import com.jmussel.chessgame.api.RealtimeSource
+import com.jmussel.chessgame.api.ServerWakePolicy
 import com.jmussel.chessgame.api.UserSummaryDto
 import com.jmussel.chessgame.auth.AnonymousSession
 import com.jmussel.chessgame.auth.InMemorySessionStore
@@ -46,6 +47,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -206,19 +208,19 @@ class ChessAppTest {
 
     /** Everything the stubbed server has to say, so one parameter carries it all. */
     private data class Replies(
-        val username: String?,
-        val friends: List<String>,
-        val games: List<String>,
-        val removalOutcome: String,
-        val currentGameId: String?,
-        val canUndo: Boolean,
-        val claims: List<String>,
-        val yourTurn: Boolean,
-        val nextGameId: String?,
-        val nextSide: String,
-        val finished: Boolean,
-        val finishedGames: List<String>,
-        val seriesClosed: Boolean,
+        val username: String? = "Jordan",
+        val friends: List<String> = emptyList(),
+        val games: List<String> = emptyList(),
+        val removalOutcome: String = "Removed",
+        val currentGameId: String? = "game-1",
+        val canUndo: Boolean = false,
+        val claims: List<String> = emptyList(),
+        val yourTurn: Boolean = true,
+        val nextGameId: String? = null,
+        val nextSide: String = "WHITE",
+        val finished: Boolean = false,
+        val finishedGames: List<String> = emptyList(),
+        val seriesClosed: Boolean = false,
     )
 
     /** What the server would say to one request. */
@@ -388,17 +390,34 @@ class ChessAppTest {
     private val sentBodies: List<String>
         get() = requests.mapNotNull { (it.body as? TextContent)?.text }
 
+    /**
+     * A wake policy that still genuinely retries, but does not sit through a beta cold start.
+     *
+     * The shipped policy waits out roughly a minute on purpose (`M15.4`); here the interest
+     * is in what the model does, not how long it is prepared to wait.
+     *
+     * The deadline is measured against the real clock even under `runTest`, which skips the
+     * `delay` itself — so it has to be comfortably longer than the requests a test makes,
+     * or the policy gives up after a single attempt and every "is this retried?" assertion
+     * passes without meaning anything. Two seconds is far more than a `MockEngine` call
+     * needs and still bounds a test that goes wrong.
+     */
+    private val impatientWake =
+        ServerWakePolicy(deadlineMillis = 2_000, initialDelayMillis = 1, maxDelayMillis = 2)
+
     private fun dependencies(
         httpClient: HttpClient = httpClient(),
         sessionStore: SessionStore = InMemorySessionStore(storedSession),
         supabaseConfig: SupabaseConfig = SupabaseConfig(url = "https://supabase.example", anonKey = "publishable-key"),
         realtime: RealtimeSource = silentRealtime,
+        wakePolicy: ServerWakePolicy = impatientWake,
     ) = ChessAppDependencies(
         serverConfig = ChessServerConfig("https://chess.example"),
         supabaseConfig = supabaseConfig,
         httpClient = httpClient,
         sessionStore = sessionStore,
         realtime = realtime,
+        wakePolicy = wakePolicy,
     )
 
     @Test
@@ -2152,17 +2171,67 @@ class ChessAppTest {
             assertEquals(2, paths.count { it == "/history" })
         }
 
+    /**
+     * The rule that keeps the wake retry safe: it is for reads only.
+     *
+     * A move carries the version it was decided against, and re-sending it is settled by the
+     * server's version guard rather than by a client loop (`D021`). If a transport failure
+     * were waited through here, the app would be re-sending a command whose first attempt
+     * may well have been applied — the exact thing the version rules exist to make
+     * unnecessary. So the move is attempted once and the failure is reported.
+     */
+    @Test
+    fun commandsAreNotRetriedBlindly() =
+        runTest(dispatcher) {
+            var moveAttempts = 0
+            val engine =
+                MockEngine { request ->
+                    requests += request
+                    val path = request.url.encodedPath
+
+                    if (request.method == HttpMethod.Post && path.endsWith("/moves")) {
+                        moveAttempts++
+                        throw IOException("connection reset")
+                    }
+
+                    respond(
+                        content = replyTo(request, path, Replies()),
+                        status = HttpStatusCode.OK,
+                        headers = headersOf("Content-Type", ContentType.Application.Json.toString()),
+                    )
+                }
+            val client = HttpClient(engine) { install(ContentNegotiation) { json(ChessApiClient.Json) } }
+            val viewModel = viewModel(httpClient = client)
+
+            viewModel.openOnlineGame("game-1")
+            viewModel.gameJob?.join()
+
+            viewModel.tapSquare(Square.parse("e2"))
+            viewModel.tapSquare(Square.parse("e4"))
+            viewModel.moveJob?.join()
+
+            assertEquals("a command must be sent exactly once", 1, moveAttempts)
+
+            // The player is told, and the board is still the canonical one they decided
+            // against rather than a guess about what the server did with the lost request.
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertNotNull(ready.message)
+        }
+
     private fun viewModel(
         httpClient: HttpClient = httpClient(),
         sessionStore: SessionStore = InMemorySessionStore(storedSession),
         supabaseConfig: SupabaseConfig = SupabaseConfig(url = "https://supabase.example", anonKey = "publishable-key"),
         realtime: RealtimeSource = silentRealtime,
+        wakePolicy: ServerWakePolicy = impatientWake,
     ) = ChessAppViewModel(
         dependencies(
             httpClient = httpClient,
             sessionStore = sessionStore,
             supabaseConfig = supabaseConfig,
             realtime = realtime,
+            wakePolicy = wakePolicy,
         ),
+        wakePolicy = wakePolicy,
     ).also(models::add)
 }

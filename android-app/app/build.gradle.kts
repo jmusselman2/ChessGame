@@ -20,15 +20,28 @@ val supabaseAnonKey: String =
         .orElse(providers.environmentVariable("SUPABASE_ANON_KEY"))
         .getOrElse("")
 
-// Where the Chess server is, for a build that is not talking to the beta endpoint. The
-// default is the host machine as an emulator normally sees it; an Android 16/17 emulator
-// cannot reach the host that way, so a development build there is given
-// http://localhost:8080 alongside `adb reverse`. See docs/DEVELOPMENT.md.
+// Where the Chess server is. The default is the host machine as an emulator normally sees
+// it; an Android 16/17 emulator cannot reach the host that way, so a development build
+// there is given http://localhost:8080 alongside `adb reverse` (D034). A beta build is
+// given the deployed HTTPS endpoint the same way, through configuration rather than a
+// literal in source (M15.4). See docs/DEVELOPMENT.md.
 val chessServerUrl: String =
     providers
         .gradleProperty("chessServerUrl")
         .orElse(providers.environmentVariable("CHESS_SERVER_URL"))
         .getOrElse("http://10.0.2.2:8080")
+
+// A release-type build is the beta build, and it must not run against a cleartext address:
+// its network security configuration forbids cleartext outright (D033), so such an APK
+// would install, launch, and then fail every request with an error saying nothing about the
+// cause -- and the emulator-loopback default above makes that the result of simply
+// forgetting -PchessServerUrl.
+//
+// The refusal is in ChessServerConfig rather than here, because `./gradlew build` assembles
+// the release APK with these very defaults; failing at configuration time would break the
+// ordinary build and CI with it. ChessAppDependencies passes BuildConfig.DEBUG as the
+// cleartext allowance, so a beta build refuses at startup, immediately and by name, instead
+// of failing every request obscurely. See ChessServerConfig and M15.4.
 
 android {
     namespace = "com.jmussel.chessgame"

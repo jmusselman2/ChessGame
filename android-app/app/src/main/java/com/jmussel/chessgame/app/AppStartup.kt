@@ -3,6 +3,9 @@ package com.jmussel.chessgame.app
 import com.jmussel.chessgame.api.ChessApiClient
 import com.jmussel.chessgame.api.ChessApiException
 import com.jmussel.chessgame.api.CurrentUserDto
+import com.jmussel.chessgame.api.ServerWakePolicy
+import com.jmussel.chessgame.api.isProbablyAsleep
+import com.jmussel.chessgame.api.withServerWake
 import com.jmussel.chessgame.auth.AnonymousAuthenticator
 import com.jmussel.chessgame.auth.SupabaseAuthException
 import com.jmussel.chessgame.auth.SupabaseConfig
@@ -17,6 +20,20 @@ import kotlinx.coroutines.CancellationException
 sealed interface StartupState {
     /** Restoring or creating the session, and asking the server who it belongs to. */
     data object Loading : StartupState
+
+    /**
+     * The first attempt did not land, and it is being tried again.
+     *
+     * This is not a failure and must not be shown as one. A free instance spins down after
+     * about fifteen idle minutes and the next request pays a cold start — 59.0 s and 64.5 s
+     * when `M15.2` measured it — so the common reason for being here is simply that nobody
+     * has played for a while. [failures] and [elapsedMillis] are what a screen needs to say
+     * so.
+     */
+    data class Waking(
+        val failures: Int,
+        val elapsedMillis: Long,
+    ) : StartupState
 
     /**
      * There is a usable session, and the server has said who the caller is.
@@ -55,19 +72,37 @@ class AppStartup(
     private val supabaseConfig: SupabaseConfig,
     private val authenticator: AnonymousAuthenticator,
     private val chessApi: ChessApiClient,
+    private val wakePolicy: ServerWakePolicy = ServerWakePolicy(),
 ) {
     /**
      * A session — restored, refreshed, or newly created — and the identity that goes with it.
      *
+     * Both halves are safe to repeat, which is what lets them be retried at all: obtaining
+     * the session is [AnonymousAuthenticator]'s business and is guarded by its own mutex so
+     * a retry cannot create a second anonymous account (`D031`), and `GET /me` is a read.
+     * So a transport failure is waited through rather than reported, and only a refusal the
+     * server actually issued — or a deadline reached — becomes a [StartupState.Failed].
+     *
+     * [onWaking] is called while that is happening so the shell can say the server is being
+     * woken instead of showing an error a player would report as a bug.
+     *
      * Failures are described in a way that says what to do next and never quotes a token,
      * a refresh token, or the publishable key.
      */
-    suspend fun run(): StartupState {
+    suspend fun run(onWaking: (StartupState.Waking) -> Unit = {}): StartupState {
         if (!supabaseConfig.isUsable) return StartupState.Failed(NO_KEY, canRetry = false)
 
         return try {
-            authenticator.currentSession()
-            StartupState.Ready(chessApi.me())
+            withServerWake(
+                policy = wakePolicy,
+                isWorthRetrying = ::isWorthWaitingThrough,
+                onWaking = { waking ->
+                    onWaking(StartupState.Waking(failures = waking.failures, elapsedMillis = waking.elapsedMillis))
+                },
+            ) {
+                authenticator.currentSession()
+                StartupState.Ready(chessApi.me())
+            }
         } catch (refused: SupabaseAuthException) {
             StartupState.Failed(signInRefusedMessage(refused.status), canRetry = true)
         } catch (refused: ChessApiException) {
@@ -76,13 +111,28 @@ class AppStartup(
             throw cancelled
         } catch (unreachable: Exception) {
             // A dead network, a proxy answering with something else, a project or server
-            // that has moved: none of it is worth telling apart, and all of it is worth
-            // retrying.
+            // that has moved, or a wake that ran out of time: none of it is worth telling
+            // apart by now, and all of it is worth another tap.
             StartupState.Failed(UNREACHABLE, canRetry = true)
         }
     }
 
     private companion object {
+        /**
+         * Whether [failure] is worth waiting through rather than reporting.
+         *
+         * Supabase is a separate always-on service, so a [SupabaseAuthException] is an
+         * answer it actually gave and repeating the question would only get it again —
+         * a dead refresh token needs a new account, not another second. The Chess server's
+         * own refusals are already excluded by [isProbablyAsleep]. What is left is
+         * transport failure, which is exactly what a sleeping free instance looks like.
+         */
+        fun isWorthWaitingThrough(failure: Throwable): Boolean =
+            when (failure) {
+                is SupabaseAuthException -> false
+                else -> isProbablyAsleep(failure)
+            }
+
         const val NO_KEY =
             "This build has no Supabase key, so it cannot sign in. Rebuild with SUPABASE_ANON_KEY set " +
                 "(see docs/DEVELOPMENT.md)."

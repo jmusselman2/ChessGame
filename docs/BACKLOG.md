@@ -3369,18 +3369,17 @@ endpoint; the loop deployed nothing and set no environment variable.
 
 Still open, so the task stays `IN PROGRESS`:
 
-- **Confirmation that no payment method is attached to the workspace.** Billing
-  state is not readable from the repository or the service API; only a human in
-  the Render dashboard can confirm it, and it is what the hard `$0` boundary
-  rests on.
+- ~~**Confirmation that no payment method is attached to the workspace.**~~
+  **Confirmed by the project owner on 2026-09-02**, in conversation. Billing
+  state is not readable from the repository or the service API, so this is the
+  owner's direct report of the Render dashboard, and it is what the hard `$0`
+  boundary rests on.
 - **The Android test build reaching the service over HTTPS with a WSS
-  connection.** That build configuration is `M15.4`, which is `TODO` and gated on
-  this task.
+  connection.** That build configuration is `M15.4`, authorized by the owner on
+  2026-09-02 and now `IN PROGRESS`. The play-through itself needs an emulator or
+  device.
 - **The post-play-through Render usage check**, including outbound traffic to
   Supabase.
-
-None of this changes the authorization position: `M15.4` still needs explicit
-human authorization before it is marked `IN PROGRESS` (see the milestone note).
 
 ---
 
@@ -3520,8 +3519,20 @@ Verified with `bash scripts/verify-beta-database.sh` against the beta database,
 
 ## M15.4 — Configure Android beta endpoint
 
-**Status:** TODO  
+**Status:** IN PROGRESS
+
 **Depends on:** M15.2
+
+**Authorized 2026-09-02** by the project owner, in conversation, together with
+the confirmation that no payment method is attached to the Render workspace. That
+is the explicit human authorization the milestone note requires before this task
+may be marked `IN PROGRESS`.
+
+`M15.2` is still `IN PROGRESS` rather than `DONE`, and deliberately so: its
+remaining Android criterion — a build reaching the deployed service over HTTPS
+with a WSS connection — cannot be met until this task exists. The two close
+together at the play-through, which is what `M15.2`'s note and this task's
+**Verification** both describe.
 
 ### Objective
 
@@ -3547,6 +3558,64 @@ Point a beta Android build at the deployed API without hard-coding secrets.
 
 A beta build authenticates, loads the dashboard, and plays a move against the
 deployed server, including one request issued after the service has slept.
+
+**Progress 2026-09-02 (locally verified).** Everything that does not need a
+device is implemented and covered. The remaining step is the play-through itself,
+which needs an emulator or a phone and the deployed service.
+
+Against the acceptance criteria:
+
+- **The beta targets the Render HTTPS base URL through build configuration.** It
+  reuses `D034`'s `chessServerUrl` input rather than adding a second mechanism:
+  `.\gradlew.bat :android-app:assembleRelease -PchessServerUrl=https://chessgame-hit7.onrender.com`.
+  No address is a literal in application source, and the development default
+  stays the emulator loopback. `BetaEndpointTest` covers both.
+- **Beta and release traffic is HTTPS/WSS only.** The release network security
+  configuration forbids cleartext and only the `debug` source set permits it, to
+  `10.0.2.2` and `localhost` (`D033`); `ChessServerConfig.webSocketUrl` maps
+  `https` to `wss`, so the socket is as protected as the rest. On top of that,
+  `ChessServerConfig` now *refuses* a cleartext address when the build forbids
+  cleartext — `ChessAppDependencies` passes `BuildConfig.DEBUG` — so a release
+  build left on the loopback default fails at startup and names the fix instead
+  of installing and failing every request for no stated reason. The refusal is
+  deliberately not a Gradle-configuration failure: `.\gradlew.bat build`
+  assembles the release APK with the ordinary defaults and would break, CI with
+  it.
+- **No Supabase key or server secret is committed.** Unchanged: the publishable
+  key is a build input exactly as before, and the beta `DATABASE_URL` never
+  reaches the app — it is the server's, and lives only in Render's environment.
+- **Safe startup probes and canonical reloads use capped retry/backoff with a
+  conservative, configurable deadline.** `ServerWakePolicy` / `withServerWake`:
+  exponential backoff capped at 8 s under a 150 s deadline, every value a
+  parameter. The cap is load-bearing — an uncapped backoff spends its last sleep
+  overshooting the deadline. Applied to the startup probe and to the game and
+  dashboard reloads, which are reads. The `M15.2` measurements informed the
+  default and are explicitly not treated as a bound (`D032` records that there
+  is none).
+- **The UI distinguishes waking from a terminal error, and the retry is
+  actionable.** `StartupState.Waking` is separate from `Failed`; the screen says
+  "Waking the server…" and why, and its retry restarts the wake rather than being
+  a dead button — `start()` was changed to allow exactly that restart while still
+  refusing to run two startups at once, so a second tap cannot create two
+  anonymous accounts.
+- **A mutating command is never blindly retried.** `sendCommand` makes exactly
+  one attempt; only reads go through `waitingForServer`. `commandsAreNotRetriedBlindly`
+  locks it, and it is not vacuous: wiring commands through the retry on purpose
+  makes it fail. That check also exposed a real defect in the first version of
+  these tests — the wake deadline is measured against the real clock even under
+  `runTest`, which skips the `delay` but not the clock, so the original 50 ms
+  test policy gave up after one attempt and the assertion passed without meaning
+  anything. The test policies are now long enough to retry genuinely.
+
+Recorded as `D037`. Verified with `.\gradlew.bat :android-app:testDebugUnitTest`
+(14 new cases across `ServerWakeTest`, `BetaEndpointTest`, `AppStartupTest`, and
+`ChessAppTest`; all Android unit tests pass) and `.\gradlew.bat build` against
+the disposable Docker PostgreSQL.
+
+Still to do, and it needs a device: the play-through — a beta build
+authenticates, loads the dashboard, and plays a move against the deployed server,
+including one request issued after the service has slept. That also closes
+`M15.2`'s last Android criterion.
 
 ---
 

@@ -1528,3 +1528,95 @@ because the failure is at configuration time.
 - **A Blueprint-managed service created from `render.yaml`.** Rejected for now:
   the service already exists and was created by hand, and applying the file as a
   new Blueprint would create the second service `D032` warns against.
+
+---
+
+## D037 — A Sleeping Beta Is Waited Through, Said Out Loud, and Never Retried for a Command
+
+**Date:** 2026-09-02
+
+**Status:** Accepted
+
+**Relates to:** `D021` (every mutation carries its expected version), `D032`
+(Render Free sleeps), `D033` (only a debug build may use cleartext), `D034` (the
+server address is a build input), `M15.4`
+
+### Decision
+
+The beta's free instance spins down after about fifteen idle minutes, and the
+first request afterwards took **59.0 s** and **64.5 s** when `M15.2` measured it.
+Three things follow.
+
+- **Safe requests wait, rather than failing.** `ServerWakePolicy` and
+  `withServerWake` retry with capped exponential backoff under an overall
+  deadline — 150 s, 1 s growing to 8 s, all constructor parameters. The cap
+  matters: an uncapped backoff spends its last sleep overshooting the deadline,
+  so a long wake becomes a steady poll instead. Applied to the startup probe and
+  to canonical reloads (the game and the dashboard), which are reads and safe to
+  repeat. The session is safe too: `AnonymousAuthenticator` holds a mutex, so a
+  retry cannot create a second anonymous account (`D031`).
+- **Waking is a state, not an error.** `StartupState.Waking` is distinct from
+  `Failed`, and the startup screen says *"Waking the server…"* with the reason,
+  plus a retry that genuinely restarts the wake rather than a dead button. A cold
+  start reported as a failure is a beta tester filing a bug about the free tier.
+- **A mutating command is attempted exactly once.** `MakeMove`, `UndoMove`,
+  `ClaimDraw`, and `Resign` do not go through the retry. Each carries the version
+  it was decided against, which is what makes it unique, so re-sending one is
+  settled by the server's version guard and the canonical state attached to the
+  refusal (`D021`, `M16.3`) — not by a client loop that cannot know whether the
+  attempt it lost the reply to was applied.
+
+A failure the server actually issued is never waited through, by either path: a
+`ChessApiException` or a refused command means the service is awake and has
+answered, and so does a `SupabaseAuthException`, since Supabase is a separate
+always-on service. Only transport failure looks like a cold start.
+
+Separately, the beta endpoint stays build configuration (`D034`'s
+`chessServerUrl`), and `ChessServerConfig` refuses a cleartext address when the
+build forbids cleartext — `ChessAppDependencies` passes `BuildConfig.DEBUG`. A
+release build left on the emulator-loopback default therefore fails immediately
+and by name instead of installing and failing every request against the network
+security configuration (`D033`).
+
+### Rationale
+
+The alternative to waiting is a beta whose normal first request of the day fails,
+which is not a beta anyone can test. The alternative to *saying* it is waiting is
+a screen that looks broken for a minute. Both are properties of the free tier
+rather than of this code, and `D032` accepted the free tier deliberately.
+
+The command exception is the important half. Retrying a command is exactly the
+hazard the versioning rules exist to remove, and doing it in the client would put
+a second mechanism against the same problem — one that, unlike the server's, has
+no way to tell "the request was lost" from "the reply was lost". `M16.3` already
+proved exactly-once holds at the API boundary; a client retry loop would be the
+one way to reintroduce the question.
+
+### Alternatives Considered
+
+- **A single long timeout instead of retrying.** Simpler, but it cannot report
+  progress, and it turns a server that comes back after 20 s into a 150 s wait.
+- **Retrying commands too, with an idempotency key.** The version already *is*
+  the idempotency key (`D021`), and a refusal carries the canonical state, so the
+  client can already see its own effect. Adding a retry would buy nothing and
+  risk the one invariant that must not bend.
+- **Failing the Gradle build when a release build has a cleartext URL.** The
+  loudest option, and rejected: `./gradlew build` assembles the release APK with
+  the ordinary defaults, so it would break the normal build and CI. The refusal
+  happens at construction instead, where it still names the cause.
+- **Fitting the deadline to the measurements.** Rejected — `D032` records that
+  Render publishes no guaranteed maximum, so the deadline is deliberately
+  generous against what was seen rather than derived from it.
+
+### Consequences
+
+- The default deadline is a guess informed by two samples. If beta cold starts
+  prove longer, `ServerWakePolicy` is the one place to change.
+- A genuinely dead server costs a player up to 150 s before the error appears.
+  That is the deliberate trade against reporting a sleeping server as broken, and
+  the retry button is offered throughout.
+- Tests that assert retrying happens must use a policy whose deadline is real
+  against the wall clock. The deadline is measured with `System.nanoTime` even
+  under `runTest`, which skips the `delay` but not the clock, so a very short
+  deadline makes such a test pass without a single retry. This was found by
+  wiring commands through the retry on purpose and watching the test still pass.
