@@ -34,6 +34,26 @@ class AnonymousAuthenticator(
             }
         }
 
+    /**
+     * A session carrying a token the server has just issued, whatever the stored one looked
+     * like.
+     *
+     * [currentSession] trusts the stored expiry, which is all a client can normally do. Once
+     * the server has actually refused a token that check cannot help: a rotated signing key,
+     * a project the app was re-pointed at (`D035`), or a device clock that is wrong all leave
+     * a stored session looking perfectly valid while it is worth nothing. So this asks for a
+     * new token regardless of what the expiry says. A refresh the server rejects still means
+     * the account is gone, and a new anonymous one is created rather than leaving the app
+     * unusable — the same rule [currentSession] already follows.
+     */
+    suspend fun renewedSession(): AnonymousSession =
+        mutex.withLock {
+            when (val stored = store.read()) {
+                null -> createSession()
+                else -> refreshOrCreate(stored)
+            }
+        }
+
     /** The stored session as it is, without touching the network. */
     suspend fun storedSession(): AnonymousSession? = store.read()
 

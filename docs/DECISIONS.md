@@ -1717,3 +1717,70 @@ promoted ones with less code than enumerating them.
 - More positions now end automatically as `INSUFFICIENT_MATERIAL`. Opposite-
   colour bishops and any position still holding a knight alongside a second
   piece stay live, because a cooperative mate remains possible there.
+
+---
+
+## D039 — A `401` From the Chess Server Means the Token, So Startup Renews It Once
+
+**Date:** 2026-09-02
+
+**Status:** Accepted
+
+**Relates to:** `D004` (the server is authoritative and trusts no client), `D006`
+(invisible anonymous accounts), `D031` (the app talks to Supabase auth directly),
+`D035` (the beta was re-pointed at `ChessGame Dev`), `M16.2`
+
+### Decision
+
+When `GET /me` refuses startup with `401`, the app asks the authenticator for a
+newly issued token and tries once more. If that is refused too, the refusal is
+reported as it was before.
+
+This is sound because of what a `401` can and cannot mean. The server resolves a
+verified token to an internal user, **creating it on the first request from a new
+anonymous account** (`D006`). So a token that verifies always has a user, and a
+`401` is therefore always about the token — never about the account having gone
+missing.
+
+Renewal reuses the rule already in `AnonymousAuthenticator`: refresh the session,
+and if the refresh token is dead too, create a new anonymous account rather than
+leave the app unusable. The only new part is the trigger.
+
+### Rationale
+
+The app can only judge a token by the expiry it stored with it. A token that was
+*invalidated* rather than expired looks perfectly valid: a rotated signing key, a
+build pointed at a different Supabase project, or a device whose clock is wrong
+all produce exactly that. Before this, such a token turned every launch into
+`Failed(canRetry = true)` — a retry button that could never work, because
+retrying sent the same dead token again. The only way back into the app was to
+clear its data, which also destroys the anonymous account and every game with it.
+
+`MVP` *Reliability* requires "App restart restores state". A launch that can
+never succeed is the sharpest way to fail that.
+
+### Alternatives Considered
+
+- **Renew on `401` for every request, not just startup.** Rejected for now as
+  more than the problem needs. After startup the token is known good, a token
+  that dies mid-session degrades to an ordinary error whose retry works, and the
+  next launch recovers. Doing it everywhere invites several calls renewing at
+  once for one underlying cause.
+- **Discard the session and create a new account on `401`.** Rejected: it throws
+  away a live account, and its games, on evidence that may be a server-side
+  problem. Renewal reaches the same place when the refresh token really is dead,
+  and does nothing irreversible when it is not.
+- **Leave it and tell testers to clear app data.** Rejected: it destroys the
+  account to fix a token.
+
+### Consequences
+
+- One `401` at startup costs one extra auth round trip and one extra `/me`.
+- Exactly one further attempt is made, so a genuinely refused caller is still
+  told, and this cannot become a loop. `AppRestartTest` locks both halves.
+- `AnonymousAuthenticator.renewedSession()` forces what `currentSession()` does
+  only near expiry. The mutex still serialises it, so two screens cannot race
+  into two anonymous accounts.
+- A token that dies mid-session is still surfaced as an error until the next
+  launch. That is the deliberate boundary above, and the place to revisit if the
+  beta shows it happening.

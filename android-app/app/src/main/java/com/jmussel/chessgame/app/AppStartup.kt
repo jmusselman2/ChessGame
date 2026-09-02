@@ -101,7 +101,7 @@ class AppStartup(
                 },
             ) {
                 authenticator.currentSession()
-                StartupState.Ready(chessApi.me())
+                StartupState.Ready(identify())
             }
         } catch (refused: SupabaseAuthException) {
             StartupState.Failed(signInRefusedMessage(refused.status), canRetry = true)
@@ -117,7 +117,34 @@ class AppStartup(
         }
     }
 
+    /**
+     * Who the caller is, asking again with a freshly issued token if the server refuses the
+     * one it was given.
+     *
+     * The server creates the internal user on the first request from a token that verifies
+     * (`D006`), so a `401` is always about the token and never about the account being
+     * missing. Nothing on the device can tell that a stored token has stopped verifying —
+     * as far as the app knows it is not expired — so asking for a new one is the only way
+     * out. Without this a relaunch after a signing key changed, a project moved (`D035`),
+     * or a wrong device clock is stranded on a retry button that can never work.
+     *
+     * Exactly one further attempt is made: if the freshly issued token is refused too, that
+     * is the server's answer rather than something to keep asking.
+     */
+    private suspend fun identify(): CurrentUserDto =
+        try {
+            chessApi.me()
+        } catch (refused: ChessApiException) {
+            if (refused.status != UNAUTHORIZED) throw refused
+
+            authenticator.renewedSession()
+            chessApi.me()
+        }
+
     private companion object {
+        /** The one status that means "not with this token", and the only one worth renewing for. */
+        const val UNAUTHORIZED = 401
+
         /**
          * Whether [failure] is worth waiting through rather than reporting.
          *

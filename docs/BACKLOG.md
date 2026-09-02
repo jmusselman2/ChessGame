@@ -3844,8 +3844,45 @@ SUCCESSFUL, 361 android-app, 402 server, and 380 game-core tests, 0 skipped).
 
 ## M16.2 — App restart/reconnect
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M12, M14.18, M15
+
+**Completed:** 2026-09-02 — a relaunch comes back as the same player, and the one
+way it could be stranded for good is fixed. A restart is modelled the way Android
+does it: a new `ChessAppViewModel` over new dependencies, sharing only the one
+thing written to disk. Nothing about a game is stored locally by design (`D004`),
+so "restores state" means coming back as the same account and reading everything
+else from the server again — which is what the new tests check.
+
+Seven of the eight properties held already. The eighth did not: **a stored token
+the server has stopped accepting stranded the app permanently.** The app only
+ever checks a token against its stored expiry, so a token that was invalidated
+rather than expired — a rotated signing key, the beta being re-pointed at another
+project (`D035`), or simply a device clock that is wrong — still looks perfectly
+valid. Startup sent it, `/me` answered `401`, and that became
+`Failed(canRetry = true)`: a retry button that could never work, with clearing
+app data as the only way back in. `AppStartup` now renews the token once on a
+`401` and asks again (`D039`). That is sound because the server creates the
+internal user on the first request from a token that verifies (`D006`), so a
+`401` is always about the token and never about a missing account. Exactly one
+further attempt is made — a refusal that survives a fresh token is an answer, not
+something to keep asking.
+
+The renewal is deliberately confined to startup. Elsewhere a dead token degrades
+to an ordinary error with a retry that works, and the next launch recovers; only
+startup is the case where the player cannot get in at all.
+
+Verified locally with `.\gradlew.bat :android-app:testDebugUnitTest` (9 new
+`AppRestartTest` cases: a relaunch reuses the stored session and creates no
+second anonymous account, lands on the dashboard with content rather than
+onboarding, goes back to onboarding when no username was claimed yet, reopens a
+game in progress with the moves played while the app was gone, opens the realtime
+connection again, waits through a cold start and then lands, refreshes an expiring
+token rather than starting a new account, recovers from a token the server will
+not take, and stops after one renewal when a fresh token is refused too) and
+`.\gradlew.bat build` against the local test database (BUILD SUCCESSFUL, 370
+android-app, 402 server, and 380 game-core tests, 0 skipped).
 
 ---
 
