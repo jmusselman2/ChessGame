@@ -1620,3 +1620,15 @@ one way to reintroduce the question.
   under `runTest`, which skips the `delay` but not the clock, so a very short
   deadline makes such a test pass without a single retry. This was found by
   wiring commands through the retry on purpose and watching the test still pass.
+- **Starting and retrying are separate methods, and must stay so.**
+  `MainActivity` calls `start()` from `onCreate`, so it runs again whenever the
+  activity is recreated. `start()` is therefore idempotent and never interrupts a
+  wake; only `retryStartup()`, which the retry button calls, does. The first
+  version of this work conflated them, and the emulator play-through found it:
+  the activity relaunched during a cold start, which would have reset the
+  deadline and, on a device that recreates the activity repeatedly, meant the
+  wake could never finish.
+- A test that fails through Ktor's engine cannot observe the wake: the engine
+  runs on its own dispatcher, so the failure is invisible to `runTest`'s virtual
+  clock and the model still reads `Loading`. Fail through something read on the
+  calling coroutine — the session store — instead.

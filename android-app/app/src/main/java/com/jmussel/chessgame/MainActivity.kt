@@ -82,7 +82,7 @@ class MainActivity : ComponentActivity() {
                         onRetryHistory = viewModel::loadHistory,
                         onOpenGame = viewModel::openOnlineGame,
                         onBack = { if (!viewModel.back()) finish() },
-                        onRetryStartup = viewModel::start,
+                        onRetryStartup = viewModel::retryStartup,
                         onRetryGame = viewModel::reloadGame,
                         onSquareTapped = viewModel::tapSquare,
                         onChoosePromotion = viewModel::choosePromotion,

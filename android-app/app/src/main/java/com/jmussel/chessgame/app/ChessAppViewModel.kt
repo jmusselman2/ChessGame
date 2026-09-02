@@ -139,17 +139,35 @@ class ChessAppViewModel(
      * anonymous accounts. Calling it after a failure is the retry.
      */
     fun start() {
+        if (startupJob?.isActive == true || startup is StartupState.Ready) return
+
+        beginStartup()
+    }
+
+    /**
+     * Starts again because the player asked, which is what the retry button does.
+     *
+     * Unlike [start] this interrupts a wake in progress. The startup screen offers a retry
+     * while the server is being woken, and a button that does nothing is worse than no
+     * button — a player who has waited long enough should be able to make something happen.
+     *
+     * The two are separate on purpose. `MainActivity` calls [start] from `onCreate`, so a
+     * recreated activity must not restart a wake that is already running: that would reset
+     * the deadline every time and, on a device that recreates the activity repeatedly, never
+     * finish. Only a deliberate tap comes through here.
+     */
+    fun retryStartup() {
         if (startup is StartupState.Ready) return
 
-        // A run that is only waiting out a sleeping server may be restarted by the player,
-        // because the screen offers them that button and a dead button is worse than none.
-        // A run genuinely in flight is left alone, so a second tap still cannot end up
-        // creating two anonymous accounts (`D006`).
-        if (startupJob?.isActive == true) {
-            if (startup !is StartupState.Waking) return
-            startupJob?.cancel()
-        }
+        // Anything other than a wake is either finished or genuinely in flight; leave it be
+        // so a second tap cannot end up creating two anonymous accounts (`D006`).
+        if (startupJob?.isActive == true && startup !is StartupState.Waking) return
 
+        startupJob?.cancel()
+        beginStartup()
+    }
+
+    private fun beginStartup() {
         startupJob =
             viewModelScope.launch {
                 startup = StartupState.Loading

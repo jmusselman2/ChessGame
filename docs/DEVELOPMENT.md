@@ -661,8 +661,8 @@ Each live run leaves one throwaway anonymous user in the development project.
 
 ### Building the Android beta (`M15.4`)
 
-Status: VERIFIED (2026-09-02) for everything that does not need a device; the
-play-through against the deployed service is the remaining manual step.
+Status: VERIFIED (2026-09-02), including the play-through against the deployed
+service on the `ChessPlayer1` emulator.
 
 A beta build is an ordinary release build pointed at the deployed HTTPS endpoint
 through the same `chessServerUrl` input a development build uses (`D034`) — the
@@ -1010,7 +1010,7 @@ service:
 | 2. Ktor is deployment-ready for Render | **Done** — `M15.2`, verified 2026-09-01 |
 | 3. Beta Supabase/database/auth configured | **Done** — `M15.3`, verified 2026-08-31 |
 | 4. Deployment succeeds and `/health` is reachable | **Done** — building since 2026-09-01; `dep-dabqj2eq1p3s73fs2sog` (`2be1f06`) is `live`, serving out of health-only mode, confirmed 2026-09-02 |
-| 5. Android beta points at the deployed service | Not done — `M15.4` |
+| 5. Android beta points at the deployed service | **Done** — `M15.4`, play-through on the `ChessPlayer1` emulator 2026-09-02 |
 
 Three deploys failed, the last of `b54a40e` on 2026-08-31, all during the Docker
 build (`build_failed`). That was expected and is now addressed: the repository
@@ -1078,12 +1078,25 @@ variables, or handle credentials (`D032` acceptance, `M15` milestone note).
    from the repository or the service API, so this rests on that report; the Free
    plan and the single instance were confirmed from the API above.
 
-#### Still outstanding
+6. ~~**Check Render usage after the play-through.**~~ **Done** — about **0.1 MB**
+   of bandwidth over the whole session, including the deploy, the cold starts,
+   the play-through, and the traffic to Supabase, against the Hobby workspace's
+   5 GB monthly allowance. `plan: free`, `numInstances: 1`, `suspended:
+   not_suspended`, no automatic upgrade.
 
-1. **Check Render usage after the play-through**, including outbound traffic to
-   Supabase, and confirm no payment method appeared and no automatic upgrade is
-   enabled.
+Nothing is outstanding: `M15.2` and `M15.4` are both `DONE` as of 2026-09-02.
 
-`M15.4` — the Android beta endpoint — follows, and the HTTPS/WSS play-through
-against the deployed service is verified there and in `M15.2`'s remaining
-criteria. `M15.4` needs its own explicit human authorization before it is started.
+**Installing a beta build to test it.** The release APK is unsigned, so it cannot
+be installed as built. For testing, sign it with the local debug keystore — this
+is a test convenience, not a distribution mechanism, which is `M17.1`:
+
+    apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android `
+      --key-pass pass:android --ks-key-alias androiddebugkey <apk>
+
+**What the 2026-09-02 play-through showed.** Against a service that had been idle
+about three hours, the app showed "Waking the server…" rather than an error,
+reached username onboarding once awake, loaded the dashboard, and played `e2e4`,
+which came back as version 1 with the move listed. A WSS connection to
+`wss://chessgame-hit7.onrender.com/ws` delivered `{"type":"connected"}`. Two
+throwaway accounts, `BetaProbe1` and `BetaProbe2`, and one game now exist in the
+beta database — `D035`'s accepted tradeoff.

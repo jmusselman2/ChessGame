@@ -39,8 +39,10 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import org.junit.After
@@ -2169,6 +2171,73 @@ class ChessAppTest {
             viewModel.historyJob?.join()
 
             assertEquals(2, paths.count { it == "/history" })
+        }
+
+    /**
+     * A model left waiting out a sleeping server.
+     *
+     * The failure comes from the session store rather than the HTTP engine on purpose:
+     * Ktor's engine runs on its own dispatcher, so a request that fails there is invisible
+     * to this test's virtual clock and the model would still read `Loading`. The store is
+     * read on the calling coroutine, so the failure — and the `Waking` that follows it —
+     * land under `runCurrent`.
+     */
+    private fun TestScope.modelWaitingOutASleepingServer(): ChessAppViewModel {
+        val unreachableStore =
+            object : SessionStore {
+                override suspend fun read(): AnonymousSession? = throw IOException("server asleep")
+
+                override suspend fun write(session: AnonymousSession) = Unit
+
+                override suspend fun clear() = Unit
+            }
+        val viewModel =
+            viewModel(
+                sessionStore = unreachableStore,
+                wakePolicy = ServerWakePolicy(deadlineMillis = 5_000, initialDelayMillis = 50, maxDelayMillis = 50),
+            )
+
+        viewModel.start()
+        runCurrent()
+
+        assertTrue("precondition: expected Waking but was ${viewModel.startup}", viewModel.startup is StartupState.Waking)
+
+        return viewModel
+    }
+
+    /**
+     * `MainActivity` calls `start()` from `onCreate`, so a recreated activity must not
+     * restart a wake that is already running: the deadline would reset every time, and a
+     * device that recreates the activity repeatedly would never finish waking. Only the
+     * retry button interrupts a wake. The emulator play-through in `M15.4` found this.
+     */
+    @Test
+    fun startingAgainDoesNotInterruptAWakeInProgress() =
+        runTest(dispatcher) {
+            val viewModel = modelWaitingOutASleepingServer()
+            val jobWhileWaking = viewModel.startupJob
+
+            viewModel.start()
+
+            assertTrue("the wake should still be the same run", viewModel.startupJob === jobWhileWaking)
+            assertTrue("and it should still be running", jobWhileWaking?.isActive == true)
+
+            viewModel.startupJob?.cancel()
+        }
+
+    @Test
+    fun theRetryButtonRestartsAWakeThePlayerHasWaitedLongEnoughFor() =
+        runTest(dispatcher) {
+            val viewModel = modelWaitingOutASleepingServer()
+            val waking = viewModel.startupJob
+
+            viewModel.retryStartup()
+
+            // A dead button would be worse than none, so this really does start again.
+            assertNotEquals(waking, viewModel.startupJob)
+            assertFalse("the interrupted run should be cancelled", waking?.isActive == true)
+
+            viewModel.startupJob?.cancel()
         }
 
     /**

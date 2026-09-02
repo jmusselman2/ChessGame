@@ -3086,12 +3086,13 @@ when everything needed is to hand.
 > had no `Dockerfile`. Nothing else about the beta follows from the service
 > existing, and the parts have been closed one at a time: the destructive-reset
 > guard (`M15.5`) and the beta Supabase environment (`M15.3`) are `DONE`, and the
-> repository became deployment-ready on 2026-09-01 (`M15.2`). As of 2026-09-02
-> the service is **live** and serving out of health-only mode on commit
-> `2be1f06`, so what remains of `M15.2` is the payment-method confirmation and
-> the usage check, plus the Android beta endpoint (`M15.4`).
+> repository became deployment-ready on 2026-09-01 (`M15.2`). **As of 2026-09-02
+> this milestone is complete:** the service is live and serving out of
+> health-only mode, the owner confirmed no payment method is attached and
+> authorized `M15.4`, and a beta Android build has authenticated, loaded the
+> dashboard, played a move, and held a WSS socket against the deployed server.
 > `docs/DEVELOPMENT.md` **Beta Deployment** holds the service's read-back
-> configuration, the measured cold starts, and the remaining steps.
+> configuration, the measured cold starts, and the beta build command.
 >
 > Sequencing: this milestone began after `M14.18` proved the Android
 > multiplayer client end to end (2026-08-31).
@@ -3216,7 +3217,7 @@ documentation only.
 
 ## M15.2 — Deploy Ktor beta server
 
-**Status:** IN PROGRESS
+**Status:** DONE
 
 **Depends on:** M15.1, M15.3
 
@@ -3374,12 +3375,32 @@ Still open, so the task stays `IN PROGRESS`:
   state is not readable from the repository or the service API, so this is the
   owner's direct report of the Render dashboard, and it is what the hard `$0`
   boundary rests on.
-- **The Android test build reaching the service over HTTPS with a WSS
-  connection.** That build configuration is `M15.4`, authorized by the owner on
-  2026-09-02 and now `IN PROGRESS`. The play-through itself needs an emulator or
-  device.
-- **The post-play-through Render usage check**, including outbound traffic to
-  Supabase.
+- ~~**The Android test build reaching the service over HTTPS with a WSS
+  connection.**~~ **Done 2026-09-02**, during `M15.4`: a beta APK built with
+  `-PchessServerUrl=https://chessgame-hit7.onrender.com` ran on the
+  `ChessPlayer1` emulator, authenticated, loaded the dashboard, and played
+  `e2e4` against the deployed server (version 0 → 1). A WSS connection to
+  `wss://chessgame-hit7.onrender.com/ws` opened and delivered
+  `{"type":"connected"}`. See `M15.4`'s completion note.
+- ~~**The post-play-through Render usage check.**~~ **Done 2026-09-02.**
+  Bandwidth over the whole session — the deploy, the cold starts, the
+  play-through, and the traffic to Supabase — totalled about **0.1 MB**
+  (0.026 + 0.065 + 0.008 MB across three hourly buckets) against the Hobby
+  workspace's 5 GB monthly allowance. The service reports `plan: free`,
+  `numInstances: 1`, `suspended: not_suspended`, and no automatic upgrade is
+  enabled; the owner confirmed no payment method is attached.
+
+**Completed 2026-09-02 (locally verified).** Every acceptance criterion is now
+met: the `Dockerfile` builds and runs the server, `main` carries it, the two
+environment secrets are set (proven by a `/health` that is not health-only), the
+SSL settings survive to the Supabase session pooler (`M15.3`), `/health` is the
+health check, the Android beta build reaches the service over HTTPS with a WSS
+socket, the service is one free instance, cold starts are measured (59.0 s and
+64.5 s, plus the play-through's own), and usage was checked afterwards.
+
+The beta database now holds two throwaway accounts, `BetaProbe1` and
+`BetaProbe2`, and one game with a move in it. That is `D035`'s accepted tradeoff:
+development and beta share an identity pool, so beta user counts are approximate.
 
 ---
 
@@ -3519,7 +3540,7 @@ Verified with `bash scripts/verify-beta-database.sh` against the beta database,
 
 ## M15.4 — Configure Android beta endpoint
 
-**Status:** IN PROGRESS
+**Status:** DONE
 
 **Depends on:** M15.2
 
@@ -3612,10 +3633,53 @@ Recorded as `D037`. Verified with `.\gradlew.bat :android-app:testDebugUnitTest`
 `ChessAppTest`; all Android unit tests pass) and `.\gradlew.bat build` against
 the disposable Docker PostgreSQL.
 
-Still to do, and it needs a device: the play-through — a beta build
-authenticates, loads the dashboard, and plays a move against the deployed server,
-including one request issued after the service has slept. That also closes
-`M15.2`'s last Android criterion.
+**Completed 2026-09-02 (locally verified, including the play-through).** The beta
+APK was built with `-PchessServerUrl=https://chessgame-hit7.onrender.com`
+(`DEBUG = false`, so the cleartext refusal is active), debug-signed so it could be
+installed, and run on the `ChessPlayer1` emulator against the deployed service.
+The service had been idle for about three hours, so this was a genuine cold
+start:
+
+- **The waking state is real, and it is what a player sees.** The first screen
+  was "Waking the server…" with its explanation and the retry — not an error.
+  Captured as a screenshot during the cold start.
+- **It authenticated and got through.** After the wake it reached username
+  onboarding, so the anonymous Supabase session was obtained and `GET /me`
+  answered from the deployed server over HTTPS. Claiming `BetaProbe1` wrote to
+  the beta database and landed on the dashboard.
+- **The dashboard loaded** from the deployed server, showing the series and the
+  friend.
+- **A move was played against the deployed server.** Opening the game showed
+  "You are White", "Move 1 • version 0"; tapping the pawn highlighted the legal
+  destinations the canonical state allows, and playing `e2e4` came back as
+  **version 1** with the move list `1. e2e4`, "BetaProbe2 to move", and Undo
+  offered. The version increment is the server's (`D021`), not the app's.
+- **WSS works against the deployed service.**
+  `wss://chessgame-hit7.onrender.com/ws` with a Bearer token opened and delivered
+  `{"type":"connected"}`.
+
+The opponent, `BetaProbe2`, was created through the deployed API rather than a
+second emulator; the move itself came from the Android beta build, which is what
+this task's verification asks for. Both are throwaway accounts in the shared
+project, which `D035` already accounts for.
+
+**One defect found and fixed by running it.** The emulator's Activity relaunched
+during the cold start, and `MainActivity` calls `start()` from `onCreate` — so
+the first version of this work, which let `start()` restart a wake in progress,
+would reset the deadline on every recreation and could never finish waking.
+`start()` is idempotent again, and the restart moved to a separate
+`retryStartup()` that only the retry button calls. Both halves are locked by
+tests, and `startingAgainDoesNotInterruptAWakeInProgress` was confirmed to fail
+when `start()` is made to restart.
+
+Those tests also needed care: Ktor's engine runs on its own dispatcher, so a
+request failing there is invisible to the test's virtual clock and the model
+still reads `Loading`. They fail through the session store instead, which is read
+on the calling coroutine.
+
+Verified with `.\gradlew.bat :android-app:testDebugUnitTest` (354 tests),
+`.\gradlew.bat ktlintCheck`, `.\gradlew.bat build` against the disposable Docker
+PostgreSQL, and the emulator play-through above.
 
 ---
 
