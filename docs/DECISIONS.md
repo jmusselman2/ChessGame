@@ -1632,3 +1632,88 @@ one way to reintroduce the question.
   runs on its own dispatcher, so the failure is invisible to `runTest`'s virtual
   clock and the model still reads `Loading`. Fail through something read on the
   calling coroutine — the session store — instead.
+
+---
+
+## D038 — A Draw Claim May Be Declared on the Next Move, and Bishops Are Dead by Colour Complex, Not by Count
+
+**Date:** 2026-09-02
+
+**Status:** Accepted
+
+**Relates to:** `D019` (claimable versus automatic draws), `M3.11`, `M3.12`,
+`M3.13`, `M3.14`, `PRODUCT` *Draw Semantics*, `ARCHITECTURE` §23
+
+### Decision
+
+Two standard-chess rules that `M3` implemented only in part.
+
+- **Claim entitlement is also prospective, and the declared move binds it.**
+  Standard chess lets the player to move claim a threefold repetition or the
+  fifty-move rule on the position their *declared next move* is about to
+  produce, not only on the position already in front of them. `ChessRules`
+  therefore gains declared-move overloads of `availableDrawClaims`,
+  `canClaimDraw`, and `claimDraw` (on both `GameState` and `ChessGame`). The
+  move is part of the claim: it must be legal, and only that exact move counts.
+  The existing no-move overloads keep their meaning — the claims valid for the
+  position as it stands — so an entitlement that depends on a declaration is
+  never granted without one.
+
+  A granted claim ends the game from the position it was made in; the declared
+  move is never played. A declared move that delivers checkmate offers no draw
+  claim, mirroring the precedence `terminalResult` already applies. Captures and
+  pawn moves reset the halfmove clock and clear the repetition history, so they
+  can never be the move a claim is declared on — that falls out of the rules
+  rather than being special-cased.
+
+- **Insufficient material is decided by colour complex, not by piece count.**
+  Once no pawn, rook, or queen remains, a position is dead when at most one
+  piece besides the kings remains, **or** when every remaining piece is a bishop
+  and every one of those bishops stands on the same square colour — whatever the
+  count, and whoever owns them. A bishop never leaves its square colour, so
+  bishops confined to one complex can only check a king standing on that
+  complex, and that king always keeps neighbouring squares of the other colour
+  which no bishop attacks, no remaining piece can occupy, and the opposing king
+  cannot cover without standing next to it.
+
+### Rationale
+
+`PRODUCT` *Draw Semantics* requires the engine to decide claims "according to
+the game history and current/prospective legal move state", and `ARCHITECTURE`
+§23 requires it to expose enough information for "any relevant prospective legal
+move condition". Neither was reachable: every public claim query took the
+current state alone.
+
+The material rule had been written as a list of the *named* textbook endings —
+including "king and bishop versus king and bishop on the same square colour" as
+a two-bishop special case — and rejected everything with more than two pieces
+left. Promotion makes that wrong: a side can hold two or more bishops on one
+colour against a bare king, which is dead, and which the count test reported as
+live. Stating the rule by colour complex covers the textbook cases and the
+promoted ones with less code than enumerating them.
+
+### Alternatives Considered
+
+- **Make the existing no-move claim query answer "could this player claim by
+  declaring something?"** Rejected. It would let a claim be granted with no
+  move behind it — the server's `ClaimDraw` command carries no declared move —
+  which is effectively an unconditional claim one ply early, and a silent change
+  to product behavior at the 99-halfmove and second-occurrence boundaries.
+- **Special-case two same-coloured bishops.** Rejected: it fixes one arrangement
+  and leaves three, four, or mixed-ownership same-colour bishop sets wrong.
+- **Model dead positions by search rather than by material.** Rejected as far
+  beyond MVP; the colour-complex rule is exact for the material that remains
+  after pawns, rooks, and queens are gone.
+
+### Consequences
+
+- `ChessRules` has three claim queries in two shapes each. The no-move shape
+  stays the one the server and Android already call, so no caller changes.
+- A future transport that wants prospective claims must carry the declared move;
+  today's `ClaimDraw` command deliberately does not, and so continues to answer
+  the current-position question only.
+- Evaluating a declared move costs an `applyMove`, which computes a terminal
+  result. That is one query, not a loop, and buys exactness.
+- More positions now end automatically as `INSUFFICIENT_MATERIAL`. Opposite-
+  colour bishops and any position still holding a knight alongside a second
+  piece stay live, because a cooperative mate remains possible there.

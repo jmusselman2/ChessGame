@@ -76,11 +76,55 @@ object ChessRules {
             if (MoveCountDraws.canClaimFiftyMove(state)) add(DrawClaim.FIFTY_MOVE_RULE)
         }
 
+    /**
+     * The draws the side to move may claim by declaring [declaredMove] as its next move.
+     *
+     * Standard chess lets the player to move claim a threefold repetition or the fifty-move
+     * rule on the position its declared move is about to produce, as well as on the one
+     * already in front of it. That is the prospective legal-move condition `PRODUCT` and
+     * `ARCHITECTURE` require alongside the current one.
+     *
+     * The declaration binds: [declaredMove] must be legal, and only that exact move counts.
+     * A capture or a pawn move clears the repetition history and resets the halfmove clock,
+     * so neither can ever create a claim; a move reaching some other position creates only
+     * that position; and an illegal move, or any move in a finished game, declares nothing.
+     *
+     * A declared move that delivers checkmate ends the game as checkmate — [terminalResult]
+     * settles that precedence — so it adds no draw claim of its own. Claims [state] already
+     * carries stand whatever is declared, because those need no declaration at all.
+     */
+    fun availableDrawClaims(
+        state: GameState,
+        declaredMove: Move,
+    ): Set<DrawClaim> {
+        if (!isLegal(state, declaredMove)) return emptySet()
+
+        val declared = applyMove(state, declaredMove)
+        if (declared.result?.reason == TerminationReason.CHECKMATE) return availableDrawClaims(state)
+
+        return buildSet {
+            addAll(availableDrawClaims(state))
+            if (Repetition.occurrences(declared) >= DrawRuleState.THREEFOLD_REPETITION_COUNT) {
+                add(DrawClaim.THREEFOLD_REPETITION)
+            }
+            if (declared.halfmoveClock >= DrawRuleState.FIFTY_MOVE_HALFMOVES) {
+                add(DrawClaim.FIFTY_MOVE_RULE)
+            }
+        }
+    }
+
     /** Whether [claim] is currently valid. */
     fun canClaimDraw(
         state: GameState,
         claim: DrawClaim,
     ): Boolean = claim in availableDrawClaims(state)
+
+    /** Whether [claim] is valid for the side to move once it declares [declaredMove]. */
+    fun canClaimDraw(
+        state: GameState,
+        claim: DrawClaim,
+        declaredMove: Move,
+    ): Boolean = claim in availableDrawClaims(state, declaredMove)
 
     /**
      * The state after a valid [claim] is made: a finished game drawn for that reason.
@@ -95,12 +139,26 @@ object ChessRules {
         require(!state.isOver) { "The game is over: ${state.result}" }
         require(canClaimDraw(state, claim)) { "No valid $claim claim is available" }
 
-        val reason =
-            when (claim) {
-                DrawClaim.THREEFOLD_REPETITION -> TerminationReason.THREEFOLD_REPETITION_CLAIM
-                DrawClaim.FIFTY_MOVE_RULE -> TerminationReason.FIFTY_MOVE_RULE_CLAIM
-            }
-        return state.copy(result = GameResult.draw(reason))
+        return state.copy(result = GameResult.draw(claimReason(claim)))
+    }
+
+    /**
+     * The state after a valid [claim] declared together with [declaredMove]: a finished
+     * game drawn for that reason, from the position the claim was made in.
+     *
+     * [claim] must be valid for that declaration; check with [canClaimDraw] or
+     * [availableDrawClaims] first. [declaredMove] is never played — declaring it is what
+     * entitles the claim, and the claim ends the game instead of continuing it.
+     */
+    fun claimDraw(
+        state: GameState,
+        claim: DrawClaim,
+        declaredMove: Move,
+    ): GameState {
+        require(!state.isOver) { "The game is over: ${state.result}" }
+        require(canClaimDraw(state, claim, declaredMove)) { "No valid $claim claim follows from declaring $declaredMove" }
+
+        return state.copy(result = GameResult.draw(claimReason(claim)))
     }
 
     /**
@@ -174,6 +232,12 @@ object ChessRules {
     /** The draws the side to move may claim in [game]. */
     fun availableDrawClaims(game: ChessGame): Set<DrawClaim> = availableDrawClaims(game.state)
 
+    /** The draws the side to move may claim in [game] by declaring [declaredMove]. */
+    fun availableDrawClaims(
+        game: ChessGame,
+        declaredMove: Move,
+    ): Set<DrawClaim> = availableDrawClaims(game.state, declaredMove)
+
     /** [game] after [move] is played, with the prior position recorded in the history. */
     fun applyMove(
         game: ChessGame,
@@ -189,6 +253,16 @@ object ChessRules {
         game: ChessGame,
         claim: DrawClaim,
     ): ChessGame = game.copy(state = claimDraw(game.state, claim))
+
+    /**
+     * [game] drawn by a valid [claim] declared together with [declaredMove]. The declared
+     * move is not played, so the move history is unaffected.
+     */
+    fun claimDraw(
+        game: ChessGame,
+        claim: DrawClaim,
+        declaredMove: Move,
+    ): ChessGame = game.copy(state = claimDraw(game.state, claim, declaredMove))
 
     /** [game] resigned by [side]. The move history is unaffected. */
     fun resign(
@@ -240,6 +314,13 @@ object ChessRules {
         require(canUndo(game, side)) { "$side has no move to take back" }
         return undoLastMove(game)
     }
+
+    /** The termination a granted [claim] ends the game with. */
+    private fun claimReason(claim: DrawClaim): TerminationReason =
+        when (claim) {
+            DrawClaim.THREEFOLD_REPETITION -> TerminationReason.THREEFOLD_REPETITION_CLAIM
+            DrawClaim.FIFTY_MOVE_RULE -> TerminationReason.FIFTY_MOVE_RULE_CLAIM
+        }
 
     /**
      * Castling rights after [move]: a side loses both rights when its king moves, loses

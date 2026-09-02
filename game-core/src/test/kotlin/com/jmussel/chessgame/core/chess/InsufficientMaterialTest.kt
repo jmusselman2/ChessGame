@@ -101,6 +101,113 @@ class InsufficientMaterialTest {
     }
 
     @Test
+    fun twoBishopsForOneSideOnTheSameColourAreADraw() {
+        assertTrue(
+            InsufficientMaterial.isDraw(
+                board(
+                    "e1" to white(PieceType.KING),
+                    "c1" to white(PieceType.BISHOP),
+                    "g5" to white(PieceType.BISHOP),
+                    "e8" to black(PieceType.KING),
+                ),
+            ),
+            "c1 and g5 are both dark squares, so neither side can ever mate",
+        )
+    }
+
+    @Test
+    fun anyNumberOfBishopsConfinedToOneColourIsADraw() {
+        assertTrue(
+            InsufficientMaterial.isDraw(
+                board(
+                    "e1" to white(PieceType.KING),
+                    "c1" to white(PieceType.BISHOP),
+                    "e3" to white(PieceType.BISHOP),
+                    "g5" to white(PieceType.BISHOP),
+                    "e8" to black(PieceType.KING),
+                    "h8" to black(PieceType.BISHOP),
+                ),
+            ),
+            "four bishops, every one of them dark-squared",
+        )
+    }
+
+    @Test
+    fun bishopsSpreadOverBothColoursAreNotADraw() {
+        assertFalse(
+            InsufficientMaterial.isDraw(
+                board(
+                    "e1" to white(PieceType.KING),
+                    "c1" to white(PieceType.BISHOP),
+                    "e3" to white(PieceType.BISHOP),
+                    "f1" to white(PieceType.BISHOP),
+                    "e8" to black(PieceType.KING),
+                ),
+            ),
+            "f1 is light, so the bishops cover both colour complexes",
+        )
+    }
+
+    @Test
+    fun aKnightBesideSameColourBishopsIsNotAnAutomaticDraw() {
+        assertFalse(
+            InsufficientMaterial.isDraw(
+                board(
+                    "e1" to white(PieceType.KING),
+                    "c1" to white(PieceType.BISHOP),
+                    "e3" to white(PieceType.BISHOP),
+                    "e8" to black(PieceType.KING),
+                    "g5" to black(PieceType.KNIGHT),
+                ),
+            ),
+            "a knight reaches both colours, so a cooperative mate remains possible",
+        )
+    }
+
+    @Test
+    fun promotingToASameColourBishopEndsTheGame() {
+        val position =
+            GameState(
+                board =
+                    board(
+                        "e1" to white(PieceType.KING),
+                        "c1" to white(PieceType.BISHOP),
+                        "b7" to white(PieceType.PAWN),
+                        "e8" to black(PieceType.KING),
+                    ),
+                sideToMove = Side.WHITE,
+                castlingRights = CastlingRights.NONE,
+            )
+        assertFalse(InsufficientMaterial.isDraw(position), "the pawn is still on the board")
+
+        val promoted = ChessRules.applyMove(position, Move.of("b7", "b8", PieceType.BISHOP))
+
+        assertTrue(promoted.isOver, "b8 and c1 are both dark squares")
+        assertEquals(TerminationReason.INSUFFICIENT_MATERIAL, promoted.result?.reason)
+    }
+
+    @Test
+    fun promotingToTheOtherColourBishopLeavesTheGameRunning() {
+        val position =
+            GameState(
+                board =
+                    board(
+                        "e1" to white(PieceType.KING),
+                        "d1" to white(PieceType.BISHOP),
+                        "b7" to white(PieceType.PAWN),
+                        "e8" to black(PieceType.KING),
+                    ),
+                sideToMove = Side.WHITE,
+                castlingRights = CastlingRights.NONE,
+            )
+
+        val promoted = ChessRules.applyMove(position, Move.of("b7", "b8", PieceType.BISHOP))
+
+        assertFalse(promoted.isOver, "d1 is light and b8 is dark, so the bishops cover both colours")
+        assertFalse(InsufficientMaterial.isDraw(promoted))
+    }
+
+    @Test
     fun twoKnightsAreNotAnAutomaticDraw() {
         assertFalse(
             InsufficientMaterial.isDraw(

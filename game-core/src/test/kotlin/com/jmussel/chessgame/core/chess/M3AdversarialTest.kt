@@ -184,9 +184,23 @@ class M3AdversarialTest {
         assertTrue(ChessRules.isLegal(position, declaredMove))
         assertEquals(3, Repetition.occurrences(ChessRules.applyMove(position, declaredMove)))
 
-        // PRODUCT and ARCHITECTURE require prospective legal-move claims, but the public
-        // query has no declared-move input through which this entitlement can be expressed.
-        assertTrue(ChessRules.canClaimDraw(position, DrawClaim.THREEFOLD_REPETITION))
+        // PRODUCT and ARCHITECTURE require prospective legal-move claims, expressed through
+        // the declared move the entitlement is bound to.
+        assertTrue(ChessRules.canClaimDraw(position, DrawClaim.THREEFOLD_REPETITION, declaredMove))
+        assertEquals(setOf(DrawClaim.THREEFOLD_REPETITION), ChessRules.availableDrawClaims(position, declaredMove))
+        assertEquals(
+            TerminationReason.THREEFOLD_REPETITION_CLAIM,
+            ChessRules.claimDraw(position, DrawClaim.THREEFOLD_REPETITION, declaredMove).result?.reason,
+        )
+
+        // The entitlement is that move's alone: undeclared, declared as a quiet move
+        // reaching a different position, declared as a pawn move that clears the history,
+        // or declared as an illegal move, there is no claim.
+        assertFalse(ChessRules.canClaimDraw(position, DrawClaim.THREEFOLD_REPETITION))
+        assertFalse(ChessRules.canClaimDraw(position, DrawClaim.THREEFOLD_REPETITION, Move.of("b8", "c6")))
+        assertFalse(ChessRules.canClaimDraw(position, DrawClaim.THREEFOLD_REPETITION, Move.of("e7", "e5")))
+        assertFalse(ChessRules.canClaimDraw(position, DrawClaim.THREEFOLD_REPETITION, Move.of("a8", "a5")))
+        assertFalse(ChessRules.canClaimDraw(position, DrawClaim.FIFTY_MOVE_RULE, declaredMove))
     }
 
     @Test
@@ -205,9 +219,24 @@ class M3AdversarialTest {
         assertTrue(ChessRules.isLegal(position, declaredMove))
         assertEquals(100, ChessRules.applyMove(position, declaredMove).halfmoveClock)
 
-        // As above, this deliberately exercises the only public claim-query boundary.
-        // A correct fix needs a move-aware claim path, not an unconditional early claim.
-        assertTrue(ChessRules.canClaimDraw(position, DrawClaim.FIFTY_MOVE_RULE))
+        // As above, the claim rides on the declared move rather than on an unconditional
+        // early availability at ninety-nine halfmoves.
+        assertTrue(ChessRules.canClaimDraw(position, DrawClaim.FIFTY_MOVE_RULE, declaredMove))
+        assertEquals(setOf(DrawClaim.FIFTY_MOVE_RULE), ChessRules.availableDrawClaims(position, declaredMove))
+        assertEquals(
+            TerminationReason.FIFTY_MOVE_RULE_CLAIM,
+            ChessRules.claimDraw(position, DrawClaim.FIFTY_MOVE_RULE, declaredMove).result?.reason,
+        )
+
+        assertFalse(ChessRules.canClaimDraw(position, DrawClaim.FIFTY_MOVE_RULE))
+        assertFalse(ChessRules.canClaimDraw(position, DrawClaim.FIFTY_MOVE_RULE, Move.of("d1", "e2")))
+        assertFalse(ChessRules.canClaimDraw(position, DrawClaim.THREEFOLD_REPETITION, declaredMove))
+
+        // One halfmove earlier the same declaration reaches only ninety-nine, and claims
+        // nothing.
+        val tooEarly = position.copy(drawRuleState = DrawRuleState(halfmoveClock = 98))
+        assertEquals(99, ChessRules.applyMove(tooEarly, declaredMove).halfmoveClock)
+        assertEquals(emptySet(), ChessRules.availableDrawClaims(tooEarly, declaredMove))
     }
 
     @Test

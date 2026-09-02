@@ -669,6 +669,16 @@ locally with `.\gradlew.bat :game-core:test` (12 new `InsufficientMaterialTest`
 cases covering positive and negative material combinations, 242 game-core tests
 total) and `.\gradlew.bat build` (BUILD SUCCESSFUL).
 
+**Corrected:** 2026-09-02 — the material test had been written as a list of the
+named textbook endings and rejected any position with more than two pieces left,
+so a side holding two or more same-coloured bishops against a bare king — which
+promotion can produce, and which is dead — was reported as live. `isDraw` now
+states the rule by colour complex: once no pawn, rook, or queen remains, the
+position is dead when at most one piece besides the kings remains, or when every
+remaining piece is a bishop and all of them stand on one square colour, whatever
+the count and whoever owns them (`D038`). Opposite-coloured bishops and any
+position still holding a knight alongside a second piece stay live.
+
 ### Acceptance Criteria
 
 Recognize required standard automatic insufficient-material draws.
@@ -754,6 +764,17 @@ seventy-five-move rule, stalemate, insufficient material — still end the game
 with no claim at all. Verified locally with `.\gradlew.bat :game-core:test`
 (13 new `ClaimDrawTest` cases, 279 game-core tests total) and
 `.\gradlew.bat build` (BUILD SUCCESSFUL).
+
+**Corrected:** 2026-09-02 — only the current position could be asked about, so
+the prospective half of the `PRODUCT` and `ARCHITECTURE` §23 requirement had no
+path at all: a player whose declared legal move would create the third
+occurrence or reach 100 halfmoves could not claim. `availableDrawClaims`,
+`canClaimDraw`, and `claimDraw` gained declared-move overloads on both
+`GameState` and `ChessGame`. The declaration binds — the move must be legal and
+only that exact move counts — the claim ends the game from the position it was
+made in without playing the move, and a declared checkmating move offers no draw
+claim. The no-move overloads keep their meaning, so an entitlement that needs a
+declaration is never granted without one (`D038`).
 
 ### Acceptance Criteria
 

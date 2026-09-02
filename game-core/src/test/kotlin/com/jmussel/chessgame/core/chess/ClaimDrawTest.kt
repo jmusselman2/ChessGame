@@ -41,6 +41,17 @@ class ClaimDrawTest {
         return position
     }
 
+    /** Black to move, one knight shuffle short of a third occurrence of this position. */
+    private fun almostRepeatedPosition(): GameState {
+        var position = repeatedPosition(rounds = 1)
+        listOf(
+            Move.of("g1", "f3"),
+            Move.of("g8", "f6"),
+            Move.of("f3", "g1"),
+        ).forEach { position = ChessRules.applyMove(position, it) }
+        return position
+    }
+
     @Test
     fun aFreshGameHasNothingToClaim() {
         assertEquals(emptySet(), ChessRules.availableDrawClaims(StandardPosition.newGame()))
@@ -156,6 +167,150 @@ class ClaimDrawTest {
         ChessRules.claimDraw(position, DrawClaim.THREEFOLD_REPETITION)
 
         assertFalse(position.isOver)
+    }
+
+    @Test
+    fun aDeclaredQuietMoveThatCompletesTheFiftyMoveRuleIsClaimable() {
+        val position = quietPosition(halfmoveClock = 99)
+        val declaredMove = Move.of("d1", "d2")
+
+        assertEquals(setOf(DrawClaim.FIFTY_MOVE_RULE), ChessRules.availableDrawClaims(position, declaredMove))
+        assertTrue(ChessRules.canClaimDraw(position, DrawClaim.FIFTY_MOVE_RULE, declaredMove))
+        assertFalse(ChessRules.canClaimDraw(position, DrawClaim.FIFTY_MOVE_RULE))
+    }
+
+    @Test
+    fun aDeclaredMoveOneHalfmoveShortOfTheFiftyMoveRuleClaimsNothing() {
+        val position = quietPosition(halfmoveClock = 98)
+
+        assertEquals(emptySet(), ChessRules.availableDrawClaims(position, Move.of("d1", "d2")))
+    }
+
+    @Test
+    fun aDeclaredMoveCreatingTheThirdOccurrenceIsClaimable() {
+        val position = almostRepeatedPosition()
+        val declaredMove = Move.of("f6", "g8")
+
+        assertEquals(2, Repetition.occurrences(position))
+        assertEquals(setOf(DrawClaim.THREEFOLD_REPETITION), ChessRules.availableDrawClaims(position, declaredMove))
+        assertFalse(ChessRules.canClaimDraw(position, DrawClaim.THREEFOLD_REPETITION))
+    }
+
+    @Test
+    fun aDeclaredMoveReachingSomeOtherPositionClaimsNothing() {
+        val position = almostRepeatedPosition()
+
+        assertEquals(emptySet(), ChessRules.availableDrawClaims(position, Move.of("b8", "c6")))
+    }
+
+    @Test
+    fun aDeclaredPawnMoveOrCaptureCanNeverCreateAClaim() {
+        val position =
+            GameState(
+                board =
+                    Board.of(
+                        mapOf(
+                            "a1" to white(PieceType.KING),
+                            "d1" to white(PieceType.ROOK),
+                            "h2" to white(PieceType.PAWN),
+                            "h8" to black(PieceType.KING),
+                            "d8" to black(PieceType.ROOK),
+                        ).mapKeys { (square, _) -> Square.parse(square) },
+                    ),
+                sideToMove = Side.WHITE,
+                castlingRights = CastlingRights.NONE,
+                drawRuleState = DrawRuleState(halfmoveClock = 99),
+            )
+
+        // Both reset the halfmove clock and clear the repetition history, so neither can
+        // ever be the move a claim is declared on.
+        assertEquals(emptySet(), ChessRules.availableDrawClaims(position, Move.of("d1", "d8")))
+        assertEquals(emptySet(), ChessRules.availableDrawClaims(position, Move.of("h2", "h3")))
+        assertEquals(setOf(DrawClaim.FIFTY_MOVE_RULE), ChessRules.availableDrawClaims(position, Move.of("d1", "d2")))
+    }
+
+    @Test
+    fun aDeclaredCheckmatingMoveOffersNoDrawClaim() {
+        val position =
+            GameState(
+                board =
+                    Board.of(
+                        mapOf(
+                            "a1" to white(PieceType.KING),
+                            "a7" to white(PieceType.ROOK),
+                            "b1" to white(PieceType.ROOK),
+                            "h8" to black(PieceType.KING),
+                        ).mapKeys { (square, _) -> Square.parse(square) },
+                    ),
+                sideToMove = Side.WHITE,
+                castlingRights = CastlingRights.NONE,
+                drawRuleState = DrawRuleState(halfmoveClock = 99),
+            )
+        val mate = Move.of("b1", "b8")
+
+        assertEquals(TerminationReason.CHECKMATE, ChessRules.applyMove(position, mate).result?.reason)
+        assertEquals(emptySet(), ChessRules.availableDrawClaims(position, mate))
+        assertEquals(setOf(DrawClaim.FIFTY_MOVE_RULE), ChessRules.availableDrawClaims(position, Move.of("b1", "b2")))
+    }
+
+    @Test
+    fun anIllegalDeclarationClaimsNothing() {
+        val position = quietPosition(halfmoveClock = 99)
+
+        assertEquals(emptySet(), ChessRules.availableDrawClaims(position, Move.of("d1", "e2")))
+        assertFailsWith<IllegalArgumentException> {
+            ChessRules.claimDraw(position, DrawClaim.FIFTY_MOVE_RULE, Move.of("d1", "e2"))
+        }
+    }
+
+    @Test
+    fun aDeclaredMoveInAFinishedGameClaimsNothing() {
+        val finished =
+            quietPosition(halfmoveClock = 99).copy(result = GameResult.resignation(loser = Side.WHITE))
+
+        assertEquals(emptySet(), ChessRules.availableDrawClaims(finished, Move.of("d1", "d2")))
+        assertFailsWith<IllegalArgumentException> {
+            ChessRules.claimDraw(finished, DrawClaim.FIFTY_MOVE_RULE, Move.of("d1", "d2"))
+        }
+    }
+
+    @Test
+    fun aDeclarationAlsoCarriesTheClaimsThePositionAlreadyHas() {
+        val repeated = repeatedPosition(rounds = 2)
+
+        assertEquals(
+            setOf(DrawClaim.THREEFOLD_REPETITION),
+            ChessRules.availableDrawClaims(repeated, Move.of("e2", "e4")),
+            "a claim on the current position needs no declaration and survives any",
+        )
+    }
+
+    @Test
+    fun claimingOnADeclaredMoveEndsTheGameWithoutPlayingIt() {
+        val position = quietPosition(halfmoveClock = 99)
+        val claimed = ChessRules.claimDraw(position, DrawClaim.FIFTY_MOVE_RULE, Move.of("d1", "d2"))
+
+        assertTrue(claimed.isOver)
+        assertEquals(TerminationReason.FIFTY_MOVE_RULE_CLAIM, claimed.result?.reason)
+        assertEquals(GameOutcome.DRAW, claimed.result?.outcome)
+        assertEquals(position.board, claimed.board, "the declared move is not played")
+        assertEquals(Side.WHITE, claimed.sideToMove)
+        assertEquals(99, claimed.halfmoveClock)
+        assertFalse(position.isOver)
+    }
+
+    @Test
+    fun theGameOverloadsTakeADeclaredMoveToo() {
+        val game = ChessGame(quietPosition(halfmoveClock = 99))
+        val declaredMove = Move.of("d1", "d2")
+
+        assertEquals(setOf(DrawClaim.FIFTY_MOVE_RULE), ChessRules.availableDrawClaims(game, declaredMove))
+
+        val claimed = ChessRules.claimDraw(game, DrawClaim.FIFTY_MOVE_RULE, declaredMove)
+
+        assertTrue(claimed.isOver)
+        assertEquals(TerminationReason.FIFTY_MOVE_RULE_CLAIM, claimed.result?.reason)
+        assertTrue(claimed.history.isEmpty(), "declaring a move does not play it")
     }
 
     @Test
