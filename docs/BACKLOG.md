@@ -3088,10 +3088,10 @@ when everything needed is to hand.
 > guard (`M15.5`) and the beta Supabase environment (`M15.3`) are `DONE`, and the
 > repository became deployment-ready on 2026-09-01 (`M15.2`). As of 2026-09-02
 > the service is **live** and serving out of health-only mode on commit
-> `2be1f06`, so what remains of `M15.2` is the payment-method confirmation, more
-> cold-start samples, and the usage check, plus the Android beta endpoint
-> (`M15.4`). `docs/DEVELOPMENT.md` **Beta Deployment** holds the service's
-> read-back configuration and the remaining steps.
+> `2be1f06`, so what remains of `M15.2` is the payment-method confirmation and
+> the usage check, plus the Android beta endpoint (`M15.4`).
+> `docs/DEVELOPMENT.md` **Beta Deployment** holds the service's read-back
+> configuration, the measured cold starts, and the remaining steps.
 >
 > Sequencing: this milestone began after `M14.18` proved the Android
 > multiplayer client end to end (2026-08-31).
@@ -3357,12 +3357,15 @@ endpoint; the loop deployed nothing and set no environment variable.
   `numInstances: 1`, `suspended: not_suspended`, `healthCheckPath: /health`,
   region `oregon`, Docker runtime from `./Dockerfile` — unchanged from
   `render.yaml`, so the recorded configuration has not drifted (`D036`).
-- **First cold-start observation.** The first request after the service had sat
-  idle for about 21 minutes since going live took **59.0 s** (HTTP 200); the two
-  warm requests immediately after took **0.43 s** and **0.20 s**. One sample is
-  evidence, not a bound — `D032` records that the cold start has no guaranteed
-  upper limit — but it matches Render's documented "roughly a minute" and is the
-  order of magnitude `M15.4`'s client deadline has to tolerate.
+- **Cold starts measured, twice.** `GET /health` after ~21 idle minutes took
+  **59.0 s**; after another ~20 idle minutes, **64.5 s**. Warm requests in
+  between returned in 0.20–0.43 s, and one issued only 7 minutes after the
+  previous — inside the 15-minute spin-down window — returned in 0.25 s, so the
+  instance was still up. Two samples are not a guaranteed upper bound (`D032`
+  records that there is none), but they agree with Render's documented "roughly a
+  minute" and are consistent enough to design against: `M15.4` needs a startup
+  deadline with comfortable headroom above 60 s, and a UI that reads that first
+  minute as *waking* rather than as a terminal network error.
 
 Still open, so the task stays `IN PROGRESS`:
 
@@ -3373,8 +3376,8 @@ Still open, so the task stays `IN PROGRESS`:
 - **The Android test build reaching the service over HTTPS with a WSS
   connection.** That build configuration is `M15.4`, which is `TODO` and gated on
   this task.
-- **Further cold-start samples, and the post-play-through Render usage check**
-  including outbound traffic to Supabase.
+- **The post-play-through Render usage check**, including outbound traffic to
+  Supabase.
 
 None of this changes the authorization position: `M15.4` still needs explicit
 human authorization before it is marked `IN PROGRESS` (see the milestone note).

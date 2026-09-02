@@ -990,9 +990,21 @@ real API rather than the health-only fallback.
 
 Free-plan behaviour, now measured rather than expected: the service spins down
 after about 15 idle minutes and the next request pays a significant cold start.
-Observed 2026-09-02 after ~21 idle minutes: **59.0 s** for the first request,
-then **0.43 s** and **0.20 s** warm. That is one sample and not a guaranteed
-upper bound (`D032`) — take more before fixing `M15.4`'s client deadline.
+Measured 2026-09-02, `GET /health` over HTTPS:
+
+| Idle before the request | First request | Warm requests after |
+|---|---|---|
+| ~21 min | **59.0 s** | 0.43 s, 0.20 s |
+| ~20 min | **64.5 s** | 0.28 s |
+
+A request only 7 minutes after the previous one returned in 0.25 s — inside the
+15-minute window, so the instance was still up. That is the shape to expect: a
+sleeping service costs about a minute, a woken one costs nothing.
+
+Two samples are not a guaranteed upper bound (`D032` says there is none), but
+they agree with Render's documented "roughly a minute" and are consistent enough
+to design against: `M15.4`'s startup deadline needs comfortable headroom above
+60 s, and the UI must read that first minute as *waking*, not as failure.
 
 Do not put production or beta secrets directly in Git.
 
@@ -1018,8 +1030,8 @@ variables, or handle credentials (`D032` acceptance, `M15` milestone note).
    `dep-dabqj2eq1p3s73fs2sog` went `live` at `2026-09-02T04:47:28Z`.
    `curl https://chessgame-hit7.onrender.com/health` returns
    `ChessGame server is healthy` without `(health-only: ...)`.
-4. ~~**Take a first cold-start measurement.**~~ **Done** — 59.0 s after ~21 idle
-   minutes, against 0.43 s / 0.20 s warm.
+4. ~~**Measure cold starts.**~~ **Done** — two samples, 59.0 s and 64.5 s after
+   ~20 idle minutes, against 0.20–0.43 s warm. See the table above.
 
 #### Still outstanding
 
@@ -1027,11 +1039,7 @@ variables, or handle credentials (`D032` acceptance, `M15` milestone note).
    is what the hard `$0` boundary rests on and it cannot be read from the
    repository or the service API. The Free plan and the single instance *were*
    confirmed from the API above. Render dashboard → workspace → Billing.
-2. **Measure more cold starts.** Let the service sleep past 15 idle minutes, then
-   time the first request, several times, and record the observations here and in
-   `M15.2`. They inform `M15.4`'s client deadline; one sample is not a guaranteed
-   upper bound.
-3. **Check Render usage after the play-through**, including outbound traffic to
+2. **Check Render usage after the play-through**, including outbound traffic to
    Supabase, and confirm no payment method appeared and no automatic upgrade is
    enabled.
 
