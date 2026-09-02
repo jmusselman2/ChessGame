@@ -3787,8 +3787,50 @@ PostgreSQL (387 tests, 0 failed, 0 skipped) and `.\gradlew.bat build`
 
 ## M16.1 — Network interruption
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M12, M14.18, M15
+
+**Completed:** 2026-09-02 — a game survives losing the network, and three ways it
+did not are fixed. The server side needed nothing: `M12.3` already proves a
+returning client loses nothing but a reload, and `M16.3` that a command cannot be
+applied twice. What was missing was the client half — that the app *takes* that
+recovery — and testing it found that in three places it did not.
+
+- **A game that failed to load was never reloaded.** `refreshWhatIsOnScreen`
+  reloaded the game only when the screen already held one (`Ready`). An
+  interruption is precisely what leaves it `Failed`, so the socket coming back —
+  the app's own evidence that the server is reachable — left the player looking
+  at an error with a retry button. It now reloads whatever game the screen is on.
+- **A reload asked for while one was running was dropped.** `loadGame` returned
+  early whenever a load was in flight. But the answer already on its way was
+  decided *before* whatever prompted the second request, so dropping the second
+  one leaves the board a move behind with nothing left to correct it — and a
+  cold start can hold that first read for the whole wake deadline (`D037`). A
+  repeat of the same game is now remembered and run when the current read
+  finishes; a *different* game supersedes the read in flight outright, which also
+  fixes opening a second game while the first was still loading and getting the
+  first.
+- **The dashboard had the identical defect**, found by looking for the same
+  shape rather than by another report: an update for a game the player is not
+  watching was dropped whenever a dashboard fetch was already running.
+
+Nothing was retried blindly: commands still go exactly once and recover through
+the version guard (`D021`), which is what keeps "not lost" and "not duplicated"
+from being in tension.
+
+Verified locally with `.\gradlew.bat :android-app:testDebugUnitTest` (9 new
+`NetworkInterruptionTest` cases against a stubbed server that records the moves
+it accepts and grows a version with them, so a lost move and a doubled one are
+distinguishable rather than a mock's call count: a failed load recovers on
+reconnect, an update during a reload is not dropped, opening another game while
+one loads shows the one asked for, an update during a dashboard load is not
+dropped, a move whose reply is lost is found exactly once and was sent once, the
+same move played again after that is refused as stale and corrects the screen, a
+reload waits through a cold start, the socket keeps retrying through one and
+refreshes on connecting, and waking / retryable / terminal stay three distinct
+states) and `.\gradlew.bat build` against the local test database (BUILD
+SUCCESSFUL, 361 android-app, 402 server, and 380 game-core tests, 0 skipped).
 
 ### Acceptance Criteria
 

@@ -130,6 +130,20 @@ class ChessAppViewModel(
     internal var updatesJob: Job? = null
         private set
 
+    /** Which game [gameJob] is fetching, so a second request for the same one can be recognised. */
+    private var loadingGameId: String? = null
+
+    /**
+     * Set when a reload was asked for while one was already running, so it happens after it
+     * rather than being lost (`M16.1`).
+     *
+     * Only ever touched from the main dispatcher, like every other field here.
+     */
+    private var reloadWanted = false
+
+    /** The same, for the dashboard. */
+    private var dashboardReloadWanted = false
+
     /**
      * Restores or creates the anonymous session, asks the server who it belongs to, and
      * goes wherever that answer says.
@@ -245,41 +259,62 @@ class ChessAppViewModel(
         loadGame(gameId)
     }
 
-    /** Fetches [gameId] as the server has it now. */
+    /**
+     * Fetches [gameId] as the server has it now.
+     *
+     * A load already running is never simply dropped, because both reasons for asking again
+     * mean the answer on its way is not the one wanted (`M16.1`). Asking for the *same* game
+     * again — an update arrived, or the socket reconnected — is remembered and run once the
+     * current read finishes, since that read was decided before whatever prompted the second
+     * one and may therefore be a move behind. Asking for a *different* game supersedes the
+     * read in flight outright: its answer is about a game nobody is looking at any more.
+     */
     fun loadGame(gameId: String) {
-        if (gameJob?.isActive == true) return
+        if (gameJob?.isActive == true) {
+            if (loadingGameId == gameId) {
+                reloadWanted = true
+                return
+            }
+
+            gameJob?.cancel()
+        }
 
         // A different game blanks the screen, so it is never showing the one before it; the
         // game already on screen stays put while it reloads, which is both less flicker and
         // what lets a reload tell that this game has just ended.
         if ((game as? OnlineGameState.Ready)?.game?.gameId != gameId) game = OnlineGameState.Loading(gameId)
 
+        loadingGameId = gameId
         gameJob =
             viewModelScope.launch {
-                try {
-                    // A reload is a read, so it is safe to repeat while the service wakes.
-                    // This is the reconnect path too (`M12.3`): the socket drops when a free
-                    // instance is replaced or spins down, and canonical state is reloaded
-                    // over HTTPS immediately afterwards — against a server that is, by
-                    // definition, only just coming back.
-                    show(waitingForServer { dependencies.chessApi.game(gameId) })
-                } catch (refused: ChessApiException) {
-                    game =
-                        OnlineGameState.Failed(
-                            gameId = gameId,
-                            message = OnlineGame.messageFor(refused),
-                            canRetry = OnlineGame.canRetry(refused),
-                        )
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (unreachable: Exception) {
-                    game =
-                        OnlineGameState.Failed(
-                            gameId = gameId,
-                            message = OnlineGame.unreachableMessage(),
-                            canRetry = true,
-                        )
-                }
+                do {
+                    reloadWanted = false
+
+                    try {
+                        // A reload is a read, so it is safe to repeat while the service wakes.
+                        // This is the reconnect path too (`M12.3`): the socket drops when a free
+                        // instance is replaced or spins down, and canonical state is reloaded
+                        // over HTTPS immediately afterwards — against a server that is, by
+                        // definition, only just coming back.
+                        show(waitingForServer { dependencies.chessApi.game(gameId) })
+                    } catch (refused: ChessApiException) {
+                        game =
+                            OnlineGameState.Failed(
+                                gameId = gameId,
+                                message = OnlineGame.messageFor(refused),
+                                canRetry = OnlineGame.canRetry(refused),
+                            )
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (unreachable: Exception) {
+                        game =
+                            OnlineGameState.Failed(
+                                gameId = gameId,
+                                message = OnlineGame.unreachableMessage(),
+                                canRetry = true,
+                            )
+                    }
+                } while (reloadWanted)
             }
     }
 
@@ -349,11 +384,18 @@ class ChessAppViewModel(
         }
     }
 
-    /** Reloads whatever the player can see, which is what a fresh connection calls for. */
+    /**
+     * Reloads whatever the player can see, which is what a fresh connection calls for.
+     *
+     * A game that failed to load is reloaded too, not only one already on screen. An
+     * interruption is exactly what leaves it failed, and a connection that has just come
+     * back is the app's own evidence the server can be reached — so recovering from it
+     * should not wait for the player to find the retry button (`M16.1`).
+     */
     private fun refreshWhatIsOnScreen() {
         if (currentUser?.username != null) loadDashboard()
 
-        (game as? OnlineGameState.Ready)?.let { ready -> loadGame(ready.game.gameId) }
+        reloadGame()
     }
 
     /**
@@ -595,9 +637,21 @@ class ChessAppViewModel(
      * and a half-drawn dashboard is never shown.
      */
     fun loadDashboard() {
-        if (dashboardJob?.isActive == true) return
+        if (dashboardJob?.isActive == true) {
+            // Same reasoning as [loadGame]: the fetch already running was decided before
+            // whatever asked for this one, so dropping it would leave the dashboard a move
+            // behind until something else happened to ask again (`M16.1`).
+            dashboardReloadWanted = true
+            return
+        }
 
-        dashboardJob = viewModelScope.launch { fetchDashboard() }
+        dashboardJob =
+            viewModelScope.launch {
+                do {
+                    dashboardReloadWanted = false
+                    fetchDashboard()
+                } while (dashboardReloadWanted)
+            }
     }
 
     /**
