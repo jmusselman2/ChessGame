@@ -2,7 +2,9 @@ package com.jmussel.chessgame.core.chess
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class M3AdversarialTest {
@@ -63,6 +65,149 @@ class M3AdversarialTest {
         assertEquals(TerminationReason.CHECKMATE, mated.result?.reason)
         assertTrue(ChessRules.legalMoves(mated).isEmpty())
         assertFalse(ChessRules.isLegal(mated, Move.of("e1", "f2")))
+    }
+
+    @Test
+    fun everyTerminalReasonRejectsEveryMoveThroughBothPublicQueryOverloads() {
+        TerminationReason.entries.forEach { reason ->
+            val finishedState = StandardPosition.newGame().copy(result = resultFor(reason))
+            val finishedGame = ChessGame(finishedState)
+
+            assertTrue(ChessRules.legalMoves(finishedState).isEmpty(), "$reason GameState")
+            assertTrue(ChessRules.legalMoves(finishedGame).isEmpty(), "$reason ChessGame")
+
+            allRepresentableMoves().forEach { move ->
+                assertFalse(ChessRules.isLegal(finishedState, move), "$reason GameState advertised $move")
+                assertFalse(ChessRules.isLegal(finishedGame, move), "$reason ChessGame advertised $move")
+            }
+
+            assertFailsWith<IllegalArgumentException>("$reason GameState accepted a move") {
+                ChessRules.applyMove(finishedState, Move.of("e2", "e4"))
+            }
+            assertFailsWith<IllegalArgumentException>("$reason ChessGame accepted a move") {
+                ChessRules.applyMove(finishedGame, Move.of("e2", "e4"))
+            }
+        }
+    }
+
+    @Test
+    fun terminalMoveQueryGuardDoesNotChangeLiveMateOrStalemateClassification() {
+        val checkmate =
+            sparseState(
+                "h8" to Piece(Side.BLACK, PieceType.KING),
+                "g7" to Piece(Side.BLACK, PieceType.PAWN),
+                "h7" to Piece(Side.BLACK, PieceType.PAWN),
+                "a8" to Piece(Side.WHITE, PieceType.ROOK),
+                "a1" to Piece(Side.WHITE, PieceType.KING),
+                sideToMove = Side.BLACK,
+            )
+        val stalemate =
+            sparseState(
+                "h8" to Piece(Side.BLACK, PieceType.KING),
+                "g6" to Piece(Side.WHITE, PieceType.QUEEN),
+                "f7" to Piece(Side.WHITE, PieceType.KING),
+                sideToMove = Side.BLACK,
+            )
+        val live = StandardPosition.newGame()
+
+        assertNull(checkmate.result)
+        assertTrue(ChessRules.hasNoLegalMoves(checkmate))
+        assertTrue(ChessRules.isCheckmate(checkmate))
+        assertFalse(ChessRules.isStalemate(checkmate))
+        assertEquals(GameResult.checkmate(loser = Side.BLACK), ChessRules.terminalResult(checkmate))
+
+        assertNull(stalemate.result)
+        assertTrue(ChessRules.hasNoLegalMoves(stalemate))
+        assertFalse(ChessRules.isCheckmate(stalemate))
+        assertTrue(ChessRules.isStalemate(stalemate))
+        assertEquals(GameResult.draw(TerminationReason.STALEMATE), ChessRules.terminalResult(stalemate))
+
+        assertNull(live.result)
+        assertFalse(ChessRules.hasNoLegalMoves(live))
+        assertFalse(ChessRules.isCheckmate(live))
+        assertFalse(ChessRules.isStalemate(live))
+        assertNull(ChessRules.terminalResult(live))
+    }
+
+    @Test
+    fun everyAdvertisedPublicGameActionIsAcceptedByItsTransition() {
+        val freshState = StandardPosition.newGame()
+        ChessRules.legalMoves(freshState).forEach { move ->
+            assertTrue(ChessRules.isLegal(freshState, move), "legalMoves advertised $move but isLegal rejected it")
+            ChessRules.applyMove(freshState, move)
+        }
+
+        var claimable = ChessGame.newGame()
+        repeat(2) {
+            listOf(
+                Move.of("g1", "f3"),
+                Move.of("g8", "f6"),
+                Move.of("f3", "g1"),
+                Move.of("f6", "g8"),
+            ).forEach { move -> claimable = ChessRules.applyMove(claimable, move) }
+        }
+        claimable =
+            claimable.copy(
+                state =
+                    claimable.state.copy(
+                        drawRuleState = claimable.state.drawRuleState.withHalfmoveClock(100),
+                    ),
+            )
+
+        ChessRules.availableDrawClaims(claimable).forEach { claim ->
+            assertTrue(ChessRules.canClaimDraw(claimable.state, claim))
+            assertTrue(ChessRules.claimDraw(claimable, claim).isOver)
+        }
+
+        val afterMove = ChessRules.applyMove(ChessGame.newGame(), Move.of("e2", "e4"))
+        val undoableSide = ChessRules.undoableSide(afterMove)
+        assertEquals(Side.WHITE, undoableSide)
+        assertTrue(ChessRules.canUndo(afterMove, requireNotNull(undoableSide)))
+        assertEquals(ChessGame.newGame(), ChessRules.undo(afterMove, undoableSide))
+    }
+
+    @Test
+    fun aThirdOccurrenceCreatedByTheDeclaredNextMoveIsClaimable() {
+        var position = StandardPosition.newGame()
+        listOf(
+            Move.of("g1", "f3"),
+            Move.of("g8", "f6"),
+            Move.of("f3", "g1"),
+            Move.of("f6", "g8"),
+            Move.of("g1", "f3"),
+            Move.of("g8", "f6"),
+            Move.of("f3", "g1"),
+        ).forEach { move -> position = ChessRules.applyMove(position, move) }
+        val declaredMove = Move.of("f6", "g8")
+
+        assertEquals(2, Repetition.occurrences(position))
+        assertTrue(ChessRules.isLegal(position, declaredMove))
+        assertEquals(3, Repetition.occurrences(ChessRules.applyMove(position, declaredMove)))
+
+        // PRODUCT and ARCHITECTURE require prospective legal-move claims, but the public
+        // query has no declared-move input through which this entitlement can be expressed.
+        assertTrue(ChessRules.canClaimDraw(position, DrawClaim.THREEFOLD_REPETITION))
+    }
+
+    @Test
+    fun theQuietMoveThatWouldReachOneHundredHalfmovesIsClaimable() {
+        val position =
+            sparseState(
+                "a1" to Piece(Side.WHITE, PieceType.KING),
+                "d1" to Piece(Side.WHITE, PieceType.ROOK),
+                "h8" to Piece(Side.BLACK, PieceType.KING),
+                "e8" to Piece(Side.BLACK, PieceType.ROOK),
+                sideToMove = Side.WHITE,
+                halfmoveClock = 99,
+            )
+        val declaredMove = Move.of("d1", "d2")
+
+        assertTrue(ChessRules.isLegal(position, declaredMove))
+        assertEquals(100, ChessRules.applyMove(position, declaredMove).halfmoveClock)
+
+        // As above, this deliberately exercises the only public claim-query boundary.
+        // A correct fix needs a move-aware claim path, not an unconditional early claim.
+        assertTrue(ChessRules.canClaimDraw(position, DrawClaim.FIFTY_MOVE_RULE))
     }
 
     @Test
@@ -153,6 +298,31 @@ class M3AdversarialTest {
             castlingRights = CastlingRights.NONE,
             enPassantTarget = Square.parse(enPassantTarget),
         )
+
+    private fun sparseState(
+        vararg placement: Pair<String, Piece>,
+        sideToMove: Side,
+        halfmoveClock: Int = 0,
+    ): GameState =
+        GameState(
+            board = Board.of(placement.associate { (square, piece) -> Square.parse(square) to piece }),
+            sideToMove = sideToMove,
+            castlingRights = CastlingRights.NONE,
+            drawRuleState = DrawRuleState(halfmoveClock = halfmoveClock),
+        )
+
+    private fun resultFor(reason: TerminationReason): GameResult =
+        if (reason.isDraw) GameResult.draw(reason) else GameResult.win(Side.WHITE, reason)
+
+    private fun allRepresentableMoves(): Sequence<Move> =
+        sequence {
+            Square.ALL.forEach { from ->
+                Square.ALL.filterNot { it == from }.forEach { to ->
+                    yield(Move(from, to))
+                    PieceType.PROMOTION_CHOICES.forEach { promotion -> yield(Move(from, to, promotion)) }
+                }
+            }
+        }
 
     private fun assertNoEnPassant(
         state: GameState,
