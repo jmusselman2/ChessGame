@@ -211,6 +211,29 @@ class M3AdversarialTest {
     }
 
     @Test
+    fun aCaptureLeavingOnlySameColourBishopsEndsTheGame() {
+        val position =
+            sparseState(
+                "e1" to Piece(Side.WHITE, PieceType.KING),
+                "c1" to Piece(Side.WHITE, PieceType.BISHOP),
+                "e3" to Piece(Side.WHITE, PieceType.BISHOP),
+                "e8" to Piece(Side.BLACK, PieceType.KING),
+                "g5" to Piece(Side.BLACK, PieceType.KNIGHT),
+                sideToMove = Side.WHITE,
+            )
+        val capture = Move.of("e3", "g5")
+
+        assertTrue(ChessRules.isLegal(position, capture))
+        val after = ChessRules.applyMove(position, capture)
+
+        // Both surviving bishops are confined to the same square colour, so neither side
+        // can ever checkmate. This is a dead position even though promotion made two bishops.
+        assertTrue(InsufficientMaterial.isDraw(after))
+        assertTrue(after.isOver)
+        assertEquals(TerminationReason.INSUFFICIENT_MATERIAL, after.result?.reason)
+    }
+
+    @Test
     fun enPassantTargetWithoutBypassedPawnOffersNoCapture() {
         val state = enPassantState()
 

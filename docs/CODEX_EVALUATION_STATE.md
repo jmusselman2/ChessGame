@@ -23,19 +23,29 @@
   declared legal move would create the third occurrence or reach 100 halfmoves
   has no game-core claim path because the public claim APIs accept only the
   current state and no prospective move. The two new regressions fail.
+- **Confirmed:** a legal capture that leaves two same-colour bishops for one
+  side against a bare king is not recognized as insufficient material. The
+  bishops can arise through promotion and can never cover the opposite colour
+  complex, so the resulting dead position incorrectly remains live. The new
+  regression fails at `InsufficientMaterial.isDraw`.
 
 The standard-position legal-move oracle passes through depth four (20, 400,
-8,902, and 197,281 nodes). No production code was changed by this evaluation.
+8,902, and 197,281 nodes). Additional published perft positions covering
+castling, en passant, promotion, checks, and pins also matched their oracle. No
+production code was changed by this evaluation.
 
 ## Exact next action
 
-Have the prospective threefold/fifty-move claim gap independently reviewed and
-fix every legitimate path on `claude-autopilot`. The remediation must bind and
-validate the declared legal move; it must not make pre-threshold claims
-unconditional. Preserve current-position claims, automatic draw behavior,
-terminal guards, all evaluation artifacts, and all regressions. Merge the
-reviewed remediation into `main`, realign `codex-autopilot` to the updated
-`origin/main`, and independently re-evaluate M3 from the beginning.
+Have both confirmed defect batches independently reviewed and fixed on
+`claude-autopilot`: (1) the prospective threefold/fifty-move claim gap and (2)
+the missed same-colour multi-bishop dead position. The claim remediation must
+bind and validate the declared legal move; it must not make pre-threshold
+claims unconditional. The material remediation must preserve opposite-colour
+bishop and knight cases in which mate remains possible. Preserve
+current-position claims, automatic draw behavior, terminal guards, all
+evaluation artifacts, and all regressions. Merge the reviewed remediation into
+`main`, realign `codex-autopilot` to the updated `origin/main`, and
+independently re-evaluate M3 from the beginning.
 
 Do not proceed to M4, and do not mark M3 `PASS`, until that independent
 re-evaluation passes.
