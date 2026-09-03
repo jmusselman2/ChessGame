@@ -263,6 +263,63 @@ class M3AdversarialTest {
     }
 
     @Test
+    fun oneKnightEachIsSparseButNotDeadBecauseMateRemainsPossible() {
+        val cooperativeMate =
+            sparseState(
+                "f7" to Piece(Side.WHITE, PieceType.KING),
+                "g6" to Piece(Side.WHITE, PieceType.KNIGHT),
+                "h8" to Piece(Side.BLACK, PieceType.KING),
+                "h7" to Piece(Side.BLACK, PieceType.KNIGHT),
+                sideToMove = Side.BLACK,
+            )
+
+        assertFalse(InsufficientMaterial.isDraw(cooperativeMate))
+        assertTrue(ChessRules.isCheckmate(cooperativeMate))
+    }
+
+    @Test
+    fun oppositeColourBishopsAreSparseButNotDeadBecauseMateRemainsPossible() {
+        val cooperativeMate =
+            sparseState(
+                "f7" to Piece(Side.WHITE, PieceType.KING),
+                "e5" to Piece(Side.WHITE, PieceType.BISHOP),
+                "h8" to Piece(Side.BLACK, PieceType.KING),
+                "h7" to Piece(Side.BLACK, PieceType.BISHOP),
+                sideToMove = Side.BLACK,
+            )
+
+        assertFalse(InsufficientMaterial.isDraw(cooperativeMate))
+        assertTrue(ChessRules.isCheckmate(cooperativeMate))
+    }
+
+    @Test
+    fun anEnPassantMarkerThatOnlyOffersAnIllegalCaptureDoesNotChangeRepetitionIdentity() {
+        val pinnedCapture =
+            GameState(
+                board =
+                    Board.of(
+                        mapOf(
+                            Square.parse("d1") to Piece(Side.WHITE, PieceType.KING),
+                            Square.parse("d5") to Piece(Side.WHITE, PieceType.PAWN),
+                            Square.parse("e5") to Piece(Side.BLACK, PieceType.PAWN),
+                            Square.parse("d8") to Piece(Side.BLACK, PieceType.ROOK),
+                            Square.parse("h8") to Piece(Side.BLACK, PieceType.KING),
+                        ),
+                    ),
+                sideToMove = Side.WHITE,
+                castlingRights = CastlingRights.NONE,
+                enPassantTarget = Square.parse("e6"),
+            )
+
+        assertTrue(Move.of("d5", "e6") in EnPassant.availableMoves(pinnedCapture))
+        assertFalse(ChessRules.isLegal(pinnedCapture, Move.of("d5", "e6")))
+        assertEquals(
+            Repetition.keyOf(pinnedCapture.copy(enPassantTarget = null)),
+            Repetition.keyOf(pinnedCapture),
+        )
+    }
+
+    @Test
     fun enPassantTargetWithoutBypassedPawnOffersNoCapture() {
         val state = enPassantState()
 
