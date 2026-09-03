@@ -129,7 +129,7 @@ fun Application.module(
             usernameRoutes(users)
             userLookupRoutes(users)
             friendRoutes(users, friendships)
-            seriesRoutes(users, friendships, series)
+            seriesRoutes(users, friendships, series, realtime)
             dashboardRoutes(dashboard)
             historyRoutes(history)
             gameRoutes(commands, realtime, users)

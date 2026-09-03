@@ -38,7 +38,9 @@ class SeriesService(
      * The pair's active series, with a current game, creating either if they do not exist.
      *
      * Creating the game and pointing the series at it happen in one transaction, so a
-     * series is never left claiming a game that was not written.
+     * series is never left claiming a game that was not written. The result says whether
+     * this call is the one that started it, because a game nobody asked for is the one
+     * thing the other player cannot find out for themselves (`SeriesRoutes`).
      *
      * Both players tapping "Play" at the same moment is the case this has to survive. The
      * series row is locked before the first game is started and re-read under that lock,
@@ -54,14 +56,14 @@ class SeriesService(
         val opened = series.openOrCreate(caller, friend)
         if (opened.series.currentGameId != null) return opened
 
-        val withGame =
+        val (withGame, startedGame) =
             transaction(database) {
                 val current = series.findForUpdate(opened.series.id) ?: opened.series
 
-                if (current.currentGameId != null) current else startFirstGame(current)
+                if (current.currentGameId != null) current to false else startFirstGame(current) to true
             }
 
-        return OpenedSeries(series = withGame, created = opened.created)
+        return OpenedSeries(series = withGame, created = opened.created, startedGame = startedGame)
     }
 
     /**

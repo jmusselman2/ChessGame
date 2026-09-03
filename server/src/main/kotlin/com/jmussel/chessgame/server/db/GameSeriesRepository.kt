@@ -43,6 +43,14 @@ data class StoredSeries(
 data class OpenedSeries(
     val series: StoredSeries,
     val created: Boolean,
+    /**
+     * Whether this open started the series' first game.
+     *
+     * Only the request that actually created the game sees this as `true`, so a second
+     * request that finds the game the first made does not report starting it. It is what
+     * tells the caller there is something the other player has not heard about yet.
+     */
+    val startedGame: Boolean = false,
 )
 
 /**

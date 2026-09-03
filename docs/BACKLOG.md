@@ -3984,6 +3984,48 @@ This build also caught and fixed the `M16.4` concurrency defect recorded above.
 
 Log enough for debugging without credentials/secrets.
 
+## M16.6 — A socket that dies quietly is noticed
+
+**Status:** TODO
+
+**Depends on:** M16.1
+
+**Found by:** `M17.1`'s two-device verification, 2026-09-03.
+
+### The defect
+
+A client left open on a game screen across a Render spin-down keeps a socket
+that is dead but never closed. `ChessAppViewModel.watchUpdates` reconnects when
+the message flow *ends*, and a peer that vanishes without a close frame never
+ends it — so the loop never runs, no `connected` refresh happens, and the screen
+keeps a position the server has moved past. Observed for four minutes against a
+three-second reconnect pause, with the opponent's move and undo both missed. The
+worst of it is turn clarity: the stale screen can say "Your move" when the move
+is no longer the player's, so an asynchronous game can look stalled to someone
+who is in fact not being told anything.
+
+It is mitigated, which is why it is not a blocker: the next command is refused
+on its version (`D021`) and the app replaces the board with the truth, and
+reopening the app also shows the truth.
+
+The server already pings (`installRealtimeWebSockets` sets `pingPeriodMillis`
+and `timeoutMillis`), so it notices. The Android client installs `WebSockets`
+with no ping interval (`ChessAppDependencies`), so it does not — that is the
+first thing to check, not a settled diagnosis.
+
+### Acceptance Criteria
+
+- A client whose socket dies without closing notices within a bounded time and
+  reconnects.
+- On reconnecting, what is on screen is refreshed — the `connected` path already
+  does this (`M16.1`), so the fix is detection, not new recovery.
+- A test covers a peer that stops answering without closing, rather than only a
+  clean disconnection.
+- Reconnect attempts against a server that is still asleep stay cheap enough to
+  survive a full Render cold start without draining a phone (`D037`).
+
+---
+
 ---
 
 # M17 — Friend Beta
@@ -4007,13 +4049,33 @@ Log enough for debugging without credentials/secrets.
 
 ### Acceptance Criteria
 
-Core play is stable enough to gather product feedback without developer intervention during normal moves.
+Core play is stable enough to gather product feedback without developer
+intervention during normal moves.
 
-### How to run the beta
+The remaining real-world check is deliberately lightweight — one other real
+person, one game, and only the findings that matter:
+
+- one other real person installs the APK on a **physical** Android device,
+- they get through installation and onboarding,
+- we play at least one online game together,
+- we capture **only** what actually matters: confusion, installation problems,
+  crashes, synchronization problems, or other real defects.
+
+The eight observations below are guidance for what to watch, not a checklist to
+complete. None of them has to be exercised or written up individually.
+
+`M17.1` may be marked `DONE` after one successful real-user physical-device
+play-through, provided no unresolved blocker is found. **Emulator testing alone
+is not enough to mark it `DONE`,** however complete — two emulators share a host,
+a network, and a clock, and prove nothing about the install path on a real
+device.
+
+### What to watch during the beta
 
 Build and hand over the APK as `docs/DEVELOPMENT.md` **Distributing a beta
-build** describes, then watch for the eight things above. Each is worth one
-concrete question, because "how did it go?" gets "fine":
+build** describes. These are what to keep an eye on. They are prompts, not
+requirements — asking one concrete question beats "how did it go?", which gets
+"fine":
 
 - **Onboarding** — from tapping the file to having a username, did they need to
   ask you anything? Anything they asked is the finding.
@@ -4068,6 +4130,74 @@ exception, and both half-configured cases stop the build) and `.\gradlew.bat
 build` against the local test database (BUILD SUCCESSFUL). `docs/DEVELOPMENT.md`
 carries the key creation, the build command, the verification, and what to tell a
 tester.
+
+**Final local pre-distribution verification, 2026-09-03 (two emulators, the
+signed APK, against the live beta server).** The signed release APK
+(`0.1-beta1`, signed by the permanent beta key, certificate `CN=Jordan`) was
+installed on both `ChessPlayer1` and `ChessPlayer2` — the second after
+uninstalling an older build carrying a different signature, which Android would
+otherwise refuse to replace. Both ran against
+`https://chessgame-hit7.onrender.com`. What the run proved, end to end:
+
+- **Install and onboarding.** The APK installed and launched on a device that
+  had never run this build. `BetaEmu2` signed in invisibly and claimed a
+  username with no developer help.
+- **A sleeping server explains itself.** The first launch hit a cold start and
+  showed "Waking the server…" with its explanation rather than an error, then
+  reached onboarding by itself once the server was up (`D037`).
+- **Discovery and friendship.** `BetaTester1` found `BetaEmu2` by exact
+  username against the live server and added them; the friendship was mutual on
+  the other device immediately, with no action there (`PRODUCT.md`).
+- **A game both players see.** "Play" created the game; both devices showed the
+  same game, each with its own colour and the board drawn from its own side.
+- **Moves, both directions, live.** `e2e4`, `e7e5`, `g1f3`, `b8c6` — each move
+  appeared on the *other* device with no interaction there, the version
+  advancing 1→2→3→4 on both. The dashboard also moved between "YOUR TURN" and
+  "THEIR TURN" live.
+- **Undo, and what it does to the other player.** Undo was offered only to the
+  player whose move was the latest unanswered one, and taking `b8c6` back
+  returned the move to White and made White's `g1f3` undoable again — `D016`
+  end to end, across two devices.
+- **A stale command is refused and the app recovers.** A move sent against a
+  version the server had moved past was refused and the app replaced the board
+  with the truth, saying "The game moved on. This is where it is now."
+  (`D021`).
+
+**One defect found and fixed: a game the other player did not start was never
+announced.** `BetaEmu2`'s dashboard showed no game after `BetaTester1` tapped
+"Play", and only a full app restart revealed it. The server published realtime
+messages from exactly one place — an applied command (`GameRoutes.announce`) —
+so moves announced themselves and a *created* game announced nothing. The
+opponent's dashboard therefore stayed empty until their next app start or the
+first move. The colour toss (`D014`) makes that worse than it sounds: when it
+gives the opponent White, the game is waiting on a move they are not being
+shown. `POST /series` now publishes `game-updated` to both players when, and
+only when, that request actually started the game — a second tap opens the game
+already under way and announces nothing (`M16.4`). Nothing new was needed on the
+client: it already reloads the dashboard on a `game-updated` for a game it is
+not looking at. Verified with 6 new `NewGameBroadcastTest` cases, checked
+against the defect by disabling the fix and confirming exactly the three
+positive cases fail.
+
+**One defect found and not fixed, recorded as `M16.6`.** A client left open on a
+game screen across a Render sleep never notices its socket died: it does not
+reconnect, and shows a stale position — including "Your move" when the move is
+no longer theirs — indefinitely. Observed here for four minutes against a
+3-second reconnect loop, which means the loop never ran: the flow only ends when
+the socket closes, and a peer that vanishes without closing leaves it open
+forever. It is mitigated rather than harmless — the next command is refused and
+the app immediately shows the true position (above), and reopening the app shows
+the truth — so it is not a blocker for the single real-user check, but it is the
+most likely thing to confuse a tester in an asynchronous game, where a
+fifteen-minute gap between turns is normal and a sleeping server is therefore
+the common case.
+
+Verified locally with `.\gradlew.bat :server:test` (6 new tests, and the
+existing realtime, series and idempotency suites) and `.\gradlew.bat build`
+against the local test database (BUILD SUCCESSFUL). The server fix reaches the
+beta only when `claude-autopilot` is integrated into `main` and Render
+redeploys, which is a human step — **the real-user check should be run against a
+redeployed server**, or the friend will hit the very defect this fixed.
 
 **Still outstanding, and each needs the project owner.** The task stays
 `IN PROGRESS`: its acceptance criteria are about what real testers experience,
