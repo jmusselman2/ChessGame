@@ -3136,12 +3136,13 @@ when everything needed is to hand.
 > `M15.3`, or `M15.4` `IN PROGRESS` without explicit human authorization in the
 > conversation.
 >
-> The loop therefore still excludes the rest of this milestone from selection,
-> and does **not** route around it: `M16.1`/`M16.2` require `M15`, `M17.1`
-> requires `M15` and `M16`, and `M18.1` requires `M17`, so with `M15.1` `DONE`
-> nothing selectable remains. The loop reaches the **backlog exhausted** Stop
-> Condition and reports, which is the intended outcome — `M15.2` onward is
-> where autonomous development ends until a human authorizes each step.
+> That gate has since been passed one authorization at a time, and this milestone
+> is `DONE`. The boundary it describes did not disappear, though — it moved to
+> `M17.1`, which needs a signing key and real testers, and `M18.1` waits behind
+> it. The loop prepared everything `M17.1` could be prepared (2026-09-02) and
+> then reached the **backlog exhausted** Stop Condition, which is the intended
+> outcome: from here autonomous development continues only as each remaining
+> step is authorized.
 
 ## M15.1 — Confirm Ktor hosting provider and current terms
 
