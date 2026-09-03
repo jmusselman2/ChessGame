@@ -31,6 +31,53 @@ val chessServerUrl: String =
         .orElse(providers.environmentVariable("CHESS_SERVER_URL"))
         .getOrElse("http://10.0.2.2:8080")
 
+// A beta build is installed on someone else's phone, and an unsigned release APK cannot be
+// installed at all. The signing key is the project owner's: like the Supabase publishable
+// key, it is supplied at build time and never committed, through -PchessKeystoreFile and
+// friends, gradle.properties, or CHESS_KEYSTORE_FILE. Leaving them out is the normal case --
+// `./gradlew build` and CI assemble the release APK unsigned, exactly as before -- so the
+// keystore path is what decides whether release signing is configured at all (M17.1).
+val keystorePath: String =
+    providers
+        .gradleProperty("chessKeystoreFile")
+        .orElse(providers.environmentVariable("CHESS_KEYSTORE_FILE"))
+        .getOrElse("")
+
+// Once a keystore *is* named, everything else it needs is mandatory. A half-configured
+// signing setup must stop the build rather than quietly hand back an APK that cannot be
+// installed -- that silent unsigned APK is the failure this whole block exists to prevent.
+fun requiredSigningInput(
+    property: String,
+    variable: String,
+): String =
+    providers
+        .gradleProperty(property)
+        .orElse(providers.environmentVariable(variable))
+        .orNull
+        ?.takeIf { it.isNotBlank() }
+        ?: throw GradleException(
+            "-P$property (or the $variable environment variable) is required when " +
+                "-PchessKeystoreFile names a release keystore. See docs/DEVELOPMENT.md.",
+        )
+
+// What the build calls itself. A tester reports a problem against a build, so a beta needs
+// to be nameable, and a later beta needs a higher versionCode for Android to treat it as an
+// upgrade rather than refuse it. Both default to what a development build has always had.
+val chessVersionName: String =
+    providers
+        .gradleProperty("chessVersionName")
+        .orElse(providers.environmentVariable("CHESS_VERSION_NAME"))
+        .getOrElse("1.0")
+
+val chessVersionCode: Int =
+    providers
+        .gradleProperty("chessVersionCode")
+        .orElse(providers.environmentVariable("CHESS_VERSION_CODE"))
+        .getOrElse("1")
+        .toIntOrNull()
+        ?.takeIf { it > 0 }
+        ?: throw GradleException("chessVersionCode must be a positive integer.")
+
 // A release-type build is the beta build, and it must not run against a cleartext address:
 // its network security configuration forbids cleartext outright (D033), so such an APK
 // would install, launch, and then fail every request with an error saying nothing about the
@@ -53,8 +100,8 @@ android {
         applicationId = "com.jmussel.chessgame"
         minSdk = 31
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = chessVersionCode
+        versionName = chessVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -63,11 +110,30 @@ android {
         buildConfigField("String", "CHESS_SERVER_URL", "\"$chessServerUrl\"")
     }
 
+    signingConfigs {
+        if (keystorePath.isNotBlank()) {
+            create("beta") {
+                val keystore = file(keystorePath)
+                if (!keystore.isFile) {
+                    throw GradleException(
+                        "No release keystore at $keystore. -PchessKeystoreFile must point at " +
+                            "an existing keystore. See docs/DEVELOPMENT.md.",
+                    )
+                }
+                storeFile = keystore
+                storePassword = requiredSigningInput("chessKeystorePassword", "CHESS_KEYSTORE_PASSWORD")
+                keyAlias = requiredSigningInput("chessKeyAlias", "CHESS_KEY_ALIAS")
+                keyPassword = requiredSigningInput("chessKeyPassword", "CHESS_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
         release {
             optimization {
                 enable = false
             }
+            signingConfigs.findByName("beta")?.let { signingConfig = it }
         }
     }
     compileOptions {

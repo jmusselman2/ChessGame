@@ -7,7 +7,9 @@ application all build successfully. Database migrations and local PostgreSQL are
 configured. The Android multiplayer flow has been verified end to end on two
 emulators against a development server and the `ChessGame Dev` Supabase project
 (`M14.18`, 2026-08-31) — see **Reaching the development server from an
-emulator**. Beta deployment is still not configured; that is `M15`.
+emulator**. The beta server is deployed and serving (`M15`, 2026-09-02) — see
+**Beta Deployment** — and a beta APK can be signed and handed out (`M17.1`,
+`D040`) — see **Distributing a beta build**.
 
 Do not treat an unverified example command as authoritative. When you add or
 change a command, run it, then record it here with `Status: VERIFIED` and the
@@ -1086,12 +1088,10 @@ variables, or handle credentials (`D032` acceptance, `M15` milestone note).
 
 Nothing is outstanding: `M15.2` and `M15.4` are both `DONE` as of 2026-09-02.
 
-**Installing a beta build to test it.** The release APK is unsigned, so it cannot
-be installed as built. For testing, sign it with the local debug keystore — this
-is a test convenience, not a distribution mechanism, which is `M17.1`:
-
-    apksigner sign --ks ~/.android/debug.keystore --ks-pass pass:android `
-      --key-pass pass:android --ks-key-alias androiddebugkey <apk>
+**Installing a beta build to test it.** A release APK built with no signing
+properties is unsigned and cannot be installed at all. Signing it is what makes it
+distributable, and how to do that is under **Distributing a beta build** below
+(`M17.1`, `D040`). The local debug keystore is *not* the way — see `D040`.
 
 **What the 2026-09-02 play-through showed.** Against a service that had been idle
 about three hours, the app showed "Waking the server…" rather than an error,
@@ -1100,3 +1100,78 @@ which came back as version 1 with the move listed. A WSS connection to
 `wss://chessgame-hit7.onrender.com/ws` delivered `{"type":"connected"}`. Two
 throwaway accounts, `BetaProbe1` and `BetaProbe2`, and one game now exist in the
 beta database — `D035`'s accepted tradeoff.
+
+### Distributing a beta build (`M17.1`)
+
+Status: VERIFIED (2026-09-02) for everything the repository controls — the
+signing configuration, the build command, and `scripts/verify-beta-apk.sh`. The
+key itself, and the act of handing an APK to a friend, are the project owner's
+(`D040`); nothing below has been run against the real beta key.
+
+**One-time: create the beta signing key.** Keep it outside the repository —
+`~/keys/chessgame-beta.p12` or anywhere else that is backed up. Losing it means
+no tester can be given an update without uninstalling first, because Android
+refuses an update signed by a different key.
+
+    keytool -genkeypair -keystore ~/keys/chessgame-beta.p12 -storetype PKCS12 `
+      -keyalg RSA -keysize 2048 -validity 10000 -alias chessgame-beta `
+      -dname "CN=ChessGame Beta"
+
+**Build the APK.** The signing inputs work exactly like `-PsupabaseAnonKey`:
+Gradle property, `gradle.properties`, or the matching `CHESS_KEYSTORE_*` /
+`CHESS_KEY_*` environment variable. None of them is ever committed, and `*.jks`,
+`*.keystore`, and `keystore.properties` are git-ignored.
+
+    .\gradlew.bat :android-app:assembleRelease `
+      "-PchessServerUrl=https://chessgame-hit7.onrender.com" `
+      "-PsupabaseAnonKey=<publishable key>" `
+      "-PchessKeystoreFile=$HOME\keys\chessgame-beta.p12" `
+      "-PchessKeystorePassword=<store password>" `
+      "-PchessKeyAlias=chessgame-beta" `
+      "-PchessKeyPassword=<key password>" `
+      "-PchessVersionName=0.1.0-beta" "-PchessVersionCode=2"
+
+The signed APK is `android-app/app/build/outputs/apk/release/android-app-release.apk`.
+Without the keystore properties the same command produces
+`android-app-release-**unsigned**.apk` instead — that is what `./gradlew build`
+and CI build, and it cannot be installed. The differing filename is the quickest
+way to tell which one you have.
+
+Raise `chessVersionCode` for every build you hand out (`versionName` is what a
+tester will quote back to you). Android installs a higher `versionCode` over a
+lower one and refuses the reverse.
+
+**Verify before sending it.**
+
+    bash scripts/verify-beta-apk.sh
+
+Status: VERIFIED (2026-09-02; 6/6). It generates a throwaway key, checks that a
+signed APK verifies and carries the version and the deployed HTTPS address, that
+the packaged network security configuration forbids cleartext with no debug
+domain exception (`D033`), that half-configured signing fails the build instead
+of quietly producing an unsigned APK, and that the default build is still
+unsigned. It deletes the throwaway key and leaves the tree as CI finds it. It
+needs the Android SDK build-tools and a JDK on `PATH`, and takes a few minutes
+because it assembles the release APK several times.
+
+To check a specific APK by hand:
+
+    <sdk>/build-tools/<version>/apksigner verify --print-certs <apk>
+    <sdk>/build-tools/<version>/aapt2 dump badging <apk> | head -1
+
+**What to tell a tester.** Sideloading is normal but not silent, and a tester who
+is not warned will assume the warnings mean something is wrong:
+
+1. The APK arrives as a file (email, chat, a link) — Android will ask for
+   permission to install from that app the first time.
+2. Android will warn that the app is from an unknown developer, and Play Protect
+   may ask for a second confirmation. That is inherent to a self-signed APK
+   (`D040`), not a sign of a problem.
+3. Open the app. It signs in by itself and asks for a username — that is the
+   whole of onboarding (`D006`).
+4. **The server sleeps.** After about 15 idle minutes the first launch says
+   "Waking the server…" for up to a minute (`D037`). It is not stuck.
+5. On the **Friends** screen, type the other person's exact username, tap
+   **Find**, then **Add friend** — the friendship is mutual straight away, so
+   only one of you needs to do it. Then either of you taps **Play** next to the
+   other's name, and both of you see the same game.

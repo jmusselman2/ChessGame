@@ -16,6 +16,13 @@ local.properties
 .env
 .env.local
 
+# Android release signing. The beta keystore and its passwords are the owner's and
+# stay outside the repository; the build reads them through -PchessKeystoreFile and
+# friends. See docs/DEVELOPMENT.md and M17.1.
+*.jks
+*.keystore
+keystore.properties
+
 # OS
 .DS_Store
 Thumbs.db

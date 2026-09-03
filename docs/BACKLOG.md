@@ -3989,7 +3989,8 @@ Log enough for debugging without credentials/secrets.
 
 ## M17.1 — Small beta distribution
 
-**Status:** TODO  
+**Status:** IN PROGRESS
+
 **Depends on:** M14.18, M15, M16
 
 ### Observe
@@ -4006,6 +4007,80 @@ Log enough for debugging without credentials/secrets.
 ### Acceptance Criteria
 
 Core play is stable enough to gather product feedback without developer intervention during normal moves.
+
+### How to run the beta
+
+Build and hand over the APK as `docs/DEVELOPMENT.md` **Distributing a beta
+build** describes, then watch for the eight things above. Each is worth one
+concrete question, because "how did it go?" gets "fine":
+
+- **Onboarding** — from tapping the file to having a username, did they need to
+  ask you anything? Anything they asked is the finding.
+- **Username/friend discovery** — could they find each other from the username
+  alone? Case is not significant (`D005`), but spelling is; watch for someone
+  searching a name they half-remember.
+- **Turn clarity** — away from the app for an hour, can they tell whose move it
+  is without making one to find out?
+- **Undo** — did anyone want a move back, find the way to do it, and understand
+  why it stopped being possible once the opponent replied (`D016`)?
+- **Draw claims** — threefold and fifty-move are *claimable*, so nothing happens
+  unless a player asks (`D019`). Does the offer read as an offer?
+- **Friend removal** — the current game finishes and the series then closes
+  (`D013`). Did whoever removed a friend expect that, and did the other player
+  understand what happened?
+- **Automatic rematch** — after a game ends, the next one appears by itself with
+  the colours swapped (`D014`, `D015`). Is that visible, or does it look like the
+  finished game came back?
+- **Synchronization** — the interesting cases are a phone that was asleep, a
+  tunnel with no signal, and both players moving at nearly the same moment.
+  Note anything that needed a restart to come right.
+
+Record which build each report is against — that is what `chessVersionName` is
+for. Any developer intervention during a *normal move* fails the acceptance
+criteria; a cold start of up to a minute after idle is expected and is not
+intervention (`D037`).
+
+**Progress 2026-09-02 (locally verified).** Everything the repository controls is
+done; what remains needs a person.
+
+The blocker was concrete: the release APK was unsigned, and Android will not
+install an unsigned APK at all, so there was nothing that could be handed to
+anyone. `D040` settles the distribution mechanism — a signed APK sideloaded
+directly, no store or console, which is what the `$0` boundary and an audience of
+a few friends call for — and the build now takes the keystore and its passwords
+the way it already takes the Supabase publishable key, so the key stays the
+owner's and never enters the repository (`*.jks`, `*.keystore`, and
+`keystore.properties` are git-ignored). Supplying nothing stays the normal case:
+`./gradlew build` and CI produce the same unsigned APK as before. Supplying half
+of it **fails the build**, which is the part that matters — a forgotten password
+would otherwise produce a perfectly good unsigned APK, and nothing would go wrong
+until a friend could not install it. `versionCode`/`versionName` became build
+inputs alongside, so a second beta installs over the first and a report can name
+a build.
+
+Verified locally with `bash scripts/verify-beta-apk.sh` (6/6, against a throwaway
+key it generates and deletes: the default build is still unsigned, a keystore and
+its passwords produce an APK that verifies against the key it was given, the
+version reaches the manifest, the deployed HTTPS address is in the APK and the
+packaged network security configuration forbids cleartext with no debug domain
+exception, and both half-configured cases stop the build) and `.\gradlew.bat
+build` against the local test database (BUILD SUCCESSFUL). `docs/DEVELOPMENT.md`
+carries the key creation, the build command, the verification, and what to tell a
+tester.
+
+**Still outstanding, and each needs the project owner.** The task stays
+`IN PROGRESS`: its acceptance criteria are about what real testers experience,
+which cannot be verified from here.
+
+1. **Create the beta signing key** and keep it backed up. It is a credential, so
+   the autonomous loop does not create or hold it (`D040`, `D026` stop
+   conditions).
+2. **Build and distribute the APK** to a handful of friends. Distribution is a
+   beta deployment and needs explicit authorization.
+3. **Run the beta and record what the eight observations show.** Then either mark
+   this `DONE` with the findings, or raise what they turn up as new backlog
+   tasks — `M18.1` depends on this milestone, so the loop has nothing selectable
+   until then.
 
 ---
 

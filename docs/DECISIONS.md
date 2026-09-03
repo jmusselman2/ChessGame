@@ -1784,3 +1784,90 @@ never succeed is the sharpest way to fail that.
 - A token that dies mid-session is still surfaced as an error until the next
   launch. That is the deliberate boundary above, and the place to revisit if the
   beta shows it happening.
+
+---
+
+## D040 — The Beta Is a Signed APK Handed Over Directly, and Its Key Never Enters the Repository
+
+**Date:** 2026-09-02
+
+**Status:** Accepted
+
+**Relates to:** `D032` (the beta runs on free tiers, at a hard `$0`), `D033`
+(only debug builds talk cleartext), `D034` (the server address is a build
+input), `D035` (the beta reuses `ChessGame Dev`), `M17.1`
+
+### Decision
+
+A beta build is distributed as a signed release APK, given to a handful of
+friends directly, and installed by sideloading. No app store, console, or
+distribution service is involved.
+
+The signing key is created and held by the project owner, outside this
+repository. The build reads its location and passwords the same way it reads the
+Supabase publishable key — `-PchessKeystoreFile`, `-PchessKeystorePassword`,
+`-PchessKeyAlias`, `-PchessKeyPassword`, or the matching `CHESS_KEYSTORE_*`
+environment variables — and none of them is ever committed. `*.jks`,
+`*.keystore`, and `keystore.properties` are git-ignored so that a key placed in
+the working tree cannot be added by accident.
+
+Naming a keystore is what turns signing on. Supplying nothing is the normal case
+and leaves the release APK unsigned exactly as before, so `./gradlew build` and
+CI are unchanged. Naming a keystore without its passwords, or naming one that
+does not exist, **fails the build**.
+
+### Rationale
+
+The `$0` boundary decides most of this. Google Play requires a one-time $25
+registration; Firebase App Distribution is free but means another account,
+another console, and testers signing in to it. A handful of friends do not need
+either — `M17.1` is a *small* beta, and an APK sent directly is the whole
+mechanism.
+
+Signing is not optional, though: Android refuses to install an unsigned APK at
+all. Before this, `docs/DEVELOPMENT.md` told a developer to sign the release APK
+with the local **debug** keystore to try it out. That is fine as a private
+convenience and wrong as distribution — the debug key is shared by every Android
+developer's machine, is not the app's identity, and cannot be used to ship an
+update anyone would trust.
+
+Failing loudly on half-configured signing is the important half of the decision.
+The natural failure is silent: a forgotten password variable produces a perfectly
+good *unsigned* APK, and nothing goes wrong until a friend cannot install it and
+says so a day later.
+
+### Alternatives Considered
+
+- **Google Play internal testing.** Rejected for the MVP beta: a $25 fee against
+  a hard `$0` budget, plus review and release-track process for an audience of a
+  few friends. Revisit if the beta outgrows sideloading.
+- **Firebase App Distribution.** Free, and genuinely nicer for updates, but it
+  adds a Google Cloud project, another console, and tester onboarding to a beta
+  small enough not to need any of it. Also revisit later.
+- **Keep signing with the debug keystore.** Rejected: it is not the app's
+  identity, it is a key every machine already has, and it makes "who built this"
+  unanswerable.
+- **Commit a keystore for the beta and treat it as throwaway.** Rejected. A
+  committed signing key is published to everyone with repository access, and the
+  key is not throwaway in practice: Android will not install an update signed by
+  a different key, so replacing it later means every tester uninstalls first.
+- **Generate a key inside the build when none is supplied.** Rejected: it would
+  make every machine's APK a different app to Android, and hide the real
+  requirement instead of stating it.
+
+### Consequences
+
+- The owner must create the beta keystore once and keep it safe. Losing it means
+  no tester can be given an update without uninstalling first.
+- The autonomous loop cannot produce an installable beta APK on its own, and
+  should not: the key is a credential, and handling credentials and distributing
+  builds are human steps (`D026` stop conditions). It prepares and verifies the
+  configuration instead.
+- `versionCode` and `versionName` became build inputs alongside the rest, so a
+  second beta build can install over the first and a tester's report can name a
+  build.
+- `scripts/verify-beta-apk.sh` proves the whole arrangement against a throwaway
+  key it generates and deletes, including that the ordinary build stays unsigned.
+- The beta APK is self-signed, so Android will warn about an unknown source and
+  Play Protect may ask for confirmation. That is inherent to sideloading, and is
+  something to tell testers rather than something to fix.
