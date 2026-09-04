@@ -3,6 +3,7 @@ package com.jmussel.chessgame.ui.board
 import com.jmussel.chessgame.core.chess.Board
 import com.jmussel.chessgame.core.chess.ChessGame
 import com.jmussel.chessgame.core.chess.ChessRules
+import com.jmussel.chessgame.core.chess.DrawClaim
 import com.jmussel.chessgame.core.chess.Move
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Side
@@ -22,6 +23,18 @@ data class PendingPromotion(
 }
 
 /**
+ * A legal move the player has chosen but not played yet, held back because playing it
+ * would throw away a draw only declaring it entitles (`D038`, `D041`).
+ *
+ * [claims] is what `game-core` grants for this exact declaration and nothing else; the
+ * player either claims one of them or plays [move].
+ */
+data class DeclaredMove(
+    val move: Move,
+    val claims: Set<DrawClaim>,
+)
+
+/**
  * What the board screen is showing: the game itself, plus the purely local selection and
  * promotion prompt the player is working through.
  *
@@ -31,6 +44,11 @@ data class BoardUiState(
     val game: ChessGame,
     val selectedSquare: Square? = null,
     val pendingPromotion: PendingPromotion? = null,
+    /**
+     * The move the player has declared but not played, while they decide whether to claim
+     * the draw it would entitle instead of playing it.
+     */
+    val declaredMove: DeclaredMove? = null,
     /**
      * Whose side of the board is drawn at the bottom.
      *
@@ -64,17 +82,19 @@ object BoardInteraction {
      * Tapping one of the moving side's pieces selects it, and tapping one of that piece's
      * legal destinations plays the move. Tapping the selected square again clears the
      * selection, as does tapping anywhere else. A pawn reaching the last rank raises a
-     * promotion prompt instead of moving, because the player must choose the piece.
-     * A finished game cannot be interacted with.
+     * promotion prompt instead of moving, because the player must choose the piece, and a
+     * move that would entitle a draw claim is declared rather than played, because the
+     * player must choose between the two. A finished game cannot be interacted with.
      */
     fun onSquareTapped(
         state: BoardUiState,
         square: Square,
     ): BoardUiState {
-        val cleared = state.copy(selectedSquare = null, pendingPromotion = null)
+        val cleared = state.copy(selectedSquare = null, pendingPromotion = null, declaredMove = null)
 
         if (state.game.isOver) return cleared
         if (state.pendingPromotion != null) return cleared
+        if (state.declaredMove != null) return cleared
         if (square == state.selectedSquare) return cleared
 
         val from = state.selectedSquare
@@ -127,6 +147,18 @@ object BoardInteraction {
     /** The state with the board turned around, so the other side is at the bottom. */
     fun flipBoard(state: BoardUiState): BoardUiState = state.copy(orientation = state.orientation.opposite)
 
+    /**
+     * The state after the player plays the move they declared, giving up the draw claim
+     * declaring it entitled.
+     */
+    fun playDeclaredMove(state: BoardUiState): BoardUiState {
+        val declared = requireNotNull(state.declaredMove) { "No move has been declared" }
+        return applyMove(state, declared.move)
+    }
+
+    /** The state after the player backs out, having neither played nor claimed. */
+    fun cancelDeclaredMove(state: BoardUiState): BoardUiState = state.copy(selectedSquare = null, declaredMove = null)
+
     private fun play(
         state: BoardUiState,
         from: Square,
@@ -135,12 +167,27 @@ object BoardInteraction {
         val moves = movesFrom(state, from).filter { it.to == to }
         val promotion = moves.any { it.promotion != null }
 
-        return if (promotion) {
-            state.copy(pendingPromotion = PendingPromotion(from, to))
-        } else {
-            applyMove(state, moves.single())
-        }
+        if (promotion) return state.copy(pendingPromotion = PendingPromotion(from, to))
+
+        val move = moves.single()
+        val claims = prospectiveDrawClaims(state, move)
+
+        return if (claims.isEmpty()) applyMove(state, move) else state.copy(declaredMove = DeclaredMove(move, claims))
     }
+
+    /**
+     * The draws only declaring [move] would entitle: what `game-core` allows once the move
+     * is declared, less what may already be claimed without declaring anything.
+     *
+     * Playing the move throws those away — the position it makes is the other player's to
+     * claim from — so a move carrying one is declared and the player asked (`D041`). The
+     * claims the position already offers are not part of this: they are on screen already,
+     * and they do not depend on the declaration.
+     */
+    private fun prospectiveDrawClaims(
+        state: BoardUiState,
+        move: Move,
+    ): Set<DrawClaim> = ChessRules.availableDrawClaims(state.game, move) - ChessRules.availableDrawClaims(state.game)
 
     private fun applyMove(
         state: BoardUiState,

@@ -18,7 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.jmussel.chessgame.core.chess.ChessGame
+import com.jmussel.chessgame.core.chess.DrawClaim
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
@@ -59,7 +59,16 @@ fun LocalGameScreen(
             )
         }
 
-        Text(text = statusFor(state.game))
+        state.declaredMove?.let { declared ->
+            DeclaredMovePrompt(
+                declared = declared,
+                onClaim = { claim -> state = GameControls.claimDeclaredDraw(state, claim) },
+                onPlay = { state = BoardInteraction.playDeclaredMove(state) },
+                onCancel = { state = BoardInteraction.cancelDeclaredMove(state) },
+            )
+        }
+
+        Text(text = GameControls.statusFor(state.game))
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             if (GameControls.canUndo(state)) {
@@ -129,6 +138,34 @@ private fun MoveList(lines: List<String>) {
     }
 }
 
+/**
+ * The choice a move that would entitle a draw raises: claim that draw, or play the move
+ * and give it up.
+ *
+ * Standard chess lets the player to move claim on the position their declared move is
+ * about to make, and the tap that plays it hands the position to the other player, so the
+ * screen has to ask before playing. The declaration binds — only this exact move entitles
+ * these claims (`D038`, `D041`).
+ */
+@Composable
+private fun DeclaredMovePrompt(
+    declared: DeclaredMove,
+    onClaim: (DrawClaim) -> Unit,
+    onPlay: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(text = "Playing ${declared.move} lets you claim a draw first.")
+        declared.claims.forEach { claim ->
+            Button(onClick = { onClaim(claim) }) { Text(text = GameControls.labelFor(claim)) }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = onPlay) { Text(text = "Play ${declared.move}") }
+            TextButton(onClick = onCancel) { Text(text = "Cancel") }
+        }
+    }
+}
+
 /** The four pieces a pawn may become, offered as buttons. */
 @Composable
 private fun PromotionPrompt(
@@ -145,12 +182,6 @@ private fun PromotionPrompt(
             }
         }
     }
-}
-
-private fun statusFor(game: ChessGame): String {
-    val result = game.result ?: return "${game.sideToMove} to move"
-    val winner = result.winner
-    return if (winner == null) "Draw — ${result.reason}" else "$winner wins — ${result.reason}"
 }
 
 @Preview(showBackground = true)

@@ -31,9 +31,23 @@ class GameControlsTest {
         return current
     }
 
+    /**
+     * Taps [from] to [to] and plays it, including a move a prospective draw claim holds
+     * back for the player to decide on first (`D041`).
+     */
+    private fun move(
+        state: BoardUiState,
+        from: String,
+        to: String,
+    ): BoardUiState {
+        val tapped = tap(state, from, to)
+        return if (tapped.declaredMove == null) tapped else BoardInteraction.playDeclaredMove(tapped)
+    }
+
     private fun shuffled(rounds: Int): BoardUiState =
         (1..rounds).fold(BoardUiState.newGame()) { state, _ ->
-            tap(state, "g1", "f3", "g8", "f6", "f3", "g1", "f6", "g8")
+            listOf("g1" to "f3", "g8" to "f6", "f3" to "g1", "f6" to "g8")
+                .fold(state) { current, (from, to) -> move(current, from, to) }
         }
 
     private fun quietPosition(halfmoveClock: Int): BoardUiState =
@@ -184,6 +198,35 @@ class GameControlsTest {
         assertEquals(TerminationReason.THREEFOLD_REPETITION_CLAIM, claimed.game.result?.reason)
         assertFalse(GameControls.canClaimDraw(claimed))
         assertFalse(GameControls.canUndo(claimed))
+    }
+
+    @Test
+    fun theStatusNamesWhoIsToMove() {
+        assertEquals("WHITE to move", GameControls.statusFor(ChessGame.newGame()))
+        assertEquals("BLACK to move", GameControls.statusFor(tap(BoardUiState.newGame(), "e2", "e4").game))
+    }
+
+    @Test
+    fun theStatusReportsALiveCheck() {
+        // 1. e4 f6 2. Qh5+ — Black is in check and has to be told so.
+        val checked = tap(BoardUiState.newGame(), "e2", "e4", "f7", "f6", "d1", "h5")
+
+        assertFalse(checked.game.isOver)
+        assertEquals("BLACK to move — Check", GameControls.statusFor(checked.game))
+    }
+
+    @Test
+    fun aTerminalResultIsReportedInsteadOfTheCheck() {
+        // Fool's mate: checkmate is a check too, and the result is what the player needs.
+        val mated = tap(BoardUiState.newGame(), "f2", "f3", "e7", "e5", "g2", "g4", "d8", "h4")
+
+        assertTrue(mated.game.isOver)
+        assertEquals("BLACK wins — CHECKMATE", GameControls.statusFor(mated.game))
+        assertEquals("WHITE wins — RESIGNATION", GameControls.statusFor(GameControls.resign(BoardUiState.newGame(), Side.BLACK).game))
+        assertEquals(
+            "Draw — THREEFOLD_REPETITION_CLAIM",
+            GameControls.statusFor(GameControls.claimDraw(shuffled(rounds = 2), DrawClaim.THREEFOLD_REPETITION).game),
+        )
     }
 
     @Test

@@ -1871,3 +1871,89 @@ says so a day later.
 - The beta APK is self-signed, so Android will warn about an unknown source and
   Play Protect may ask for confirmation. That is inherent to sideloading, and is
   something to tell testers rather than something to fix.
+
+---
+
+## D041 — The Local Board Says "Check", and a Draw Claim Is Declared by Tapping the Move It Depends On
+
+**Date:** 2026-09-04
+
+**Status:** Accepted
+
+**Relates to:** `D038` (declared-move draw claims), `D019`, `M5.4`, `M5.6`,
+`M5.7`, `PRODUCT` *Game Screen* and *Draw Semantics*, `ARCHITECTURE` §23,
+independent M5 evaluation findings `M5-01` and `M5-02`
+(`evals/M5/critic-report.md`)
+
+### Decision
+
+Two gaps between the local pass-and-play screen and what `game-core` already
+knows.
+
+- **A live check is part of the status line.** `PRODUCT`'s *Game Screen* asks a
+  board to show a check indication, and the online screen already does
+  (`"Your move • Check"`). The local screen said only `"<side> to move"` for
+  every position that had not ended. The status line now reads
+  `"BLACK to move — Check"` when `ChessRules.isInCheck` says so, and a terminal
+  result still takes precedence over everything — a checkmated game reads
+  `"BLACK wins — CHECKMATE"`, not a check. The text moved out of the composable
+  into `GameControls.statusFor`, next to the other questions the screen asks
+  `game-core`, so it is testable without rendering.
+
+- **A move a draw claim depends on is declared, not played.** `D038` gave
+  `ChessRules` declared-move claim overloads, but the local screen could only
+  ask the current position, and its destination tap committed the move at once.
+  A player one move from the third occurrence or from the hundredth halfmove
+  therefore could not claim: playing the move handed the position — and the
+  claim with it — to the other player. Tapping such a destination now raises a
+  `DeclaredMove` holding that exact move and the claims declaring it would
+  entitle, and the screen offers the claim, playing the move anyway, or backing
+  out. Claiming ends the game from the position in front of the player and
+  never plays the declared move, exactly as `D038` specifies.
+
+  What is offered is what declaring the move *adds*: `availableDrawClaims(game,
+  move)` less `availableDrawClaims(game)`. A claim the position already carries
+  is already a button on screen and needs no declaration, so it raises no
+  prompt and the tap plays normally.
+
+### Rationale
+
+Both were found by an independent M5 evaluation against
+`8afe530cf8dd467a6063c5514767eb7814bcc0f4` and reproduce unchanged on the
+current branch; neither is new behavior in `game-core`, and neither adds a chess
+rule to the UI. The check is `ChessRules.isInCheck`; the entitlement is
+`ChessRules.availableDrawClaims`.
+
+Interrupting the tap is how this screen already handles a move that needs a
+decision: a pawn reaching the last rank raises the promotion prompt rather than
+moving, because the player must choose the piece (`M5.4`). A move carrying a
+claim is the same shape of choice, and it is the only point at which the exact
+contemplated move is known and the entitlement still exists. Subtracting the
+current-position claims keeps the interruption rare: the fifty-move prompt can
+only appear at halfmove 99, and the threefold prompt stops once the claim
+stands on the board for both players.
+
+### Alternatives Considered
+
+- **Offer prospective claims as buttons beside the board while a piece is
+  selected, leaving the tap alone.** Rejected. It computes a claim for every
+  legal destination of the selected piece rather than the one move the player
+  named, and an ordinary tap on the destination silently throws the entitlement
+  away — the failure the finding is about.
+- **Let the no-move claim query answer "could this player claim by declaring
+  something?"** Already rejected by `D038`: it grants a claim with no move
+  behind it. The local screen keeps calling that query for exactly what it
+  means, and `GameControls.canClaimDraw` is unchanged.
+- **Recompute check in the composable.** Rejected: rule logic stays out of
+  Compose, and the status line belongs with the rest of `GameControls`.
+
+### Consequences
+
+- A destination tap no longer always plays the move. It plays it unless the
+  move needs a choice first — the promotion piece, or a draw claim only that
+  move entitles. `M5.4`'s and `M5.6`'s notes record this.
+- Local play now exercises `game-core`'s declared-move claim overloads, which
+  until now no caller used. The server still does not: today's `ClaimDraw`
+  command carries no declared move (`D038`), and that is unchanged here.
+- The online screen is untouched. It already shows check, and its claims come
+  from the server.

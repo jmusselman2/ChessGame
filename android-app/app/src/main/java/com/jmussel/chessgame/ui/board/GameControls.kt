@@ -55,6 +55,7 @@ object GameControls {
             game = game,
             selectedSquare = null,
             pendingPromotion = null,
+            declaredMove = null,
             orientation = game.sideToMove,
         )
     }
@@ -74,7 +75,34 @@ object GameControls {
             game = ChessRules.claimDraw(state.game, claim),
             selectedSquare = null,
             pendingPromotion = null,
+            declaredMove = null,
         )
+
+    /**
+     * The draws the player may claim by declaring the move they have chosen but not played,
+     * or none when no move is declared.
+     */
+    fun declaredDrawClaims(state: BoardUiState): Set<DrawClaim> = state.declaredMove?.claims.orEmpty()
+
+    /**
+     * The state after the player claims [claim] on the move they declared.
+     *
+     * The declared move is never played: declaring it is what entitles the claim, and the
+     * claim ends the game from the position in front of the player, leaving the move
+     * history untouched (`D038`, `D041`).
+     */
+    fun claimDeclaredDraw(
+        state: BoardUiState,
+        claim: DrawClaim,
+    ): BoardUiState {
+        val declared = requireNotNull(state.declaredMove) { "No move has been declared" }
+        return state.copy(
+            game = ChessRules.claimDraw(state.game, claim, declared.move),
+            selectedSquare = null,
+            pendingPromotion = null,
+            declaredMove = null,
+        )
+    }
 
     /**
      * Whether resigning is possible at all, which is only that the game is still running.
@@ -98,10 +126,30 @@ object GameControls {
             game = ChessRules.resign(state.game, side),
             selectedSquare = null,
             pendingPromotion = null,
+            declaredMove = null,
         )
 
     /** A short label for resigning as [side]. */
     fun resignLabelFor(side: Side): String = "Resign as ${if (side == Side.WHITE) "White" else "Black"}"
+
+    /**
+     * The game status: how it ended, or whose move it is and whether that player stands in
+     * check.
+     *
+     * Check is `game-core`'s answer rather than the screen's, and `PRODUCT`'s *Game Screen*
+     * asks every board to show it — the local one says what the online one already says
+     * (`D041`).
+     */
+    fun statusFor(game: ChessGame): String {
+        val result = game.result
+        if (result != null) {
+            val winner = result.winner
+            return if (winner == null) "Draw $SEPARATOR ${result.reason}" else "$winner wins $SEPARATOR ${result.reason}"
+        }
+
+        val turn = "${game.sideToMove} to move"
+        return if (ChessRules.isInCheck(game.state)) "$turn $SEPARATOR $CHECK" else turn
+    }
 
     /** A short label for a draw claim. */
     fun labelFor(claim: DrawClaim): String =
@@ -111,4 +159,7 @@ object GameControls {
         }
 
     private fun format(move: Move): String = move.toString()
+
+    private const val SEPARATOR = "—"
+    private const val CHECK = "Check"
 }

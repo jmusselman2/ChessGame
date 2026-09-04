@@ -46,8 +46,15 @@ class M5AdversarialTest {
         assertNull(captured.selectedSquare)
     }
 
+    /**
+     * Codex's original regression asserted the destination tap committed the move with no
+     * prospective action anywhere — the defect it had found, not a requirement. The
+     * scenario and every boundary it drew are kept; the two assertions that described the
+     * defect now assert the remediation (`D041`): the tap declares the move and offers the
+     * claim, and playing it from there reaches exactly the state the tap used to reach.
+     */
     @Test
-    fun aProspectiveThreefoldClaimHasNoLocalUiActionBeforeItsDeclaredMove() {
+    fun aProspectiveThreefoldClaimIsOfferedOnItsDeclaredMove() {
         val beforeDeclaration =
             tap(
                 BoardUiState.newGame(),
@@ -72,20 +79,27 @@ class M5AdversarialTest {
             setOf(DrawClaim.THREEFOLD_REPETITION),
             ChessRules.availableDrawClaims(beforeDeclaration.game, declaredMove),
         )
-        assertFalse("the local UI exposes only current-position claims", GameControls.canClaimDraw(beforeDeclaration))
+        assertFalse("the position itself offers no claim", GameControls.canClaimDraw(beforeDeclaration))
 
-        val afterOrdinaryTaps = tap(beforeDeclaration, "f6", "g8")
+        val declared = tap(beforeDeclaration, "f6", "g8")
 
-        assertEquals(declaredMove, afterOrdinaryTaps.game.moves.last())
-        assertEquals(Side.WHITE, afterOrdinaryTaps.game.sideToMove)
+        assertEquals(declaredMove, declared.declaredMove?.move)
+        assertEquals(setOf(DrawClaim.THREEFOLD_REPETITION), GameControls.declaredDrawClaims(declared))
+        assertEquals(beforeDeclaration.game, declared.game)
+
+        val afterPlayingIt = BoardInteraction.playDeclaredMove(declared)
+
+        assertEquals(declaredMove, afterPlayingIt.game.moves.last())
+        assertEquals(Side.WHITE, afterPlayingIt.game.sideToMove)
         assertEquals(
             setOf(DrawClaim.THREEFOLD_REPETITION),
-            GameControls.availableDrawClaims(afterOrdinaryTaps),
+            GameControls.availableDrawClaims(afterPlayingIt),
         )
     }
 
+    /** The fifty-move half of the same batch, remediated the same way (`D041`). */
     @Test
-    fun aProspectiveFiftyMoveClaimHasNoLocalUiActionBeforeItsDeclaredMove() {
+    fun aProspectiveFiftyMoveClaimIsOfferedOnItsDeclaredMove() {
         val beforeDeclaration = quietPosition(halfmoveClock = 99)
         val declaredMove = Move.of("d1", "d2")
 
@@ -93,16 +107,22 @@ class M5AdversarialTest {
             setOf(DrawClaim.FIFTY_MOVE_RULE),
             ChessRules.availableDrawClaims(beforeDeclaration.game, declaredMove),
         )
-        assertFalse("the local UI exposes only current-position claims", GameControls.canClaimDraw(beforeDeclaration))
+        assertFalse("the position itself offers no claim", GameControls.canClaimDraw(beforeDeclaration))
 
-        val afterOrdinaryTaps = tap(beforeDeclaration, "d1", "d2")
+        val declared = tap(beforeDeclaration, "d1", "d2")
 
-        assertEquals(declaredMove, afterOrdinaryTaps.game.moves.last())
-        assertEquals(100, afterOrdinaryTaps.game.state.halfmoveClock)
-        assertEquals(Side.BLACK, afterOrdinaryTaps.game.sideToMove)
+        assertEquals(declaredMove, declared.declaredMove?.move)
+        assertEquals(setOf(DrawClaim.FIFTY_MOVE_RULE), GameControls.declaredDrawClaims(declared))
+        assertEquals(99, declared.game.state.halfmoveClock)
+
+        val afterPlayingIt = BoardInteraction.playDeclaredMove(declared)
+
+        assertEquals(declaredMove, afterPlayingIt.game.moves.last())
+        assertEquals(100, afterPlayingIt.game.state.halfmoveClock)
+        assertEquals(Side.BLACK, afterPlayingIt.game.sideToMove)
         assertEquals(
             setOf(DrawClaim.FIFTY_MOVE_RULE),
-            GameControls.availableDrawClaims(afterOrdinaryTaps),
+            GameControls.availableDrawClaims(afterPlayingIt),
         )
     }
 

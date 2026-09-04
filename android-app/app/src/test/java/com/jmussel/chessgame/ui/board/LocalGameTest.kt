@@ -2,6 +2,7 @@ package com.jmussel.chessgame.ui.board
 
 import com.jmussel.chessgame.core.chess.DrawClaim
 import com.jmussel.chessgame.core.chess.GameOutcome
+import com.jmussel.chessgame.core.chess.Move
 import com.jmussel.chessgame.core.chess.Piece
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Side
@@ -104,6 +105,12 @@ class LocalGameTest {
         repeat(2) {
             state = tap(state, "g1", "f3", "g8", "f6", "f3", "g1", "f6", "g8")
         }
+
+        // The move that makes the third occurrence is declared rather than played, so the
+        // player about to make it may claim first (`D041`). This game plays it instead and
+        // leaves the claim to the other side.
+        assertEquals(Move.of("f6", "g8"), state.declaredMove?.move)
+        state = BoardInteraction.playDeclaredMove(state)
 
         assertFalse(state.game.isOver)
         assertTrue(GameControls.canClaimDraw(state))

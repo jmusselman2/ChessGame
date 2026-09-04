@@ -977,6 +977,16 @@ cases including castling, capture, every promotion choice, and a mate that
 stops further play, 47 Android unit tests total) and `.\gradlew.bat build`
 (BUILD SUCCESSFUL).
 
+**Corrected:** 2026-09-04 — an independent M5 evaluation found the status line
+reported only `"<side> to move"` for every position that had not ended, so a
+player left in check was never told (`M5-01`). `GameControls.statusFor` now
+reads the check from `ChessRules.isInCheck` and says `"BLACK to move — Check"`,
+while a terminal result still takes precedence and reads as it always did. The
+same correction extended this task's own promotion-prompt pattern to draw
+claims: a destination tap plays the move unless the move needs a choice first —
+the promotion piece, or a draw claim only that move entitles (`D041`, and
+`M5.6`).
+
 ### Acceptance Criteria
 
 Tap legal destination and update local game state.
@@ -1024,6 +1034,19 @@ renders the move list, the Undo button, and one button per valid claim.
 Verified locally with `.\gradlew.bat :android-app:testDebugUnitTest` (13 new
 `GameControlsTest` cases, 71 Android unit tests total) and
 `.\gradlew.bat build` (BUILD SUCCESSFUL).
+
+**Corrected:** 2026-09-04 — an independent M5 evaluation found that only
+current-position claims were reachable locally (`M5-02`). `M3.14` had given
+`ChessRules` the declared-move claim overloads `PRODUCT` *Draw Semantics* and
+`ARCHITECTURE` §23 require, but the screen asked only the current position and
+its destination tap committed the move at once, so a player one move from the
+third occurrence or from the hundredth halfmove could not claim — playing the
+move handed the position, and the claim with it, to the other player. Tapping
+such a destination now raises a `DeclaredMove` carrying that exact move and the
+claims declaring it adds, and the screen offers the claim, playing the move
+anyway, or backing out; claiming ends the game without ever playing the
+declared move (`D041`). Claims the current position already carries are
+unchanged and raise no prompt.
 
 ### Acceptance Criteria
 
