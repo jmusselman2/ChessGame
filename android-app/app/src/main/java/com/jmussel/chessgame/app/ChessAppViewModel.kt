@@ -40,6 +40,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.pow
 
 /**
  * What the application is showing and what it is built from.
@@ -338,20 +339,58 @@ class ChessAppViewModel(
      * whatever you have may be out of date", and a `game-updated` names a game to reload
      * over HTTPS (`D022`). A dropped connection is reconnected after a pause; the loop ends
      * only when the model is cleared.
+     *
+     * Whether a dropped connection is *noticed* is not decided here. A socket can die
+     * without being closed, and then this flow simply never ends — which is why the client
+     * pings (`webSocketPingInterval`, `M16.6`). What is decided here is the cost of trying
+     * again: a connection that carried a message proves the server is up and earns the
+     * short pause, while attempts that never connect back off, so a phone left on a game
+     * screen across a fifteen-minute spin-down is not polling a sleeping instance every
+     * three seconds for the whole of it (`D032`, `D037`).
      */
     fun watchUpdates() {
         if (updatesJob?.isActive == true) return
 
         updatesJob =
             viewModelScope.launch {
+                var failures = 0
+
                 while (isActive) {
+                    var live = false
+
                     // A dropped socket ends the flow rather than throwing; either way the
                     // answer is the same: wait a moment and connect again.
-                    runCatching { dependencies.realtime.messages().collect(::onRealtimeMessage) }
+                    runCatching {
+                        dependencies.realtime.messages().collect { message ->
+                            live = true
+                            onRealtimeMessage(message)
+                        }
+                    }
 
-                    delay(RECONNECT_PAUSE_MILLIS)
+                    failures = if (live) 0 else failures + 1
+
+                    delay(reconnectPauseAfter(failures))
                 }
             }
+    }
+
+    /**
+     * How long to wait before opening the socket again, after [failures] attempts in a row
+     * that carried nothing.
+     *
+     * A server that answered resets this, so an ordinary blip costs one short pause. Only
+     * a run of attempts that reach nothing at all grows the wait, and it grows to a cap:
+     * a sleeping free instance is polled a few times quickly and then about once a minute,
+     * which survives a cold start of any length without keeping the radio busy for it
+     * (`D037`). It never gives up — unlike a request a player is waiting on, a socket has
+     * no deadline to fail against, and the app is no use without it.
+     */
+    internal fun reconnectPauseAfter(failures: Int): Long {
+        if (failures <= 1) return RECONNECT_PAUSE_MILLIS
+
+        val grown = RECONNECT_PAUSE_MILLIS.toDouble() * RECONNECT_BACKOFF.pow(failures - 1)
+
+        return grown.coerceAtMost(RECONNECT_MAX_PAUSE_MILLIS.toDouble()).toLong()
     }
 
     /**
@@ -931,6 +970,12 @@ class ChessAppViewModel(
     companion object {
         /** How long to wait before opening the socket again after it has dropped. */
         private const val RECONNECT_PAUSE_MILLIS = 3_000L
+
+        /** The longest that wait may grow to, however long the server stays unreachable. */
+        private const val RECONNECT_MAX_PAUSE_MILLIS = 60_000L
+
+        /** What the wait is multiplied by after each attempt that reaches nothing. */
+        private const val RECONNECT_BACKOFF = 2.0
 
         /**
          * Builds the model, and its dependencies with it, only when there is not one already.

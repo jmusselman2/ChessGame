@@ -1957,3 +1957,94 @@ stands on the board for both players.
   command carries no declared move (`D038`), and that is unchanged here.
 - The online screen is untouched. It already shows check, and its claims come
   from the server.
+
+---
+
+## D042 — The Client Pings Its Own Socket, and Reconnects Back Off
+
+**Date:** 2026-09-05
+
+**Status:** Accepted
+
+**Relates to:** `D021` (every mutation carries its expected version), `D022` (a
+realtime message is a nudge, never state), `D032` (Render Free sleeps), `D037`
+(a sleeping beta is waited through), `M16.1`, `M16.6`, `M17.1`'s two-device
+verification
+
+### Decision
+
+A socket can die without ever being closed. `M17.1`'s two-device verification
+found a client left on a game screen across a spin-down holding a connection
+that was dead but never ended: nothing arrived, and nothing ended either, so
+`ChessAppViewModel.watchUpdates` — which reconnects when the message flow
+*ends* — never ran. The screen kept a position the server had moved past for
+four minutes, saying "Your move" when the move was no longer the player's.
+
+Two things follow.
+
+- **The client pings.** `webSocketPingInterval` is 30 s, matched to the server's
+  own `webSocketPingPeriod`, so an unanswered ping is noticed when the next one
+  falls due. Only traffic the client sends itself can discover a peer that is
+  gone; a client that only ever *reacts* cannot tell a quiet connection from a
+  dead one. The server's pings already wake the radio on that period, so pinging
+  back costs no extra wake-up. Detection is bounded at two periods, against the
+  four minutes that was observed.
+- **Reconnect attempts back off.** The pause after an attempt that reached
+  nothing doubles from 3 s to a 60 s cap, and a connection that carried a
+  message resets it. Detection without this would be the worse bug: a phone on a
+  game screen would poll a sleeping instance every three seconds for the whole
+  of a fifteen-minute spin-down. Unlike a request a player is waiting on, the
+  socket has no deadline to fail against (`D037`) — it never gives up, it only
+  slows down.
+
+**The ping must be configured on the engine, not on Ktor's WebSockets plugin.**
+This is the part worth recording, because the obvious fix does nothing. Ktor
+3.5.2's `WebSockets { pingIntervalMillis }` is inert under the OkHttp engine:
+`OkHttpWebsocketSession` already implements `DefaultWebSocketSession`, so
+`WebSockets.convertSessionToDefault` hands it back unwrapped and never attaches
+a pinger, and the engine only ever *reads* an interval off the `OkHttpClient` —
+falling back to the plugin's value for a property that nothing then pings from.
+The one thing that sends a ping and fails a socket whose pong never comes is
+OkHttp's own `RealWebSocket`, driven by `OkHttpClient.pingInterval`. So
+`ChessAppDependencies.defaultHttpClient` now names `OkHttp` explicitly and sets
+the interval through `engine { config { pingInterval(...) } }`.
+
+### Rationale
+
+The mitigation was already in place and is why this was not a blocker: a stale
+client's next command is refused on its version and the board is replaced with
+the truth (`D021`), and reopening the app shows the truth. But turn clarity is
+the product, and a screen that is confidently wrong about whose move it is for
+minutes at a time is the kind of thing a beta tester reports as "it stopped
+working".
+
+Naming the engine is a real constraint and is accepted deliberately: the
+keepalive is now an OkHttp setting, so swapping engines would silently remove
+it. That is recorded here and in the comment at the call site, because the
+failure it would reintroduce is invisible — everything still compiles, connects,
+and works, right up until a peer goes away quietly.
+
+### Alternatives Considered
+
+- **Set Ktor's `pingIntervalMillis` and stop there.** What the backlog task
+  proposed, and it would have looked correct while changing nothing. Verified
+  against the 3.5.2 bytecode before being rejected, not assumed.
+- **An app-level heartbeat message from the server, with a client-side idle
+  watchdog.** Works, but it puts a second keepalive on a protocol that already
+  has one, and it needs a server change to fix a client defect.
+- **Rely on the server noticing instead.** The server already does (`M16.6` did
+  not change it), and it does not help: it closes *its* end of a connection that
+  no longer reaches the client, which is exactly the case where the close frame
+  cannot arrive.
+- **A fixed reconnect pause, kept short.** Rejected by `D037`'s reasoning: a
+  free instance is asleep for fifteen minutes at a time, and a three-second poll
+  across all of it is a battery cost paid for nothing.
+
+### Consequences
+
+- The app is pinned to the OkHttp engine for as long as the keepalive matters.
+- A dead socket now ends the message flow, so the existing `connected` refresh
+  (`M16.1`) recovers the screen without the player touching anything.
+- A server that comes back after a long sleep may be found up to a minute later
+  than before, which is the price of the cap. An asynchronous game absorbs that;
+  anything the player actually does still goes through `withServerWake`.

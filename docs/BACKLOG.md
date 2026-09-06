@@ -4009,7 +4009,7 @@ Log enough for debugging without credentials/secrets.
 
 ## M16.6 — A socket that dies quietly is noticed
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M16.1
 
@@ -4046,6 +4046,54 @@ first thing to check, not a settled diagnosis.
   clean disconnection.
 - Reconnect attempts against a server that is still asleep stay cheap enough to
   survive a full Render cold start without draining a phone (`D037`).
+
+### Completion Note
+
+The hypothesis in the defect above was half right and would not have worked.
+The client did install `WebSockets` with no ping interval — but setting Ktor's
+`pingIntervalMillis` changes nothing under the OkHttp engine this app uses.
+Checked against the Ktor 3.5.2 bytecode before any code was written:
+`OkHttpWebsocketSession` already implements `DefaultWebSocketSession`, so
+`WebSockets.convertSessionToDefault` returns it unwrapped and never attaches a
+pinger, and the engine only *reads* an interval off the `OkHttpClient`. The one
+thing that sends a ping and fails a socket whose pong never comes is OkHttp's
+`RealWebSocket.writePingFrame`. `ChessAppDependencies.defaultHttpClient`
+therefore names `OkHttp` and sets `engine { config { pingInterval(...) } }`,
+with `webSocketPingInterval` at 30 s to match the server's own
+`webSocketPingPeriod` (`D042`).
+
+Detection was proved end to end rather than asserted as configuration, and
+without waiting fifteen minutes for a real spin-down. `SilentSocketTest` stands
+up a hand-written WebSocket peer that completes the handshake, sends one
+message, and then answers nothing — no pong, no close frame, not a byte. A
+library on the far end would have ponged automatically, which is the behaviour
+that has to be absent, so the peer is ~60 lines of raw socket rather than a
+server. With a 300 ms ping interval the flow ends in **1.6 s**; with none, the
+same dead socket was **still being waited on when the 10 s budget expired**.
+Both directions are committed, so the defect stays proved.
+
+The fourth criterion turned out to be the other half of the fix, not a
+footnote: making detection work is what would have turned a silent stall into a
+three-second poll of a sleeping instance for the whole of a fifteen-minute
+spin-down. `watchUpdates` now doubles the pause from 3 s to a 60 s cap and
+resets it on a connection that carried a message, so a server that answers is
+still retried immediately. Disabling that backoff does not merely fail
+`aSocketThatReachesNothingBacksOffInsteadOfPollingASleepingInstance` — the test
+stops terminating, which was confirmed with a thread dump of the spinning
+worker rather than guessed at.
+
+Nothing above `ChessRealtimeClient` changed and nothing needed to: recovery on
+reconnect is `M16.1`'s `connected` path, untouched.
+
+Verified with `.\gradlew.bat :android-app:testDebugUnitTest` (400 tests, 0
+failures, including 2 new `SilentSocketTest` cases and 3 new
+`NetworkInterruptionTest` cases), `.\gradlew.bat :android-app:ktlintCheck
+--rerun-tasks`, and `.\gradlew.bat build` (BUILD SUCCESSFUL; server's 408 tests
+unchanged and untouched by this work). The local Compose database could not be
+started for the build — Windows had reserved host port `55432` inside the
+excluded range `55348-55447` — so a throwaway `postgres:18-alpine` container was
+run on `15432` for the verification and removed afterwards. The project's own
+container, volume, and `compose.yaml` were left exactly as they were.
 
 ---
 

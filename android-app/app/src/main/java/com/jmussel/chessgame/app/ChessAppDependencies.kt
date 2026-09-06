@@ -7,15 +7,19 @@ import com.jmussel.chessgame.api.ChessRealtimeClient
 import com.jmussel.chessgame.api.ChessServerConfig
 import com.jmussel.chessgame.api.RealtimeSource
 import com.jmussel.chessgame.api.ServerWakePolicy
+import com.jmussel.chessgame.api.webSocketPingInterval
 import com.jmussel.chessgame.auth.AnonymousAuthenticator
 import com.jmussel.chessgame.auth.DataStoreSessionStore
 import com.jmussel.chessgame.auth.SessionStore
 import com.jmussel.chessgame.auth.SupabaseAuthClient
 import com.jmussel.chessgame.auth.SupabaseConfig
 import io.ktor.client.HttpClient
+import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.serialization.kotlinx.json.json
+import java.util.concurrent.TimeUnit
+import kotlin.time.Duration
 
 /**
  * The long-lived objects the screens are built from: one HTTP client, the anonymous
@@ -103,9 +107,25 @@ class ChessAppDependencies(
                 sessionStore = DataStoreSessionStore(context.applicationContext),
             )
 
-        /** One client for both APIs and the socket, lenient about fields it does not know. */
-        fun defaultHttpClient(): HttpClient =
-            HttpClient {
+        /**
+         * One client for both APIs and the socket, lenient about fields it does not know.
+         *
+         * The engine is named rather than resolved from the classpath, because the keepalive
+         * below is an OkHttp setting and only OkHttp honours it. Ktor's own
+         * `WebSockets { pingIntervalMillis }` does nothing here: `OkHttpWebsocketSession` is
+         * already a `DefaultWebSocketSession`, so the plugin hands it back unwrapped and
+         * never gives it a pinger, and the engine only ever *reads* the interval off the
+         * `OkHttpClient`. The one thing that actually sends a ping and fails a socket whose
+         * pong never comes is OkHttp's `pingInterval` (`M16.6`).
+         *
+         * [pingInterval] is a parameter so a test can choose a period it can afford to wait
+         * out, and choose none at all to show what the app did before.
+         */
+        fun defaultHttpClient(pingInterval: Duration = webSocketPingInterval): HttpClient =
+            HttpClient(OkHttp) {
+                engine {
+                    config { pingInterval(pingInterval.inWholeMilliseconds, TimeUnit.MILLISECONDS) }
+                }
                 install(ContentNegotiation) { json(ChessApiClient.Json) }
                 install(WebSockets)
             }

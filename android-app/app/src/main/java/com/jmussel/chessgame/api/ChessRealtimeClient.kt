@@ -9,6 +9,25 @@ import io.ktor.websocket.readText
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.serialization.Serializable
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+
+/**
+ * How often this app pings the server over an open realtime socket.
+ *
+ * A socket can die without ever being closed: a free instance spins down (`D032`) or an
+ * intermediary drops the connection, and no close frame is ever sent. Nothing arrives, but
+ * nothing ends either, so a client that only ever *reacts* keeps a position the server has
+ * moved past and can go on saying "Your move" when the move is no longer the player's
+ * (`M16.6`). Only traffic the client sends itself can find that out.
+ *
+ * Matched to the server's own `webSocketPingPeriod`, which pings on the same period from
+ * the other side (`installRealtimeWebSockets`). The server's pings already wake this
+ * device's radio every 30 s, so pinging back on that period costs no extra wake-up, and it
+ * bounds staleness at two periods: the ping that goes unanswered is noticed when the next
+ * one falls due.
+ */
+val webSocketPingInterval: Duration = 30.seconds
 
 /**
  * What the server pushes down the realtime connection.

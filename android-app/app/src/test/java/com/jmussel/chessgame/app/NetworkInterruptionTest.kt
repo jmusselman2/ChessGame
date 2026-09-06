@@ -349,6 +349,81 @@ class NetworkInterruptionTest {
             viewModel.updatesJob?.cancel()
         }
 
+    @Test
+    fun aSocketThatReachesNothingBacksOffInsteadOfPollingASleepingInstance() =
+        runTest(dispatcher) {
+            var attempts = 0
+            val source =
+                RealtimeSource {
+                    flow<RealtimeMessageDto> {
+                        attempts++
+                        // Asleep for the whole of a spin-down: nothing ever connects.
+                        throw IOException("no route to host")
+                    }
+                }
+            val viewModel = viewModel(realtime = source)
+
+            viewModel.watchUpdates()
+            advanceTimeBy(FIFTEEN_MINUTES_MILLIS)
+
+            assertTrue("it never gives up on the socket", attempts > 5)
+            // Without backoff this would be one attempt every three seconds -- 300 of them
+            // across a spin-down, for a phone that is only waiting.
+            assertTrue("but it is not polling every three seconds for it", attempts < 30)
+
+            viewModel.updatesJob?.cancel()
+        }
+
+    @Test
+    fun aSocketThatConnectedAndDroppedTriesAgainAtOnceRatherThanAtTheBackedOffPause() =
+        runTest(dispatcher) {
+            var attempts = 0
+            var reachable = false
+            val source =
+                RealtimeSource {
+                    flow {
+                        attempts++
+                        if (!reachable) throw IOException("no route to host")
+                        // Live long enough to say so, then drop without warning.
+                        emit(RealtimeMessageDto(type = RealtimeMessageDto.CONNECTED))
+                    }
+                }
+            val viewModel = viewModel(realtime = source)
+
+            viewModel.watchUpdates()
+            advanceTimeBy(FIFTEEN_MINUTES_MILLIS)
+            val whileAsleep = attempts
+
+            // The server comes back, so the next attempt carries a message and drops again.
+            reachable = true
+            advanceTimeBy(FIFTEEN_MINUTES_MILLIS)
+            val afterWaking = attempts - whileAsleep
+
+            // A connection that carried something proves the server is up, so the wait goes
+            // back to the short pause instead of staying at the cap it had grown to. At the
+            // cap the same quarter of an hour would allow about fifteen attempts.
+            assertTrue(
+                "a server that answers is tried again at the short pause, not the backed-off one",
+                afterWaking > 100,
+            )
+
+            viewModel.updatesJob?.cancel()
+        }
+
+    @Test
+    fun theWaitBetweenAttemptsGrowsButIsCapped() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            val waits = (0..12).map { viewModel.reconnectPauseAfter(it) }
+
+            assertEquals("a connection that carried something is retried at once", 3_000L, waits[0])
+            assertEquals("and so is the first attempt that did not", 3_000L, waits[1])
+            assertEquals("then the wait doubles", 6_000L, waits[2])
+            assertEquals("and doubles again", 12_000L, waits[3])
+            assertTrue("until it stops growing", waits.all { it <= 60_000L })
+            assertEquals("and stays at the cap however long the server is away", 60_000L, waits.last())
+        }
+
     // --- Waking, retryable, and terminal stay apart ------------------------------------
 
     @Test
@@ -552,6 +627,9 @@ class NetworkInterruptionTest {
     private companion object {
         const val GAME = "game-7"
         const val OTHER_GAME = "game-9"
+
+        /** About what a free instance stays spun down for before anyone comes back (`D032`). */
+        const val FIFTEEN_MINUTES_MILLIS = 15 * 60 * 1_000L
 
         val VERSION = Regex("\"expectedVersion\"\\s*:\\s*(\\d+)")
     }
