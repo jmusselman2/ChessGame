@@ -255,4 +255,19 @@ class DashboardSectionsTest {
 
         assertEquals(listOf("Sam", "Chris"), rows.map { it.opponent })
     }
+
+    // --- Naming the build a report is about (`M17.2`) ----------------------------------
+
+    @Test
+    fun theBuildLabelNamesTheVersionATesterWouldQuote() {
+        // Exactly what -PchessVersionName put in the APK, so the answer to "which build?"
+        // matches what was handed over rather than approximating it.
+        assertEquals("Build 0.1.1-beta", DashboardSections.buildLabel("0.1.1-beta"))
+    }
+
+    @Test
+    fun theBuildLabelSaysWhateverTheBuildCallsItself() {
+        // A development build is not special-cased: a report from one still names it.
+        assertEquals("Build 1.0", DashboardSections.buildLabel("1.0"))
+    }
 }

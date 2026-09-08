@@ -98,5 +98,17 @@ object DashboardSections {
 
     private fun sideLabel(side: String): String = side.lowercase().replaceFirstChar { it.uppercase() }
 
+    /**
+     * What build the player is holding, in words they can send back.
+     *
+     * A beta report is only actionable if it names a build (`M17.2`). The tester cannot read
+     * a `versionCode` anywhere on the phone, and "the one you sent me last week" is not an
+     * answer, so the dashboard says it out loud. Formatted here rather than in the composable
+     * for the same reason the status line is (`D041`): a string a report depends on is worth
+     * a test.
+     */
+    fun buildLabel(versionName: String): String = "$BUILD_PREFIX$versionName"
+
     private const val SEPARATOR = " • "
+    private const val BUILD_PREFIX = "Build "
 }

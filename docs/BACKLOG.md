@@ -4284,6 +4284,70 @@ which cannot be verified from here.
    tasks — `M18.1` depends on this milestone, so the loop has nothing selectable
    until then.
 
+## M17.2 — A build can be named, from outside and from inside
+
+**Status:** DONE
+
+**Depends on:** M17.1's distribution setup (`D040`)
+
+### The gap
+
+`/health` answered `ChessGame server is healthy` and nothing else, so it could not
+say *which* build was answering. A server that is healthy while quietly running
+last week's code is exactly the case worth catching, and confirming a deploy
+meant opening the Render dashboard. On the other side, a tester holding an APK
+had no way to tell which one: `versionName` was built in but shown nowhere, and
+"the one you sent me last week" is not a bug report.
+
+### Acceptance Criteria
+
+- `/health` names the commit the running process was deployed from, when the host
+  supplies one.
+- A host that supplies none produces exactly the body it always did, so no local
+  run or test has to know about deployment.
+- The dashboard shows what the build calls itself, so a report can name it.
+- Tests cover the present and the absent case on both sides.
+
+### Completion Note
+
+The commit is **read from the environment** (`RENDER_GIT_COMMIT`, which Render
+sets per deploy) rather than baked in at build time, so nothing is threaded
+through the Dockerfile and a local run has no answer instead of a wrong one.
+Shortened to 7 characters — enough to name a build and still be read back over a
+message — and the commit only, not the branch, since Render deploys from `main`.
+
+Absent means absent. `shortCommit` returns `null` for missing, empty, and
+whitespace input, and `healthText` appends nothing at all in that case, so every
+local run and every existing test sees a byte-identical body. That is what kept
+the change small: every existing assertion on `/health` is a `contains`
+(`ApplicationTest`, `DeploymentTest`, `AuthenticatedRouteTest`) and none of them
+needed touching. The blank case is the one worth guarding — an empty variable
+would otherwise render `(build )`, which reads like a defect in the server rather
+than an absent value — and `aCommitThatIsBlankOrMissingIsNoCommitAtAll` was
+proved to catch it by removing the guard and watching it fail at
+`DeploymentTest.kt:100`.
+
+`/health` was extended rather than a `/version` route added: "is it up" and "is it
+running what I shipped" are the same question during a beta, a second public route
+would need its own place in the auth decision, the logging filter (`M16.5`
+silences `/health` so polling cannot bury the log), and the architecture doc, and
+Render already polls this one. The degraded body keeps its explanation and gains
+the build too — a deploy that came up without its environment is exactly when
+knowing which commit did that matters most.
+
+On the client, `DashboardSections.buildLabel` formats it and the dashboard shows
+it last and quiet. Formatted outside the composable for the same reason the local
+status line is (`D041`): a string a bug report depends on is worth a test.
+`DashboardScreen` takes `versionName` with `BuildConfig.VERSION_NAME` as its
+default, so the running app needs no wiring and a preview or test can say
+something else.
+
+Verified with `.\gradlew.bat :server:test --tests DeploymentTest` (10 tests, 4
+new) and `:android-app:testDebugUnitTest --tests DashboardSectionsTest` (2 new),
+then `.\gradlew.bat build`.
+
+---
+
 ---
 
 # M18 — Post-Chess Architecture Review

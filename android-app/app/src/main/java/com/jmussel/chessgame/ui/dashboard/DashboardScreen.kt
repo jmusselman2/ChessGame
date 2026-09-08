@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.jmussel.chessgame.BuildConfig
 import com.jmussel.chessgame.api.DashboardEntryDto
 import com.jmussel.chessgame.api.UserSummaryDto
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
@@ -36,6 +37,10 @@ fun DashboardScreen(
     onOpenGame: (DashboardRow) -> Unit = {},
     onPlayFriend: (FriendRow) -> Unit = {},
     onRetry: () -> Unit = {},
+    // What this build calls itself, so a tester's report can name it (`M17.2`). A parameter
+    // with the real value as its default: the running app needs no wiring, and a preview or
+    // a test can say something else.
+    versionName: String = BuildConfig.VERSION_NAME,
 ) {
     Column(
         modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
@@ -71,6 +76,12 @@ fun DashboardScreen(
         FriendsSection(
             rows = DashboardSections.friends(friends, entries),
             onPlayFriend = onPlayFriend,
+        )
+
+        // Last, and quiet: it is for the one conversation where it matters.
+        Text(
+            text = DashboardSections.buildLabel(versionName),
+            style = MaterialTheme.typography.bodySmall,
         )
     }
 }

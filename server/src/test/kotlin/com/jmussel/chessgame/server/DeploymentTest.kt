@@ -1,5 +1,6 @@
 package com.jmussel.chessgame.server
 
+import com.jmussel.chessgame.core.GameCore
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
@@ -8,6 +9,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
@@ -56,6 +58,47 @@ class DeploymentTest {
 
         assertTrue(text.contains("healthy"))
         assertFalse(text.contains("health-only"))
+    }
+
+    // --- Which build is answering (`M17.2`) --------------------------------------------
+
+    @Test
+    fun healthNamesTheCommitItWasDeployedFrom() {
+        val text = healthText(healthOnly = false, commit = shortCommit("a8acce7f2b1c4d5e6a7b8c9d0e1f2a3b4c5d6e7f"))
+
+        assertTrue(text.contains("healthy"), text)
+        // Short enough to read back, and it is the front of the SHA rather than any of it.
+        assertTrue(text.contains("build a8acce7"), text)
+        assertFalse(text.contains("f2b1c4d"), text)
+    }
+
+    @Test
+    fun healthSaysNothingAboutABuildWhenTheHostNamesNone() {
+        // Every local run and every test: absent means absent, not "build unknown", so the
+        // body is exactly what it has always been.
+        assertEquals(
+            healthText(healthOnly = false, commit = null),
+            "${GameCore.NAME} server is healthy",
+        )
+    }
+
+    @Test
+    fun aDegradedServerStillNamesItsBuild() {
+        // The two answers are independent: a deploy that came up without its environment is
+        // the case where knowing which commit did that matters most.
+        val text = healthText(healthOnly = true, commit = shortCommit("0da5f42b7deacde"))
+
+        assertTrue(text.contains("health-only"), text)
+        assertTrue(text.contains("build 0da5f42"), text)
+    }
+
+    @Test
+    fun aCommitThatIsBlankOrMissingIsNoCommitAtAll() {
+        // Render sets the variable on a deploy; a host that sets it empty must not produce
+        // "(build )", which reads like a bug in the server rather than an absent value.
+        assertNull(shortCommit(null))
+        assertNull(shortCommit(""))
+        assertNull(shortCommit("   "))
     }
 
     @Test

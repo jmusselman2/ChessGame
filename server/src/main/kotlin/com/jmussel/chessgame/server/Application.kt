@@ -45,6 +45,17 @@ import kotlin.uuid.ExperimentalUuidApi
 
 private const val SUPABASE_URL = "SUPABASE_URL"
 
+/**
+ * The variable Render sets to the commit a deploy was built from.
+ *
+ * Read rather than baked in at build time, so nothing has to be threaded through the
+ * Dockerfile and a local run simply has no answer instead of a wrong one.
+ */
+private const val RENDER_GIT_COMMIT = "RENDER_GIT_COMMIT"
+
+/** Enough of a commit to name a build and still be read out over a message. */
+private const val SHORT_COMMIT_LENGTH = 7
+
 /** The variable a host uses to tell the process which port to listen on. */
 private const val PORT = "PORT"
 
@@ -180,10 +191,28 @@ fun serverPort(value: String?): Int {
  * alone cannot distinguish a working beta from one whose environment was never filled in,
  * and that difference is worth one curl rather than a confused play-through.
  */
-fun healthText(healthOnly: Boolean): String =
-    if (healthOnly) {
-        "${GameCore.NAME} server is healthy (health-only: ${DatabaseConfig.DATABASE_URL} " +
-            "and $SUPABASE_URL are not set)"
-    } else {
-        "${GameCore.NAME} server is healthy"
-    }
+fun healthText(
+    healthOnly: Boolean,
+    commit: String? = shortCommit(System.getenv(RENDER_GIT_COMMIT)),
+): String {
+    val state =
+        if (healthOnly) {
+            "${GameCore.NAME} server is healthy (health-only: ${DatabaseConfig.DATABASE_URL} " +
+                "and $SUPABASE_URL are not set)"
+        } else {
+            "${GameCore.NAME} server is healthy"
+        }
+
+    return if (commit == null) state else "$state (build $commit)"
+}
+
+/**
+ * [value] shortened to something a person can read back, or `null` when there is nothing.
+ *
+ * "Healthy" and "running what I just deployed" are the same question during a beta, and a
+ * server that answers the first while quietly running last week's code is exactly the
+ * failure this exists to catch (`M17.2`). Absent means absent: a host that sets nothing —
+ * every local run, and every test — gets the body it has always had, so nothing has to know
+ * about deployment to assert on health.
+ */
+fun shortCommit(value: String?): String? = value?.trim()?.takeIf { it.isNotEmpty() }?.take(SHORT_COMMIT_LENGTH)
