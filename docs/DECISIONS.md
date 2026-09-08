@@ -2136,3 +2136,119 @@ and every token Supabase issues carries one, so requiring it costs nothing real.
   Repeated failures cost one attempt per request, which is bounded by the same
   requests that are already failing.
 - Any future non-Supabase token source must issue an `exp`. Every real one does.
+
+---
+
+## D044 — Nothing Is Extracted Until a Second Ruleset Exists, and These Are the Six Things to Extract Then
+
+**Date:** 2026-09-08
+
+**Status:** Accepted
+
+**Relates to:** `ARCHITECTURE` §5, §8, §31, §32, `M18.1`,
+`docs/PLATFORM-REVIEW.md`
+
+### Decision
+
+`M18.1` reviewed the finished chess MVP for what is genuinely reusable. The
+findings are in `docs/PLATFORM-REVIEW.md`. Two things are decided here.
+
+**Nothing is extracted, generalised, or renamed now.** No engine interface, no
+command hierarchy, no seat abstraction, no generic action table, no platform
+module. The chess implementation stays exactly as concrete as it is until a
+second ruleset exists to compare it against.
+
+**When that second ruleset exists, these six are the candidates**, and each is
+extracted only if the second implementation actually wants the same shape:
+
+1. **The seat**, in place of `white_user_id`/`black_user_id` and
+   `yourSide`/`sideToMove` — the mapping from a user id to a participant, kept
+   separate from turn order, which chess proved only the simplest case of.
+2. **The server-computed capability list** — `yourTurn`, `canUndo`,
+   `availableDrawClaims`: what the viewer may do right now, answered by the
+   authority so the client never decides entitlement.
+3. **The versioned state document** — one authoritative row, one opaque
+   serialised domain state, a guarded `update ... where version = ?`, a
+   persistence DTO in the server and a domain type that never learns about JSON.
+4. **The command service shape** — a `sealed` result with one case per refusal
+   reason carrying the canonical state, a service owning the transaction, routes
+   that only parse and render.
+5. **`RealtimeHub`**, moved rather than reimplemented; it already contains no
+   game concepts.
+6. **The account and social layer** — users, usernames, friendships,
+   `lastSeenAt`, the token verifier — and only if a second *application* exists,
+   not merely a second ruleset.
+
+`ARCHITECTURE.md` §31's list of fourteen concepts "expected to survive" is
+replaced by the review, which measured them instead of predicting them.
+
+### Rationale
+
+`ARCHITECTURE.md` §31 already said to compare concrete implementations before
+extracting further, and §32 already rejected a premature universal framework.
+This decision is what makes those enforceable at the moment they are most likely
+to be broken — the review that names reusable concepts is exactly the point at
+which extracting them feels overdue.
+
+The review's own evidence is why waiting is right. Two-thirds of the server never
+mentions chess, and `SeriesService` — the whole series lifecycle, rematches,
+colour alternation, friend-removal closure — touches chess on two lines, both
+`ChessGame.newGame()`. That separation was produced by a dependency rule, not by
+an abstraction, and it is already the benefit an extraction would be claiming to
+deliver. There is nothing left to buy.
+
+Against that, the cost of extracting from one example is specific and known:
+`ChessRules`' real signatures are `canUndo(game, side)`,
+`availableDrawClaims(state, declaredMove)`, `claimDraw(game, claim)`,
+`resign(game, side)`. Any interface over one implementation is either a union of
+one ruleset's vocabulary or narrow enough (`apply(state, action): state`) that
+every caller casts straight back to the concrete type — a description of chess
+with the word "chess" removed, which then has to be unpicked when the real second
+game disagrees with it.
+
+Naming the six is the other half. "Extract later" with nothing written down
+becomes rediscovery, and the deck-builder's designers would have to re-derive
+which parts of the chess server were load-bearing. Two of these matter more than
+they look: the capability list becomes mandatory rather than convenient once
+information is hidden, because a client holding a hand of cards cannot compute
+its own entitlement even in principle; and the seat/turn-order split is where a
+game with more than two participants or with non-alternating turns will first
+break something.
+
+### Alternatives Considered
+
+- **Extract the six now, while the chess implementation is fresh.** Rejected.
+  Freshness is the argument for writing them down, which this does; it is not
+  evidence about what a second implementation needs. Every one of the six would
+  have to invent its second use case from imagination.
+- **Extract only the "obviously safe" ones — `RealtimeHub` and the account
+  layer.** Rejected as churn with no beneficiary. Both are already free of game
+  concepts, so moving them into a module changes build files and import lines and
+  nothing else; the move is equally easy the day a second consumer appears, and
+  then it is justified.
+- **Generalise the schema now** — seats instead of colours, an action table
+  instead of `moves`. Rejected as the most expensive version of the same
+  mistake: it is a migration on live beta data, in exchange for column names
+  chosen without knowing what a deck-builder action is.
+- **Record the review only in `ARCHITECTURE.md` §31 and skip a decision.**
+  Rejected. §31 is a statement of intent about the future and was already wrong
+  in places; the review that corrects it is long, and the part that binds future
+  work — extract nothing until there are two — is a decision, which belongs here.
+- **Delete `ARCHITECTURE.md` §31 entirely.** Rejected: the question it asks is
+  real and the section is where a reader looks for it. It now points at the
+  measurement instead of holding a prediction.
+
+### Consequences
+
+- The chess implementation stays as it is. `M18.1` produced a document and no
+  code change.
+- A future task that proposes extracting a platform abstraction before a second
+  ruleset exists is refused by this decision, and the refusal has a written
+  alternative: add it to the six.
+- `docs/PLATFORM-REVIEW.md` is descriptive and carries no precedence of its own.
+  Where it and this decision differ, this decision governs.
+- The review names what chess did **not** prove — hidden information, randomness
+  inside a game, undo under hidden information, per-action history cost,
+  multi-action turns, and scale beyond one process. Those are the parts of the
+  platform that are unvalidated, and design work on the deck-builder starts
+  there rather than assuming the chess answers carry.

@@ -4489,7 +4489,8 @@ then `.\gradlew.bat build`.
 
 ## M18.1 — Identify genuinely reusable platform concepts
 
-**Status:** TODO  
+**Status:** DONE
+
 **Depends on:** M17
 
 ### Objective
@@ -4504,3 +4505,54 @@ Document:
 - proven platform concepts,
 - abstractions worth extracting,
 - abstractions that should remain concrete.
+
+### Completion Note
+
+`docs/PLATFORM-REVIEW.md` holds all four sections, reviewed against `9941402`,
+and `D044` holds the decision that follows from them. `ARCHITECTURE.md` §31 —
+which held a prediction of fourteen concepts "expected to survive beyond chess",
+written before the MVP existed — now points at the measurement instead.
+
+The review was taken from the code rather than from the intentions recorded
+before it, and the cheapest measurement turned out to be the most convincing:
+**of 32 server source files, 7 mention `game-core` at all and 5 are actually
+shaped by chess.** Two of the seven barely count — `Application.kt` uses
+`GameCore.NAME` for a banner, and `SeriesService`, which owns the entire series
+lifecycle including rematches, colour alternation, and friend-removal closure,
+touches chess on exactly two lines, both `ChessGame.newGame()`. So the series
+model, identity, usernames, friendships, dashboard, history, realtime, and the
+persistence plumbing came through first contact with a real ruleset essentially
+uncontaminated by it. That separation was produced by `ARCHITECTURE.md` §6's
+dependency rule, not by an abstraction — which is the review's central point.
+
+"Proven" was held to a real standard: implemented, tested, and exercised by two
+people on two physical devices in `M17.1`, with named evidence. The strongest
+case is the version model (`D021`), because it survived being *broken* — `M16.7`
+found the version check passable while wrong under READ COMMITTED — and the fix
+(`loadForUpdate`) is itself general. A concept that was repaired is better
+evidence than one that was never stressed.
+
+The section that will matter most is the one the acceptance criteria did not ask
+for: **what chess did not prove.** Chess is an unusually easy game — two
+players, complete information, no in-game randomness, strict alternation, one
+action per turn, tiny state — and three of the platform's load-bearing habits
+depend on that. Both players are sent the whole board and the Android client
+replays the move list locally to preview legal moves, neither of which is
+possible with a hand of cards; `D016`'s undo is safe only because taking a move
+back reveals nothing; and `save` rewrites the entire move history on every write,
+which is right for a hundred plies and wrong for a game with many actions per
+turn. Those are where deck-builder design starts, rather than assuming the chess
+answers carry.
+
+`D044` decides the thing this task was most likely to get wrong. A review that
+names reusable concepts is exactly the moment extraction feels overdue, so it
+records that **nothing is extracted until a second ruleset exists** and names the
+six candidates for that moment — the seat, the server-computed capability list,
+the versioned state document, the command-service shape, `RealtimeHub`, and the
+account layer. Of those, the capability list is the one that grows in importance:
+`yourTurn`/`canUndo`/`availableDrawClaims` is convenient in chess and mandatory
+once information is hidden, because a client holding cards cannot compute its own
+entitlement even in principle.
+
+No code changed; this milestone is a review. Verified with `.\gradlew.bat build`
+and `git diff --check`.

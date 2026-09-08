@@ -813,23 +813,26 @@ authenticate
 
 ## 31. Future Deck-Builder Compatibility
 
-The following are expected to survive beyond chess:
+This section used to list fourteen concepts "expected to survive beyond chess".
+That was a prediction made before the MVP existed. `M18.1` reviewed the finished
+implementation instead of predicting it, and the result is
+`docs/PLATFORM-REVIEW.md`: what is chess-specific, what is a proven platform
+concept and by what evidence, what is worth extracting later, what should stay
+concrete, and — most usefully — what chess did not prove at all.
 
-- identity,
-- usernames,
-- friendships,
-- last seen,
-- dashboard,
-- game series,
-- game lifecycle,
-- command submission,
-- audit events,
-- versioning,
-- concurrency,
-- synchronization,
-- server authority,
-- persistence,
-- history.
+Read that document before designing the deck-builder. Two of its findings change
+what this file says elsewhere:
+
+- Client-side pre-validation (§7, §11.2) and shipping the whole position to both
+  players (`GameView`) work because chess is a game of complete information.
+  Neither survives hidden information.
+- Undo as `PRODUCT.md` and §21 define it is a chess rule, not a platform rule.
+
+`D044` decides what follows: **nothing is extracted, generalised, or renamed
+until a second ruleset exists**, and it names the six candidates for that moment.
+No generic engine interface, no command hierarchy, no seat abstraction, no
+generic action table, no platform module — §5, §8, and §32 already forbid these
+and the review confirms they were right to.
 
 Do not add future deck-building mechanics yet.
 
