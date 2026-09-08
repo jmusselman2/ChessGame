@@ -1,18 +1,19 @@
 # Codex Evaluation State
 
-- **Evaluated `main` baseline:** `d03a0fd9e6067a7702debf8ad56a6e7a62ae4920`
-- **Current milestone:** M7 — Identity and Username
-- **Status:** `PASS`
+- **Evaluated `main` baseline:** `99414028bfd3e8b89953dc549ada77130bb3ae62`
+- **Current milestone:** M8 — Friends
+- **Status:** `DEFECT FOUND`
 - **Completed milestones:** M2, M3, M4, M5, M6, M7
-- **Unresolved findings:** None.
-- **Closed findings:** M7-01 preserves the anonymous identity across transient
-  refresh failures; M7-02 makes only a successful last-seen write spend the
-  throttle window; M7-03 requires a readable signed-token expiry.
-- **Latest artifacts:**
-  `evals/M7/independent-re-evaluation-critic-report.md` and
-  `evals/M7/independent-re-evaluation-test-report.md`.
+- **Unresolved findings:** M8-01 lets a nameless caller create a friendship the
+  other side cannot list. M8-02 lets two concurrent re-adds both report that
+  they restored the same removed friendship. M8-03 lets series creation race
+  friend removal and commit an unmarked active series after removal.
+- **Latest artifacts:** `evals/M8/critic-report.md`, `evals/M8/test-report.md`,
+  and server `M8AdversarialTest` regressions.
 
 ## Next action
 
-Begin an independent evaluation of M8 from its documented requirements. M8 was
-not started during the M7 re-evaluation.
+Claude remediates the complete M8 finding batch, the remediation is merged into
+`main`, and Codex then realigns `codex-autopilot` to that baseline and performs
+a fresh independent M8 evaluation. Retain every correct evaluator regression
+unchanged. Do not begin M9 before M8 passes.
