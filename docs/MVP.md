@@ -6,6 +6,11 @@ The MVP is complete when:
 
 > A new Android user can install the app, enter a globally unique username without creating a traditional password-based account, automatically return as that same user on later launches, add another user by username, start a chess series with that friend, play a complete legal game asynchronously across two Android devices, undo an unanswered non-final move, correctly handle claimable and automatic standard-chess draws, immediately progress into an automatically created rematch after a game ends while the series remains active, and reopen the app later to see current games and whose turn it is.
 
+**This goal has been met.** `M14.18` proved it across two clients and `M17.1`
+proved it with a real tester on their own physical device. This document remains
+the specification of what "done" meant; `docs/BACKLOG.md` is the source of truth
+for task-level status.
+
 ## Required Capabilities
 
 ### Foundation

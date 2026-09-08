@@ -24,7 +24,7 @@ Do not build a universal board-game engine during the chess MVP.
 | Android UI | Jetpack Compose |
 | Shared game logic | Pure Kotlin/JVM module |
 | Backend | Kotlin + Ktor |
-| Database | PostgreSQL 18 locally/CI; beta PostgreSQL host not selected |
+| Database | PostgreSQL 18 locally/CI; beta on `ChessGame Dev`'s PostgreSQL (`D035`) |
 | SQL access | JetBrains Exposed DSL over HikariCP |
 | Migrations | Flyway applying forward-only SQL files |
 | Authentication | Supabase anonymous auth |
@@ -38,7 +38,7 @@ Do not build a universal board-game engine during the chess MVP.
 
 The shared Supabase development project currently provides anonymous
 authentication only. The application schema is applied to disposable local/CI
-PostgreSQL, not to that Supabase database. `M15.3` will additionally apply it to
+PostgreSQL, not to that Supabase database. `M15.3` additionally applied it to
 that same project's PostgreSQL to serve the beta: `D035` reuses `ChessGame Dev`
 rather than creating a separate beta project, so development and beta share
 identities and quotas while local/CI game data stays in the disposable
@@ -114,17 +114,19 @@ game-core ──→ database
 game-core ──→ Supabase
 ```
 
-### Current implementation boundary
+### Implementation status
 
-As of `0ef3228`, `game-core`, the Ktor command/query surface, PostgreSQL
-persistence, and server realtime publication are implemented. Android contains
-a working local pass-and-play screen plus tested auth, API-read, dashboard, and
-history components, but `MainActivity` still opens local play directly. The
-application/runtime-network shell, startup authentication, online game client,
-command calls, WebSocket consumption, and navigation are `M14.5`–`M14.18`;
-isolated Android components must not be mistaken for an integrated multiplayer
-application. The manifest does not yet grant network access or define a
-development-only policy for the cleartext emulator-loopback server.
+This document describes the intended structure, not how much of it is built.
+**`docs/BACKLOG.md` is the source of truth for implementation status**, task by
+task, and this section deliberately does not restate it: the snapshot that used
+to live here was pinned to a single commit and went stale as the work passed it.
+
+What is durable is the shape. Every module the diagram above names exists and is
+exercised by `./gradlew build` — `game-core`, the Ktor command/query surface with
+PostgreSQL persistence and realtime publication, and an Android application wired
+end to end from `MainActivity` through `ChessApp`. `docs/PLATFORM-REVIEW.md`
+reviews what building all of it proved about the boundaries described here, and
+`M18`'s completion note in `docs/BACKLOG.md` says where that leaves the project.
 
 ## 5. `game-core`
 
@@ -379,9 +381,9 @@ a single Ktor beta instance because HTTPS/PostgreSQL remain authoritative, but
 running more than one instance needs shared pub/sub first. Sticky sessions
 alone would not deliver a move to an opponent connected to another process.
 
-`D032` proposes resolving this for the beta with a single Render Free Web
-Service. If that proposal is accepted at `M15.1`, the process-local hub is
-appropriate because a Free Web Service cannot scale beyond one instance. Treat
+`D032` resolved this for the beta with a single Render Free Web Service, and was
+accepted at `M15.1`. The process-local hub is therefore appropriate, because a
+Free Web Service cannot scale beyond one instance. Treat
 that as a deployment constraint, not a coincidence — moving to a topology with
 more than one server process without shared pub/sub would silently lose moves
 between players connected to different processes.
@@ -779,9 +781,11 @@ messages used only as invalidation, and every reload over HTTPS (`D022`).
 version it was decided against and rendering only what came back; `M14.16` made
 the app follow the series to the game the server created next without ever
 creating a rematch itself; `M14.17` made history reachable and a finished game
-readable. The typical flow above is therefore in place end to end. What remains
-is `M14.18`: the two-client play-through on a real emulator or device, which
-needs infrastructure this repository cannot provide for itself.
+readable. The typical flow above is therefore in place end to end. `M14.18` then
+proved it with a two-client play-through, and `M17.1` proved it again where it
+counts: one other person installed a signed APK on their own physical device,
+got through onboarding unaided, and played an online game to the end with no
+developer intervention.
 
 ## 30. Server Architecture
 

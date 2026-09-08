@@ -174,11 +174,11 @@ Linux/macOS/CI:
 
 Status: VERIFIED (2026-08-25)
 
-The bootstrap-era Android application was manually verified to launch. The
-current local chess screen builds and is covered by host-side tests, but its
-representative emulator/device play-through is still the blocker on `M5.7`.
-The authenticated dashboard and online game flow are not yet wired into the
-application entry point; see `M14.5`–`M14.18`.
+The Android application builds, launches, and is covered by host-side tests.
+Its emulator/device play-through was completed for local play (`M5.7`) and for
+the full online flow (`M14.18`), and the authenticated dashboard, friends,
+online game, and history screens are wired into the application entry point.
+`docs/BACKLOG.md` is the source of truth for task-level status.
 
 ### Android Lint / Static Checks
 
@@ -763,14 +763,15 @@ Required policy:
 - After changing the workflow file or action versions, confirm the next run on
   `main` or `claude-autopilot` is green.
 
-Status: the current workflow (single `./gradlew build` step plus PostgreSQL,
+Status: the workflow is a single `./gradlew build` step plus PostgreSQL, using
 `actions/checkout@v7`, `actions/setup-java@v5`, and
-`gradle/actions/setup-gradle@v6`) ran green on `claude-autopilot` commit
-`0ef3228d5e509faa2fb9be4df3efcd125d283042` — GitHub Actions run
+`gradle/actions/setup-gradle@v6`. It was first proved green on `claude-autopilot`
+commit `0ef3228d5e509faa2fb9be4df3efcd125d283042` — GitHub Actions run
 [33022371135](https://github.com/jmusselman2/ChessGame/actions/runs/33022371135),
-job `Build and Test`, conclusion `success` (2026-08-26). The CI configuration
-is current through `M16.5`; later work must continue using the same per-commit
-remote gate.
+job `Build and Test`, conclusion `success` (2026-08-26) — and has gated every
+task since. Do not read that run as the current state: the authoritative answer
+is the latest required run for the commit at the tip of `claude-autopilot`, which
+`gh run list` will show.
 
 ### Remote CI Gate (autonomous workflow)
 
@@ -1129,7 +1130,7 @@ Gradle property, `gradle.properties`, or the matching `CHESS_KEYSTORE_*` /
       "-PchessKeystorePassword=<store password>" `
       "-PchessKeyAlias=chessgame-beta" `
       "-PchessKeyPassword=<key password>" `
-      "-PchessVersionName=0.1.0-beta" "-PchessVersionCode=2"
+      "-PchessVersionName=0.1.3-beta" "-PchessVersionCode=4"
 
 The signed APK is `android-app/app/build/outputs/apk/release/android-app-release.apk`.
 Without the keystore properties the same command produces
@@ -1139,7 +1140,10 @@ way to tell which one you have.
 
 Raise `chessVersionCode` for every build you hand out (`versionName` is what a
 tester will quote back to you). Android installs a higher `versionCode` over a
-lower one and refuses the reverse.
+lower one and refuses the reverse — so the numbers above are an example that must
+be raised, not copied. The last build handed to a tester was `0.1.2-beta`,
+`versionCode` 3 (`M17.1`); anything you send now must exceed it or it will not
+install over what they already have.
 
 **Verify before sending it.**
 

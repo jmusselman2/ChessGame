@@ -25,10 +25,11 @@ Migration files live in `database/migrations/` and are named
 use the next version. The former `.gitkeep` placeholder was removed when
 `V1__initial_schema.sql` was added.
 
-The shared Supabase development project currently provides authentication. Its
-PostgreSQL database has not received these application migrations. Local and CI
-tests use disposable PostgreSQL, and the separate beta database/environment is
-future M15 work after the Android client reaches `M14.18`.
+The shared Supabase development project provides authentication, and `M15.3`
+applied these migrations to that same project's PostgreSQL to serve the beta
+(`D035` reuses `ChessGame Dev` rather than creating a second project). Local and
+CI tests continue to use disposable PostgreSQL, so beta data and test data never
+share a database.
 
 Do not commit real secrets or production credentials here. See `.env.example`
 for the environment-variable template.

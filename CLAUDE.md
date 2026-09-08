@@ -20,6 +20,11 @@ Before making architectural or product-behavior changes, read:
 - `docs/DEVELOPMENT.md`
 - `docs/AUTONOMOUS-DEVELOPMENT.md`
 
+Also read `docs/PLATFORM-REVIEW.md` before any work that generalises chess into
+the turn-based platform, or that designs the deck-building game. It records what
+the chess MVP proved reusable, what stayed chess-specific, and what chess never
+exercised at all.
+
 ## Document Precedence
 
 If documents appear to conflict, use this precedence order:
@@ -31,6 +36,11 @@ If documents appear to conflict, use this precedence order:
 5. `docs/BACKLOG.md` — implementation ordering and task acceptance criteria
 6. `docs/DEVELOPMENT.md` — verified developer commands and environment instructions
 7. `docs/AUTONOMOUS-DEVELOPMENT.md` — working procedure
+
+`docs/PLATFORM-REVIEW.md` is deliberately absent from this list. It is
+descriptive — a review of what was built, plus design notes for a system that
+does not exist yet — and it defers to every document above it. Anything in it
+that needs to bind becomes a decision in `docs/DECISIONS.md` (see `D044`).
 
 If a lower-precedence document conflicts with a higher-precedence document, do not silently reconcile them. Follow the higher-precedence document and update the stale lower-precedence document when appropriate.
 

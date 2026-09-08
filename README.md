@@ -9,7 +9,7 @@ The long-term goal is not to remain a chess application. Chess is being used to 
 - **Android:** Kotlin + Jetpack Compose
 - **Shared game logic:** pure Kotlin/JVM `game-core`
 - **Backend:** Kotlin + Ktor
-- **Database:** PostgreSQL 18 locally/CI; beta hosting not selected
+- **Database:** PostgreSQL 18 locally/CI; beta on `ChessGame Dev`'s PostgreSQL
 - **Persistence:** JetBrains Exposed + HikariCP; Flyway + SQL migrations
 - **Authentication:** Supabase anonymous authentication for MVP
 - **Realtime:** HTTPS commands + WebSocket updates
@@ -55,22 +55,25 @@ The root `CLAUDE.md` defines document precedence and autonomous-development rule
 
 ## Current Status
 
-The domain engine and authoritative backend are substantially implemented and
-tested. The project is **not yet an end-to-end playable multiplayer Android
-MVP** because the completed Android auth/API/presentation components have not
-been wired into the application entry point and online game flow.
+**`docs/BACKLOG.md` is the source of truth for task-level status.** This section
+summarises where the project has got to and does not restate task counts, which
+is what made the previous version of it wrong.
 
-Current backlog state after reconciling it with the implementation:
+The chess MVP is complete, deployed, and has been played by someone other than
+the developer. The arc:
 
-- 71 tasks `DONE`, 22 `TODO`, 1 `BLOCKED`, and none `IN PROGRESS`,
-- M1–M4 and M6–M13 are complete,
-- M5.1–M5.6 are complete; M5.7 awaits device/emulator verification,
-- M14.1–M14.4 completed dashboard/history data and presentation components,
-- M14.5–M14.18 track the missing Android application/network shell and
-  multiplayer integration,
-- M15 beta hosting is deliberately not started and depends on M14.18,
-- M16.3–M16.5 server hardening is complete; client/network hardening remains,
-- M17 beta distribution and M18 architecture review remain.
+- `M1`–`M13` — the chess engine, the authoritative Ktor server, and the Android
+  components.
+- `M14` — Android wired into an integrated multiplayer application, proved with a
+  two-client play-through.
+- `M15` — the Ktor server deployed to Render Free against `ChessGame Dev`'s
+  PostgreSQL.
+- `M16` — client and network hardening.
+- `M17` — a signed beta APK handed to a real tester, who installed it on their own
+  physical Android device, got through onboarding unaided, and played an online
+  game to the end without developer intervention.
+- `M18` — a review of what the chess implementation proved about the platform
+  underneath it, in `docs/PLATFORM-REVIEW.md`.
 
 Implemented foundations include:
 
@@ -81,16 +84,18 @@ Implemented foundations include:
   dashboard/history queries, idempotency safeguards, and safe logging,
 - a Flyway-managed PostgreSQL schema exercised against disposable PostgreSQL in
   local development and CI,
-- a Compose local pass-and-play screen plus separate Android anonymous-auth,
-  API-client, dashboard, and history components,
+- a Compose Android app covering anonymous auth, onboarding, friends,
+  dashboard, online play, history, and local pass-and-play,
 - aggregate Gradle verification with ktlint, Android lint, JVM tests, Android
   unit tests, APK assembly, and server distributions.
 
-The most recent completed CI-verified implementation baseline at this
-documentation update was commit `0ef3228`, which passed GitHub Actions run
-[33022371135](https://github.com/jmusselman2/ChessGame/actions/runs/33022371135).
-Milestone-by-milestone scope and dependencies are tracked in
-`docs/BACKLOG.md`; the next coding task is `M14.5`.
+Independent evaluation (`evals/`) runs on its own track and lags implementation.
+`docs/CODEX_EVALUATION_STATE.md` is the source of truth for how far it has got
+and what it currently has open.
+
+What happens next — integrating `claude-autopilot` into `main`, and designing the
+deck-building game the platform was built toward — is human-directed.
+`docs/PLATFORM-REVIEW.md` and `D044` are where that design work starts.
 
 ## Getting Started
 
