@@ -826,7 +826,10 @@ what this file says elsewhere:
 - Client-side pre-validation (§7, §11.2) and shipping the whole position to both
   players (`GameView`) work because chess is a game of complete information.
   Neither survives hidden information.
-- Undo as `PRODUCT.md` and §21 define it is a chess rule, not a platform rule.
+- Undo's *mechanism* (§21) is a platform concept, but its lock predicate is
+  chess's own. "Locked once the opponent responds" is retrospective and can flip
+  back; a game with hidden information also needs an intrinsic lock for any
+  action that revealed something to anyone, the actor included.
 
 `D044` decides what follows: **nothing is extracted, generalised, or renamed
 until a second ruleset exists**, and it names the six candidates for that moment.

@@ -2252,3 +2252,24 @@ break something.
   multi-action turns, and scale beyond one process. Those are the parts of the
   platform that are unvalidated, and design work on the deck-builder starts
   there rather than assuming the chess answers carry.
+- Undo is the one of those with an answer already. The review first concluded the
+  deck-builder would likely have none; the project owner corrected it, and the
+  corrected finding stands: `D016`'s *mechanism* — a stack of actions each stored
+  with the whole position before it, undo as a pop, eligibility as a pure function
+  of the stack's top — carries unchanged. Only the lock predicate widens. Chess's
+  lock is entirely retrospective, so it can flip back when the opponent takes
+  their reply back; a hidden-information game adds an intrinsic lock, because an
+  action that moved information from hidden to known for **anyone, the actor
+  included**, does not reopen on its own. Drawing a card and playing one face up
+  are the same case. Both locks restrain the *actor alone* — `D016` is titled
+  *Takebacks Are Unilateral Until Opponent Responds* — so undo by mutual agreement
+  remains available past either, and the deck-builder is to be built so a consented
+  undo can reach past a lock even before the permission flow exists. That costs one
+  field on the history record, so undo is a seventh thing worth carrying forward
+  rather than a chess-only rule.
+- `docs/PLATFORM-REVIEW.md` gained a **Design notes for the deck-builder**
+  section on the same date, covering the action stack in storage, how far back
+  prior state is kept, and seeded randomness. It is design input for a system that
+  does not exist, it binds nothing, and anything that survives contact with the
+  real second ruleset earns its own decision then. It is recorded there rather
+  than here for exactly that reason.

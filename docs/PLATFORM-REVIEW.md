@@ -27,19 +27,19 @@ The cheapest question first: how much of the server is about chess?
 |---|---|---|
 | `game-core` (all chess) | 22 | 1,779 |
 | `server` main source | 32 | 4,257 |
-| …of which mention `game-core` at all | 7 | 1,638 |
+| …of which mention `game-core` at all | 7 | 1,856 |
 | …of which are *shaped* by chess | 5 | ~1,444 |
 
 The seven are `api/ApiTypes.kt`, `db/GameRepository.kt`, `db/GameStateDocument.kt`,
 `game/GameCommandService.kt`, `game/GameRoutes.kt`, `series/SeriesService.kt`,
 and `Application.kt`. Two of those barely count: `Application.kt` uses
-`GameCore.NAME` for a banner, and `SeriesService` touches chess on exactly two
-lines, both `ChessGame.newGame()` ([SeriesService.kt:139](../server/src/main/kotlin/com/jmussel/chessgame/server/series/SeriesService.kt:139),
+`GameCore.NAME` for a banner, and `SeriesService` touches chess at exactly two
+call sites, both `ChessGame.newGame()` ([SeriesService.kt:139](../server/src/main/kotlin/com/jmussel/chessgame/server/series/SeriesService.kt:139),
 [:166](../server/src/main/kotlin/com/jmussel/chessgame/server/series/SeriesService.kt:166)).
 
-So roughly two-thirds of the server — authentication, identity, usernames,
-friendships, series lifecycle, dashboard, history, realtime, persistence
-plumbing, logging — never mentions chess. That is the strongest single piece of
+So **25 of the server's 32 files never mention chess at all** — authentication,
+identity, usernames, friendships, series lifecycle, dashboard, history, realtime,
+persistence plumbing, logging — which is 2,401 of its 4,257 lines. That is the strongest single piece of
 evidence in this review, and it was not designed in at the end; it is what
 `ARCHITECTURE.md` §6's rule ("these are not chess-engine concepts") produced when
 followed for seventeen milestones.
@@ -81,9 +81,9 @@ them is fair is a fact about chess.
 
 **Undo as `PRODUCT.md` defines it.** `D016`'s rule — the mover may take back the
 latest unanswered move — is only safe because chess is a game of complete
-information played one action at a time. It is discussed under *What chess did
-not prove*, because it is the rule most likely to be unimplementable in the next
-game rather than merely different.
+information played one action at a time. The *mechanism* turned out to carry into
+the next game and only the lock predicate is chess's own; see *What chess did not
+prove*, where that is worked out.
 
 **The Android client's local replay.** `OnlineGame.replayOf` rebuilds the game
 from the server's move list to preview legal destinations
@@ -134,8 +134,10 @@ more than one server process needs shared pub/sub first (`ARCHITECTURE.md` §12)
 
 **Identity separated from the auth provider.** `users.auth_subject` is the
 Supabase subject; `users.id` is the internal identity everything else references.
-Nothing outside `auth/` knows what Supabase is. Swapping the provider touches one
-column and one verifier. `D043` sharpened the rule that makes this safe — an
+Supabase appears in code in exactly two places: `auth/`, and the composition root
+in `Application.kt`, which reads `SUPABASE_URL` and builds the verifier it
+installs. Three other files name it only in comments. Swapping the provider
+touches one column, one verifier, and that wiring. `D043` sharpened the rule that makes this safe — an
 identity is given up only on evidence, never on the absence of a success — and
 that rule is about accounts, not chess.
 
@@ -301,12 +303,53 @@ A deck-builder shuffles. Nothing in this codebase has an opinion about seeded
 randomness, deterministic replay from a seed, or where a seed is stored, and the
 version model does not by itself make shuffling safe.
 
-**Undo.** `D016`'s undo works because the previous position is stored whole with
-each move (`moves.position_before`, `D029`) and because nothing was revealed by
-the move being taken back. Undo in a game with hidden information leaks — the
-mover has *seen* what they drew. The likely outcome is that the deck-builder has
-no undo, and `PRODUCT.md`'s undo rules should be read as chess's, not the
-platform's.
+**Undo.** The mechanism carries; the lock predicate does not.
+
+`D016` is a stack with no bookkeeping. Each `MoveRecord` stores the move together
+with the *entire* position it was played from (`moves.position_before`, `D029`);
+undo pops the top and restores that position wholesale; and eligibility is a pure
+function of the stack's top — `undoableSide` is `lastMover` unless the game is
+over. Nothing is remembered anywhere, because in chess **"your move is
+unanswered" and "your move is on top of the stack" are the same statement**: turns
+strictly alternate, so an answered move is not the top one. That identity is why
+`D016`'s "the previous move becomes undoable again once the opponent takes their
+reply back" costs no code at all.
+
+What does not carry is that chess's lock is **entirely retrospective**. Whether a
+move is undoable depends only on what happened *after* it, which is what makes it
+derivable from the stack top, and what lets it flip back. A game with hidden
+information adds a second, **intrinsic** class of lock: an action that moved
+information from hidden to known — for anyone, the actor included — cannot be
+taken back by the actor alone, whatever follows, and unlike the retrospective
+lock it never reopens on its own. Drawing a card and playing one face up are the
+same case in this respect; popping the stack does not un-know either of them.
+
+An intrinsic lock cannot be derived from being on top of the stack, so it has to
+be carried by the record. That is one field, not a redesign: each history entry
+records whether its action revealed anything, and eligibility becomes *you made
+the top action, the game is running, and that action revealed nothing*. Undo
+therefore survives into the deck-builder for every action that leaks nothing —
+rearranging a hand, selecting without committing, a purchase that reveals no card
+— which is most of what a player actually wants back.
+
+**Both locks are on unilateral undo only, and that is the whole of what `D016`
+governs** — its title is *Takebacks Are Unilateral Until Opponent Responds*. A
+locked action is not physically irreversible; it is one the player may no longer
+reverse *by themselves*. Undo by mutual agreement is a separate authority level
+that chess never needed and the deck-builder should keep available, and the
+project owner has said the system must be built so a consented undo can reach
+past a lock even though the asking-for-permission flow is not being built yet.
+The consequence is a storage one and is taken up under *Design notes* below: a
+rewind that may cross a reveal cannot rely on the reveal to bound how much prior
+state is kept.
+
+One consequence for the projection work: `positionBefore` is safe to store and to
+hand out in chess because both players may see it anyway. In a hidden-information
+game that snapshot *is* the secrets, so the undo record must stay server-side and
+never be projected to a viewer.
+
+`PRODUCT.md`'s undo rules are still chess's own — "once the opponent moves, the
+prior move is locked" is the retrospective predicate and nothing more.
 
 **Rewriting history on every write.** `save` deletes and rewrites the whole move
 history each time
@@ -315,17 +358,265 @@ which is correct, simple, and cheap for a hundred plies of chess. It is `O(game
 length)` per action. This is a deliberate concrete choice that should be
 revisited, not inherited, for a game with many actions per turn.
 
-**Turn structure.** `NotYourTurn` is a hard refusal, and one command produces
-exactly one version. Simultaneous choices, reactions out of turn, and a turn
-composed of several actions are all outside what was built. The version model
-still applies — it is about *which state you decided against* — but "one accepted
-command, one version" may need to become "one accepted command, one version,
-within a turn that spans several".
+**Turn structure.** In chess a turn is a move: `NotYourTurn` is a hard refusal
+against a single scalar `sideToMove`, and playing a move both changes the state
+and passes the turn, because those are the same event. A turn composed of several
+actions, and reactions taken outside one's own turn, are outside what was built.
+
+The deck-builder's shape is known, and it is a mild one. **Ending a turn becomes
+its own command**, which the deck-builder raises from a button and chess issues
+implicitly after every move — so chess stays exactly as it behaves today while
+the platform gains the concept. Turn ownership can stay a scalar; what separates
+is *whose turn it is* from *who may act right now*.
+
+Reactions are narrow and prompted rather than open priority — "when an opponent
+deals damage to you, you may discard this card to prevent up to 3" — so they need
+a **pending decision** in game state naming the one player who owes an answer and
+the choice offered, not a general priority system. `NotYourTurn` generalises to
+*you are not the player this state is waiting on*.
+
+There are no simultaneous secret choices in the planned game, which matters more
+than it sounds: those were the one case that genuinely broke the version model,
+because two concurrent legal commands would contend for a single version and the
+loser would be refused as stale despite being valid. Without them, **"one accepted
+command, one version" holds unchanged.** Several versions per turn is the
+intended behaviour and not a cost to be optimised away — each action is worth
+watching, and the opponent seeing them arrive one at a time is the point.
+
+Turn order also stops being a two-sided alternation: it rotates across up to four
+human participants and a scripted enemy that takes turns of its own. The
+sequencing consequences are under *Design notes*; how those participants are
+seated in the first place is separate work.
 
 **Scale.** One beta game between two people on a Render Free instance. Nothing
 here has been shown at load, with many concurrent games, or across more than one
 server process — and the process-local `RealtimeHub` is a known blocker for the
 last of those.
+
+## Design notes for the deck-builder
+
+Everything above is a measurement. This section is not: it is design input
+settled with the project owner on 2026-09-08, for a system that does not exist
+yet. It binds nothing. When the deck-builder starts, whatever survives contact
+with it gets its own decision; until then this is here so the reasoning is not
+re-derived from scratch.
+
+### The action history should be a stack in storage, as it already is in the domain
+
+`ChessGame.history` is already a stack — push on a move, `dropLast(1)` on undo.
+The O(N²) cost is entirely in persistence, and its root cause is a signature:
+
+```kotlin
+fun save(id: Uuid, expectedVersion: Long, game: ChessGame, auditEvent: String?): Long
+```
+
+`save` is handed *the resulting game*, never what happened to it. It cannot tell
+a push from a pop, so its only correct option is to snapshot the whole stack —
+`deleteWhere` then re-insert every record
+([GameRepository.kt:213](../server/src/main/kotlin/com/jmussel/chessgame/server/db/GameRepository.kt:213)).
+It does O(N) work to record an O(1) operation. For a hundred plies of ~1KB that
+is invisible and buys a real guarantee: stored history always exactly equals
+`game.history`, with no incremental-diff bug possible.
+
+The fix is to make the command say what it did — `append(action)` /
+`truncateTo(seq)` rather than "here is the new whole game". Push becomes one
+insert, undo becomes `delete where game_id = ? and seq > ?`, and nothing else
+about the model changes.
+
+### Prior state is kept to a turn horizon, not to a reveal
+
+The expensive column is not the action, it is `position_before`: a full state
+snapshot per row, which exists only to make undo exact.
+
+An earlier draft of this review proposed bounding that storage with the reveal
+lock — a revealed action can never be undone, so it needs no snapshot. **That is
+wrong, and it is wrong because of consented undo.** Both locks restrain the actor
+alone; two players who agree may rewind past a reveal, so a reveal cannot be
+treated as the point beyond which prior state is discardable.
+
+Two horizons work, and the tighter of the two applies.
+
+The turn boundary, which the deck-builder has anyway now that ending a turn is a
+command:
+
+- a snapshot per action **within the open turn**, bounded by actions-per-turn,
+- a checkpoint per **closed turn**, bounded by turns,
+- per-action snapshots pruned as their turn closes.
+
+And the shuffle, which is a **hard barrier**: nothing before the most recent
+shuffle is ever needed again, so it prunes unconditionally. Consented undo inside
+the turn restores an action snapshot; to an earlier turn, that turn's checkpoint;
+and past a shuffle, never.
+
+**A shuffle can never be undone — by anyone, with or without agreement (project
+owner, 2026-09-08).** The reason is not storage, which is only the dividend. It is
+that undo across a shuffle has no correct implementation:
+
+- **restore the RNG position** and redoing reproduces the order the players have
+  already seen, so the restored state claims hidden information that is not
+  hidden;
+- **do not restore it** and the shuffle re-rolls, which is peek-and-reroll —
+  see a bad shuffle, rewind, take a different route to a different one.
+
+Every other undo restores state *and* knowledge symmetrically, because nothing
+was learned that the restoration does not account for. A shuffle is the single
+action where that symmetry breaks: it destroys position knowledge globally, and
+no restoration puts it back. Barring it is the only clean resolution, not a
+convenience.
+
+The barrier is **global** — one ordered action log, one version counter, one
+barrier — and **inclusive of the action that triggered the shuffle**, since a
+reshuffle raised inside a draw would otherwise unwind with that draw. One integer
+on the game row records it, and eligibility gains `seq > undoBarrierSeq`.
+
+**Nothing here re-executes rules.** Restoring a stored snapshot is safe under any
+future rules change; reconstructing state by replaying actions is not, which is
+the subject of the next note.
+
+### Turn structure and sequencing
+
+A turn is several actions followed by an explicit end, so **`EndTurn` becomes its
+own command**. The deck-builder raises it from a button; chess issues it
+implicitly after every move, because there a move and the end of the turn are the
+same event. Chess therefore behaves exactly as it does today while the platform
+gains the concept.
+
+**One accepted command, one version, one push — per action, deliberately.**
+Several versions in a turn is the intent rather than a cost to optimise away:
+each action is worth watching, and the opponent seeing them arrive one at a time
+is the point. This holds only because the planned game has no simultaneous secret
+choices; those were the single case that would have broken the version model, by
+making two concurrent legal commands contend for one version so the loser was
+refused as stale despite being valid.
+
+**Turn order rotates across participants, and one of them is not a person.** Up
+to four humans, plus a scripted enemy deck that takes turns of its own. The
+enemy must resolve server-side through the same command path as everyone else —
+any other route and canonical state, audit, and the clients diverge — and it
+should bump the version per action like any other participant, so both the audit
+trail and the players see what it did, one step at a time. It also closes the
+retrospective undo lock exactly as an opponent's move does in chess: the enemy
+acting *is* another participant having acted.
+
+*(How four players are seated — what replaces the friendship pair as the unit of
+continuity — is deliberately out of scope here and is its own piece of work.)*
+
+**Reactions are prompted, not open priority.** "When an opponent deals damage to
+you, you may discard this card to prevent up to 3" is a bounded question put to
+one participant at a known point, not a general right to act out of turn. That
+needs a **pending decision** in game state naming the participant who owes an
+answer and the choice offered — not a priority system. `NotYourTurn` then
+generalises to *you are not the participant this state is waiting on*, which
+covers the turn holder and an owed reaction with one rule.
+
+### The active player's hand is public, which makes most of a turn undoable
+
+A product decision with a large technical dividend: the player whose turn it is
+has their hand revealed to everyone, and when the turn passes the next player's
+hand is revealed in its place.
+
+It deletes a case rather than solving it. "Put a known card on top of your deck,
+then draw it, and now a card in your hand is known to your opponent" stops being
+awkward — during your turn *all* of your hand is known, and outside your turn
+none of it is being acted on. Visibility no longer varies card by card within a
+hand; it varies by whose turn it is.
+
+The dividend is undo. **Almost every in-turn action reveals nothing**, because
+the zone it operates on is already public: playing a card, choosing a target,
+arranging, buying with visible resources. What still reveals is a short list —
+drawing from your own deck when the top card is not known, and any effect that
+exposes a card from the market deck. So a player may take back anything up to the
+point where they pull new information out of a hidden zone, which is a generous
+and easily explained rule, and lands very close to what `D016` reaches for in
+chess from the opposite direction.
+
+Two consequences worth keeping in view. A draw that triggers a reshuffle always
+reveals — the deck was empty, so no top card could have been known — so it is
+locked twice over, by the reveal and by the shuffle barrier. And consented undo
+remains outside the rest of this: two players who agree may rewind past a
+*reveal*, and no mechanism can make that information-safe, because it is an
+agreement to disregard something already seen rather than a technical guarantee.
+That is acceptable between friends, and it is deliberately where the line sits —
+consent buys a takeback, never a re-roll.
+
+**`Reshuffle` and `Draw` are separate entries in the action log** (project owner,
+2026-09-08), so the barrier lands on the shuffle alone and the draw stays
+independently undoable. That keeps the misclicked draw on an empty deck
+recoverable, which is the friendly-undo property the barrier would otherwise have
+taken away as a side effect. It is safe for the reason it is useful: the player
+has seen the top card either way, so taking the draw back gains them nothing.
+
+The split has to be real in the log. A reshuffle recorded as a side effect inside
+the draw's own record unwinds with it, which is the whole thing this avoids. Three
+consequences follow:
+
+- **Two transitions, two versions, one transaction.** One tap produces both, and
+  `D021` counts every accepted mutation, so the version moves by two. They commit
+  together — a crash between them must not leave a deck reshuffled for a draw that
+  never happened — and one realtime push carrying the final version is enough,
+  since clients reload rather than apply. Committing two related transitions
+  atomically has precedent: `GameCommandService.applied` finalizes a game and
+  creates its rematch in one transaction. Bumping a version twice does **not**.
+  `GameRepository.save` computes `expectedVersion + 1` internally and writes it
+  once, so a single call cannot express two transitions; that signature has to
+  change alongside the append/truncate one above.
+- **The log must tolerate entries nobody chose.** A reshuffle is forced by the
+  rules, not selected by the player. Its actor is still the deck's owner, but
+  "who acted" and "who chose" stop being the same field. The scripted enemy needs
+  exactly the same separation, so this is one concept, not two.
+- **The draw's stored prior state is the post-reshuffle state**, which is what
+  makes undoing it land on a deck that is already shuffled and stays shuffled.
+
+### Randomness is materialised, counter-based, recorded, and never given to the client
+
+Five parts, and the first is what makes the rest easy.
+
+**Shuffle into state; never derive a draw on demand.** The deck is an ordered
+list in canonical state. A shuffle reorders it once, and drawing pops from it.
+This is simply the real-life model — once the deck is shuffled the order is
+fixed — and it is what makes *peek-and-reroll* structurally impossible rather
+than merely defended against. A design that derived each draw lazily from
+`(seed, counter)` at draw time would let a player see what they drew, undo,
+act differently so the counter advanced differently, and pull a different card.
+Materialising the order removes the attack: undoing a later action does not
+re-shuffle, because the order was never going to be recomputed.
+
+Shuffles happen twice in a game's life — at setup, and on deck exhaustion, when
+the discard pile is shuffled back in. Nothing else reorders a deck.
+
+**The seed is audit, not mechanism.** Materialising the order was the first half
+of this; barring undo across a shuffle is the second, and together they retire the
+question. A shuffle is never undone, so it is never redone, so no shuffle ever has
+to be reproduced — and the RNG stops being part of the state machine's
+reversibility contract altogether. Shuffle with anything; record the resulting
+order in state and in the action row. Keeping a seed is still worth it for
+debugging and for settling a dispute about what a game actually did, but nothing
+depends on it, and it should not be mistaken for something that does.
+
+**Record the outcome as well.** The action row should say which cards were
+actually drawn, not merely imply it from the seed. It is redundant on purpose:
+the audit trail becomes readable, and divergence becomes detectable instead of
+silent.
+
+**Never reconstruct canonical state by replaying from the seed.** Seed replay is
+deterministic only while the rules code is unchanged. Deploy a fix to a card's
+effect and every in-flight game replays into a different game than the players
+actually played — silently, with no error anywhere. Chess never risks this
+because it never replays: `state` is canonical and history serves undo and
+display. **Keep that property.** Seed and counter are for generating randomness
+reproducibly during forward execution, and for debugging; they are not a
+state-recovery mechanism. This is also why the turn-horizon scheme above stores
+snapshots rather than replaying forward from checkpoints.
+
+**Neither the seed nor the deck order may reach a client.** Materialising the
+shuffle moves the secret: canonical state now literally contains the order of
+every deck, so the per-viewer projection has to strip deck order — and the
+identity of any card whose position is not known to that viewer — before the
+state leaves the server. The seed must not ship either, since seed plus counter
+plus a known deck composition reconstructs the same thing. Chess has no analogue
+for either; there is nothing in a chess position that both players may not see.
+This is the single most important thing on the projection checklist, because
+unlike a leaked hand it would hand over the entire future of the game.
 
 ## What changes now
 
