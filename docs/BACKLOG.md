@@ -4128,7 +4128,7 @@ container, volume, and `compose.yaml` were left exactly as they were.
 
 ## M17.1 — Small beta distribution
 
-**Status:** IN PROGRESS
+**Status:** DONE
 
 **Depends on:** M14.18, M15, M16
 
@@ -4308,6 +4308,40 @@ which cannot be verified from here.
    this `DONE` with the findings, or raise what they turn up as new backlog
    tasks — `M18.1` depends on this milestone, so the loop has nothing selectable
    until then.
+
+### Completion Note — the real-user play-through happened (2026-09-08)
+
+**One other real person installed the beta on their own physical Android device,
+got through installation and onboarding unaided, and played an online game
+through to the end with the project owner. Their report: it works fine, and it
+could use polish.** No crashes, no synchronization problems, no installation or
+onboarding trouble, and no developer intervention during a normal move — which is
+the acceptance criterion. That closes this task.
+
+What their session actually ran, since a report is only worth what it names: the
+app was `0.1.2-beta` (`versionCode` 3, signed by the permanent beta key,
+certificate `CN=Jordan`) against the server at `81fbab9`. That predates the `M7`
+identity-continuity fix (`d03a0fd`) and its deploy, so "works fine" is evidence
+for that build and not for the one deployed now.
+
+**"Could use polish" is deliberately not recorded as a finding.** The acceptance
+criteria ask only for what actually matters — confusion, installation problems,
+crashes, synchronization problems, or other real defects — and none was reported.
+The guidance above predicted this exact outcome ("asking one concrete question
+beats 'how did it go?', which gets 'fine'"), and that is what came back. No
+backlog task is raised from it, because a task with no named behaviour behind it
+is not actionable. If specifics surface later they should be raised then, against
+the observation they belong to.
+
+The eight observations were guidance, not a checklist, and are not written up
+individually — the criteria say explicitly that none of them has to be exercised.
+
+Nothing in the repository changed for this: the work was the play-through itself.
+The distribution mechanism, the signed APK, and the verification were already
+done and are recorded above; `M17.2` added the build identification that let this
+report name what it was testing.
+
+---
 
 ## M17.2 — A build can be named, from outside and from inside
 
