@@ -14,6 +14,7 @@ import kotlinx.serialization.json.put
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -104,12 +105,34 @@ class GameRepository(
         }
 
     /** The game with [id], or `null` when there is none. */
-    fun load(id: Uuid): StoredGame? =
+    fun load(id: Uuid): StoredGame? = read(id, lockForUpdate = false)
+
+    /**
+     * The game with [id], with its row locked until the surrounding transaction ends.
+     *
+     * What a mutating command must read from. A game is stored across two tables — the row
+     * and its move history — and READ COMMITTED gives every statement its own snapshot,
+     * while a competing `save` commits both together. An unlocked read interleaved with
+     * that commit can therefore take the row from before it and the history from after it,
+     * producing a [StoredGame] whose `version` is the old one — so it passes the version
+     * check — carrying the winner's moves. The command then decides from a position that
+     * never existed and refuses on a *rule* (`NothingToUndo`, `IllegalMove`) rather than on
+     * its version, which is the contract `D021` actually makes (`M16.7`).
+     *
+     * The lock makes the loser wait rather than read something torn: it sees the winner's
+     * committed version, and the version check refuses it properly. Reads that only display
+     * a game keep using [load] and take no lock.
+     */
+    fun loadForUpdate(id: Uuid): StoredGame? = read(id, lockForUpdate = true)
+
+    private fun read(
+        id: Uuid,
+        lockForUpdate: Boolean,
+    ): StoredGame? =
         transaction(database) {
+            val query = GamesTable.selectAll().where { GamesTable.id eq id }
             val row =
-                GamesTable
-                    .selectAll()
-                    .where { GamesTable.id eq id }
+                (if (lockForUpdate) query.forUpdate(ForUpdateOption.ForUpdate) else query)
                     .singleOrNull()
                     ?: return@transaction null
 

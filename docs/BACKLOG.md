@@ -4120,6 +4120,82 @@ excluded range `55348-55447` — so a throwaway `postgres:18-alpine` container w
 run on `15432` for the verification and removed afterwards. The project's own
 container, volume, and `compose.yaml` were left exactly as they were.
 
+## M16.7 — A racing command decides on a state it actually read
+
+**Status:** DONE
+
+**Depends on:** M16.4
+
+**Found by:** CI run `33985795137` (`main`, `0da5f42`), 2026-09-05.
+
+### The defect
+
+`MoveVersusUndoTest > exactlyOneOfMoveAndUndoHappens` failed at line 144, not
+143: exactly one command applied, but the loser was **not** told
+`StaleVersion`. The same commit passed on `claude-autopilot`, so it is
+timing-dependent. `D021` requires the loser to be refused on its version with the
+canonical state attached — that is the recovery path the client depends on
+(`M16.3`), so a loser told something else is a contract violation, not a flaky
+assertion.
+
+`GameRepository.load` reads two tables in two statements: the `games` row, then
+`readHistory(id)` from `moves`. Under READ COMMITTED each statement takes its own
+snapshot, while a competing `save` commits the games row and the rewritten move
+history together. A `load` interleaved with that commit can therefore read
+`games` *before* it and `moves` *after* it, producing a `StoredGame` whose
+`version` is the old one — so it passes the version check — carrying the winner's
+history. The decision checks then run on a state that never existed:
+`ChessRules.canUndo` answers `NothingToUndo`, or `ChessRules.isLegal` answers
+`IllegalMove`.
+
+The version guard protects the write. It does not protect the reads the decision
+is made from.
+
+### Acceptance Criteria
+
+- A command that loses a race is refused on its version, never on a rule
+  evaluated against a torn read.
+- The read a mutating command decides from is consistent with the version it
+  checks.
+- A test establishes this deterministically rather than by repetition.
+- Read-only paths are not made to take write locks.
+
+### Completion Note
+
+`GameRepository.loadForUpdate` takes the game row with `FOR UPDATE` and the four
+mutating commands — `makeMove`, `claimDraw`, `resign`, `undoMove` — read through
+it. `load` is unchanged and takes no lock, so displaying a game and attaching
+canonical state to a refusal cost nothing extra.
+
+The lock is on the *read*, which is the part that was unprotected. The write was
+already safe twice over: `save` re-checks the version after its own `SELECT`, and
+its `UPDATE ... WHERE version = ?` throws `StaleGameVersionException` when it
+matches no rows. What neither guard covered was the two statements `load` issues
+— the `games` row, then `readHistory` from `moves` — which under READ COMMITTED
+take separate snapshots while a competing `save` commits both together.
+
+**Reproducing it took real work and the first attempt was wrong.** 200 local
+rounds of `exactlyOneOfMoveAndUndoHappens` would not fail, and the first
+deterministic test written for this passed *with the fix disabled* — it had the
+loser blocking on the `UPDATE` rather than on the read, so it proved nothing. The
+committed test targets the property that actually prevents the torn read: while a
+write to a game is in flight, a mutating command's read does not begin. Verified
+by flipping `loadForUpdate` to take no lock and watching
+`aMutatingCommandsReadWaitsForAnInFlightWriteRatherThanStraddlingIt` fail at
+`MoveVersusUndoTest.kt:195`, then pass again with the lock restored.
+
+Reproducing the torn read itself was rejected as a test: it would need to
+interpose between two statements inside `load`, which means either instrumenting
+production code for a test or a timing hook that would be its own flake.
+`exactlyOneOfMoveAndUndoHappens` also now names both results in its failure
+message, so a future intermittent failure says what the loser actually returned
+instead of only that a count was wrong.
+
+Verified with `.\gradlew.bat :server:test --tests MoveVersusUndoTest` and
+`.\gradlew.bat build` (BUILD SUCCESSFUL, 430 server tests, 0 failures).
+
+---
+
 ---
 
 ---

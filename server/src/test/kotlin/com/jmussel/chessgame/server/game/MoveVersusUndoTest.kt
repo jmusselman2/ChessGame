@@ -3,6 +3,7 @@
 package com.jmussel.chessgame.server.game
 
 import com.jmussel.chessgame.core.chess.ChessGame
+import com.jmussel.chessgame.core.chess.ChessRules
 import com.jmussel.chessgame.core.chess.Move
 import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
@@ -14,7 +15,9 @@ import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.series.seriesService
 import com.jmussel.chessgame.server.user.Username
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.concurrent.Callable
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
@@ -22,6 +25,7 @@ import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -130,6 +134,83 @@ class MoveVersusUndoTest {
         }
     }
 
+    /**
+     * A mutating command's read waits for an in-flight write to the same game (`M16.7`).
+     *
+     * This is the property that stops the loser being refused on a *rule* instead of on its
+     * version. A game lives in two tables — the row and its move history — and READ
+     * COMMITTED gives each statement its own snapshot, while a competing `save` commits
+     * both together. An unlocked read landing either side of that commit takes the row from
+     * before and the history from after: a `StoredGame` whose version still matches, so it
+     * passes the version check, carrying the winner's moves. `canUndo` and `isLegal` then
+     * answer about a position that never existed, and the command refuses with
+     * `NothingToUndo` or `IllegalMove` — leaving the client no canonical state to recover
+     * from, which is the opposite of what `D021` promises.
+     *
+     * Reproducing the torn read itself would mean interposing between two statements inside
+     * `load`. What is worth pinning down instead is the thing that makes it impossible: a
+     * command's read does not begin until any in-flight write to that game has finished, so
+     * it can never straddle one. Without the row lock this returns at once with the old
+     * version; with it, it waits and sees what actually won.
+     */
+    @Test
+    fun aMutatingCommandsReadWaitsForAnInFlightWriteRatherThanStraddlingIt() {
+        withFixture { fixture ->
+            val contest = fixture.startContestedGame()
+            val holdsTheRow = CountDownLatch(1)
+            val mayCommit = CountDownLatch(1)
+            val pool = Executors.newFixedThreadPool(2)
+
+            try {
+                // The winner takes the row and keeps it until the reader is demonstrably
+                // waiting, which is exactly the window an unlocked read could fall into.
+                val winner =
+                    pool.submit(
+                        Callable {
+                            transaction(fixture.database) {
+                                val stored = assertNotNull(fixture.games.loadForUpdate(contest.gameId))
+                                holdsTheRow.countDown()
+                                mayCommit.await(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+                                fixture.games.save(
+                                    id = contest.gameId,
+                                    expectedVersion = contest.version,
+                                    game = ChessRules.undo(stored.game, Side.WHITE),
+                                    auditEvent = "MoveUndone",
+                                )
+                            }
+                        },
+                    )
+                assertTrue(holdsTheRow.await(TIMEOUT_SECONDS, TimeUnit.SECONDS), "the winner never took the row")
+
+                val reader =
+                    pool.submit(
+                        Callable {
+                            transaction(fixture.database) { assertNotNull(fixture.games.loadForUpdate(contest.gameId)).version }
+                        },
+                    )
+
+                // Without the lock this returns the pre-commit version immediately, which is
+                // the read that can be half of each game. The winner is still holding the
+                // row here, so a read that answers has not waited for it.
+                assertNull(
+                    runCatching { reader.get(1, TimeUnit.SECONDS) }.getOrNull(),
+                    "the read answered while a write to the same game was still in flight",
+                )
+
+                mayCommit.countDown()
+                winner.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)
+
+                assertEquals(
+                    contest.version + 1,
+                    reader.get(TIMEOUT_SECONDS, TimeUnit.SECONDS),
+                    "the read must see what actually won, never the version it was racing",
+                )
+            } finally {
+                pool.shutdown()
+            }
+        }
+    }
+
     @Test
     fun exactlyOneOfMoveAndUndoHappens() {
         withFixture { fixture ->
@@ -140,8 +221,8 @@ class MoveVersusUndoTest {
                 val applied = listOf(undoResult, moveResult).count { it is CommandResult.Applied }
                 val stale = listOf(undoResult, moveResult).count { it is CommandResult.StaleVersion }
 
-                assertEquals(1, applied, "round $round: exactly one command may win")
-                assertEquals(1, stale, "round $round: the loser is told the version moved on")
+                assertEquals(1, applied, "round $round: exactly one command may win (undo=$undoResult move=$moveResult)")
+                assertEquals(1, stale, "round $round: the loser is told the version moved on (undo=$undoResult move=$moveResult)")
             }
         }
     }
@@ -251,5 +332,6 @@ class MoveVersusUndoTest {
     private companion object {
         /** Enough repeats that a race that only sometimes goes wrong would show up. */
         const val ROUNDS = 15
+        const val TIMEOUT_SECONDS = 10L
     }
 }

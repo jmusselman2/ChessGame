@@ -97,7 +97,7 @@ class GameCommandService(
         move: Move,
     ): CommandResult =
         transaction(database) {
-            val stored = games.load(gameId) ?: return@transaction CommandResult.NoSuchGame
+            val stored = games.loadForUpdate(gameId) ?: return@transaction CommandResult.NoSuchGame
 
             sideOf(stored, userId)?.let { side ->
                 validate(stored, side, expectedVersion)?.let { return@transaction it }
@@ -139,7 +139,7 @@ class GameCommandService(
         claim: DrawClaim,
     ): CommandResult =
         transaction(database) {
-            val stored = games.load(gameId) ?: return@transaction CommandResult.NoSuchGame
+            val stored = games.loadForUpdate(gameId) ?: return@transaction CommandResult.NoSuchGame
 
             sideOf(stored, userId)?.let { side ->
                 validate(stored, side, expectedVersion)?.let { return@transaction it }
@@ -180,7 +180,7 @@ class GameCommandService(
         expectedVersion: Long,
     ): CommandResult =
         transaction(database) {
-            val stored = games.load(gameId) ?: return@transaction CommandResult.NoSuchGame
+            val stored = games.loadForUpdate(gameId) ?: return@transaction CommandResult.NoSuchGame
 
             sideOf(stored, userId)?.let { side ->
                 when {
@@ -223,7 +223,7 @@ class GameCommandService(
         expectedVersion: Long,
     ): CommandResult =
         transaction(database) {
-            val stored = games.load(gameId) ?: return@transaction CommandResult.NoSuchGame
+            val stored = games.loadForUpdate(gameId) ?: return@transaction CommandResult.NoSuchGame
 
             sideOf(stored, userId)?.let { side ->
                 when {
