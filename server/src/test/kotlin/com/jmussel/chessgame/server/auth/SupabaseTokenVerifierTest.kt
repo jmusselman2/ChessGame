@@ -48,6 +48,37 @@ class SupabaseTokenVerifierTest {
         assertFailsWith<InvalidTokenException> { verifier.verify(expired) }
     }
 
+    /**
+     * `M7.3` verifies expiry, which a token with none defeats: it would be a bearer
+     * credential that never stops working.
+     */
+    @Test
+    fun aTokenWithNoExpiryIsRejected() {
+        val everlasting =
+            tokens.signed {
+                withKeyId(tokens.keyId)
+                withIssuer(tokens.issuer)
+                withAudience(SupabaseTokenVerifier.DEFAULT_AUDIENCE)
+                withSubject("auth-subject-1")
+            }
+
+        assertFailsWith<InvalidTokenException> { verifier.verify(everlasting) }
+    }
+
+    @Test
+    fun aTokenWhoseExpiryIsNotATimeIsRejected() {
+        val unreadableExpiry =
+            tokens.signed {
+                withKeyId(tokens.keyId)
+                withIssuer(tokens.issuer)
+                withAudience(SupabaseTokenVerifier.DEFAULT_AUDIENCE)
+                withSubject("auth-subject-1")
+                withClaim("exp", "whenever")
+            }
+
+        assertFailsWith<InvalidTokenException> { verifier.verify(unreadableExpiry) }
+    }
+
     @Test
     fun aTokenForTheWrongAudienceIsRejected() {
         val wrongAudience = tokens.tokenFor(subject = "auth-subject-1", audience = "service_role")

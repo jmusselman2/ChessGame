@@ -2048,3 +2048,91 @@ and works, right up until a peer goes away quietly.
 - A server that comes back after a long sleep may be found up to a minute later
   than before, which is the price of the cap. An asynchronous game absorbs that;
   anything the player actually does still goes through `withServerWake`.
+
+---
+
+## D043 — An Identity, a Throttle Window, and an Expiry Are Only Given Up on Evidence
+
+**Date:** 2026-09-08
+
+**Status:** Accepted
+
+**Relates to:** `D004` (the server trusts no client), `D006` (invisible anonymous
+accounts), `D008` (a username is never released), `D010` (no continuous
+heartbeat), `D031` (the app talks to Supabase auth directly), `D039` (a `401`
+means the token), `M7.2`, `M7.3`, `M7.5`
+
+### Decision
+
+Three places in M7 acted on the absence of a success as if it were a proof.
+Each now needs the actual evidence:
+
+1. **`AnonymousAuthenticator` replaces the stored account only when Supabase
+   refuses the refresh token itself** — the `400` (`invalid_grant`) or `401` it
+   answers an unknown, revoked, or consumed token with. A `429`, any `5xx`, a
+   dead network, and a reply that could not be parsed all propagate to the
+   caller with the stored session untouched.
+2. **`LastSeenTracker` spends a throttle window only after the write lands.** A
+   claim whose `touchLastSeen` throws is handed back — unless a later caller has
+   already taken the window, whose claim is not ours to reverse — and the
+   exception is rethrown.
+3. **`SupabaseTokenVerifier` requires a readable expiry.** A verified token whose
+   `exp` is absent, or present but not a time, is rejected.
+
+### Rationale
+
+For an anonymous player the session *is* the account (`D006`, `D008`). Signing
+up again does not "recover" anything: it abandons the username — permanently,
+since a name is never released — along with the friends and the games behind it.
+Treating every `SupabaseAuthException` as a dead refresh token meant a Supabase
+rate limit or a few minutes of Supabase downtime could silently do that to a
+real player, in exchange for nothing a retry would not have got. `D039` already
+draws this line for the Chess server's `401`; this is the same line on the
+Supabase side, and `AppStartup` already turns the propagated refusal into a
+retryable `Failed`.
+
+The throttle exists because writing `last_seen_at` per request would be the
+heartbeat `D010` rules out — it is a statement that the activity is *already
+recorded*. When the write fails nothing is recorded, so keeping the claim turns
+one refused write into five minutes of activity that is silently dropped, and
+the stored value drifts arbitrarily far from the truth `M7.5` promises.
+
+An expiry that is only checked when present is not a check. A signed token with
+no usable `exp` is a bearer credential that never stops working, which is the
+one property a stolen token must not have; `M7.3` requires expiry verification,
+and every token Supabase issues carries one, so requiring it costs nothing real.
+
+### Alternatives Considered
+
+- **Treat every `4xx` refresh refusal as a dead token.** Rejected: `429` is a
+  `4xx` and is exactly the transient case that motivated this.
+- **Read Supabase's `error` code out of the body instead of the status.**
+  Rejected as more coupling for no more certainty: `invalid_grant` arrives as
+  `400` regardless, and the body is not part of any contract the repository
+  states. The status is what `SupabaseAuthClient` already exposes.
+- **Retry the refresh inside the authenticator.** Rejected: the caller knows
+  when asking again is worth it. `AppStartup` already waits through transport
+  failure and offers a retry for a refusal, and a hidden retry would fight it.
+- **Clear the stored session on a transient failure instead of keeping it.**
+  Rejected outright — the same account loss with an extra step.
+- **Write `last_seen_at` before claiming the window.** Rejected: the claim is
+  also what serialises concurrent callers into one write, and moving it after
+  the write would let a burst write several times.
+- **Let a failed `last_seen_at` write be swallowed rather than thrown.**
+  Rejected as a separate product change: the route's current behaviour (a 500)
+  is not what this defect was about, and the immediate retry now succeeds.
+- **Require `exp` with java-jwt's `withClaimPresence`.** Rejected as
+  insufficient: it accepts an `exp` that is present but not a number, which
+  java-jwt then declines to validate. Asking for the parsed instant covers both.
+
+### Consequences
+
+- A Supabase outage or rate limit now shows the player a retryable startup
+  failure instead of silently issuing them a new, empty account.
+- A refresh that genuinely died still recovers exactly as before, on `400` and
+  on `401`.
+- A refused `last_seen_at` write is retried by the next request rather than
+  after the throttle, so at most one write is lost instead of a window's worth.
+  Repeated failures cost one attempt per request, which is bounded by the same
+  requests that are already failing.
+- Any future non-Supabase token source must issue an `exp`. Every real one does.

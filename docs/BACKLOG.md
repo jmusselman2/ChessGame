@@ -1333,6 +1333,17 @@ was confirmed by a run with it cleared. `.\gradlew.bat build` succeeds
 still need device coverage; `M14.6` wires the invocation and `M14.18` performs
 the end-to-end device verification.
 
+**Corrected:** 2026-09-08 — an independent M7 evaluation found that
+`AnonymousAuthenticator` treated *every* `SupabaseAuthException` as a dead
+refresh token, so an HTTP `429` or `503` from Supabase was followed by anonymous
+sign-up and the replacement overwrote the stored user id and tokens (`M7-01`).
+For an anonymous player that abandons the username — permanently, since a name
+is never released (`D008`) — along with the friends and games behind it. Only
+the `400` or `401` Supabase answers a refused refresh token with now starts a
+new account; a rate limit, any `5xx`, a dead network, and an unreadable reply
+propagate with the stored session untouched, and `AppStartup` already turns that
+into a retryable failure (`D043`).
+
 ### Acceptance Criteria
 
 The Android auth layer can create and restore an anonymous session.
@@ -1362,6 +1373,13 @@ wrong audience, an unknown key id, an `alg: none` token, and rubbish; 9
 `AuthenticatedRouteTest` cases over the real database confirming 401 without a
 usable token and a stable internal id per account) and `.\gradlew.bat build`
 (BUILD SUCCESSFUL, 66 server tests).
+
+**Corrected:** 2026-09-08 — an independent M7 evaluation found that expiry was
+only validated when the token happened to carry one, so a token signed by the
+configured key with the right issuer, audience, key id, and subject but **no**
+`exp` verified successfully and never stopped doing so (`M7-03`). The verifier
+now requires a readable expiry, which also rejects an `exp` that is present but
+is not a time (`D043`). Every token Supabase issues carries one.
 
 ### Acceptance Criteria
 
@@ -1425,6 +1443,13 @@ activity is recorded, a burst inside the throttle writes once, activity after
 the throttle writes again, users are throttled separately, an authenticated
 `/me` counts, and `/health` or a forged token does not) and
 `.\gradlew.bat build` (BUILD SUCCESSFUL, 95 server tests).
+
+**Corrected:** 2026-09-08 — an independent M7 evaluation found that the throttle
+timestamp was published before `touchLastSeen` succeeded, so a refused write
+still spent the window and the next five minutes of activity were dropped behind
+a value that was never stored (`M7-02`). A window is now spent only by a write
+that landed: a failed claim is handed back — unless a later caller has already
+taken it — and the next request writes (`D043`).
 
 ### Acceptance Criteria
 

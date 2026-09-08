@@ -1,6 +1,7 @@
 package com.jmussel.chessgame.server.auth
 
 import com.auth0.jwt.JWT
+import com.auth0.jwt.JWTCreator
 import com.auth0.jwt.algorithms.Algorithm
 import java.security.KeyPairGenerator
 import java.security.PublicKey
@@ -56,6 +57,14 @@ class TestTokens(
             .withIssuedAt(Date.from(Instant.now().minusSeconds(1)))
             .withExpiresAt(Date.from(expiresAt))
             .sign(algorithm)
+
+    /**
+     * A token whose claims the caller writes itself, signed by this key.
+     *
+     * For the shapes [tokenFor] deliberately cannot produce — a claim of the wrong type, or
+     * a registered claim left out altogether.
+     */
+    fun signed(build: JWTCreator.Builder.() -> Unit): String = JWT.create().apply(build).sign(algorithm)
 
     /** A token signed by a different key, as an impostor would produce. */
     fun tokenFromAnotherKey(subject: String): String {

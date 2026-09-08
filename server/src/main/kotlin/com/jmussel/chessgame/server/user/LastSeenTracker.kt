@@ -17,6 +17,11 @@ import kotlin.uuid.Uuid
  * `D010` rules out, so a write happens at most once per [throttle] per user and the rest
  * are dropped. The stored value is therefore accurate to within [throttle], which is all
  * anything needs it for.
+ *
+ * A window is only spent by a write that actually landed. A dropped request is dropped
+ * because the activity behind it is already recorded; if the write failed, nothing was
+ * recorded, and throttling the next request would turn one database failure into
+ * [throttle] of silently missing activity.
  */
 class LastSeenTracker(
     private val users: UserRepository,
@@ -46,8 +51,33 @@ class LastSeenTracker(
 
         if (!won) return false
 
-        users.touchLastSeen(userId, now)
+        try {
+            users.touchLastSeen(userId, now)
+        } catch (failure: Throwable) {
+            // The claim was a promise to write, and it was not kept. Hand the window back
+            // so the next request writes instead of being dropped behind a value that was
+            // never stored.
+            giveBackTheWindow(userId, claimed = now, previous = previous)
+            throw failure
+        }
+
         return true
+    }
+
+    /**
+     * Undoes a claim whose write failed, unless a later caller has already taken the window
+     * for itself — that caller's claim is the current one and is not ours to reverse.
+     */
+    private fun giveBackTheWindow(
+        userId: Uuid,
+        claimed: Instant,
+        previous: Instant?,
+    ) {
+        if (previous == null) {
+            lastWritten.remove(userId, claimed)
+        } else {
+            lastWritten.replace(userId, claimed, previous)
+        }
     }
 
     /** Forgets what has been written, so the next activity writes again. */

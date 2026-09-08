@@ -159,6 +159,62 @@ class AnonymousAuthTest {
     }
 
     @Test
+    fun anUnauthorizedRefreshAlsoStartsANewAnonymousAccount() {
+        val stored = AnonymousSession("old-access", "dead-refresh", "user-1", expiresAtEpochSeconds = 1_000)
+        val recorder = Recorder()
+        val client =
+            clientReplying(
+                recorder,
+                failure(HttpStatusCode.Unauthorized),
+                session("fresh-access", "fresh-refresh", expiresAt = 5_000, userId = "user-2"),
+            )
+        val authenticator = AnonymousAuthenticator(client, InMemorySessionStore(stored), now = { 1_000 })
+
+        val created = runBlocking { authenticator.currentSession() }
+
+        assertEquals("user-2", created.userId)
+        assertEquals(listOf("/auth/v1/token", "/auth/v1/signup"), recorder.paths)
+    }
+
+    /**
+     * The account is the session (`D006`, `D008`), so only a refusal aimed at the refresh
+     * token may replace it. Everything Supabase says about itself is worth asking again.
+     */
+    @Test
+    fun aRefusalThatIsNotAboutTheRefreshTokenKeepsTheAccountAndIsReported() {
+        val transient =
+            listOf(
+                HttpStatusCode.RequestTimeout,
+                HttpStatusCode.Forbidden,
+                HttpStatusCode.TooManyRequests,
+                HttpStatusCode.InternalServerError,
+                HttpStatusCode.BadGateway,
+                HttpStatusCode.ServiceUnavailable,
+                HttpStatusCode.GatewayTimeout,
+            )
+
+        transient.forEach { status ->
+            val stored = AnonymousSession("old-access", "live-refresh", "user-1", expiresAtEpochSeconds = 1_000)
+            val store = InMemorySessionStore(stored)
+            val recorder = Recorder()
+            val client =
+                clientReplying(
+                    recorder,
+                    failure(status),
+                    session("replacement", "replacement", expiresAt = 5_000, userId = "user-2"),
+                )
+            val authenticator = AnonymousAuthenticator(client, store, now = { 1_000 })
+
+            val thrown = runCatching { runBlocking { authenticator.currentSession() } }.exceptionOrNull()
+
+            assertTrue("$status should stay a refusal to report", thrown is SupabaseAuthException)
+            assertEquals(status.value, (thrown as SupabaseAuthException).status)
+            assertEquals("$status must not sign up again", listOf("/auth/v1/token"), recorder.paths)
+            assertEquals("$status must not replace the account", stored, runBlocking { store.read() })
+        }
+    }
+
+    @Test
     fun theKeyIsSentAsTheApiKeyHeader() {
         val recorder = Recorder()
         val client = clientReplying(recorder, session("access-1", "refresh-1", expiresAt = 5_000))

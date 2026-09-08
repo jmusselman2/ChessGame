@@ -12,8 +12,10 @@ import io.ktor.client.request.header
 import io.ktor.server.testing.testApplication
 import java.time.Duration
 import java.time.Instant
+import javax.sql.DataSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFails
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -102,6 +104,81 @@ class LastSeenTest {
             assertTrue(tracker.record(second.id), "another user's activity is their own")
             assertNotNull(users.find(second.id)?.lastSeenAt)
         }
+    }
+
+    /**
+     * A window belongs to a write that landed. A failed one hands it straight back, and the
+     * retry that succeeds is what starts the next five minutes of quiet.
+     */
+    @Test
+    fun aWindowIsSpentByTheWriteThatSucceedsAndNotTheOneThatFailed() {
+        DatabaseTestSupport.withMigratedDatabase { dataSource ->
+            val users = UserRepository(Databases.connect(dataSource))
+            val user = users.resolveBySubject("auth-1")
+            var now = Instant.parse("2026-08-26T10:00:00Z")
+            val tracker = LastSeenTracker(users, throttle = Duration.ofMinutes(5), clock = { now })
+
+            refuseLastSeenWrites(dataSource)
+            assertFails { tracker.record(user.id) }
+            assertNull(users.find(user.id)?.lastSeenAt)
+
+            allowLastSeenWrites(dataSource)
+            now = now.plusSeconds(1)
+            assertTrue(tracker.record(user.id), "the failed write left the window unspent")
+            val recorded = now
+
+            now = now.plusSeconds(30)
+            assertFalse(tracker.record(user.id), "the write that landed does spend it")
+            assertEquals(recorded, users.find(user.id)?.lastSeenAt)
+        }
+    }
+
+    /** A user whose write failed is not throttling anyone else. */
+    @Test
+    fun aFailedWriteForOneUserLeavesAnotherUsersWindowAlone() {
+        DatabaseTestSupport.withMigratedDatabase { dataSource ->
+            val users = UserRepository(Databases.connect(dataSource))
+            val failing = users.resolveBySubject("auth-1")
+            val other = users.resolveBySubject("auth-2")
+            val at = Instant.parse("2026-08-26T10:00:00Z")
+            val tracker = LastSeenTracker(users, clock = { at })
+
+            refuseLastSeenWrites(dataSource)
+            assertFails { tracker.record(failing.id) }
+            allowLastSeenWrites(dataSource)
+
+            assertTrue(tracker.record(other.id))
+            assertEquals(at, users.find(other.id)?.lastSeenAt)
+            assertTrue(tracker.record(failing.id), "the failed user may write as soon as it can")
+            assertEquals(at, users.find(failing.id)?.lastSeenAt)
+        }
+    }
+
+    /** Makes any `last_seen_at` update fail, the way a database that is refusing writes would. */
+    private fun refuseLastSeenWrites(dataSource: DataSource) =
+        execute(
+            dataSource,
+            """
+            create function refuse_last_seen() returns trigger language plpgsql as
+            ${'$'}body${'$'}
+            begin
+                raise exception 'last_seen_at write refused';
+            end
+            ${'$'}body${'$'};
+            create trigger refuse_last_seen
+                before update on users
+                for each row execute function refuse_last_seen()
+            """.trimIndent(),
+        )
+
+    private fun allowLastSeenWrites(dataSource: DataSource) = execute(dataSource, "drop trigger refuse_last_seen on users")
+
+    private fun execute(
+        dataSource: DataSource,
+        sql: String,
+    ) = dataSource.connection.use { connection ->
+        connection.createStatement().use { it.execute(sql) }
+        connection.commit()
     }
 
     @Test

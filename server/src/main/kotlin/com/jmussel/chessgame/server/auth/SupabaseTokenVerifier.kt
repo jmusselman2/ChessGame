@@ -31,6 +31,10 @@ class InvalidTokenException(
  * a signing secret. Issuer and expiry are checked too: a token from another project, or an
  * expired one, is not ours to trust. The client is untrusted (`D004`), so nothing in the
  * token body is believed until the signature says it may be.
+ *
+ * Expiry is *required*, not merely checked when present. A signed token carrying no usable
+ * `exp` would otherwise be a bearer credential with no end — the one thing a stolen token
+ * must not be — and every token Supabase issues carries one.
  */
 class SupabaseTokenVerifier(
     private val issuer: String,
@@ -68,12 +72,20 @@ class SupabaseTokenVerifier(
         val keyId = decoded.keyId ?: throw InvalidTokenException("Token has no key id")
         val algorithm = algorithmFor(decoded.algorithm, keys.keyFor(keyId))
 
-        return JWT
-            .require(algorithm)
-            .withIssuer(issuer)
-            .withAudience(audience)
-            .build()
-            .verify(token)
+        val verified =
+            JWT
+                .require(algorithm)
+                .withIssuer(issuer)
+                .withAudience(audience)
+                .build()
+                .verify(token)
+
+        // java-jwt validates `exp` if it can read one and says nothing when it cannot, so
+        // an absent or unreadable expiry has to be refused here. Asking for the parsed
+        // instant covers both: a missing claim and a claim that is not a time.
+        if (verified.expiresAtAsInstant == null) throw InvalidTokenException("Token has no expiry")
+
+        return verified
     }
 
     private fun algorithmFor(
