@@ -126,3 +126,8 @@ This repository is set up for continuous autonomous implementation of the
 backlog. See `docs/AUTONOMOUS-DEVELOPMENT.md`. In short: work happens on the
 `claude-autopilot` branch, one verified backlog task per commit, continuing
 across milestone boundaries and stopping only for genuine blockers.
+
+Independent milestone evaluation on `codex-autopilot` follows
+`docs/INDEPENDENT-EVALUATION.md`: each milestone receives its own committed and
+pushed checkpoint, defects are carried forward without stopping the run, and
+evaluation continues through M14.
