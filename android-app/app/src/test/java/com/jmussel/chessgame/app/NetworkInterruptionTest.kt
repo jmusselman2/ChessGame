@@ -93,8 +93,17 @@ class NetworkInterruptionTest {
     /** Held open to keep one dashboard read in flight, the same way [holdNextGameRead] does. */
     private var holdNextDashboardRead: CompletableDeferred<Unit>? = null
 
+    /** Held after a move has committed but before its older response reaches the client. */
+    private var holdNextMoveReply: CompletableDeferred<Unit>? = null
+
+    /** Completed once the held move reply is fully decided and waiting to be released. */
+    private var heldMoveReplyArrived: CompletableDeferred<Unit>? = null
+
     /** How many series the stubbed dashboard is listing. */
     private var activeSeries = 0
+
+    /** Whether the stubbed game has reached a terminal position. */
+    private var finished = false
 
     /** When set, the next command is applied and *then* the reply is lost in transit. */
     private var loseNextReply = false
@@ -190,6 +199,32 @@ class NetworkInterruptionTest {
         }
 
     @Test
+    fun anUpdateForAGameStillOpeningIsNotDropped() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            val arrived = CompletableDeferred<Unit>()
+            val inFlight = CompletableDeferred<Unit>()
+            heldReadArrived = arrived
+            holdNextGameRead = inFlight
+
+            viewModel.openOnlineGame(GAME)
+            arrived.await()
+
+            played += "e7e5"
+            viewModel.onRealtimeMessage(
+                RealtimeMessageDto(type = RealtimeMessageDto.GAME_UPDATED, gameId = GAME, version = version),
+            )
+            runCurrent()
+
+            inFlight.complete(Unit)
+            viewModel.gameJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals("an update received while the game opens must trigger a fresh read", 2L, ready.game.version)
+            assertEquals(listOf("e7e5"), ready.game.moves)
+        }
+
+    @Test
     fun openingAnotherGameWhileOneIsStillLoadingShowsTheOneThatWasAskedFor() =
         runTest(dispatcher) {
             val viewModel = viewModel()
@@ -238,6 +273,36 @@ class NetworkInterruptionTest {
             assertEquals("the dashboard must not be left behind the update", 1, viewModel.dashboard.entries.size)
         }
 
+    @Test
+    fun aCompletionRefreshCannotBeOverwrittenByAnOlderDashboardRead() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.openOnlineGame(GAME)
+            viewModel.gameJob?.join()
+
+            val arrived = CompletableDeferred<Unit>()
+            val inFlight = CompletableDeferred<Unit>()
+            heldReadArrived = arrived
+            holdNextDashboardRead = inFlight
+            viewModel.loadDashboard()
+            val olderDashboardJob = viewModel.dashboardJob
+            arrived.await()
+
+            activeSeries = 1
+            finished = true
+            viewModel.onRealtimeMessage(
+                RealtimeMessageDto(type = RealtimeMessageDto.GAME_UPDATED, gameId = GAME, version = version),
+            )
+            viewModel.gameJob?.join()
+            viewModel.dashboardJob?.join()
+            assertEquals("the completion refresh sees the follow-up series", 1, viewModel.dashboard.entries.size)
+
+            inFlight.complete(Unit)
+            olderDashboardJob?.join()
+
+            assertEquals("an older dashboard response must not erase the follow-up series", 1, viewModel.dashboard.entries.size)
+        }
+
     // --- A move must be neither lost nor played twice ---------------------------------
 
     @Test
@@ -266,6 +331,40 @@ class NetworkInterruptionTest {
             assertEquals("the move is there", listOf("e2e4"), recovered.game.moves)
             assertEquals(2L, recovered.game.version)
             assertEquals("and it was sent once", 1, paths.count { it == "/games/$GAME/moves" })
+        }
+
+    @Test
+    fun aDelayedCommandResponseCannotOverwriteANewerReload() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.openOnlineGame(GAME)
+            viewModel.gameJob?.join()
+
+            val arrived = CompletableDeferred<Unit>()
+            val inFlight = CompletableDeferred<Unit>()
+            heldMoveReplyArrived = arrived
+            holdNextMoveReply = inFlight
+            viewModel.tapSquare(Square.parse("e2"))
+            viewModel.tapSquare(Square.parse("e4"))
+            arrived.await()
+
+            played += "e7e5"
+            viewModel.onRealtimeMessage(
+                RealtimeMessageDto(type = RealtimeMessageDto.GAME_UPDATED, gameId = GAME, version = version),
+            )
+            viewModel.gameJob?.join()
+            assertEquals(
+                "the realtime reload reaches the newest server version",
+                3L,
+                (viewModel.game as OnlineGameState.Ready).game.version,
+            )
+
+            inFlight.complete(Unit)
+            viewModel.moveJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals("the delayed command response must not regress the screen", 3L, ready.game.version)
+            assertEquals(listOf("e2e4", "e7e5"), ready.game.moves)
         }
 
     @Test
@@ -554,6 +653,21 @@ class NetworkInterruptionTest {
 
                     played += "${squareIn(sent, "from")}${squareIn(sent, "to")}"
 
+                    val gate = holdNextMoveReply
+                    if (gate != null) {
+                        holdNextMoveReply = null
+
+                        val answeredWith = replyTo(path)
+                        heldMoveReplyArrived?.complete(Unit)
+                        gate.await()
+
+                        return@MockEngine respond(
+                            content = answeredWith,
+                            status = HttpStatusCode.OK,
+                            headers = headersOf("Content-Type", ContentType.Application.Json.toString()),
+                        )
+                    }
+
                     // Applied, and only then lost: the server is ahead of the client, which is
                     // the state a naive retry would double.
                     if (loseNextReply) {
@@ -597,14 +711,16 @@ class NetworkInterruptionTest {
          "version":1,"yourSide":"WHITE","sideToMove":"WHITE","moveNumber":1,"yourTurn":true}
         """.trimIndent()
 
-    private fun gameView(gameId: String): String =
-        """
-        {"gameId":"$gameId","seriesId":"series-1","opponent":{"userId":"user-2","username":"Alex"},
-         "version":$version,"yourSide":"WHITE","sideToMove":"WHITE","yourTurn":true,"inCheck":false,
-         "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
-         "moves":${played.joinToString(",", "[", "]") { "\"$it\"" }},"moveNumber":1,"halfmoveClock":0,
-         "canUndo":false,"availableDrawClaims":[]}
-        """.trimIndent()
+    private fun gameView(gameId: String): String {
+        val ending = if (finished) ",\"result\":\"WHITE_WINS\",\"terminationReason\":\"CHECKMATE\"" else ""
+        return """
+            {"gameId":"$gameId","seriesId":"series-1","opponent":{"userId":"user-2","username":"Alex"},
+             "version":$version,"yourSide":"WHITE","sideToMove":"WHITE","yourTurn":true,"inCheck":false,
+             "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
+             "moves":${played.joinToString(",", "[", "]") { "\"$it\"" }},"moveNumber":1,"halfmoveClock":0,
+             "canUndo":false,"availableDrawClaims":[]$ending}
+            """.trimIndent()
+    }
 
     private fun staleRefusal(): String =
         """
