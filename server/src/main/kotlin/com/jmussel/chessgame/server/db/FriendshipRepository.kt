@@ -6,6 +6,7 @@ import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -88,7 +89,9 @@ class FriendshipRepository(
             when {
                 existing == null -> AddFriendResult.Added(insert(lower, higher))
                 existing.isActive -> AddFriendResult.AlreadyFriends
-                else -> AddFriendResult.Added(reactivate(lower, higher))
+                // The row read as removed, but another add may revive it before this one
+                // commits; only the caller whose update actually did it is told `Added`.
+                else -> reactivate(lower, higher)?.let(AddFriendResult::Added) ?: AddFriendResult.AlreadyFriends
             }
         }
     }
@@ -200,15 +203,32 @@ class FriendshipRepository(
         return StoredFriendship(userAId = lower, userBId = higher, createdAt = now, removedAt = null)
     }
 
+    /**
+     * Revives the removed friendship between [lower] and [higher], or `null` when it was
+     * no longer removed by the time this update committed.
+     *
+     * The `removed_at is not null` predicate is what makes that answer trustworthy under
+     * concurrency. Two adds can both read the row as removed; PostgreSQL serialises their
+     * updates, and re-evaluating the predicate on the row the winner left behind makes the
+     * loser's update match nothing. Without it both updates succeed and both callers are
+     * told they restored the friendship, when only one of them did.
+     */
     private fun reactivate(
         lower: Uuid,
         higher: Uuid,
-    ): StoredFriendship {
-        FriendshipsTable.update(
-            { (FriendshipsTable.userAId eq lower) and (FriendshipsTable.userBId eq higher) },
-        ) { row ->
-            row[FriendshipsTable.removedAt] = null
-        }
+    ): StoredFriendship? {
+        val revived =
+            FriendshipsTable.update(
+                {
+                    (FriendshipsTable.userAId eq lower) and
+                        (FriendshipsTable.userBId eq higher) and
+                        FriendshipsTable.removedAt.isNotNull()
+                },
+            ) { row ->
+                row[FriendshipsTable.removedAt] = null
+            }
+
+        if (revived == 0) return null
 
         return requireNotNull(findRow(lower, higher)) { "The friendship vanished while being restored" }
     }

@@ -2273,3 +2273,71 @@ break something.
   does not exist, it binds nothing, and anything that survives contact with the
   real second ruleset earns its own decision then. It is recorded there rather
   than here for exactly that reason.
+
+---
+
+## D045 — A Nameless Caller Is Refused `POST /friends`, Rather Than Every View Learning to Hide One
+
+**Date:** 2026-09-09
+
+**Status:** Accepted
+
+**Relates to:** `D006`, `D009`, `M8.2`, `M8.3`, `PRODUCT.md`,
+`evals/M8/critic-report.md` (`M8-01`)
+
+### Decision
+
+`POST /friends` refuses a caller who has not claimed a username yet, with **403
+Forbidden** and the sentence "Claim a username before adding friends".
+
+That completes the endpoint's answers: 400 for a malformed name or yourself, 403
+for a caller with no name of their own, 404 for a name belonging to nobody, 409
+for a duplicate in either direction, 200 for an add that happened.
+
+The target of an add already had to have a username. Requiring one of the caller
+too is what makes the stored friendship symmetric — both sides of every row can
+be shown to the other.
+
+### Rationale
+
+Authentication creates the internal user on that subject's first request
+(`D006`), so an authenticated caller does not necessarily have a name yet. The
+add route validated only the person being added. A nameless subject could
+therefore add `Alex`, receive 200, and commit an active friendship row that
+`GET /friends` cannot show to Alex — the list maps each friend through
+`toSummaryOrNull`, which drops a user with no name. `D009` makes a friendship
+mutual the moment it is made; a row only one side can see is not that.
+
+The Android app routes a new player through onboarding before the Friends
+screen, so it never sends this request. That is not the point: the authenticated
+server API is the authority, and it cannot assume its callers are the
+first-party app.
+
+The alternative was to leave the add alone and make every representation total —
+teaching friends lists, the dashboard, history, and series summaries to render a
+friend with no name. That is the larger change and the worse one. It would need
+a placeholder identity invented in four places for a user who has deliberately
+not chosen one, and `SeriesSummary` would have to stop requiring an opponent
+name, which is a real invariant rather than an oversight. Refusing at the one
+boundary that can create the row keeps the impossibility in one place.
+
+403 rather than 400 because the request is well-formed and the name asked for
+may well exist; what is missing is the caller's own standing to make it. That
+matches `POST /series`, which already answers 403 when the caller is not
+entitled to what they asked for.
+
+### Consequences
+
+- A client must claim a username before adding friends. The Android app already
+  does, so no client change follows from this; the app repeats the server's
+  sentence if it ever does see the refusal.
+- No new friendship row can have a nameless side. The `toSummaryOrNull` drops in
+  `GET /friends`, `DashboardEntry.of`, and `SeriesHistoryEntry.of`, and the
+  `requireNotNull`s in `SeriesSummary.of` and `GameView.of`, are kept as defence
+  for rows written before this decision rather than removed as dead code.
+- `DELETE /friends/{username}` is deliberately unchanged. A caller with no name
+  can no longer have a friendship to remove, so it already answers 404
+  `Not friends with ...`; adding a second gate there would only restate that.
+- The refusal is not retrospective. A friendship row created before this
+  decision keeps whatever shape it has, and the defensive handling above is what
+  reads it.

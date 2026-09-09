@@ -24,7 +24,8 @@ import kotlin.uuid.ExperimentalUuidApi
  *
  * A friendship is mutual the moment it is made, with no request to accept (`D009`). The
  * caller is always one side of it — a client cannot make two other people friends, and can
- * only list its own friends.
+ * only list its own friends. Both sides need a claimed username, so that mutuality is
+ * something both of them can actually see (`D045`).
  *
  * Routes must sit behind authentication.
  */
@@ -36,7 +37,8 @@ fun Route.friendRoutes(
         val caller = call.authenticatedUser()
 
         // A friend who has not claimed a username cannot be listed, because there is
-        // nothing to show; that cannot happen through this API, which only adds by name.
+        // nothing to show. Adding requires a name on both sides (`D045`), so this drops
+        // nothing an add made — only a row written before that was decided.
         val friends = friendships.friendsOf(caller.userId).mapNotNull { users.find(it)?.toSummaryOrNull() }
 
         call.respond(friends)
@@ -44,6 +46,15 @@ fun Route.friendRoutes(
 
     post("/friends") {
         val caller = call.authenticatedUser()
+
+        // A caller who has not claimed a username yet cannot be a friend to anyone: the
+        // friendship would exist in the database while being invisible from the other
+        // side, whose list can only show people who have a name (`D045`).
+        if (users.find(caller.userId)?.username == null) {
+            call.respondText("Claim a username before adding friends", status = HttpStatusCode.Forbidden)
+            return@post
+        }
+
         val requested = call.receiveText().trim()
 
         if (Username.ofOrNull(requested) == null) {

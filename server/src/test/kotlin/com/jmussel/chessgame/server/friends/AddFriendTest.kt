@@ -259,6 +259,24 @@ class AddFriendTest {
     }
 
     @Test
+    fun theEndpointRefusesACallerWhoHasNotClaimedAUsername() {
+        withServer { fixture ->
+            val caller = fixture.users.resolveBySubject("auth-1").id
+            val alex = fixture.named("auth-2", "Alex")
+
+            val response =
+                client.post("/friends") {
+                    header("Authorization", "Bearer ${tokens.tokenFor("auth-1")}")
+                    setBody("Alex")
+                }
+
+            assertEquals(HttpStatusCode.Forbidden, response.status)
+            assertFalse(fixture.friendships.areFriends(caller, alex), "no friendship Alex could not see (`D045`)")
+            assertEquals(0, fixture.rowCount())
+        }
+    }
+
+    @Test
     fun theEndpointNeedsAToken() {
         withServer {
             assertEquals(HttpStatusCode.Unauthorized, client.post("/friends") { setBody("Alex") }.status)
