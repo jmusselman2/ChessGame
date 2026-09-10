@@ -462,6 +462,64 @@ Use normalized pair ordering or an equivalent database constraint.
 
 Friendship is mutual immediately.
 
+## 15.1 Groups
+
+A **group** is a named, standing pool of people whose only function is
+invite-eligibility (`D049`, built in `M19.2`).
+
+```text
+Group                 GroupMember
+- id                  - groupId
+- name                - userId
+- createdBy           - addedBy
+- createdAt           - joinedAt
+                      - leftAt
+```
+
+Membership deliberately mirrors friendship (`D009`), so there is one mental model
+for "someone added me to something": any member may create a group they belong
+to, any member may add one of their **own** friends, membership takes effect
+immediately with no accept step, and any member may leave unilaterally. There is
+no owner and no admin, and no way to remove anyone else — leaving is the only
+exit, which is why the route for it is addressed at the caller
+(`DELETE /groups/{id}/members/me`).
+
+**A group has no game-state role at all.** It appears in no game, series, table,
+dashboard, or rule; nothing in `groups` or `group_members` references a game or a
+series, and leaving revokes future eligibility and touches nothing else.
+
+Two of `D049`'s rules are enforced in `GroupRepository` inside one transaction
+rather than by a column constraint, because each needs a row another table owns:
+
+- **a group always contains its creator** — the group and that first membership
+  are inserted together, so a memberless group never exists to be observed;
+- **the person added is a friend of the adder** — that lives in `friendships`,
+  and like series creation (`D046`) the check is a gate at the moment of the
+  request, not a standing condition. Unfriending someone afterwards does not
+  eject them from a group; leaving is how they get out.
+
+One row per person per group, as with `friendships`: leaving records `left_at`
+and being added again revives that row, so "are they in it right now" stays a
+single lookup. An empty group is kept rather than deleted, and makes nobody
+eligible to anybody.
+
+### Invite eligibility
+
+`D048` routes table invites **through the host only**: each invited participant
+needs a relationship to whoever is assembling the table and none to each other.
+`InviteEligibility.canInvite(host, target)` is that one question — a friendship,
+or a group in common — and it is where `M19.3`'s table creation will get its
+gate instead of reimplementing the rule.
+
+Eligibility through a group is **transitive**, which is the point of groups: a
+four-person table needs one relationship to the host, not six pairwise
+friendships. Two members of the same group may invite each other without ever
+having been friends.
+
+Eligibility is not the whole invite check. Whether the *table* is valid — its
+size within the game type's range, its participant set distinct — belongs with
+the table and is `M19.3` work.
+
 ## 16. Game Series Model
 
 A `GameSeries` represents the ongoing sequence of games between two players.
@@ -710,12 +768,24 @@ moves
 game_events
 ```
 
+Added since:
+
+```text
+groups          -- D049, M19.2: standing invite-eligibility pools
+group_members   -- one row per person per group; left_at rather than deletion
+```
+
 Use database constraints for race-sensitive invariants where possible, including:
 
 - normalized username uniqueness,
 - friendship uniqueness,
 - one active series per pair,
-- rematch/idempotency-related uniqueness where appropriate.
+- rematch/idempotency-related uniqueness where appropriate,
+- one group membership per person per group.
+
+Invariants that need a row in another table cannot be constraints and are
+enforced in a repository transaction instead — a group containing its creator,
+and a group member being a friend of whoever added them (§15.1).
 
 ## 28. Security Boundary
 

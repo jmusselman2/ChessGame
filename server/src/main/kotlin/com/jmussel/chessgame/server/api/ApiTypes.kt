@@ -39,6 +39,34 @@ data class CurrentUser(
 /** [StoredUser] as the API shows it to that user themselves. */
 fun StoredUser.toCurrentUser(): CurrentUser = CurrentUser(userId = id.toString(), username = username)
 
+/**
+ * A group as one of its members sees it (`D049`).
+ *
+ * Carries no members: who is in a group is its own request, because a group can hold more
+ * people than a dashboard line has room for, and the list is the part that changes.
+ * [createdBy] is who made it, not who owns it — a group has no owner and no admin.
+ */
+@Serializable
+data class GroupSummary(
+    val groupId: String,
+    val name: String,
+    val createdBy: String,
+    val memberCount: Int,
+) {
+    companion object {
+        fun of(
+            group: com.jmussel.chessgame.server.db.StoredGroup,
+            memberCount: Int,
+        ): GroupSummary =
+            GroupSummary(
+                groupId = group.id.toString(),
+                name = group.name,
+                createdBy = group.createdBy.toString(),
+                memberCount = memberCount,
+            )
+    }
+}
+
 /** A series as one of its two players sees it. */
 @Serializable
 data class SeriesSummary(

@@ -4633,9 +4633,14 @@ project? Chess and the deck-builder must both ship and be supported (`E2`).
 
 ## M19.2 — Groups: standing invite-eligibility pools
 
-**Status:** TODO
+**Status:** DONE (one integration deferred to `M19.3`)
 
-**Depends on:** M19.1
+**Depends on:** M19.1 — *revised:* the recorded dependency was an
+architecture-conservatism dependency, not a technical one. Groups are a
+`users`-only social concept with no game-state role (`D049`), so nothing about
+them turns on where the deck-builder's rules module lives. Built in `server`
+beside `friendships`, extracting nothing and restructuring nothing, so `M19.1`
+stays entirely open.
 
 ### Objective
 
@@ -4653,6 +4658,81 @@ Groups have no game-state role.
   game.
 - Tests cover immediate membership, unilateral leave, transitive eligibility,
   and that a non-friend cannot be added.
+
+### Completion Note — 2026-09-10
+
+`V3__groups.sql`, `GroupRepository`, `InviteEligibility`, and `groupRoutes`.
+Nothing was extracted or restructured, and no `M19.1` decision is implied or
+required: groups reference `users` and nothing else, so this would be identical
+under any of the four repository layouts.
+
+**Membership mirrors friendship on purpose (`D009`).** Any member creates, any
+member adds one of their **own** friends, it takes effect at once, and anyone may
+leave. There is no owner, no admin, and no way to remove anyone else — which is
+why leaving is `DELETE /groups/{id}/members/me`, addressed at the caller. That
+one shape answers a pile of questions that would otherwise each need deciding
+("can the creator kick someone?", "does the group die when its creator leaves?"),
+and it is the shape `D049` asked for.
+
+**Two of `D049`'s rules cannot be column constraints,** because each needs a row
+another table owns, so they are enforced in `GroupRepository` inside one
+transaction and the migration says so at length:
+
+- *a group always contains its creator* — the group row and the creator's
+  membership are inserted together, so a memberless group never exists to be
+  observed. A check constraint cannot read the other table, and a deferred
+  trigger would enforce the same thing less legibly.
+- *the person added is a friend of the adder* — that answer lives in
+  `friendships`, which is also the table that can change it a moment later. It is
+  a **gate at the moment of the request, not a standing condition**, exactly as
+  `D046` argued for series creation. `unfriendingSomeoneDoesNotEjectThemFromAGroup`
+  pins that: the friendship got them in, leaving is how they get out.
+
+**Everything else is a real constraint.** `groups_name_length` and
+`groups_name_trimmed` (so `" Tuesday"` and `"Tuesday"` cannot both exist looking
+identical in a list), real `users` references, and one membership row per person
+per group — the `friendships` shape, for the `friendships` reason: "are they in
+it right now" has to be one row lookup, and leaving then being re-added revives
+the row instead of accumulating rows. Reviving uses the same
+`left_at is not null` guarded update that `M8-02` needed for friendships, so two
+members adding the same person concurrently do not both get told they did it.
+
+**Names are not unique.** Two people may each have a group called "Tuesday"; a
+group is identified by its id everywhere, unlike a username (`D007`).
+
+**A non-member is told a group does not exist, not that they may not touch it.**
+`NoSuchGroup` and `NotAMember` deliberately answer `404` alike, so ids cannot be
+probed for the existence of groups or their size.
+
+**An empty group is kept.** `D049` does not say what the last member leaving
+does; keeping the row costs nothing, the memberships are history, and an empty
+group makes nobody eligible to anybody.
+
+**Deferred to `M19.3`, specifically.** The criterion "table-invite eligibility
+resolves as: target is a friend of the creator **or** shares a group with the
+creator" is implemented as `InviteEligibility.canInvite(host, target)` with its
+own tests, including the transitive case. What is **not** done is wiring it into
+table creation, because there is no table until `M19.3` — and the rest of
+`D048`'s invite check is the table's half (size within the game type's range,
+participant set distinct), which is `M19.3`'s to build. So: the rule is
+implemented and tested; the call site is deferred. `M19.3` should call
+`canInvite` rather than re-deriving it.
+
+`InviteEligibility` is a plain lookup over two repositories, not an interface.
+Both halves are concrete and there is nothing to substitute; generalising it
+before a second ruleset asks for a parameter is what `D044` forbids.
+
+**Migration numbering.** `M19.4`'s criteria call its migration `V3`. `V3` is
+groups, since `M19.2` landed first, so `M19.4`'s becomes the next free version.
+Flyway versions are allocated in the order work lands; the criterion is about
+what the migration *does*.
+
+Verified with `.\gradlew.bat :server:test --tests GroupSchemaTest --tests
+GroupMembershipTest --tests GroupRouteTest --tests InviteEligibilityTest`
+(43 new tests), the `MigrationsTest`/`InitialSchemaTest` and friends/series
+regressions, and `.\gradlew.bat build`.
+
+---
 
 ## M19.3 — The table and the participants relation
 

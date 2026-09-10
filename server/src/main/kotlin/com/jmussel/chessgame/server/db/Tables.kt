@@ -49,6 +49,38 @@ object FriendshipsTable : Table("friendships") {
     override val primaryKey = PrimaryKey(userAId, userBId)
 }
 
+/**
+ * A group: a standing pool of people, for invite-eligibility only (`D049`).
+ *
+ * Nothing here references a game, a series, or a table. A group's whole function is
+ * answering "may this person be invited", and it has no presence in game state.
+ */
+object GroupsTable : Table("groups") {
+    val id = uuid("id")
+    val name = text("name")
+    val createdBy = uuid("created_by")
+    val createdAt = timestampWithTimeZone("created_at")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+/**
+ * Who is in a group, and who is no longer.
+ *
+ * One row per person per group — the same shape as [FriendshipsTable], for the same
+ * reason: "are they in it right now" has to be one row lookup, and leaving then being
+ * added again revives the row rather than accumulating history rows.
+ */
+object GroupMembersTable : Table("group_members") {
+    val groupId = uuid("group_id")
+    val userId = uuid("user_id")
+    val addedBy = uuid("added_by")
+    val joinedAt = timestampWithTimeZone("joined_at")
+    val leftAt = timestampWithTimeZone("left_at").nullable()
+
+    override val primaryKey = PrimaryKey(groupId, userId)
+}
+
 object GameSeriesTable : Table("game_series") {
     val id = uuid("id")
     val userAId = uuid("user_a_id")

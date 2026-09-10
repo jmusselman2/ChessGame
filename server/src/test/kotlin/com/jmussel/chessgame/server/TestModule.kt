@@ -4,6 +4,7 @@ import com.jmussel.chessgame.server.auth.SupabaseTokenVerifier
 import com.jmussel.chessgame.server.db.DashboardQueries
 import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.GameRepository
+import com.jmussel.chessgame.server.db.GroupRepository
 import com.jmussel.chessgame.server.db.HistoryQueries
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.game.GameCommandService
@@ -27,11 +28,13 @@ fun Application.testModule(
 ) {
     val users = UserRepository(database)
     val series = seriesService(database)
+    val friendships = FriendshipRepository(database)
 
     module(
         verifier = verifier,
         users = users,
-        friendships = FriendshipRepository(database),
+        friendships = friendships,
+        groups = GroupRepository(database, friendships),
         series = series,
         dashboard = DashboardQueries(database),
         history = HistoryQueries(database),

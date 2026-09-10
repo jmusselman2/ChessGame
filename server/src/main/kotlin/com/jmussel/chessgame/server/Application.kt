@@ -13,11 +13,13 @@ import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.GameSeriesRepository
+import com.jmussel.chessgame.server.db.GroupRepository
 import com.jmussel.chessgame.server.db.HistoryQueries
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.friends.friendRoutes
 import com.jmussel.chessgame.server.game.GameCommandService
 import com.jmussel.chessgame.server.game.gameRoutes
+import com.jmussel.chessgame.server.groups.groupRoutes
 import com.jmussel.chessgame.server.history.historyRoutes
 import com.jmussel.chessgame.server.realtime.RealtimeHub
 import com.jmussel.chessgame.server.realtime.installRealtimeWebSockets
@@ -91,6 +93,7 @@ fun main() {
             val database = Databases.connectAndMigrate(databaseConfig.dataSource())
             val users = UserRepository(database)
             val games = GameRepository(database)
+            val friendships = FriendshipRepository(database)
             val series =
                 SeriesService(
                     database = database,
@@ -100,7 +103,8 @@ fun main() {
             module(
                 verifier = SupabaseTokenVerifier.forProject(supabaseUrl),
                 users = users,
-                friendships = FriendshipRepository(database),
+                friendships = friendships,
+                groups = GroupRepository(database, friendships),
                 series = series,
                 dashboard = DashboardQueries(database),
                 history = HistoryQueries(database),
@@ -120,6 +124,7 @@ fun Application.module(
     verifier: SupabaseTokenVerifier,
     users: UserRepository,
     friendships: FriendshipRepository,
+    groups: GroupRepository,
     series: SeriesService,
     dashboard: DashboardQueries,
     history: HistoryQueries,
@@ -140,6 +145,7 @@ fun Application.module(
             usernameRoutes(users)
             userLookupRoutes(users)
             friendRoutes(users, friendships)
+            groupRoutes(users, groups)
             seriesRoutes(users, series, realtime)
             dashboardRoutes(dashboard)
             historyRoutes(history)
