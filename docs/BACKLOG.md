@@ -4531,7 +4531,7 @@ uncontaminated by it. That separation was produced by `ARCHITECTURE.md` §6's
 dependency rule, not by an abstraction — which is the review's central point.
 
 "Proven" was held to a real standard: implemented, tested, and exercised by two
-people on two physical devices in `M17.1`, with named evidence. The strongest
+real people playing a real game in `M17.1`, with named evidence. The strongest
 case is the version model (`D021`), because it survived being *broken* — `M16.7`
 found the version check passable while wrong under READ COMMITTED — and the fix
 (`loadForUpdate`) is itself general. A concept that was repaired is better
@@ -4562,6 +4562,26 @@ entitlement even in principle.
 No code changed; this milestone is a review. Verified with `.\gradlew.bat build`
 and `git diff --check`.
 
+**Correction 2026-09-10 — the physical-device evidence was overstated
+(`M18-01`).** This note and `docs/PLATFORM-REVIEW.md` both defined "proven" as
+exercised "by two people on two physical devices in `M17.1`". `M17.1` records
+one physical device: the beta tester's, which they installed the signed APK on
+themselves and played a game through on. It does not say what the project owner
+played on, and the only two-device play-through it describes in detail
+(2026-09-03) ran on the `ChessPlayer1` and `ChessPlayer2` **emulators** — which
+is exactly why the acceptance criteria say emulator testing alone is not enough
+and ask for *one* real user on a physical device.
+
+Both sentences now say what the record supports: two real people played a real
+game. No testing evidence was added, because none was found to add — the `M17`
+sections, `ARCHITECTURE.md` §29, `MVP.md`, and the `M17.1` commit (`9f63065`)
+were all searched for a record of the owner's device, and the narrower summaries
+in `ARCHITECTURE.md` and `MVP.md` were already accurate ("their own physical
+device", about the tester). Nothing else in the review changes: none of the
+concepts it calls proven rested on a second physical device, and its evidence is
+code, tests, concurrency defects and their repairs, emulator runs, and one real
+user's game.
+
 ---
 
 # M19 — Deck-Builder Platform Generalization
@@ -4582,9 +4602,11 @@ one.
 Nothing here touches the chess implementation or the live beta until its own
 task runs. `D048`–`D056` changed documentation only.
 
-The five carried evaluation findings (`M10-01`, `M12-01`, `M14-01`/`02`/`03`)
-are a separate track and block none of this; `docs/CODEX_EVALUATION_STATE.md`
-tracks them.
+The carried evaluation findings were a separate track and blocked none of this.
+All six — `M10-01`, `M12-01`, `M14-01`/`02`/`03`, and `M18-01` — were
+remediated on 2026-09-10 before this milestone was started, under `D057`,
+`D058` and `D059`; `evals/remediation-report.md` and
+`docs/CODEX_EVALUATION_STATE.md` record it.
 
 ## M19.1 — Decide the deck-builder's repository and module structure
 

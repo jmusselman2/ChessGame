@@ -11,6 +11,7 @@ import com.jmussel.chessgame.core.chess.Square
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -104,8 +105,41 @@ class GameRepository(
             id
         }
 
-    /** The game with [id], or `null` when there is none. */
-    fun load(id: Uuid): StoredGame? = read(id, lockForUpdate = false)
+    /**
+     * The game with [id], or `null` when there is none.
+     *
+     * A game lives across two tables — the row and its move history — and READ COMMITTED
+     * gives every statement its own snapshot, while a competing [save] commits both
+     * together. Reading them one after the other can therefore take the row from before
+     * that commit and the history from after it, and return a [StoredGame] that no
+     * committed state ever matched: the old version and the old position, carrying the
+     * move that has just been played (`M10-01`). `GET /games/{gameId}` is this read, and
+     * `M10.2` promises a stale client can refresh from it — so a hybrid is exactly what it
+     * must never answer with.
+     *
+     * So the read checks itself instead of taking a lock. Every accepted mutation
+     * increments the version (`D021`), and versions only ever go up, so re-reading the
+     * version after the history settles it: unchanged means nothing committed between the
+     * two statements and the pair belongs together; changed means a [save] landed in
+     * between, and the read is simply taken again — against the state that save left, so a
+     * refresh returns the newer coherent state rather than the older one.
+     *
+     * Only a read that loses that race [COHERENT_READ_ATTEMPTS] times in a row falls back
+     * to [loadForUpdate], which cannot be torn because a save has to wait for it. That
+     * needs a commit inside every attempt, so ordinary display reads take no lock at all
+     * and the fallback is what makes the loop terminate rather than something it is
+     * expected to reach.
+     */
+    fun load(id: Uuid): StoredGame? {
+        repeat(COHERENT_READ_ATTEMPTS) {
+            when (val attempt = readIfCoherent(id)) {
+                is ReadAttempt.Settled -> return attempt.game
+                ReadAttempt.Torn -> Unit
+            }
+        }
+
+        return loadForUpdate(id)
+    }
 
     /**
      * The game with [id], with its row locked until the surrounding transaction ends.
@@ -123,30 +157,60 @@ class GameRepository(
      * committed version, and the version check refuses it properly. Reads that only display
      * a game keep using [load] and take no lock.
      */
-    fun loadForUpdate(id: Uuid): StoredGame? = read(id, lockForUpdate = true)
-
-    private fun read(
-        id: Uuid,
-        lockForUpdate: Boolean,
-    ): StoredGame? =
+    fun loadForUpdate(id: Uuid): StoredGame? =
         transaction(database) {
-            val query = GamesTable.selectAll().where { GamesTable.id eq id }
-            val row =
-                (if (lockForUpdate) query.forUpdate(ForUpdateOption.ForUpdate) else query)
-                    .singleOrNull()
-                    ?: return@transaction null
-
-            StoredGame(
-                id = row[GamesTable.id],
-                seriesId = row[GamesTable.seriesId],
-                sequenceNumber = row[GamesTable.sequenceNumber],
-                whiteUserId = row[GamesTable.whiteUserId],
-                blackUserId = row[GamesTable.blackUserId],
-                version = row[GamesTable.version],
-                game = ChessGame(state = row[GamesTable.state].toGameState(), history = readHistory(id)),
-                endedAt = row[GamesTable.endedAt],
-            )
+            GamesTable
+                .selectAll()
+                .where { GamesTable.id eq id }
+                .forUpdate(ForUpdateOption.ForUpdate)
+                .singleOrNull()
+                ?.let(::storedGameOf)
         }
+
+    /** What one unlocked [load] attempt came to. */
+    private sealed interface ReadAttempt {
+        /** The row and its history belong to the same committed state — including "no game". */
+        data class Settled(
+            val game: StoredGame?,
+        ) : ReadAttempt
+
+        /** A save committed while the two were being read, so they may not belong together. */
+        data object Torn : ReadAttempt
+    }
+
+    /**
+     * One unlocked read, reported as [ReadAttempt.Torn] when it cannot vouch for itself.
+     *
+     * The version is re-read *after* the history, which is the whole check: it is the same
+     * counter the guarded write moves ([save]), so a value that has not changed since the
+     * row was read means no accepted mutation committed in between.
+     */
+    private fun readIfCoherent(id: Uuid): ReadAttempt =
+        transaction(database) {
+            val row =
+                GamesTable
+                    .selectAll()
+                    .where { GamesTable.id eq id }
+                    .singleOrNull()
+                    ?: return@transaction ReadAttempt.Settled(null)
+
+            val game = storedGameOf(row)
+
+            if (currentVersion(id) != game.version) ReadAttempt.Torn else ReadAttempt.Settled(game)
+        }
+
+    /** The row, and the history stored beside it, as one game. */
+    private fun storedGameOf(row: ResultRow): StoredGame =
+        StoredGame(
+            id = row[GamesTable.id],
+            seriesId = row[GamesTable.seriesId],
+            sequenceNumber = row[GamesTable.sequenceNumber],
+            whiteUserId = row[GamesTable.whiteUserId],
+            blackUserId = row[GamesTable.blackUserId],
+            version = row[GamesTable.version],
+            game = ChessGame(state = row[GamesTable.state].toGameState(), history = readHistory(row[GamesTable.id])),
+            endedAt = row[GamesTable.endedAt],
+        )
 
     /**
      * Replaces the stored game and its history with [game], moving the version on by one.
@@ -292,6 +356,15 @@ class GameRepository(
          * answers "how did this game end" without reading the game row it describes.
          */
         const val GAME_ENDED: String = "GameEnded"
+
+        /**
+         * How many times an unlocked [load] re-reads before it stops racing and waits.
+         *
+         * Each attempt is only discarded when a save commits inside it, so losing three in
+         * a row means the game is being written to continuously. Waiting for the row then
+         * costs less than retrying, and it is what stops the loop being unbounded.
+         */
+        private const val COHERENT_READ_ATTEMPTS: Int = 3
     }
 
     private fun writeHistory(

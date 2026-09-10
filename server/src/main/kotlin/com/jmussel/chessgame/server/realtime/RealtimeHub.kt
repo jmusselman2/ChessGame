@@ -2,8 +2,15 @@
 
 package com.jmussel.chessgame.server.realtime
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.Serializable
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -54,7 +61,10 @@ fun interface RealtimeConnection {
  * reloads canonical state over HTTPS on reconnect (`D022`) and nothing here is the source
  * of truth.
  */
-class RealtimeHub {
+class RealtimeHub(
+    /** How long one connection has to accept a message before it is dropped. */
+    private val sendTimeout: Duration = realtimeSendTimeout,
+) {
     private val connections = ConcurrentHashMap<Uuid, MutableSet<RealtimeConnection>>()
 
     /** Registers [connection] for [userId] until [unsubscribe]. */
@@ -81,20 +91,72 @@ class RealtimeHub {
     /** How many connections [userId] has open. */
     fun connectionCount(userId: Uuid): Int = connections[userId]?.size ?: 0
 
-    /** Sends [message] to every connection [userIds] have open, dropping any that fail. */
+    /**
+     * Sends [message] to every connection [userIds] have open, dropping any that fail.
+     *
+     * Every connection is attempted **at the same time and on its own deadline**. Sending
+     * to one after another looks harmless — a dead socket throws and is dropped — but a
+     * socket that is neither dead nor draining does not throw: it suspends, under
+     * backpressure or on a transport that has gone half-open without closing. Awaiting that
+     * one in a loop delivers nothing to anyone behind it, and because the game routes await
+     * this before they respond, it also withholds the response to the command that has
+     * already committed — so the player who moved is left retrying a move the server took
+     * (`M12-01`).
+     *
+     * A child coroutine per connection means one slow send cannot reach another, and the
+     * send timeout means it cannot reach the caller either: the send is abandoned and the
+     * connection dropped, which is what best-effort delivery already promises for a
+     * connection that fails outright (`D022`). Publishing still finishes before the
+     * response — the point is that "finishes" is now bounded by one deadline rather than by
+     * the slowest client — and a client dropped this way reloads canonical state over HTTPS
+     * when it reconnects.
+     *
+     * Cancellation of the request that is publishing stays cancellation: it is rethrown
+     * rather than filed as a dead socket, so a cancelled publish does not unsubscribe
+     * connections that were never given their chance.
+     */
     suspend fun publish(
         userIds: Collection<Uuid>,
         message: RealtimeMessage,
     ) {
-        userIds.distinct().forEach { userId ->
-            connections[userId]?.toList()?.forEach { connection ->
-                try {
-                    connection.send(message)
-                } catch (_: Exception) {
-                    // The client has gone; it will catch up over HTTPS when it returns.
-                    unsubscribe(userId, connection)
+        val recipients =
+            userIds.distinct().flatMap { userId ->
+                connections[userId]?.toList().orEmpty().map { connection -> userId to connection }
+            }
+
+        if (recipients.isEmpty()) return
+
+        coroutineScope {
+            recipients.forEach { (userId, connection) ->
+                launch {
+                    try {
+                        withTimeout(sendTimeout) { connection.send(message) }
+                    } catch (_: TimeoutCancellationException) {
+                        // Suspended past its deadline: as far as delivery goes, gone.
+                        unsubscribe(userId, connection)
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (_: Exception) {
+                        // The client has gone; it will catch up over HTTPS when it returns.
+                        unsubscribe(userId, connection)
+                    }
                 }
             }
         }
     }
 }
+
+/**
+ * How long one connection has to accept a realtime message before it is dropped.
+ *
+ * A nudge carrying an id and a version is a few dozen bytes, so a connection that has not
+ * taken it in five seconds is not slow, it is not there. The deadline exists to bound the
+ * command response that waits on publishing, so it is far shorter than the pong timeout
+ * that decides whether the *connection* is dead (`webSocketPongTimeout`): dropping a
+ * connection here costs the client one reload over HTTPS, which it does on reconnect
+ * anyway (`D022`).
+ *
+ * A [RealtimeHub] takes it rather than reading it, so a test can assert what the deadline
+ * does without waiting five seconds for it.
+ */
+val realtimeSendTimeout: Duration = 5.seconds

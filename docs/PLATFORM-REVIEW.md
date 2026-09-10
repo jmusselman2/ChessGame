@@ -95,15 +95,27 @@ sense — see *What chess did not prove*.
 
 ## Proven platform concepts
 
-"Proven" here means: implemented, tested, and exercised by two real people on two
-physical devices playing a real game (`M17.1`), with a named piece of evidence
-that it does the job. Not "seems reusable".
+"Proven" here means: implemented, tested, and exercised by two real people
+playing a real game (`M17.1`), with a named piece of evidence that it does the
+job. Not "seems reusable".
+
+**Corrected 2026-09-10 (`M18-01`).** This sentence used to claim two physical
+devices. `M17.1` records one: the beta tester installed the signed APK on their
+own physical Android device and played a game through with the project owner,
+whose device the record does not identify. The earlier two-device play-through
+that *is* recorded in detail — 2026-09-03, moves in both directions, undo across
+two devices, a stale command refused and recovered — ran on two **emulators**
+(`ChessPlayer1` and `ChessPlayer2`), which is why `M17.1` says explicitly that
+emulator testing alone would not have closed it. One physical device is what the
+acceptance criteria asked for and one is what happened; the evidence behind every
+concept named below is unchanged, because none of it rested on a second physical
+device.
 
 **Optimistic concurrency by a monotonic version (`D021`).** Every accepted
 mutation increments `games.version`; every command carries the version it was
 decided against; the write is guarded by
 `update ... where id = ? and version = ?`
-([GameRepository.kt:196](../server/src/main/kotlin/com/jmussel/chessgame/server/db/GameRepository.kt:196)).
+([GameRepository.kt:260](../server/src/main/kotlin/com/jmussel/chessgame/server/db/GameRepository.kt:260)).
 This is the single most portable thing built. It has nothing to do with chess: it
 says *the state you decided against is the state you are changing*, which is true
 of any authoritative turn-based server. It was stress-tested by
@@ -111,7 +123,7 @@ of any authoritative turn-based server. It was stress-tested by
 strongest evidence — by `M16.7`, where the version check was found to be
 *passable while wrong* under READ COMMITTED, and the fix (`loadForUpdate`, a row
 lock for mutating reads,
-[GameRepository.kt:126](../server/src/main/kotlin/com/jmussel/chessgame/server/db/GameRepository.kt:126))
+[GameRepository.kt:160](../server/src/main/kotlin/com/jmussel/chessgame/server/db/GameRepository.kt:160))
 is itself general. A concept that survived being broken and repaired is better
 evidence than one that was never tested.
 
@@ -124,7 +136,7 @@ and it is ruleset-independent.
 
 **Realtime as invalidation, never as state (`D022`).** `RealtimeMessage` carries
 a type, a game id, and a version — nothing else
-([RealtimeHub.kt:12](../server/src/main/kotlin/com/jmussel/chessgame/server/realtime/RealtimeHub.kt:12)).
+([RealtimeHub.kt:19](../server/src/main/kotlin/com/jmussel/chessgame/server/realtime/RealtimeHub.kt:19)).
 The client reloads over HTTPS. `RealtimeHub` contains no chess and no game
 concepts at all: it is a user-keyed multiset of connections with best-effort
 delivery. It survives message loss by construction, which `ReconnectRecoveryTest`
@@ -353,7 +365,7 @@ prior move is locked" is the retrospective predicate and nothing more.
 
 **Rewriting history on every write.** `save` deletes and rewrites the whole move
 history each time
-([GameRepository.kt:213](../server/src/main/kotlin/com/jmussel/chessgame/server/db/GameRepository.kt:213)),
+([GameRepository.kt:277](../server/src/main/kotlin/com/jmussel/chessgame/server/db/GameRepository.kt:277)),
 which is correct, simple, and cheap for a hundred plies of chess. It is `O(game
 length)` per action. This is a deliberate concrete choice that should be
 revisited, not inherited, for a game with many actions per turn.
@@ -423,7 +435,7 @@ fun save(id: Uuid, expectedVersion: Long, game: ChessGame, auditEvent: String?):
 `save` is handed *the resulting game*, never what happened to it. It cannot tell
 a push from a pop, so its only correct option is to snapshot the whole stack —
 `deleteWhere` then re-insert every record
-([GameRepository.kt:213](../server/src/main/kotlin/com/jmussel/chessgame/server/db/GameRepository.kt:213)).
+([GameRepository.kt:277](../server/src/main/kotlin/com/jmussel/chessgame/server/db/GameRepository.kt:277)).
 It does O(N) work to record an O(1) operation. For a hundred plies of ~1KB that
 is invisible and buys a real guarantee: stored history always exactly equals
 `game.history`, with no incremental-diff bug possible.

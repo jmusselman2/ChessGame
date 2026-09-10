@@ -3204,3 +3204,193 @@ hidden-info game from inheriting a rule that was safe only here.
 - The `(gameId, version)`-identity consequence of per-viewer **state**
   projection is separate and unrecorded; it is carried as an `M19` task, not
   here.
+
+---
+
+## D057 — A Display Read Verifies Its Own Version Instead of Taking a Lock
+
+**Date:** 2026-09-10
+
+**Status:** Accepted
+
+**Relates to:** `D021`, `M10.2`, `M16.7`, evaluation finding `M10-01`
+
+### Decision
+
+`GameRepository.load` — the read behind `GET /games/{gameId}` and behind the
+canonical state attached to a refusal — reads the game row, reads its move
+history, and then **re-reads the version**. A version that has not moved is proof
+the pair belongs to one committed state; a version that has moved means a `save`
+committed between the two statements, and the read is simply taken again against
+what that save left. After three attempts it falls back to the locked read
+`loadForUpdate` already used by mutating commands, which cannot be torn.
+
+A refresh therefore returns either the state before a concurrent move or the
+state after it, never a mixture — and in the concurrent case, the newer one.
+
+### Rationale
+
+A game is stored across two tables and READ COMMITTED gives every statement its
+own snapshot, so reading them in sequence can take the row from before a
+competing commit and the history from after it. That produces a `StoredGame`
+matching no committed state: the old version and old position carrying the move
+just played. `M16.7` fixed this for *commands* with a row lock (`loadForUpdate`);
+`M10-01` is the same tear on the display path, where `M10.2` promises a stale
+client can refresh from the answer.
+
+The version is already the thing that orders canonical state (`D021`) and it only
+ever goes up, so it is also the cheapest possible witness that nothing committed
+in between — one extra primary-key read, no lock, no isolation-level change.
+
+### Alternatives Considered
+
+- **`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ` for the read.** Correct and
+  a one-liner, but it answers with the state from *before* the concurrent commit,
+  and it changes the transaction semantics of a shared `transaction(database)`
+  helper for every statement inside it.
+- **`SELECT ... FOR SHARE` on every display read.** Correct, but it makes an
+  ordinary refresh block a command that is trying to commit, which inverts the
+  priority: reads are frequent and cheap to repeat, writes are not.
+- **`loadForUpdate` for display reads too.** Rejected for the same reason, more
+  strongly — every board refresh would serialise against every move.
+- **One query joining `games` and `moves`.** A single statement is atomic and
+  would work, but the row/history split is what makes the mapping readable, and a
+  join returns the game row once per ply.
+
+### Consequences
+
+- The three-attempt bound is what makes the loop terminate; reaching it needs a
+  commit inside every attempt, so the locked fallback is a guarantee rather than
+  a path expected to run.
+- `loadForUpdate` keeps taking the lock, unchanged: a command must not decide
+  against a snapshot that can move under it, and re-reading is not enough there.
+- `M10AdversarialTest` is the retained regression.
+
+---
+
+## D058 — Realtime Fan-Out Is Per-Connection and Bounded by a Send Deadline
+
+**Date:** 2026-09-10
+
+**Status:** Accepted
+
+**Relates to:** `D022`, `M12.2`, evaluation finding `M12-01`
+
+### Decision
+
+`RealtimeHub.publish` sends to every connection **concurrently**, each in its own
+child coroutine and each under a `withTimeout` of `realtimeSendTimeout`
+(5 seconds). A send that throws or exceeds its deadline drops that connection and
+nothing else. Cancellation of the request that is publishing stays cancellation:
+it is rethrown, not filed as a dead socket, so a cancelled publish unsubscribes
+nobody. The deadline is a `RealtimeHub` constructor property, so a test can
+assert what it does without waiting for it.
+
+### Rationale
+
+Best-effort delivery (`D022`) was implemented as a sequential loop that dropped a
+connection only when `send` *threw*. A socket that neither throws nor completes —
+under backpressure, or half-open without having closed — is therefore
+indistinguishable from an infinitely slow one: every recipient behind it hears
+nothing, and because the game routes await `announce` before responding, the HTTP
+response to a command that has already committed is withheld too. The player who
+moved then retries a move the server took, and the retry arrives stale.
+
+Isolation is what fixes the fan-out; the deadline is what fixes the response.
+Both are needed: isolation alone still leaves the publish, and so the response,
+waiting on the slowest client.
+
+### Alternatives Considered
+
+- **Publish outside the request, on an application-scoped coroutine.** Removes
+  the response coupling entirely and is probably where this ends up under real
+  load, but it is a larger change to lifecycle and error reporting than the
+  defect calls for, and delivery-before-response is currently what the realtime
+  tests observe.
+- **A bounded per-connection outbound queue, dropping on overflow.** The
+  general answer to a slow consumer, and unjustified at two players per game.
+- **A longer deadline aligned with `webSocketPongTimeout` (60s).** Rejected: that
+  timeout decides whether a *connection* is dead, which is a different question
+  from whether this message will ever be taken. Five seconds is already orders of
+  magnitude more than a healthy socket needs for a few dozen bytes.
+
+### Consequences
+
+- One stalled client costs every command response at most one 5-second deadline,
+  and costs other recipients nothing.
+- A dropped connection reconnects and reloads canonical state over HTTPS, which
+  it does on reconnect anyway (`D022`), so dropping one loses no information.
+- `M12AdversarialTest` is the retained regression; `RealtimeFanOutTest` covers the
+  deadline, the concurrency, and the cancellation rule.
+
+---
+
+## D059 — Asynchronous Results Are Installed Forwards Only
+
+**Date:** 2026-09-10
+
+**Status:** Accepted
+
+**Relates to:** `D021`, `D022`, `M14.10`–`M14.16`, `M16.1`,
+evaluation findings `M14-01`, `M14-02`, `M14-03`
+
+### Decision
+
+Three ordering rules in `ChessAppViewModel`, one per surface:
+
+1. **Which game is on screen** is `shownGameId` — the game named by
+   `Loading`, `Ready`, *or* `Failed` — not only by `Ready`. A realtime
+   `game-updated` naming it reloads it, whatever state the screen is in.
+2. **A same-game view is installed forwards only.** A response whose `version` is
+   lower than the one on screen does not replace the board; its *message* is still
+   shown, and `submitting` is still cleared, because the player asked for
+   something and is owed the answer.
+3. **Dashboard reads are numbered as they are issued, and only the freshest is
+   shown.** Overlapping reads are legitimate — a finished game asks what the
+   series did next without waiting for a reload in flight — so an answer is
+   discarded outright, `loading` included, if a later-issued read has already
+   landed.
+
+### Rationale
+
+The server is authoritative (`D004`) and its state is version-ordered (`D021`),
+but the client had no ordering of its own, so three legal request orderings each
+produced a screen the server never described:
+
+- a `game-updated` arriving while its own game was still opening looked like news
+  about a *different* game, so the read already in flight — decided before the
+  move — landed as the answer and the game stayed a move behind (`M14-01`);
+- a command response delayed behind the reload that the opponent's next move
+  triggered overwrote it, taking that move back off the board (`M14-02`);
+- `followSeries` replaced `dashboardJob` with an uncoordinated fetch, so an older
+  dashboard response finishing last erased the rematch the completion refresh had
+  just found (`M14-03`).
+
+The canonical version is the right key for a game because the server maintains it
+for exactly this purpose. The dashboard has no version, so request-issue order is
+the only ordering available — and it is sufficient, because what has to be
+prevented is an answer to an *older question* winning.
+
+### Alternatives Considered
+
+- **Queue the completion refresh behind the dashboard read in flight.** The
+  symmetric-looking fix, and wrong: that read was decided before the game ended
+  and cannot contain the rematch, so the player would sit on "finding out what
+  happens next" for the whole of someone else's request — a cold start, at worst.
+- **Cancel the in-flight read instead.** Loses whatever asked for it, which is
+  the defect `M16.1` fixed.
+- **Give the dashboard a server-side version.** The principled answer, and a
+  server change to fix a client ordering bug; worth revisiting if the dashboard
+  ever grows overlapping writers.
+- **Ignore a stale command response entirely, message and all.** Rejected: a
+  failed send with no explanation is the failure a player cannot tell apart from
+  never having tapped.
+
+### Consequences
+
+- `loadDashboard` and `followSeries` share one loop shape (`beginDashboardLoad`),
+  so a completion refresh cannot drift to a different discipline again.
+- The three `NetworkInterruptionTest` cases are the retained regressions;
+  `StaleResponseOrderingTest` covers the message-survives-a-stale-response rule.
+- Nothing here weakens `D004`: the client still installs only what the server
+  sent. It now chooses *which* of the server's answers is the current one.

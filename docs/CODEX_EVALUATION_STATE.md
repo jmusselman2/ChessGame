@@ -17,28 +17,45 @@
   explicit about the two assertions that changed and why. M8 is now marked
   `PASS`; `evals/M8/re-evaluation-critic-report.md` records the independent
   disposition.
-- **Unresolved findings:** M10-01 lets a game refresh mix an old game row with
-  newly committed move history. M12-01 lets one indefinitely stalled socket
-  block every later realtime recipient and the originating command response.
-  M14-01 loses a matching realtime update while its game is still opening.
-  M14-02 lets a delayed command response regress a newer reloaded game view.
-  M14-03 lets an older dashboard response erase the automatic-rematch state
-  found by a completion refresh. M18-01 overstates M17's evidence as two
-  physical devices although the authoritative record identifies only the
-  tester's device as physical.
+- **Unresolved findings:** none.
+- **Closed by remediation (2026-09-10):** all six carried findings. **M10-01** —
+  `GameRepository.load` now re-reads the version after the history and retakes
+  the read when it moved, so a refresh returns one coherent state and, under a
+  concurrent commit, the newer one (`D057`). **M12-01** — `RealtimeHub.publish`
+  now sends per connection concurrently under a bounded deadline, rethrowing
+  genuine cancellation (`D058`). **M14-01/02/03** — the client now tracks the
+  game on screen through `Loading`/`Failed`, installs a same-game view forwards
+  only by canonical version, and orders overlapping dashboard reads by issue
+  number, with `followSeries` on the same loop as `loadDashboard` (`D059`).
+  **M18-01** — the two-physical-device claim was removed from
+  `docs/PLATFORM-REVIEW.md` and the `M18.1` completion note, because `M17.1`
+  records one physical device and no evidence of a second was found; the
+  correction and what was searched are recorded in both places. Every evaluator
+  regression passes unmodified: `M10AdversarialTest`, `M12AdversarialTest`, the
+  three `NetworkInterruptionTest` cases, and
+  `evals/M18/M18DocumentationRegressionTest.ps1`. New coverage was added beside
+  them, not in place of them: `RealtimeFanOutTest` and
+  `StaleResponseOrderingTest`.
 - **M19 disposition:** all twelve M19.1–M19.12 tasks remain explicitly `TODO`.
   The repository has design decisions D048–D056 but no M19 implementation; the
   pair-keyed schema and behavior remain intact. This is incomplete planned work,
   not an external evaluation blocker or twelve new defect IDs.
-- **Latest artifacts:** `evals/M19/critic-report.md` and
-  `evals/M19/test-report.md`. The earlier milestone reports and all retained
-  evaluator regressions remain part of the evaluation record.
+- **Latest artifacts:** `evals/M19/critic-report.md`,
+  `evals/M19/test-report.md`, and `evals/remediation-report.md` (the 2026-09-10
+  remediation of all six carried findings). The earlier milestone reports and all
+  retained evaluator regressions remain part of the evaluation record.
 
 ## Next action
 
 No unevaluated milestone remains after M19 in `docs/BACKLOG.md`. The independent
-evaluation is complete through every currently defined milestone. M19.1 is the
-next implementation boundary and requires the human architecture sign-off its
-acceptance criteria name. Separately, any remediation re-evaluation must keep
-M10-01, M12-01, M14-01 through M14-03, and M18-01 expected-red until production
-or authoritative-document changes are present.
+evaluation is complete through every currently defined milestone, and no finding
+it raised is open. M19.1 is the next implementation boundary and requires the
+human architecture sign-off its acceptance criteria name.
+
+A remediation re-evaluation should now expect all six regressions **green**, and
+should check the fixes rather than the symptoms: that `load`'s verification is
+against the same counter the guarded write moves and that its retry bound
+terminates (`D057`); that a publish drops only the connection that failed and
+that request cancellation is not mistaken for a dead socket (`D058`); that
+"forwards only" is keyed on the canonical version and that a discarded dashboard
+answer changes nothing at all, `loading` included (`D059`).

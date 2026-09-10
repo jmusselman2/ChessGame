@@ -146,6 +146,18 @@ class ChessAppViewModel(
     private var dashboardReloadWanted = false
 
     /**
+     * How many dashboard reads have been issued, which is the order they were asked in.
+     *
+     * Dashboard reads can overlap, because a finished game asks what the series did next
+     * without waiting for a reload already in flight ([followSeries]). This is what orders
+     * their answers; see [fetchDashboard].
+     */
+    private var dashboardReadsIssued = 0L
+
+    /** The latest read whose answer reached the screen, so an older one is discarded. */
+    private var dashboardReadShown = 0L
+
+    /**
      * Restores or creates the anonymous session, asks the server who it belongs to, and
      * goes wherever that answer says.
      *
@@ -319,17 +331,28 @@ class ChessAppViewModel(
             }
     }
 
-    /** Loads the game showing now again, which is what "try again" does. */
-    fun reloadGame() {
-        val gameId =
+    /**
+     * Which game the screen is on, whether or not it has arrived yet.
+     *
+     * A game that is still loading, or that failed to load, is being looked at just as much
+     * as one already drawn — so anything that asks "is this update about the game in front
+     * of the player?" has to ask this and not only the state that has a board in it. Reading
+     * it off [OnlineGameState.Ready] alone made a `game-updated` for a game still opening
+     * look like news about some other game, and the read already in flight — decided before
+     * the move that prompted the message — then landed as the answer (`M14-01`).
+     */
+    private val shownGameId: String?
+        get() =
             when (val showing = game) {
                 is OnlineGameState.Loading -> showing.gameId
                 is OnlineGameState.Ready -> showing.game.gameId
                 is OnlineGameState.Failed -> showing.gameId
-                null -> return
+                null -> null
             }
 
-        loadGame(gameId)
+    /** Loads the game showing now again, which is what "try again" does. */
+    fun reloadGame() {
+        loadGame(shownGameId ?: return)
     }
 
     /**
@@ -410,9 +433,7 @@ class ChessAppViewModel(
             }
 
             RealtimeMessageDto.GAME_UPDATED -> {
-                val showing = (game as? OnlineGameState.Ready)?.game?.gameId
-
-                if (message.gameId != null && message.gameId == showing) {
+                if (message.gameId != null && message.gameId == shownGameId) {
                     loadGame(message.gameId)
                 } else {
                     loadDashboard()
@@ -623,6 +644,20 @@ class ChessAppViewModel(
         message: String? = null,
     ) {
         val showing = (game as? OnlineGameState.Ready)?.takeIf { it.game.gameId == view.gameId }
+
+        // A view older than the one on screen is a late answer to a question the screen has
+        // already moved past: a command response held up behind the reload that the
+        // opponent's next move triggered (`M14-02`). Installing it would take that move back
+        // off the board and restore controls worked out for a position that is gone. The
+        // version is what orders them, because it is the server's own count of accepted
+        // mutations and it only ever goes up (`D021`) — the same ordering the command guard
+        // uses. The *message* is kept either way: the player asked for something and is owed
+        // the answer, even when the board has moved on since.
+        if (showing != null && view.version < showing.game.version) {
+            game = showing.copy(submitting = false, message = message ?: showing.message)
+            return
+        }
+
         val justEnded = view.isOver && showing != null && !showing.game.isOver
 
         game = OnlineGameState.Ready(game = view, message = message, after = if (justEnded) AfterGame.Looking else null)
@@ -638,12 +673,16 @@ class ChessAppViewModel(
      * to offer, or a series that has gone, which means there will not be another (`D013`).
      */
     private fun followSeries(finished: GameViewDto) {
+        // Deliberately not queued behind a dashboard read already in flight. That read was
+        // decided before this game ended, so it cannot know about the rematch, and waiting
+        // for it would leave the player on "finding out what happens next" for as long as it
+        // takes — which, against a waking instance, is a while. It starts its own read, and
+        // the freshness ordering in [fetchDashboard] is what stops the older answer landing
+        // on top of this one afterwards and erasing the rematch (`M14-03`).
         dashboardJob =
-            viewModelScope.launch {
-                fetchDashboard()
-
-                val ready = game as? OnlineGameState.Ready ?: return@launch
-                if (ready.game.gameId != finished.gameId) return@launch
+            beginDashboardLoad {
+                val ready = game as? OnlineGameState.Ready ?: return@beginDashboardLoad
+                if (ready.game.gameId != finished.gameId) return@beginDashboardLoad
 
                 val nextGameId =
                     dashboard.entries
@@ -684,14 +723,24 @@ class ChessAppViewModel(
             return
         }
 
-        dashboardJob =
-            viewModelScope.launch {
-                do {
-                    dashboardReloadWanted = false
-                    fetchDashboard()
-                } while (dashboardReloadWanted)
-            }
+        dashboardJob = beginDashboardLoad()
     }
+
+    /**
+     * Reads the dashboard until nothing more has been asked for, then runs [andThen].
+     *
+     * One loop shape for both callers, so a completion refresh cannot end up with a
+     * different discipline from an ordinary reload — which is how `M14-03` happened.
+     */
+    private fun beginDashboardLoad(andThen: suspend () -> Unit = {}): Job =
+        viewModelScope.launch {
+            do {
+                dashboardReloadWanted = false
+                fetchDashboard()
+            } while (dashboardReloadWanted)
+
+            andThen()
+        }
 
     /**
      * Opens the game on a dashboard line, by the id the server gave it.
@@ -740,8 +789,18 @@ class ChessAppViewModel(
             }
     }
 
-    /** The dashboard and the friends list as the server has them now. */
+    /**
+     * The dashboard and the friends list as the server has them now.
+     *
+     * Reads can overlap — a completion refresh does not wait for an ordinary reload
+     * ([followSeries]) — so each one is numbered as it is issued and shown only if nothing
+     * asked for later has been shown already. Without that, an older answer finishing last
+     * overwrites a newer one, which is what erased a rematch the completion refresh had just
+     * found (`M14-03`). A discarded answer changes nothing at all, `loading` included: the
+     * newer answer it lost to has already said whether the dashboard is still loading.
+     */
     private suspend fun fetchDashboard() {
+        val read = ++dashboardReadsIssued
         dashboard = dashboard.copy(loading = true)
 
         try {
@@ -752,17 +811,37 @@ class ChessAppViewModel(
                     entries.await() to list.await()
                 }
             }.let { (loadedEntries, loadedFriends) ->
-                dashboard = dashboard.copy(entries = loadedEntries, loading = false, loaded = true, message = null)
-                // The same list the friends screen shows; there is only one of it.
-                friends = friends.copy(friends = loadedFriends, loaded = true)
+                if (isFreshestDashboardRead(read)) {
+                    dashboard = dashboard.copy(entries = loadedEntries, loading = false, loaded = true, message = null)
+                    // The same list the friends screen shows; there is only one of it.
+                    friends = friends.copy(friends = loadedFriends, loaded = true)
+                }
             }
         } catch (refused: ChessApiException) {
-            dashboard = dashboard.copy(loading = false, message = DashboardMessages.messageFor(refused))
+            if (isFreshestDashboardRead(read)) {
+                dashboard = dashboard.copy(loading = false, message = DashboardMessages.messageFor(refused))
+            }
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (unreachable: Exception) {
-            dashboard = dashboard.copy(loading = false, message = DashboardMessages.unreachableMessage())
+            if (isFreshestDashboardRead(read)) {
+                dashboard = dashboard.copy(loading = false, message = DashboardMessages.unreachableMessage())
+            }
         }
+    }
+
+    /**
+     * Whether [read]'s answer is still worth showing, and claims the dashboard if it is.
+     *
+     * Request order is the only ordering the dashboard has — unlike a game it carries no
+     * version — so "issued later" is what counts as newer. Called from the main dispatcher
+     * only, like every other field here, so the check and the claim cannot interleave.
+     */
+    private fun isFreshestDashboardRead(read: Long): Boolean {
+        if (read < dashboardReadShown) return false
+
+        dashboardReadShown = read
+        return true
     }
 
     /**
