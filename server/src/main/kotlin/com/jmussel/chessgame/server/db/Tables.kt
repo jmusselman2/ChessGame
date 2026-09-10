@@ -34,6 +34,12 @@ object UsersTable : Table("users") {
     val username = text("username").nullable()
     val usernameNormalized = text("username_normalized").nullable()
     val lastSeenAt = timestampWithTimeZone("last_seen_at").nullable()
+
+    /** When a session last started, exactly. Distinct from [lastSeenAt] (`M19.11`). */
+    val lastLoginAt = timestampWithTimeZone("last_login_at").nullable()
+
+    /** When a command was last accepted from this user, exactly (`M19.11`). */
+    val lastActionAt = timestampWithTimeZone("last_action_at").nullable()
     val createdAt = timestampWithTimeZone("created_at")
 
     override val primaryKey = PrimaryKey(id)

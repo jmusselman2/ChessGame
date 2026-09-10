@@ -16,12 +16,25 @@ import java.time.ZoneOffset
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
-/** A user as the server knows them: internal id, auth subject, and the chosen username. */
+/**
+ * A user as the server knows them: internal id, auth subject, and the chosen username.
+ *
+ * The three activity timestamps answer three different questions and none substitutes for
+ * another (`M19.11`, `database/migrations/V4__engagement_timestamps.sql`):
+ * [lastSeenAt] is the throttled "recently around" marker (`D010`), accurate to five
+ * minutes and written from any authenticated request; [lastLoginAt] is exact and records a
+ * session starting; [lastActionAt] is exact and records a command being accepted.
+ *
+ * None of them reaches the API. `toCurrentUser` and `toSummaryOrNull` name the fields they
+ * expose, and these are not among them (`ARCHITECTURE.md` §14).
+ */
 data class StoredUser(
     val id: Uuid,
     val authSubject: String,
     val username: String?,
     val lastSeenAt: Instant?,
+    val lastLoginAt: Instant? = null,
+    val lastActionAt: Instant? = null,
 )
 
 /**
@@ -119,6 +132,44 @@ class UserRepository(
         }
     }
 
+    /**
+     * Records that [id] started a session at [at] (`M19.11`).
+     *
+     * Unthrottled, unlike [touchLastSeen]: a session start is a discrete, infrequent event
+     * and an approximate one would answer nothing. `GET /me` is the only route that is a
+     * session starting rather than a session being used — if it ever became a route a
+     * client polled, this would need `LastSeenTracker`'s throttle for the reason `D010`
+     * gives.
+     */
+    fun touchLastLogin(
+        id: Uuid,
+        at: Instant = Instant.now(),
+    ) {
+        transaction(database) {
+            UsersTable.update({ UsersTable.id eq id }) { row ->
+                row[UsersTable.lastLoginAt] = at.atOffset(ZoneOffset.UTC)
+            }
+        }
+    }
+
+    /**
+     * Records that a command from [id] was accepted at [at] (`M19.11`).
+     *
+     * Called from inside the command's own transaction, so it commits with the mutation it
+     * describes or not at all — a refused or lost command can never leave a timestamp
+     * claiming an action the database did not take. It therefore does **not** open a
+     * transaction of its own; `transaction(database)` here would join the caller's, and
+     * being explicit about that is the point.
+     */
+    fun touchLastActionInTransaction(
+        id: Uuid,
+        at: Instant = Instant.now(),
+    ) {
+        UsersTable.update({ UsersTable.id eq id }) { row ->
+            row[UsersTable.lastActionAt] = at.atOffset(ZoneOffset.UTC)
+        }
+    }
+
     private fun findById(id: Uuid): StoredUser? =
         UsersTable
             .selectAll()
@@ -152,6 +203,8 @@ class UserRepository(
             authSubject = row[UsersTable.authSubject],
             username = row[UsersTable.username],
             lastSeenAt = row[UsersTable.lastSeenAt]?.toInstant(),
+            lastLoginAt = row[UsersTable.lastLoginAt]?.toInstant(),
+            lastActionAt = row[UsersTable.lastActionAt]?.toInstant(),
         )
 }
 

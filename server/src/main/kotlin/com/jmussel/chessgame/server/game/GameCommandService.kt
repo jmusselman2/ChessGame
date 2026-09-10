@@ -9,6 +9,7 @@ import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.StaleGameVersionException
 import com.jmussel.chessgame.server.db.StoredGame
+import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.series.SeriesService
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -88,7 +89,23 @@ class GameCommandService(
     private val database: Database,
     private val games: GameRepository,
     private val series: SeriesService,
+    private val users: UserRepository? = null,
 ) {
+    /**
+     * Records that this user's command was accepted (`M19.11`).
+     *
+     * Called from inside the command's transaction, after the guarded write has landed, so
+     * `last_action_at` commits with the mutation it describes: a refused command, or one
+     * that lost the version race, leaves no trace claiming otherwise. Only an *accepted
+     * mutation* comes through here — `load` returns `Applied` too and is a read, which is
+     * why this is not hung off `CommandResult.Applied`.
+     *
+     * [users] is optional so a test that only cares about game rules need not wire it.
+     */
+    private fun recordAction(userId: Uuid) {
+        users?.touchLastActionInTransaction(userId)
+    }
+
     /** Plays [move] in [gameId] on behalf of [userId]. */
     fun makeMove(
         userId: Uuid,
@@ -120,7 +137,7 @@ class GameCommandService(
                     return@transaction CommandResult.StaleVersion(reload(gameId, stored))
                 }
 
-                applied(gameId, stored)
+                applied(userId, gameId, stored)
             } ?: CommandResult.NotAParticipant
         }
 
@@ -161,7 +178,7 @@ class GameCommandService(
                     return@transaction CommandResult.StaleVersion(reload(gameId, stored))
                 }
 
-                applied(gameId, stored)
+                applied(userId, gameId, stored)
             } ?: CommandResult.NotAParticipant
         }
 
@@ -201,7 +218,7 @@ class GameCommandService(
                     return@transaction CommandResult.StaleVersion(reload(gameId, stored))
                 }
 
-                applied(gameId, stored)
+                applied(userId, gameId, stored)
             } ?: CommandResult.NotAParticipant
         }
 
@@ -246,6 +263,7 @@ class GameCommandService(
                     return@transaction CommandResult.StaleVersion(reload(gameId, stored))
                 }
 
+                recordAction(userId)
                 CommandResult.Applied(reload(gameId, stored))
             } ?: CommandResult.NotAParticipant
         }
@@ -267,11 +285,19 @@ class GameCommandService(
      * (`D015`), inside this command's transaction: the finished game, its result, and the
      * game that follows it are one commit, so no client can see a series whose game is
      * over and whose next game does not exist yet.
+     *
+     * It is also where the actor's `last_action_at` is recorded (`M19.11`), because this is
+     * the one place that means "a mutation from this user was accepted" — [load] answers
+     * `Applied` as well and is a read. [undoMove] does not come through here, because an
+     * undo can never finish a game, so it records its own.
      */
     private fun applied(
+        userId: Uuid,
         gameId: Uuid,
         fallback: StoredGame,
     ): CommandResult {
+        recordAction(userId)
+
         val saved = reload(gameId, fallback)
 
         if (saved.isComplete) series.settleAfter(saved)

@@ -3400,3 +3400,101 @@ prevented is an answer to an *older question* winning.
   `StaleResponseOrderingTest` covers the message-survives-a-stale-response rule.
 - Nothing here weakens `D004`: the client still installs only what the server
   sent. It now chooses *which* of the server's answers is the current one.
+
+---
+
+## D060 — Three Activity Timestamps, Because They Answer Three Questions
+
+**Date:** 2026-09-10
+
+**Status:** Accepted
+
+**Relates to:** `D006`, `D010`, `ARCHITECTURE` §14, `M19.11`,
+deck-builder design interview item `C`
+
+**Scope:** `users` schema and internal engagement tracking. Changes no
+user-facing behaviour and no API response.
+
+### Decision
+
+`users` carries three activity timestamps beside `created_at`, and they are not
+interchangeable:
+
+| column | when it is written | accuracy |
+|---|---|---|
+| `last_seen_at` | any authenticated request (`D010`) | **throttled** — at most one write per user per five minutes |
+| `last_login_at` | a session starting: `GET /me` | exact, unthrottled |
+| `last_action_at` | a command being **accepted** | exact, unthrottled, in the command's own transaction |
+
+- **`last_seen_at` keeps its existing meaning and mechanism exactly** (`D010`,
+  `LastSeenTracker`). It is the "recently around" marker, it is deliberately
+  approximate, and it is deliberately not a heartbeat.
+- **`GET /me` is what "session start" means on the server.** Every other
+  authenticated route is a session being *used*; the app restores or creates its
+  anonymous session and then asks this one who it belongs to, so this is the only
+  place the server can tell starting from using apart. The write is not allowed
+  to affect the response — a failure to record engagement is logged and the
+  player gets into the app.
+- **"Accepted command" means an accepted mutation, not a successful request.** A
+  refused command — wrong turn, stale version, illegal move, not a participant —
+  writes nothing, and neither does reading a game. `GameCommandService.load`
+  returns `CommandResult.Applied` too, which is exactly why the write hangs off
+  the accepted-mutation path rather than off that result type.
+- **`last_action_at` is written inside the command's transaction**, so it commits
+  with the mutation it describes or not at all. A timestamp can never claim an
+  action the database did not take.
+- **Both new columns are nullable with no backfill**, and **neither is exposed
+  through the API**. No response shape changes.
+
+### Rationale
+
+Interview item `C` asked for engagement tracking, and `last_seen_at` cannot
+provide it: it cannot distinguish opening the app from playing a move, and it
+rounds both to five minutes. "Came back but has not played" and "played" are the
+two states engagement questions actually turn on, and they are the two
+`last_seen_at` cannot tell apart. Retention needs the first; activity needs the
+second.
+
+Exactness is the reason the new columns are unthrottled. `D010`'s throttle exists
+because *any request* can move `last_seen_at`, so an unthrottled version would be
+the continuous heartbeat it rules out. A session start and an accepted command are
+discrete and infrequent — one per app launch, a handful per game — so there is no
+heartbeat to avoid, and an approximate answer to "when did they last play" is not
+an answer.
+
+No backfill because there is nothing true to backfill with. Defaulting either
+column to `now()` or to `created_at` would invent activity that did not happen,
+and the first question anyone asks of this data is "how many accounts are
+dormant".
+
+### Alternatives Considered
+
+- **One column with a "kind" beside it.** Rejected: the three have different
+  write frequencies, different accuracy guarantees, and one of them is throttled.
+  A single column would need the throttle to apply to all three or none.
+- **Throttle the new columns like `last_seen_at`.** Rejected: it would make
+  "when did they last play" accurate to five minutes for no benefit, since
+  neither event is frequent enough to need protecting against.
+- **Record `last_action_at` at the route layer**, beside `realtime.announce`,
+  which also fires only on accepted commands. Rejected: it would be outside the
+  command's transaction, so a commit that failed after responding could leave a
+  timestamp for an action that did not happen. The transaction is the guarantee.
+- **Write `last_login_at` on every authenticated request.** Rejected: that is
+  `last_seen_at`, which already exists.
+- **Expose them through the API.** Rejected: nothing in the product shows them,
+  and `ARCHITECTURE` §14 keeps account internals off the wire (`D006` for the
+  same reason about the auth subject).
+
+### Consequences
+
+- `V4__engagement_timestamps.sql` adds both columns, nullable.
+- `UserRepository.touchLastLogin` and `touchLastActionInTransaction`; the latter
+  is named for the fact that it must not open a transaction of its own.
+- `GameCommandService` takes an optional `UserRepository`, so a test that only
+  cares about rules need not wire one.
+- `StoredUser` carries all three. It is a persistence type, and `toCurrentUser`
+  and `toSummaryOrNull` enumerate what the API sees, so nothing leaks —
+  `EngagementTimestampTest` asserts that on the wire rather than trusting it.
+- If `GET /me` ever becomes a route the client polls, `last_login_at` needs
+  `LastSeenTracker`'s throttle for the reason `D010` gives. It is not polled
+  today: the app calls it once per startup.

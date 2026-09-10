@@ -38,7 +38,7 @@ fun Application.testModule(
         series = series,
         dashboard = DashboardQueries(database),
         history = HistoryQueries(database),
-        commands = GameCommandService(database, GameRepository(database), series),
+        commands = GameCommandService(database, GameRepository(database), series, users),
         realtime = realtime,
         lastSeen = lastSeen ?: LastSeenTracker(users),
     )

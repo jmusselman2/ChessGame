@@ -426,6 +426,8 @@ User
 - username
 - usernameNormalized
 - lastSeenAt
+- lastLoginAt
+- lastActionAt
 - createdAt
 ```
 
@@ -435,6 +437,30 @@ Database requirements:
 - case-insensitive uniqueness through `usernameNormalized`,
 - username validation enforced server-side,
 - database uniqueness constraint is the final race-safe authority.
+
+### Activity timestamps
+
+Three, and they are not interchangeable (`D060`, `M19.11`):
+
+| column | written when | accuracy |
+|---|---|---|
+| `last_seen_at` | any authenticated request (`D010`) | throttled to one write per user per five minutes |
+| `last_login_at` | a session starting — `GET /me` | exact |
+| `last_action_at` | a command being **accepted** | exact, inside the command's transaction |
+
+`GET /me` is what "session start" means here: every other authenticated route is
+a session being *used*, and this is the one the app calls after restoring or
+creating its session, so it is the only place the server can tell the two apart.
+
+"Accepted command" means an accepted *mutation*. A refused command writes
+nothing, and neither does reading a game — `GameCommandService.load` returns
+`Applied` as well, so the write hangs off the accepted-mutation path rather than
+off that result type. It is written in the command's own transaction, so it
+cannot claim an action the database did not take.
+
+**None of the three is exposed through the API.** `StoredUser` carries them
+because it is a persistence type; `CurrentUser` and `UserSummary` enumerate what
+the wire sees and these are not among them.
 
 ## 15. Friendship Model
 
@@ -773,6 +799,14 @@ Added since:
 ```text
 groups          -- D049, M19.2: standing invite-eligibility pools
 group_members   -- one row per person per group; left_at rather than deletion
+```
+
+Columns added since:
+
+```text
+friendships.status                  -- D047
+users.last_login_at                 -- D060, M19.11: a session starting
+users.last_action_at                -- D060, M19.11: a command being accepted
 ```
 
 Use database constraints for race-sensitive invariants where possible, including:

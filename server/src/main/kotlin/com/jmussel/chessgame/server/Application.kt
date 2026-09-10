@@ -108,7 +108,7 @@ fun main() {
                 series = series,
                 dashboard = DashboardQueries(database),
                 history = HistoryQueries(database),
-                commands = GameCommandService(database, games, series),
+                commands = GameCommandService(database, games, series, users),
             )
         }
     }.start(wait = true)

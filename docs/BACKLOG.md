@@ -4996,7 +4996,7 @@ identity.
 
 ## M19.11 — `last_login_at` / `last_action_at` on `users`
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** —
 
@@ -5014,6 +5014,64 @@ work, and can land early.
 - Not exposed through the API. No response shape changes.
 - `docs/DECISIONS.md` note or a short decision recording what each column means
   and why it is separate from `last_seen_at`.
+
+### Completion Note — 2026-09-10
+
+`V4__engagement_timestamps.sql`, both columns nullable with no backfill, and
+`D060` records what each of the three timestamps means and why none substitutes
+for another. `ARCHITECTURE.md` §14 carries the table.
+
+**What "session start" means on the server: `GET /me`.** Every other
+authenticated route is a session being *used*. The app restores or creates its
+anonymous session and then asks this one who it belongs to, so it is the only
+place the server can tell starting from using apart. The write is deliberately
+not allowed to affect the response — a failure is logged and the player still
+gets into the app, because engagement data is worth having and worth nothing next
+to being able to play.
+
+**What "accepted command" means: an accepted *mutation*.** This is the part worth
+being careful about, and the tests are mostly negative:
+
+- a refused command writes nothing — wrong turn, stale version, illegal move;
+- reading a game writes nothing, which matters because
+  `GameCommandService.load` returns `CommandResult.Applied` **too**. That is
+  precisely why the write hangs off the accepted-mutation path (`applied`, plus
+  `undoMove`, which does not route through it because an undo can never finish a
+  game) rather than off the result type;
+- it is written **inside the command's own transaction**, so it commits with the
+  mutation it describes or not at all. `touchLastActionInTransaction` is named
+  for the fact that it must not open one of its own. Recording it at the route
+  layer beside `realtime.announce` would have been the easier hook and the wrong
+  one: outside the transaction, a commit that failed after responding could leave
+  a timestamp for an action that did not happen.
+
+**Why not one column.** `last_seen_at` cannot distinguish opening the app from
+playing a move, and it rounds both to five minutes. "Came back but has not
+played" and "played" are the two states engagement questions turn on, and they
+are the two it cannot tell apart. `D010`'s mechanism and meaning are untouched.
+
+**Why the new columns are unthrottled.** `D010` throttles because *any* request
+moves `last_seen_at`, so an unthrottled version would be the heartbeat it rules
+out. A session start and an accepted command are discrete and infrequent, so
+there is no heartbeat to avoid and an approximate answer to "when did they last
+play" is not an answer. Noted in `D060`: if `GET /me` ever becomes a polled
+route, `last_login_at` needs the same throttle.
+
+**No backfill,** because there is nothing true to backfill with. `now()` or
+`created_at` would invent activity that did not happen, and "how many accounts
+are dormant" is the first question this data will be asked.
+
+**Not exposed.** `StoredUser` carries all three because it is a persistence type;
+`CurrentUser` and `UserSummary` enumerate what the wire sees.
+`noEngagementTimestampIsExposedThroughTheApi` asserts that against the actual
+response bodies of `/me` and a user lookup rather than trusting the DTOs.
+
+Verified with `.\gradlew.bat :server:test --tests EngagementTimestampTest`
+(10 new tests) plus the `LastSeenTest`, `IdentityRouteTest`, `UserLookupTest`,
+`MakeMoveTest`, `UndoMoveTest`, `ResignRouteTest` and `ClaimDrawCommandTest`
+regressions, and `.\gradlew.bat build`.
+
+---
 
 ## M19.12 — Error and connection-failure logging
 
