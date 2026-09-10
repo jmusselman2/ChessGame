@@ -173,7 +173,7 @@ Key clarifications:
 
 Use `docs/DEVELOPMENT.md` as the authoritative source for build, test, formatting, lint, server-run, and environment commands.
 
-The single aggregate verification command is `./gradlew build` (Windows: `.\gradlew.bat build`). It runs `ktlintCheck`, every module's unit tests, Android lint, the Android APKs, and the server distribution, and it is exactly what CI runs.
+The single aggregate verification command is `./gradlew build` (Windows: `.\gradlew.bat build`). It runs `ktlintCheck`, every module's unit tests, Android lint, the Android APKs, and the server distribution. CI runs the same command with `--continue`, so a red run reports every failing task instead of stopping at the first; that affects how completely failures are reported, not what is verified. See `docs/DEVELOPMENT.md`.
 
 Before completing affected work:
 

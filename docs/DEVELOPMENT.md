@@ -74,9 +74,27 @@ module it runs:
 - Android lint,
 - the Android debug and release APKs.
 
-This is what CI runs. Use it as the affected-work verification for any change
-that can affect more than one module, and as the final gate before marking a
-backlog task `DONE`. Prefer the narrower commands below for fast iteration while
+This is what CI runs, with `--continue` added:
+
+    ./gradlew build --continue
+
+The flag changes reporting, not the verdict. Without it Gradle stops at the
+first failing task, so on a red commit whether `:server:test` or
+`:android-app:testDebugUnitTest` actually executes depends on scheduling, and
+the same commit can report a different set of failures from one run to the next
+— which makes the number of outstanding failures impossible to read off a
+single run. With it, every independent task runs and the run reports the
+complete set. Tasks that depend on a failed one are still skipped, and the
+build still fails if anything failed (verified 2026-09-10: a green build is
+still `BUILD SUCCESSFUL` with the flag).
+
+Locally, plain `build` is usually what you want; add `--continue` when you are
+trying to see everything that is broken at once rather than fixing the first
+thing.
+
+Use `build` as the affected-work verification for any change that can affect
+more than one module, and as the final gate before marking a backlog task
+`DONE`. Prefer the narrower commands below for fast iteration while
 implementing.
 
 ### Aggregate Quality Check (no packaging)

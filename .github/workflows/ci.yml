@@ -55,5 +55,13 @@ jobs:
       # every module: ktlintCheck (wired into `check`), all JVM unit tests
       # (game-core, server), Android debug + release unit tests, Android lint,
       # the Android APKs, and the server distribution. See docs/DEVELOPMENT.md.
+      #
+      # `--continue` so a red run reports every failing task rather than the
+      # first one Gradle happens to reach. Without it, whether `:server:test`
+      # or `:android-app:testDebugUnitTest` gets to run depends on scheduling,
+      # so the same broken commit can report a different set of failures each
+      # time and the outstanding count cannot be read off one run. It does not
+      # change the verdict: dependent tasks are still skipped, and the build
+      # still fails if anything failed.
       - name: Build, test, and verify all modules
-        run: ./gradlew build
+        run: ./gradlew build --continue
