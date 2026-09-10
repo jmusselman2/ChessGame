@@ -1,10 +1,10 @@
 # Codex Evaluation State
 
 - **Evaluated `main` baseline:** `38be421dfd64c269687c893300f11e661bfa9c90`
-- **Current milestone:** M18 READY — M17 independently evaluated
-- **Status:** `M17 PASS WITH CARRIED FINDINGS`
+- **Current milestone:** M19 READY — M18 independently evaluated
+- **Status:** `M18 DEFECT FOUND — CONTINUING`
 - **Evaluated milestones:** M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12,
-  M13, M14, M15, M16, M17
+  M13, M14, M15, M16, M17, M18
 - **Closed by re-evaluation:** all three M8 findings. M8-01 (a
   nameless caller could create a friendship the other side cannot list) and
   M8-02 (two concurrent re-adds both reported that they restored the same
@@ -23,14 +23,19 @@
   M14-01 loses a matching realtime update while its game is still opening.
   M14-02 lets a delayed command response regress a newer reloaded game view.
   M14-03 lets an older dashboard response erase the automatic-rematch state
-  found by a completion refresh.
-- **Latest artifacts:** `evals/M17/critic-report.md` and
-  `evals/M17/test-report.md`. The earlier milestone reports and all retained
-  evaluator regressions remain part of the evaluation record.
+  found by a completion refresh. M18-01 overstates M17's evidence as two
+  physical devices although the authoritative record identifies only the
+  tester's device as physical.
+- **Latest artifacts:** `evals/M18/critic-report.md`,
+  `evals/M18/test-report.md`, and the expected-red
+  `evals/M18/M18DocumentationRegressionTest.ps1`. The earlier milestone
+  reports and all retained evaluator regressions remain part of the evaluation
+  record.
 
 ## Next action
 
-Evaluate M18 next under the user-authorized M15-and-later continuation. Do not
+Evaluate M19 next under the user-authorized M15-and-later continuation. Do not
 perform an earlier remediation re-evaluation first. Carry M10-01, M12-01, and
-M14-01 through M14-03 forward unchanged unless a later milestone naturally
-requires them, and keep their evaluator regressions intact and expected-red.
+M14-01 through M14-03, and M18-01 forward unchanged unless a later milestone
+naturally requires them, and keep their evaluator regressions intact and
+expected-red.
