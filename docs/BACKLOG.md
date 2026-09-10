@@ -1542,7 +1542,9 @@ tests).
 **Completed:** 2026-08-26 — `FriendshipRepository.remove` deactivates the
 friendship by setting `removed_at` and, in the same transaction, sets
 `close_after_current_game` on the pair's `ACTIVE` series, so the two can never
-disagree. Nothing is deleted: the friendship row stays for history, the series
+disagree. (Narrowed by `D046`: that holds for a series that exists when the
+removal runs. One committing concurrently is left open, because series creation
+no longer consults the friendship at all.) Nothing is deleted: the friendship row stays for history, the series
 stays `ACTIVE`, and the current game is untouched and still playable — only the
 next automatic rematch is disabled, exactly as `D013` describes. The series'
 own transition to `CLOSED` when that game ends is `M9.3`/`M13.4`.
@@ -1580,6 +1582,9 @@ creating a parallel one. A closed series stays for history and does not block a
 new one (`D012`). `POST /series` behind Supabase authentication opens the series
 with a named friend — 201 when created, 200 when reopened, 403 for someone who
 is not a friend, 400 for yourself or a malformed name, 404 for an unknown user.
+(The 403 was later removed: `D046` deletes the friendship check at series
+creation rather than making it race-safe, so the remaining answers are 201, 200,
+400, and 404.)
 Verified locally with `.\gradlew.bat :server:test` (13 new `OpenSeriesTest`
 cases) including the required concurrency test: eight simultaneous opens from
 both sides through a `CyclicBarrier` produce exactly one creation, one series id

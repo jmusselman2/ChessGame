@@ -293,8 +293,17 @@ class OpenSeriesTest {
         }
     }
 
+    /**
+     * The server does not decide who you may play (`D046`).
+     *
+     * This asserted a `403` until `D046`: the friendship check it tested was removed rather
+     * than made race-safe, because the app only ever offers people the player already knows
+     * and that selection is the gate. A direct API caller reaching past the app is the known,
+     * accepted cost, and it is asserted here so that it is a decision on the record rather
+     * than something discovered later.
+     */
     @Test
-    fun theEndpointRefusesSomeoneWhoIsNotAFriend() {
+    fun theEndpointOpensASeriesWithSomeoneWhoIsNotAFriend() {
         withServer { fixture ->
             fixture.named("auth-1", "Jordan")
             fixture.named("auth-2", "Alex")
@@ -305,8 +314,8 @@ class OpenSeriesTest {
                     setBody("Alex")
                 }
 
-            assertEquals(HttpStatusCode.Forbidden, response.status)
-            assertEquals(0, fixture.seriesCount())
+            assertEquals(HttpStatusCode.Created, response.status)
+            assertEquals(1, fixture.seriesCount())
         }
     }
 

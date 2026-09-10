@@ -19,15 +19,26 @@ import java.time.ZoneOffset
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+/**
+ * The status a friendship has once it has been approved.
+ *
+ * The only status MVP code ever writes: a friendship is usable the moment it is made and
+ * there is no accept step (`D009`). `PENDING` and `DECLINED` exist in the schema for a
+ * later approval flow and are never written today (`D047`).
+ */
+const val ACTIVE_FRIENDSHIP: String = "ACTIVE"
+
 /** A friendship between two users, stored once with the lower id first. */
 data class StoredFriendship(
     val userAId: Uuid,
     val userBId: Uuid,
+    val status: String,
     val createdAt: Instant,
     val removedAt: Instant?,
 ) {
+    /** Whether the two are friends right now: approved, and not since removed. */
     val isActive: Boolean
-        get() = removedAt == null
+        get() = removedAt == null && status == ACTIVE_FRIENDSHIP
 
     /** The other person, given one of them. */
     fun otherThan(userId: Uuid): Uuid = if (userId == userAId) userBId else userAId
@@ -91,7 +102,13 @@ class FriendshipRepository(
                 existing.isActive -> AddFriendResult.AlreadyFriends
                 // The row read as removed, but another add may revive it before this one
                 // commits; only the caller whose update actually did it is told `Added`.
-                else -> reactivate(lower, higher)?.let(AddFriendResult::Added) ?: AddFriendResult.AlreadyFriends
+                existing.removedAt != null ->
+                    reactivate(lower, higher)?.let(AddFriendResult::Added) ?: AddFriendResult.AlreadyFriends
+                // A row that is neither active nor removed is one awaiting approval, which
+                // nothing writes yet (`D047`). Failing loudly is deliberate: when that flow
+                // arrives, its transition belongs here, and a quiet `AlreadyFriends` would
+                // hide the omission instead of naming it.
+                else -> error("Cannot add a friendship with status '${existing.status}'")
             }
         }
     }
@@ -119,7 +136,8 @@ class FriendshipRepository(
                 .selectAll()
                 .where {
                     ((FriendshipsTable.userAId eq userId) or (FriendshipsTable.userBId eq userId)) and
-                        FriendshipsTable.removedAt.isNull()
+                        FriendshipsTable.removedAt.isNull() and
+                        (FriendshipsTable.status eq ACTIVE_FRIENDSHIP)
                 }.orderBy(FriendshipsTable.createdAt to SortOrder.ASC)
                 .map { toFriendship(it).otherThan(userId) }
         }
@@ -148,7 +166,8 @@ class FriendshipRepository(
                     {
                         (FriendshipsTable.userAId eq lower) and
                             (FriendshipsTable.userBId eq higher) and
-                            FriendshipsTable.removedAt.isNull()
+                            FriendshipsTable.removedAt.isNull() and
+                            (FriendshipsTable.status eq ACTIVE_FRIENDSHIP)
                     },
                 ) { row ->
                     row[FriendshipsTable.removedAt] = at.atOffset(ZoneOffset.UTC)
@@ -197,10 +216,17 @@ class FriendshipRepository(
         FriendshipsTable.insert { row ->
             row[FriendshipsTable.userAId] = lower
             row[FriendshipsTable.userBId] = higher
+            row[FriendshipsTable.status] = ACTIVE_FRIENDSHIP
             row[FriendshipsTable.createdAt] = now.atOffset(ZoneOffset.UTC)
         }
 
-        return StoredFriendship(userAId = lower, userBId = higher, createdAt = now, removedAt = null)
+        return StoredFriendship(
+            userAId = lower,
+            userBId = higher,
+            status = ACTIVE_FRIENDSHIP,
+            createdAt = now,
+            removedAt = null,
+        )
     }
 
     /**
@@ -226,6 +252,7 @@ class FriendshipRepository(
                 },
             ) { row ->
                 row[FriendshipsTable.removedAt] = null
+                row[FriendshipsTable.status] = ACTIVE_FRIENDSHIP
             }
 
         if (revived == 0) return null
@@ -237,6 +264,7 @@ class FriendshipRepository(
         StoredFriendship(
             userAId = row[FriendshipsTable.userAId],
             userBId = row[FriendshipsTable.userBId],
+            status = row[FriendshipsTable.status],
             createdAt = row[FriendshipsTable.createdAt].toInstant(),
             removedAt = row[FriendshipsTable.removedAt]?.toInstant(),
         )

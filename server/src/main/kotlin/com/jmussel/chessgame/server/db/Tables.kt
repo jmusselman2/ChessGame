@@ -42,6 +42,7 @@ object UsersTable : Table("users") {
 object FriendshipsTable : Table("friendships") {
     val userAId = uuid("user_a_id")
     val userBId = uuid("user_b_id")
+    val status = text("status")
     val createdAt = timestampWithTimeZone("created_at")
     val removedAt = timestampWithTimeZone("removed_at").nullable()
 

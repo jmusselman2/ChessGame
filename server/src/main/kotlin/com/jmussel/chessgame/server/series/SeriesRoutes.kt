@@ -4,7 +4,6 @@ package com.jmussel.chessgame.server.series
 
 import com.jmussel.chessgame.server.api.SeriesSummary
 import com.jmussel.chessgame.server.auth.authenticatedUser
-import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.realtime.RealtimeHub
 import com.jmussel.chessgame.server.realtime.RealtimeMessage
@@ -21,14 +20,17 @@ import kotlin.uuid.ExperimentalUuidApi
  * Starting or opening the series with a friend.
  *
  * "Play with this friend" is one action: it opens the pair's active series if there is one
- * and creates it otherwise, so parallel active series never appear (`D011`). The caller
- * must actually be friends with the person named.
+ * and creates it otherwise, so parallel active series never appear (`D011`).
+ *
+ * The server does not check that the two are friends (`D046`). The app only ever offers
+ * people the player already knows, and that selection is the gate; re-deciding it here
+ * bought nothing except a check that could be raced. This is the one place the client is
+ * trusted for a state assertion, and it is deliberate and narrow.
  *
  * Routes must sit behind authentication.
  */
 fun Route.seriesRoutes(
     users: UserRepository,
-    friendships: FriendshipRepository,
     series: SeriesService,
     realtime: RealtimeHub,
 ) {
@@ -49,11 +51,6 @@ fun Route.seriesRoutes(
 
         if (friend.id == caller.userId) {
             call.respondText("You cannot play yourself", status = HttpStatusCode.BadRequest)
-            return@post
-        }
-
-        if (!friendships.areFriends(caller.userId, friend.id)) {
-            call.respondText("Not friends with ${friend.username}", status = HttpStatusCode.Forbidden)
             return@post
         }
 

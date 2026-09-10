@@ -194,6 +194,11 @@ The Android client is untrusted.
 
 Android may use `game-core` to pre-validate a move and provide immediate UX feedback, but it does not decide the canonical result.
 
+One named exception exists, and only one: the server does not verify that two
+users are friends when a series is created (`D046`). The invite UI is the gate
+there. It is scoped to that single relationship assertion — no canonical game
+state, version, result, or turn is ever taken from the client.
+
 The client must never submit:
 
 ```text
@@ -439,8 +444,13 @@ Conceptually:
 Friendship
 - userAId
 - userBId
+- status
 - createdAt
 ```
+
+`status` is `ACTIVE` for every friendship the MVP creates; `PENDING` and
+`DECLINED` are reserved for a later approval flow and are never written
+(`D047`).
 
 Prevent:
 
@@ -482,7 +492,9 @@ For MVP:
 
 - at most one `ACTIVE` series per pair,
 - an existing active series is opened instead of creating a parallel one,
-- closed series remain historical.
+- closed series remain historical,
+- creation does not check that the pair are friends (`D046`), so a series may
+  outlive — or never have had — a friendship between its two players.
 
 ## 17. Friend Removal and Series Lifecycle
 
@@ -498,6 +510,10 @@ When a friendship is removed:
 The close transition must be idempotent.
 
 If the friendship is restored later, a new active series may be created.
+
+This covers the series that exists when the removal runs. A series created
+concurrently with a removal is not marked, and is deliberately left open
+(`D046`).
 
 ## 18. Game Model
 

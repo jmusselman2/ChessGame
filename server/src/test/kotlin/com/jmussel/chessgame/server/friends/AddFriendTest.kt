@@ -3,6 +3,7 @@
 package com.jmussel.chessgame.server.friends
 
 import com.jmussel.chessgame.server.auth.TestTokens
+import com.jmussel.chessgame.server.db.ACTIVE_FRIENDSHIP
 import com.jmussel.chessgame.server.db.AddFriendResult
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
@@ -22,6 +23,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -255,6 +257,25 @@ class AddFriendTest {
                 }
 
             assertEquals(HttpStatusCode.NotFound, response.status)
+        }
+    }
+
+    @Test
+    fun aFriendshipIsStoredActiveAndComesBackActiveAfterBeingRevived() {
+        withFriends { fixture ->
+            val jordan = fixture.named("auth-1", "Jordan")
+            val alex = fixture.named("auth-2", "Alex")
+
+            val added = fixture.friendships.add(jordan, alex)
+            assertIs<AddFriendResult.Added>(added)
+            assertEquals(ACTIVE_FRIENDSHIP, added.friendship.status, "there is no accept step (`D009`, `D047`)")
+
+            fixture.friendships.remove(jordan, alex)
+            val revived = fixture.friendships.add(jordan, alex)
+
+            assertIs<AddFriendResult.Added>(revived)
+            assertEquals(ACTIVE_FRIENDSHIP, revived.friendship.status)
+            assertTrue(fixture.friendships.areFriends(jordan, alex))
         }
     }
 

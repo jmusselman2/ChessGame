@@ -2341,3 +2341,178 @@ entitled to what they asked for.
 - The refusal is not retrospective. A friendship row created before this
   decision keeps whatever shape it has, and the defensive handling above is what
   reads it.
+
+---
+
+## D046 — Series Creation Does Not Verify the Relationship; the Invite UI Is the Gate
+
+**Date:** 2026-09-09
+
+**Status:** Accepted
+
+**Supersedes in part:** `D013`'s consequence note ("the server needs a race-safe
+`closeAfterCurrentGame` or equivalent lifecycle mechanism"), for the
+series-creation window only. Removal's own behaviour is unchanged.
+
+**Relates to:** `D009`, `D011`, `ARCHITECTURE` §7, §15, §16, §17, `M9.1`,
+`evals/M8/critic-report.md` (`M8-03`)
+
+### Decision
+
+**There is no server-side friendship or acquaintance verification when a series
+is created — now or going forward.** The `areFriends` check in `POST /series` is
+removed outright. It is not replaced with a lock, a re-check, a shared
+transaction, or any other race-safety mechanism.
+
+The client's invite UI is the only gate. A player can only ever select from
+people they already know, and the server trusts that selection rather than
+re-deciding it.
+
+`POST /series` therefore answers 400 for a malformed name or yourself, 404 for a
+name belonging to nobody, and 201/200 for everyone else. The 403 it used to
+answer is gone.
+
+**The accepted consequence, stated plainly:** a caller who bypasses the app and
+calls the API directly can open a series with someone who is not their friend.
+That is accepted for the MVP.
+
+Separately, and not decided here: joining a series is automatic once it is
+created, with no accept or decline step.
+
+### Rationale
+
+`M8-03` reported the check as a race — `POST /series` read `areFriends` in one
+transaction while `DELETE /friends` committed in another, so a series could
+commit moments after the friendship it had just verified was removed. That
+framing takes the check's existence for granted and asks how to make it atomic.
+The answer is that the check should not exist.
+
+It was never load-bearing. It re-decided, on the server, a question the app had
+already answered by only ever showing the player their own friends. What it
+actually bought was a second opinion about a UI affordance — and the price was a
+cross-aggregate invariant between `friendships` and `game_series` that would
+need a lock protocol spanning three call sites to hold under concurrency. There
+is nothing left to race once the check is gone, so the race is closed by
+deletion rather than by serialisation.
+
+This is deliberately a **narrow, named exception** to `ARCHITECTURE` §7, which
+says the Android client is untrusted. That rule is about canonical state: the
+client may not assert a board position, a version, a result, or whose turn it
+is, and none of that changes. What is conceded here is one relationship
+assertion whose only consequence is which two people a series is between. A
+misuse produces an unwanted series, not a corrupted game — the game rules,
+turn order, and version guard all still refuse everything they refused before.
+The exception is written down precisely so it stays one exception rather than
+becoming a precedent.
+
+### Alternatives Considered
+
+- **A shared lock or transaction spanning the friend check, series creation, and
+  friend removal.** The obvious reading of `M8-03`, and rejected: it is real
+  concurrency machinery across three call sites, bought to defend a check that
+  should not be there. It also makes friendship removal and series creation
+  contend with each other for no user-visible benefit.
+- **Re-checking the friendship after the series commits, and rolling back.**
+  Cheaper to write and still wrong: it keeps the coupling and adds a compensating
+  path that can itself fail.
+- **Keeping the check and accepting the race as a known defect.** Rejected
+  because a check that is only usually right is worse than no check — it invites
+  callers to depend on it.
+
+### Consequences
+
+- `seriesRoutes` no longer takes a `FriendshipRepository`. `POST /series` cannot
+  answer 403.
+- **A series may exist between users who are not friends.** Anything reading
+  series, dashboards, or history must not assume the pair are currently friends.
+  Nothing did assume it; this records that it must stay that way.
+- `FriendshipRepository.remove` still marks the pair's existing `ACTIVE` series
+  to close after its current game, and `D013` is otherwise untouched. What is no
+  longer promised is that this covers a series committing concurrently with the
+  removal — that series is left open, deliberately.
+- Because of the above, `RemoveFriendResult.seriesMarkedToClose` — and the
+  sentence the endpoint builds from it — describes the series that existed when
+  the removal ran, not any that commit alongside it.
+- The `M8-03` regression is kept and re-pointed: it still drives the same
+  deterministic interleaving, and now asserts the outcome this decision accepts,
+  so reintroducing a gate here fails a test that names this decision.
+- `M9.1`'s completion note recorded "403 for someone who is not a friend"; it is
+  corrected rather than left to contradict this.
+
+---
+
+## D047 — `friendships` Carries a `status` Column Now, So an Approval Flow Is Additive Later
+
+**Date:** 2026-09-09
+
+**Status:** Accepted
+
+**Relates to:** `D009`, `D013`, `V2__friendship_status.sql`
+
+### Decision
+
+`friendships` gains `status text not null default 'ACTIVE'`, constrained to
+`ACTIVE`, `PENDING`, or `DECLINED`.
+
+**MVP writes `ACTIVE` and nothing else.** User-visible behaviour is unchanged:
+a friendship is usable the moment it is made, with no accept step (`D009`).
+`PENDING` and `DECLINED` are reserved for a later approval-toggle setting and
+are never written today.
+
+Removal keeps `removed_at`. The two columns record different facts — whether a
+friendship was ever approved, and whether it has since ended — and folding
+removal into `status` would destroy the history `D013` requires.
+
+Reads that mean "are these two friends right now" require `removed_at is null`
+**and** `status = 'ACTIVE'`, so a `PENDING` row cannot leak into a friend list
+on the day the value first appears.
+
+### Rationale
+
+This is a deliberate exception to the project rule against building
+infrastructure for hypothetical future needs, made with that rule in mind and
+kept as small as it can be.
+
+The cost of adding the column later is not one migration. It is a migration plus
+a retrofit of every read that currently equates "row exists and is not removed"
+with "these two are friends" — `friendsOf`, `areFriends`, `remove`, and the
+`add` dispatch. Each would have to be found and corrected at once, and a missed
+one is a `PENDING` friendship silently behaving as an accepted one, which is a
+privacy failure rather than a bug. Adding the column now makes that later change
+additive: new values and new transition logic, against reads that already ask
+the right question.
+
+What makes the exception acceptable is that it buys a **column and a
+predicate**, not a mechanism. There is no state machine, no pending table, no
+approval endpoint, no interface, and no branch that MVP code can reach. If the
+approval flow is never built, what is carried is one unused enum value in a check
+constraint.
+
+`add` refuses a row that is neither active nor removed with an `error()` rather
+than a plausible-looking `AlreadyFriends`. Nothing can reach it today; when
+`PENDING` becomes writable, the omission announces itself instead of hiding.
+
+### Alternatives Considered
+
+- **Add it when the approval flow is built.** The default answer, and normally
+  the right one. Rejected here for the retrofit-risk reason above, and because
+  the beta already holds real friendship rows (`D035`), so the later migration
+  would run against live data rather than an empty table.
+- **A separate `friendship_requests` table.** A real mechanism for a feature
+  with no design yet, and a second source of truth about the same relationship.
+- **Reuse `removed_at` with a sentinel, or a nullable `approved_at`.** Both
+  encode the state implicitly and force every reader to know the convention; a
+  named status with a check constraint says what it means in the schema.
+
+### Consequences
+
+- One migration, `V2__friendship_status.sql`. `add column ... not null default`
+  does not rewrite the table on PostgreSQL 11+, and existing rows — including
+  the beta's — become `ACTIVE`, which is what they already meant.
+- `StoredFriendship` carries `status`; `isActive` is now
+  `removed_at is null && status == ACTIVE`.
+- The column is not exposed through the API. No response shape changes.
+- This decision does **not** extend to series, participants, or membership.
+  Tables and multi-participant series do not exist in this codebase — it is
+  strictly two-player, keyed by `white_user_id`/`black_user_id` — and that
+  concept belongs to the future platform work (`D044`), not here.

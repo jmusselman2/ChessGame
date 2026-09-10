@@ -94,6 +94,38 @@ class InitialSchemaTest {
     }
 
     @Test
+    fun aFriendshipIsActiveWithoutBeingAskedToBe() {
+        DatabaseTestSupport.withMigratedDatabase { dataSource ->
+            val (first, second) = twoUsers(dataSource)
+            val (lower, higher) = orderedPair(first, second)
+
+            insertFriendship(dataSource, lower, higher)
+
+            // There is no accept step (`D009`), so the column exists for a later approval
+            // flow and defaults to the only value MVP ever means (`D047`).
+            assertEquals("ACTIVE", friendshipStatus(dataSource, lower, higher))
+        }
+    }
+
+    @Test
+    fun aFriendshipCannotHaveAStatusThatIsNotOneOfTheThreeReserved() {
+        DatabaseTestSupport.withMigratedDatabase { dataSource ->
+            val (first, second) = twoUsers(dataSource)
+            val (lower, higher) = orderedPair(first, second)
+
+            assertFailsWith<SQLException> {
+                execute(
+                    dataSource,
+                    "insert into friendships (user_a_id, user_b_id, status) values (?::uuid, ?::uuid, ?)",
+                    lower,
+                    higher,
+                    "APPROVED",
+                )
+            }
+        }
+    }
+
+    @Test
     fun onlyOneActiveSeriesExistsPerPair() {
         DatabaseTestSupport.withMigratedDatabase { dataSource ->
             val (first, second) = twoUsers(dataSource)
@@ -337,6 +369,24 @@ class InitialSchemaTest {
         userA,
         userB,
     )
+
+    private fun friendshipStatus(
+        dataSource: DataSource,
+        userA: String,
+        userB: String,
+    ): String =
+        dataSource.connection.use { connection ->
+            connection
+                .prepareStatement("select status from friendships where user_a_id = ?::uuid and user_b_id = ?::uuid")
+                .use { statement ->
+                    statement.setString(1, userA)
+                    statement.setString(2, userB)
+                    statement.executeQuery().use { rows ->
+                        rows.next()
+                        rows.getString(1)
+                    }
+                }
+        }
 
     private fun insertSeries(
         dataSource: DataSource,

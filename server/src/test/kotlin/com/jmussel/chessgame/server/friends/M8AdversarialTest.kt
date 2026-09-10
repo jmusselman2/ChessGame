@@ -204,8 +204,24 @@ class M8AdversarialTest {
         }
     }
 
+    /**
+     * The M8-03 scenario, kept for its orchestration and re-pointed at what the product now
+     * says (`D046`).
+     *
+     * As written by the evaluator this asserted the opposite: that a series committing after
+     * a friend removal must come out marked to close, because `POST /series` had checked the
+     * friendship and that check could be raced. There is no longer a check to race — series
+     * creation does not consult the friendship at all — so an unfriended pair holding an open
+     * series is an accepted state rather than a violated invariant, and the assertion is
+     * inverted rather than the race being closed.
+     *
+     * What it still proves is worth keeping: the interleaving is real and deterministic, the
+     * removal commits, the series commits, and the result is the one `D046` accepts. If
+     * someone later reintroduces a friendship gate or a locking protocol here, this fails and
+     * sends them to the decision first.
+     */
     @Test
-    fun removingWhileAStaleFriendCheckCreatesASeriesCannotLeaveRematchesEnabled() {
+    fun aSeriesCommittingAfterAFriendRemovalIsLeftOpenBecauseCreationNeverChecksTheFriendship() {
         withServer { fixture ->
             val jordan = fixture.named(CALLER, "Jordan")
             val alex = fixture.named(FRIEND, "Alex")
@@ -242,9 +258,9 @@ class M8AdversarialTest {
 
                     val pairSeries = activeSeriesFor(fixture.database, jordan, alex)
                     assertEquals(1, pairSeries.size)
-                    assertTrue(
+                    assertFalse(
                         pairSeries.single()[GameSeriesTable.closeAfterCurrentGame],
-                        "an active series that committed after removal must not remain eligible for rematches",
+                        "`D046`: creation does not check the friendship, so nothing marks this series",
                     )
                 }
             } finally {

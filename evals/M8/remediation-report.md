@@ -1,12 +1,14 @@
-# M8 — Friends: Remediation Report (`M8-01` and `M8-02`)
+# M8 — Friends: Remediation Report
 
 Written by Claude on `claude-autopilot`, after reproducing the findings in
 `evals/M8/critic-report.md` and `evals/M8/test-report.md`. Those two reports are
 the evaluator's record of what Codex observed and are left as written.
 
-**This report covers `M8-01` and `M8-02` only.** `M8-03` is deliberately not
-fixed here; the reason is in *`M8-03` — deferred* below, and its regression is
-untouched and still failing on purpose.
+**Part 1 of this report covers `M8-01` and `M8-02`, written when `M8-03` was
+still deferred.** Part 2, appended in a later session, covers `M8-03` and a
+forward-compatible friendship schema change. The *`M8-03` — deferred* section
+below is left as written; Part 2 says what actually happened to it, and why the
+answer was not the one that section anticipated.
 
 ## Baseline reconciliation
 
@@ -211,3 +213,182 @@ enumeration apart from the two M10/M12 adversarial classes.
 regressions; this commit does not make the branch green and does not claim to.
 M8 is not marked `PASS` — only Codex may do that, after re-evaluating `M8-01` and
 `M8-02` from the beginning.
+
+---
+
+# Part 2 — `M8-03`, resolved by deleting the check (`D046`), plus the friendship `status` column (`D047`)
+
+Written in a later session, on `claude-autopilot`, building on `e94f477`.
+
+## `M8-03` — the fix is to delete the check, not to lock it
+
+**The finding was real. The remedy is not the one its framing implies.**
+
+The critic report describes `M8-03` as a race: `POST /series` reads `areFriends`
+in one transaction, `DELETE /friends` commits in another, and nothing serialises
+them, so a series can commit moments after the friendship it just verified was
+removed. It concludes that "the friendship authorization decision, series
+creation/open, and removal need a shared transaction/lock protocol".
+
+That conclusion follows only if the check has to exist. **It does not.** The
+project owner's decision, recorded as `D046`: there is no server-side friendship
+or acquaintance verification at series creation, now or going forward. The app's
+invite UI only ever offers people the player already knows, and that selection is
+the gate.
+
+So the `areFriends` check in `POST /series` is **removed outright** — not locked,
+not re-checked, not wrapped in a shared transaction. There is nothing left to
+race once the check is gone.
+
+Why this is the better answer, and not merely the cheaper one: the check was
+never load-bearing. It re-decided on the server a question the app had already
+answered, and the price of keeping it honest was a cross-aggregate invariant
+between `friendships` and `game_series` needing a lock protocol across three call
+sites. That is real concurrency machinery bought to defend a second opinion about
+a UI affordance.
+
+`D046` states the accepted cost in the decision itself rather than burying it: a
+caller who bypasses the app and calls the API directly can open a series with
+someone who is not their friend. It also names itself a **narrow, deliberate
+exception** to `ARCHITECTURE` §7 ("the Android client is untrusted"), and says
+why the exception is safe to make here — the concession is one relationship
+assertion whose worst outcome is an unwanted series, while every canonical game
+fact (position, version, result, turn) is still refused from the client exactly
+as before.
+
+### What happened to the `M8-03` regression test
+
+**It did not pass trivially. It was re-pointed, and it passes now.**
+
+This was checked empirically rather than assumed. With the `areFriends` check
+deleted and nothing else changed,
+`removingWhileAStaleFriendCheckCreatesASeriesCannotLeaveRematchesEnabled` **still
+failed**, with its original message.
+
+The reason is worth being precise about, because it is the whole question. The
+test's *name* is about the stale check, but its *assertion* never was: it asserted
+that an active series committing after a friend removal must come out marked
+`close_after_current_game`. Deleting the check removes the mechanism the evaluator
+used to build the scenario; it does not change the outcome the assertion demands.
+
+That assertion is exactly the invariant `D046` abandons. Under the new decision an
+unfriended pair holding an open series is an accepted state, not a violated one —
+series creation is not tied to friendship at all. So the test was asserting a
+requirement the product no longer has.
+
+It is therefore **rewritten rather than retired**, keeping everything that was
+still worth having:
+
+- The deterministic orchestration is untouched — same advisory-lock trigger on the
+  series insert, same interleaving, same proof that the removal commits inside the
+  window and the series commits after it.
+- Only the final assertion is inverted, from `assertTrue(closeAfterCurrentGame)` to
+  `assertFalse(...)`, with the message naming `D046`.
+- Renamed to
+  `aSeriesCommittingAfterAFriendRemovalIsLeftOpenBecauseCreationNeverChecksTheFriendship`,
+  and carrying a KDoc that says what it used to assert, what it asserts now, and
+  why.
+
+The point of keeping it is that it now **locks the decision**: anyone who
+reintroduces a friendship gate or a locking protocol at series creation fails a
+test that sends them to `D046` first.
+
+One other retained test asserted the deleted behaviour directly —
+`OpenSeriesTest.theEndpointRefusesSomeoneWhoIsNotAFriend`. It is likewise
+re-pointed, to `theEndpointOpensASeriesWithSomeoneWhoIsNotAFriend`, asserting 201
+and one series, so `D046`'s accepted cost is on the record as an assertion rather
+than as an absence.
+
+This is the only place in this remediation where an evaluator regression's
+assertion was changed. It was changed because an authoritative product decision
+removed the requirement behind it — not to make an implementation pass — and it
+is called out here so the re-evaluation can judge that for itself.
+
+## The friendship `status` column (`D047`)
+
+`friendships` gains `status text not null default 'ACTIVE'`, constrained to
+`ACTIVE`, `PENDING`, `DECLINED`, in `V2__friendship_status.sql`.
+
+**Nothing about MVP behaviour changes.** Every row written today is `ACTIVE`;
+there is still no accept step (`D009`). `PENDING` and `DECLINED` are reserved for
+a later approval-toggle setting and are never written.
+
+This is a deliberate, recorded exception to the project rule against building for
+hypothetical needs. `D047` gives the reasoning: the cost of adding this later is
+not one migration but a migration plus a retrofit of every read that currently
+equates "row exists and is not removed" with "these two are friends", where a
+missed reader is a `PENDING` friendship silently behaving as an accepted one. What
+is bought now is a column and a predicate — no state machine, no endpoint, no
+branch MVP code can reach.
+
+Wired through as:
+
+- `FriendshipsTable.status`, and `StoredFriendship.status`.
+- `isActive` is now `removed_at is null && status == ACTIVE`, so a future
+  `PENDING` row cannot leak into a friend list the day the value first appears.
+- `friendsOf` and `remove` filter on `status = ACTIVE` as well as
+  `removed_at is null`, for the same reason.
+- `insert` writes `ACTIVE` explicitly rather than leaning on the column default;
+  `reactivate` restores it alongside clearing `removed_at`.
+- `add`'s dispatch is now explicit that only a *removed* row can be revived. A row
+  that is neither active nor removed hits `error(...)` rather than a
+  plausible-looking `AlreadyFriends` — unreachable today, and when `PENDING`
+  becomes writable the omission announces itself instead of hiding. That choice is
+  in `D047`.
+
+**Deliberately not extended** to series, participants, or membership. Tables and
+multi-participant series do not exist in this codebase — it is strictly
+two-player, keyed by `white_user_id`/`black_user_id` — and that concept belongs to
+the future platform work (`D044`).
+
+`add column ... not null default` does not rewrite the table on PostgreSQL 11+,
+and existing rows (including the beta's, `D035`) become `ACTIVE`, which is what
+they already meant.
+
+## Documents corrected
+
+`D046` and `D047` are the decisions. Lower-precedence documents asserted things
+that `D046` makes false, and were corrected rather than left to contradict it:
+
+- `ARCHITECTURE` §7 — the untrusted-client rule now names its one exception.
+- `ARCHITECTURE` §15 — the friendship model gains `status`.
+- `ARCHITECTURE` §16 — series creation does not check friendship.
+- `ARCHITECTURE` §17 — a series committing concurrently with a removal is not
+  marked.
+- `BACKLOG` `M9.1` — its completion note recorded "403 for someone who is not a
+  friend", which the endpoint can no longer answer.
+- `BACKLOG` `M8.4` — its "so the two can never disagree" claim is narrowed to the
+  series that exists when the removal runs.
+
+## Tests
+
+Added: `InitialSchemaTest.aFriendshipIsActiveWithoutBeingAskedToBe` and
+`aFriendshipCannotHaveAStatusThatIsNotOneOfTheThreeReserved` (the default and the
+check constraint, at the schema);
+`AddFriendTest.aFriendshipIsStoredActiveAndComesBackActiveAfterBeingRevived` (the
+repository round-trip, including that reviving restores `ACTIVE`).
+
+Changed: the two assertions described above, both because `D046` removed the
+requirement they encoded.
+
+Deleted or skipped: none.
+
+### Results
+
+| Run | Result |
+| --- | --- |
+| `friends.*` + `series.*` + `db.*` | **BUILD SUCCESSFUL** |
+| `dashboard.*`, `history.*`, `user.*`, `auth.*`, `game.*` (less M10), `realtime.*` (less M12), `ApplicationTest`, `DeploymentTest`, `ServerLoggingTest` | **BUILD SUCCESSFUL** |
+| `./gradlew build -x :server:test -x :android-app:testDebugUnitTest` | **BUILD SUCCESSFUL** |
+
+All six `M8AdversarialTest` cases pass, including `M8-01` and `M8-02` from Part 1.
+`M10AdversarialTest`, `M12AdversarialTest`, and `NetworkInterruptionTest` were not
+run and not modified.
+
+## Status after Part 2
+
+M8's three findings are all addressed: `M8-01` and `M8-02` fixed in `e94f477`,
+`M8-03` resolved by `D046`. M8 is still not marked `PASS` — only Codex may do
+that, after re-evaluating.
+
+`M10-01`, `M12-01`, and `M14-01`/`02`/`03` remain open, and CI stays red on them.
