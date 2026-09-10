@@ -3131,7 +3131,13 @@ never sized. That sizing is a real task, not a footnote.
 ### Consequences
 
 - `M19` undo work carries an explicit sizing sub-task before implementation
-  (`M19.9`).
+  (`M19.9`). **Discharged 2026-09-10:** `docs/UNDO-STORAGE.md` measures it. The
+  retention cost accepted above survives measurement (74 KB for a typical span,
+  2.4 MB pathological); the *mechanism* does not — `save(wholeGame)`'s per-action
+  rewrite makes the total quadratic, at 42× amplification already measurable in
+  chess. Its recommendations are delta snapshots with a full checkpoint at each
+  barrier, per-seat state rows, and card instances as ids against a static
+  catalogue. They are recommendations: the undo task decides and records.
 - `undoBarrierSeq` (the last-shuffle sequence number) is the retention floor:
   snapshots at or after it are kept, earlier ones may be pruned.
 - The command signature must change to `append` / `truncateTo`

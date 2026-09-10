@@ -4871,9 +4871,11 @@ series exit.
 
 ## M19.9 — Undo storage sizing (spike, before undo is built)
 
-**Status:** TODO
+**Status:** DONE
 
-**Depends on:** M19.1
+**Depends on:** M19.1 — *revised:* not a real dependency for this task. Every
+figure is about a state document and a write pattern, so the analysis holds
+under any of `M19.1`'s four layouts and assumes none of them.
 
 ### Objective
 
@@ -4891,6 +4893,83 @@ participants' deck / hand / discard) and action count.
   (`docs/PLATFORM-REVIEW.md`), since `save(wholeGame)` cannot express a bounded
   rewind.
 - No implementation; this feeds the later undo task.
+
+### Completion Note — 2026-09-10
+
+The analysis is `docs/UNDO-STORAGE.md`. Nothing was implemented, and nothing is
+recorded as an accepted decision: `M19.9` is a spike, so it produces
+recommendations and the undo task decides. The document sits below
+`DECISIONS.md`/`ARCHITECTURE.md` in precedence for the same reason
+`PLATFORM-REVIEW.md` does.
+
+**Method, since a sizing claim is worth what its method is worth.** Two probes,
+run against the production serializer and the real `save(wholeGame)` write
+pattern, then deleted rather than left in the suite — they print numbers and
+assert nothing, and a size assertion would be a brittle test of a model that is
+about to change. The chess figures are **real** (a 96-ply game, moves chosen
+uniformly from `ChessRules.legalMoves` under `Random(19)`). The deck-builder
+figures are **modelled**, because that state shape does not exist yet; the
+document says so wherever they appear.
+
+**The headline: `D055`'s accepted retention cost survives measurement, and its
+mechanism does not.**
+
+- Retained snapshots for a typical span are **74 KB**, and **2.4 MB** for the
+  pathological never-shuffles game. That is affordable. `D055` was right to
+  accept it.
+- What is not affordable is `save(wholeGame)`'s O(N) rewrite per action, which
+  makes the total quadratic. The typical 30-action span already writes
+  **1.14 MB**; the pathological one writes **1.13 GB to store 2.4 MB**, and at
+  that point playing one card writes 2.36 MB.
+- Chess already pays this: **1,844,774 bytes written to store a 43 KB move
+  history — 42× amplification.** Invisible at chess's scale, and left alone
+  (`D044`), but it is the mechanism rather than the magnitude that does not
+  survive a many-actions-per-turn game.
+
+**Recommendations, with the measurement that decided each.**
+
+1. **Delta snapshots, plus one full checkpoint at each shuffle barrier.** One
+   action changes **2 characters of a 2,460-byte document** (a counter), or about
+   ten bytes when a card changes zone — 0.4%–1%. Per-row compression was measured
+   at only **1.95×** on real chess data, because a few hundred bytes cannot warm
+   a gzip dictionary; compressing the whole run together reaches 18.5×, but it
+   gets that from inter-row similarity and would have to be rewritten per action,
+   which is the quadratic problem in a different coat. A delta captures the same
+   redundancy structurally and stays row-addressable for `truncateTo`. The
+   checkpoint is free, because `undoBarrierSeq` is already the retention floor and
+   the barrier is already a write. **This departs from `D029`** — chess stores
+   `position_before` precisely to avoid replay — and the document says so
+   explicitly rather than quietly generalising: storing the position is simpler
+   when there are 96 of them at 451 B, and stops being simpler at a thousand
+   actions changing 1% each. Replay is sound here because the ruleset is
+   deterministic and the randomness is materialised.
+2. **Write the state in parts — per seat, plus a shared row.** One action touches
+   one or two seats; the current model rewrites all five. Measured at ~**8×** off
+   the per-action write at five participants, growing with participant count.
+   Two constraints carried: atomicity is not lost (`save` already writes several
+   rows in one transaction), and **the version must stay on one row**, because
+   `D021`'s guarded update needs a single row to settle a race on — splitting the
+   version across seats would break the one platform concept `M18.1` found most
+   portable.
+3. **`append` / `truncateTo` confirmed as a prerequisite, not a nicety.**
+   `save(wholeGame)` is handed the resulting game and cannot tell a push from a
+   pop, so it must delete and re-insert everything; that is the entire source of
+   the 42×. Neither operation undo needs is expressible through it. Two additions
+   recommended: `truncateTo` should **refuse to cross `undoBarrierSeq`**, so no
+   rules bug can reach past a permanent barrier, and pruning below the barrier
+   should happen in the transaction that records the shuffle.
+4. **Card instances as ids against a static catalogue.** The cheapest win in the
+   document: **2.5 KB versus 12 KB** at five participants, for a catalogue the
+   server already has. Every other figure assumes it.
+
+`D055`'s *Consequences* and `PLATFORM-REVIEW`'s rewrite-cost paragraph now point
+here, so the obligation `D055` created is discharged in a place the undo task will
+actually find.
+
+No code changed. Verified with `.\gradlew.bat build` (BUILD SUCCESSFUL) and
+`git diff --check`.
+
+---
 
 ## M19.10 — Per-viewer state projection and the `(gameId, version)` identity
 

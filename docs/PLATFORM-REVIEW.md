@@ -440,6 +440,13 @@ It does O(N) work to record an O(1) operation. For a hundred plies of ~1KB that
 is invisible and buys a real guarantee: stored history always exactly equals
 `game.history`, with no incremental-diff bug possible.
 
+**Since measured (`M19.9`, `docs/UNDO-STORAGE.md`):** a 96-ply game writes
+1,844,774 bytes to store a 43 KB move history — **42× amplification**, real and
+already happening. Still invisible at chess's scale and still left alone
+(`D044`), but the modelled deck-builder equivalent writes over a gigabyte for a
+pathological game, which is what makes the `append` / `truncateTo` change a
+prerequisite rather than a tidy-up.
+
 The fix is to make the command say what it did — `append(action)` /
 `truncateTo(seq)` rather than "here is the new whole game". Push becomes one
 insert, undo becomes `delete where game_id = ? and seq > ?`, and nothing else
