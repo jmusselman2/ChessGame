@@ -1,10 +1,10 @@
 # Codex Evaluation State
 
 - **Evaluated `main` baseline:** `38be421dfd64c269687c893300f11e661bfa9c90`
-- **Current milestone:** M19 READY — M18 independently evaluated
-- **Status:** `M18 DEFECT FOUND — CONTINUING`
+- **Current milestone:** COMPLETE — M19 independently evaluated
+- **Status:** `EVALUATION COMPLETE — M19 INCOMPLETE (0/12 IMPLEMENTED)`
 - **Evaluated milestones:** M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12,
-  M13, M14, M15, M16, M17, M18
+  M13, M14, M15, M16, M17, M18, M19
 - **Closed by re-evaluation:** all three M8 findings. M8-01 (a
   nameless caller could create a friendship the other side cannot list) and
   M8-02 (two concurrent re-adds both reported that they restored the same
@@ -26,16 +26,19 @@
   found by a completion refresh. M18-01 overstates M17's evidence as two
   physical devices although the authoritative record identifies only the
   tester's device as physical.
-- **Latest artifacts:** `evals/M18/critic-report.md`,
-  `evals/M18/test-report.md`, and the expected-red
-  `evals/M18/M18DocumentationRegressionTest.ps1`. The earlier milestone
-  reports and all retained evaluator regressions remain part of the evaluation
-  record.
+- **M19 disposition:** all twelve M19.1–M19.12 tasks remain explicitly `TODO`.
+  The repository has design decisions D048–D056 but no M19 implementation; the
+  pair-keyed schema and behavior remain intact. This is incomplete planned work,
+  not an external evaluation blocker or twelve new defect IDs.
+- **Latest artifacts:** `evals/M19/critic-report.md` and
+  `evals/M19/test-report.md`. The earlier milestone reports and all retained
+  evaluator regressions remain part of the evaluation record.
 
 ## Next action
 
-Evaluate M19 next under the user-authorized M15-and-later continuation. Do not
-perform an earlier remediation re-evaluation first. Carry M10-01, M12-01, and
-M14-01 through M14-03, and M18-01 forward unchanged unless a later milestone
-naturally requires them, and keep their evaluator regressions intact and
-expected-red.
+No unevaluated milestone remains after M19 in `docs/BACKLOG.md`. The independent
+evaluation is complete through every currently defined milestone. M19.1 is the
+next implementation boundary and requires the human architecture sign-off its
+acceptance criteria name. Separately, any remediation re-evaluation must keep
+M10-01, M12-01, M14-01 through M14-03, and M18-01 expected-red until production
+or authoritative-document changes are present.
