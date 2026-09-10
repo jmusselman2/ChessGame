@@ -1072,6 +1072,16 @@ class ChessAppTest {
             assertEquals(Destination.OnlineGame("game-Alex"), viewModel.navigation.current)
         }
 
+    /**
+     * Whatever the server refuses with, the player reads it and stays put.
+     *
+     * The refusal below is a stand-in for any of them: the app shows
+     * `ChessApiException.explanation` verbatim and has no opinion about the reason
+     * (`DashboardMessages`), so what matters is that a refused `/series` is rendered at all.
+     * It used to stub `403 "Not friends with Alex"`, which `D046` deleted along with the
+     * friendship check at series creation; it now stubs a refusal `POST /series` still
+     * answers, so nothing here depends on a response the server cannot make.
+     */
     @Test
     fun aSeriesThatWillNotOpenLeavesThePlayerOnTheDashboardWithSomethingToRead() =
         runTest(dispatcher) {
@@ -1083,8 +1093,8 @@ class ChessAppTest {
                             friends = listOf("Alex"),
                             refusals = 1,
                             refusalPath = "/series",
-                            refusalStatus = HttpStatusCode.Forbidden,
-                            refusalBody = "Not friends with Alex",
+                            refusalStatus = HttpStatusCode.NotFound,
+                            refusalBody = "No such user",
                         ),
                 )
             viewModel.start()
@@ -1096,7 +1106,7 @@ class ChessAppTest {
             viewModel.dashboardJob?.join()
 
             assertEquals(Destination.Dashboard, viewModel.navigation.current)
-            assertEquals("Not friends with Alex", viewModel.dashboard.message)
+            assertEquals("No such user", viewModel.dashboard.message)
         }
 
     @Test

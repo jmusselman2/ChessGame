@@ -96,6 +96,10 @@ fun Route.friendRoutes(
         }
 
         when (val result = friendships.remove(caller.userId, friend.id)) {
+            // Both sentences say only what the removal actually did. The pair can hold at
+            // most one `ACTIVE` series, so having marked one is the whole story; having
+            // marked none is not a promise that none will appear, because creating a series
+            // does not consult the friendship (`D046`).
             is RemoveFriendResult.Removed ->
                 call.respondText(
                     text =

@@ -49,7 +49,14 @@ const val ACTIVE_SERIES: String = "ACTIVE"
 
 /** What happened to a remove-friend request. */
 sealed interface RemoveFriendResult {
-    /** The friendship is over; [seriesMarkedToClose] says whether a series will close with it. */
+    /**
+     * The friendship is over.
+     *
+     * [seriesMarkedToClose] reports what this removal *did*: whether it found an active
+     * series for the pair and marked it to close after its current game. It is not a
+     * promise about the future. Series creation does not consult the friendship (`D046`),
+     * so one committing alongside this removal was invisible to it and is left open.
+     */
     data class Removed(
         val seriesMarkedToClose: Boolean,
     ) : RemoveFriendResult
@@ -146,11 +153,19 @@ class FriendshipRepository(
      * Removes the friendship between [first] and [second] and marks their active series to
      * close after its current game.
      *
-     * Both happen in one transaction, so the pair can never end up un-friended with a
-     * series that will keep making rematches. Nothing is deleted and no game is touched:
-     * the row stays for history, the current game plays on, and only the *next* automatic
-     * rematch is disabled (`D013`). The series' own transition to `CLOSED` happens when
-     * that game ends.
+     * Both happen in one transaction, so the removal and the mark land together or not at
+     * all: the friendship cannot end while the series it could see keeps making rematches.
+     * That is a statement about the series this removal *read*. Since `D046`, creating a
+     * series does not consult the friendship, so one committing concurrently with this
+     * transaction is not seen, not marked, and deliberately left open — the pair may end up
+     * un-friended with a live series, and that is accepted rather than defended against.
+     *
+     * At most one series per pair can be `ACTIVE` at a time, so when this does mark one,
+     * there is no second one it missed.
+     *
+     * Nothing is deleted and no game is touched: the row stays for history, the current
+     * game plays on, and only the *next* automatic rematch is disabled (`D013`). The
+     * series' own transition to `CLOSED` happens when that game ends.
      */
     fun remove(
         first: Uuid,
