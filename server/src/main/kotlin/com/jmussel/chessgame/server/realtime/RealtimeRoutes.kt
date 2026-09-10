@@ -6,6 +6,7 @@ import com.jmussel.chessgame.server.auth.authenticatedUser
 import io.ktor.serialization.kotlinx.KotlinxWebsocketSerializationConverter
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
+import io.ktor.server.application.log
 import io.ktor.server.routing.Route
 import io.ktor.server.websocket.WebSockets
 import io.ktor.server.websocket.sendSerialized
@@ -13,6 +14,7 @@ import io.ktor.server.websocket.webSocket
 import io.ktor.websocket.CloseReason
 import io.ktor.websocket.Frame
 import io.ktor.websocket.close
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -45,6 +47,7 @@ fun Route.realtimeRoutes(hub: RealtimeHub) {
 
         // Before the greeting, so a client that reloads on `connected` misses nothing.
         hub.subscribe(caller.userId, connection)
+        call.application.log.debug("Realtime socket opened for user {}", caller.userId)
 
         try {
             sendSerialized(RealtimeMessage.connected())
@@ -54,8 +57,32 @@ fun Route.realtimeRoutes(hub: RealtimeHub) {
             for (frame in incoming) {
                 if (frame is Frame.Close) break
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            // A socket that ended by throwing rather than by a `Frame.Close`: a client that
+            // vanished, a proxy that gave up, a free instance replaced mid-send.
+            //
+            // **`DEBUG`, deliberately, and this is the interesting judgement in `M19.12`.**
+            // A perfectly ordinary client close reaches here or the `break` above depending
+            // on which side wins the race — `session.close()` sometimes delivers a close
+            // frame and sometimes just ends the channel. So "the socket ended with an
+            // exception" carries no signal about whether anything is wrong, and logging it
+            // at `INFO` would put a line in the beta log for every backgrounded app.
+            //
+            // The signal lives one level up, in [RealtimeHub]: a *send* that fails or times
+            // out means a specific player did not get a specific update, and that is what
+            // is logged at `INFO` and `WARN`. This line is here for when someone is
+            // debugging one connection and wants its whole story.
+            call.application.log.debug(
+                "Realtime socket for user {} ended with {}: {}",
+                caller.userId,
+                failure::class.simpleName,
+                failure.message,
+            )
         } finally {
             hub.unsubscribe(caller.userId, connection)
+            call.application.log.debug("Realtime socket closed for user {}", caller.userId)
             close(CloseReason(CloseReason.Codes.NORMAL, "Bye"))
         }
     }

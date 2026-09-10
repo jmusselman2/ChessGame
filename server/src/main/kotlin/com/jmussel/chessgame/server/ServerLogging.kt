@@ -24,6 +24,26 @@ import kotlin.uuid.Uuid
  * Ids in a path stay as they are. A game id or a user id is a reference, not a secret, and
  * without them a log cannot answer "what happened to this game", which is the whole reason
  * to keep one.
+ *
+ * ### What level a failure gets (`M19.12`)
+ *
+ * The rule is **signal, not severity**: a line reaches `INFO` when it means something
+ * actually went wrong for a player, and stays at `DEBUG` when it is only detail.
+ *
+ * | | level | why |
+ * |---|---|---|
+ * | A realtime send that failed | `INFO` | one player did not get one update |
+ * | A realtime send that timed out | `WARN` | a socket that neither delivers nor fails — the `M12-01` pathology |
+ * | A refused command | `INFO` | "asked at version 7, game was at 8" is a complete account |
+ * | An accepted command | `DEBUG` | already an audit event (`D020`); a busy game would fill the log |
+ * | A rejected bearer token | `INFO` | one is a stale session, a run of them is worth looking at |
+ * | A socket opening, closing, or ending by exception | `DEBUG` | an ordinary client close reaches either path depending on timing, so it carries no signal |
+ * | An error that escapes a route | `ERROR` | Ktor's own handler; nothing added |
+ *
+ * **Never logged**, whatever the level: headers, bodies, and the *message* of a rejected
+ * token. That last one is the non-obvious case — the JWT library quotes malformed input
+ * back in its own exception messages, so relaying one could put credential material in a
+ * log file. The route is enough to find the caller.
  */
 fun Application.installRequestLogging() {
     install(CallLogging) {

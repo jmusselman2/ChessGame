@@ -8,12 +8,15 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.application.install
+import io.ktor.server.application.log
 import io.ktor.server.auth.Authentication
 import io.ktor.server.auth.AuthenticationContext
 import io.ktor.server.auth.AuthenticationFailedCause
 import io.ktor.server.auth.AuthenticationProvider
 import io.ktor.server.auth.principal
 import io.ktor.server.request.ApplicationRequest
+import io.ktor.server.request.httpMethod
+import io.ktor.server.request.path
 import io.ktor.server.response.respondText
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -67,6 +70,22 @@ class SupabaseAuthenticationProvider(
             try {
                 verifier.verify(token)
             } catch (_: InvalidTokenException) {
+                // Recorded, because a run of these is the difference between "one phone has
+                // a stale session" and something worth looking at, and a silent 401 tells
+                // nobody on this side (`M19.12`).
+                //
+                // **Deliberately without the exception's message.** The JWT library's own
+                // messages can quote the malformed token back — a decode failure on
+                // "The string '<payload>' doesn't have a valid JSON format" would put
+                // credential material in a log file, which is precisely what `M16.5`
+                // forbids. The path is enough to find the caller; the reason is not worth a
+                // token.
+                context.call.application.log.info(
+                    "Rejected a bearer token on {} {}",
+                    context.call.request.httpMethod.value,
+                    context.call.request.path(),
+                )
+
                 context.challenge(SUPABASE_AUTH, AuthenticationFailedCause.InvalidCredentials) { challenge, call ->
                     call.respondText("Invalid bearer token", status = HttpStatusCode.Unauthorized)
                     challenge.complete()

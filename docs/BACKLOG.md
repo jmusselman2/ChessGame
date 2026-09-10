@@ -5075,7 +5075,7 @@ regressions, and `.\gradlew.bat build`.
 
 ## M19.12 — Error and connection-failure logging
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** —
 
@@ -5090,3 +5090,64 @@ than failing silently. Independent of the multi-participant work.
   the server log at an appropriate level, without logging secrets (`M16.5`
   policy).
 - Tests cover that a forced connection failure produces a log line.
+
+### Completion Note — 2026-09-10
+
+Four places were catching a failure and saying nothing. Each now says something,
+and `ServerLogging.kt` carries the level table so the policy is in one place
+beside `M16.5`'s "what is never logged".
+
+**The judgement worth recording is about levels, and the rule is signal rather
+than severity.** A line reaches `INFO` when it means something actually went
+wrong *for a player*; it stays at `DEBUG` when it is only detail.
+
+| | level | why |
+|---|---|---|
+| A realtime send that **failed** | `INFO` | one player did not get one update |
+| A realtime send that **timed out** | `WARN` | a socket that neither delivers nor fails — the `M12-01` pathology |
+| A **rejected bearer token** | `INFO` | one is a stale session; a run of them is worth looking at |
+| A socket **opening, closing, or ending by exception** | `DEBUG` | see below |
+| An error that **escapes a route** | `ERROR` | Ktor's own handler; nothing added |
+
+**Why an abnormally-ended socket is `DEBUG` and not `INFO`,** which is the one
+thing here that was got wrong first and then measured: an ordinary
+`session.close()` reaches *either* the `Frame.Close` branch or the exception
+branch depending on which side wins the race. The first attempt logged the
+exception branch at `INFO` as "ended abnormally", and the test caught it — a
+perfectly normal client close produced a warning-shaped line. So "the socket
+ended with an exception" carries no signal about whether anything is wrong, and
+at `INFO` it would have put a line in the beta log for every backgrounded app.
+
+The signal lives one level up, in `RealtimeHub`: a *send* that fails or times out
+means a specific player did not get a specific update, and that is unambiguous.
+That is where `INFO` and `WARN` went.
+
+**Nothing new for unhandled route errors.** Ktor already logs them at `ERROR`,
+which `anErrorThatEscapesARouteReachesTheLogAtError` asserts rather than assumes
+— the test is there so it stays true. Installing `StatusPages` would only have
+changed the response body, which the criteria do not ask for and which would have
+needed a new dependency.
+
+**The `M16.5` line that mattered: a rejected token is logged without its
+reason.** The JWT library quotes malformed input back in its own exception
+messages — a decode failure reads `The string '<payload>' doesn't have a valid
+JSON format` — so relaying one would put credential material in a log file. The
+method and path are enough to find the caller.
+`aRejectedTokenIsLoggedWithoutTheToken` asserts the forged token and each of its
+segments are absent, and `aDroppedSocketNamesNoCredential` does the same for a
+connection failure whose exception message is made to look like a bearer token.
+
+**What is deliberately quiet.** `aSuccessfulDeliveryLogsNothing` and
+`anOrdinarySocketLifecycleSaysNothingAtInfo` are as much the point as the positive
+cases: a log worth reading is one that is silent when nothing is wrong.
+
+**Not covered by a test, and named rather than glossed:** the route-level
+abnormal-end line itself. An abrupt socket death cannot be forced deterministically
+through `testApplication` — that is the same race described above — so the line is
+exercised only incidentally. The required "forced connection failure produces a
+log line" is covered directly and deterministically at the hub, which is where the
+failure that matters is detected.
+
+Verified with `.\gradlew.bat :server:test --tests FailureLoggingTest` (9 tests,
+run three times to confirm they are not timing-dependent), the `ServerLoggingTest`
+and realtime regressions, and `.\gradlew.bat build`.

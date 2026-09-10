@@ -935,6 +935,20 @@ authenticate
 → publish update
 ```
 
+### Logging failures
+
+A failure the server recovers from still leaves a trace (`M19.12`). The level is
+chosen by **signal, not severity**: a line reaches `INFO` when it means something
+went wrong for a player — a realtime send that failed, a refused command, a
+rejected bearer token — and stays at `DEBUG` when it is only detail, which
+includes the whole socket lifecycle. A realtime send that *times out* is `WARN`,
+because a socket that neither delivers nor fails is the `M12-01` pathology.
+`ServerLogging.kt` carries the table.
+
+Never logged, at any level: headers, bodies, and the *message* of a rejected
+token — the JWT library quotes malformed input back in its own exception
+messages, so relaying one could put credential material in a log (`M16.5`).
+
 ## 31. Future Deck-Builder Compatibility
 
 This section used to list fourteen concepts "expected to survive beyond chess".

@@ -8,6 +8,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.Serializable
+import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -66,6 +67,16 @@ class RealtimeHub(
     private val sendTimeout: Duration = realtimeSendTimeout,
 ) {
     private val connections = ConcurrentHashMap<Uuid, MutableSet<RealtimeConnection>>()
+
+    /**
+     * Why a hub that is not a Ktor component has its own logger (`M19.12`).
+     *
+     * A connection is dropped in here and nowhere else, so this is the only place that
+     * knows it happened. Delivery being best-effort (`D022`) is a reason not to *retry*,
+     * not a reason to fail silently: "the opponent never heard about that move" is exactly
+     * the kind of thing a beta report describes and a silent `catch` makes unanswerable.
+     */
+    private val log = LoggerFactory.getLogger(RealtimeHub::class.java)
 
     /** Registers [connection] for [userId] until [unsubscribe]. */
     fun subscribe(
@@ -132,12 +143,30 @@ class RealtimeHub(
                     try {
                         withTimeout(sendTimeout) { connection.send(message) }
                     } catch (_: TimeoutCancellationException) {
-                        // Suspended past its deadline: as far as delivery goes, gone.
+                        // Suspended past its deadline: as far as delivery goes, gone. Louder
+                        // than an outright failure on purpose — a socket that neither
+                        // delivers nor fails is the pathology `M12-01` was about, and it is
+                        // the one worth noticing in a log.
+                        log.warn(
+                            "Realtime send to user {} timed out after {}; dropping the connection. message={}",
+                            userId,
+                            sendTimeout,
+                            message.type,
+                        )
                         unsubscribe(userId, connection)
                     } catch (cancelled: CancellationException) {
                         throw cancelled
-                    } catch (_: Exception) {
+                    } catch (failure: Exception) {
                         // The client has gone; it will catch up over HTTPS when it returns.
+                        // Recorded because it is the only trace that an update was not
+                        // delivered; the client id and the message type are references, not
+                        // secrets, and the payload is only an id and a version anyway.
+                        log.info(
+                            "Realtime send to user {} failed ({}); dropping the connection. message={}",
+                            userId,
+                            failure::class.simpleName,
+                            message.type,
+                        )
                         unsubscribe(userId, connection)
                     }
                 }
