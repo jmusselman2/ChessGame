@@ -1,10 +1,10 @@
 # Codex Evaluation State
 
-- **Evaluated `main` baseline:** `a4bb6999af4dea4665c832bebcaf6122a021e183`
-- **Current milestone:** COMPLETE — M8 remediation re-evaluated after M14
-- **Status:** `EVALUATION COMPLETE — M8 REMEDIATION PASSED`
+- **Evaluated `main` baseline:** `38be421dfd64c269687c893300f11e661bfa9c90`
+- **Current milestone:** M16 READY — M15 independently evaluated
+- **Status:** `M15 PASS WITH CARRIED FINDINGS`
 - **Evaluated milestones:** M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12,
-  M13, M14
+  M13, M14, M15
 - **Closed by re-evaluation:** all three M8 findings. M8-01 (a
   nameless caller could create a friendship the other side cannot list) and
   M8-02 (two concurrent re-adds both reported that they restored the same
@@ -24,14 +24,13 @@
   M14-02 lets a delayed command response regress a newer reloaded game view.
   M14-03 lets an older dashboard response erase the automatic-rematch state
   found by a completion refresh.
-- **Latest artifacts:** `evals/M8/re-evaluation-critic-report.md` and
-  `evals/M8/re-evaluation-test-report.md`. The M14 reports and all retained
+- **Latest artifacts:** `evals/M15/critic-report.md` and
+  `evals/M15/test-report.md`. The earlier milestone reports and all retained
   evaluator regressions remain part of the evaluation record.
 
 ## Next action
 
-The continuous independent evaluation is complete through M14, and the M8
-remediation has independently passed re-evaluation. The remaining finding set
-is M10-01, M12-01, and M14-01 through M14-03. Re-evaluate the next finding only
-after production remediation is present; until then, keep every corresponding
-evaluator regression intact and expected-red.
+Evaluate M16 next under the user-authorized M15-and-later continuation. Do not
+perform an earlier remediation re-evaluation first. Carry M10-01, M12-01, and
+M14-01 through M14-03 forward unchanged unless a later milestone naturally
+requires them, and keep their evaluator regressions intact and expected-red.
