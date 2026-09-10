@@ -69,11 +69,11 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - Friends are added by username.
 - Friendships are mutual immediately.
 - `lastSeenAt` is tracked internally.
-- One current active game series per friend pair for MVP.
+- A pair may have more than one active game series at a time (`D053`, superseding `D011`; was: one active series per friend pair). "Play" against a friend with an existing series offers opening it or starting another.
 - Initial colors are random.
 - Automatic rematches are the default.
-- Rematch colors alternate.
-- Removing a friend does not terminate the current game; it disables the next automatic rematch for that series, and the series closes when the current game ends.
+- Rematch colors alternate (the two-seat case of the general seat-rotation rule, `D050`).
+- Removing a friend affects the friends list only (`D053`, superseding `D013`; was: it disabled the next rematch and closed the series after the current game). It does not end a series, alter a game, or touch table/group membership. A series ends only when a participant explicitly leaves it.
 - A normal move may be undone by its player while it remains the latest unanswered move.
 - Once the opponent moves, the prior move is locked.
 - If the opponent undoes their move, the previous player's move becomes undoable again.

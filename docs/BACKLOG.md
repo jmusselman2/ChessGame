@@ -4561,3 +4561,293 @@ entitlement even in principle.
 
 No code changed; this milestone is a review. Verified with `.\gradlew.bat build`
 and `git diff --check`.
+
+---
+
+# M19 — Deck-Builder Platform Generalization
+
+`M18.1` reviewed what the chess MVP proved reusable (`docs/PLATFORM-REVIEW.md`).
+A design interview with the project owner on 2026-09-09 turned the open questions
+into decisions **`D048`–`D056`**. This milestone is the work those decisions
+imply: generalising the two-player, pair-keyed platform into a multi-participant
+one, and changing the two chess product rules that the pair model had forced.
+
+**This milestone cannot be fully planned until `M19.1`.** Where the deck-builder
+code lives — same repo and module, same server, or a new project — decides the
+shape of almost everything below. `M19.1` is a decision task that needs human
+input; per the Stop Conditions it is a "significant difficult-to-reverse
+architecture change", so the autonomous loop must stop and ask rather than pick
+one.
+
+Nothing here touches the chess implementation or the live beta until its own
+task runs. `D048`–`D056` changed documentation only.
+
+The five carried evaluation findings (`M10-01`, `M12-01`, `M14-01`/`02`/`03`)
+are a separate track and block none of this; `docs/CODEX_EVALUATION_STATE.md`
+tracks them.
+
+## M19.1 — Decide the deck-builder's repository and module structure
+
+**Status:** TODO
+
+**Depends on:** —
+
+### Objective
+
+Resolve interview item `E1`: does the deck-builder live in this repository (same
+app binary? same server? a new Gradle module beside `game-core`?), or in a new
+project? Chess and the deck-builder must both ship and be supported (`E2`).
+
+### Acceptance Criteria
+
+- A decision recorded in `docs/DECISIONS.md` covering: repository, server
+  process, module boundaries, and how a shared "platform" layer (identity,
+  friends, tables, series, realtime, persistence) is factored out of
+  chess-specific code without violating `D044` (extract only with two
+  implementations in view).
+- The decision states which of `M19.2`–`M19.11` change scope as a result.
+- Human sign-off in the conversation, as a difficult-to-reverse architecture
+  change.
+
+## M19.2 — Groups: standing invite-eligibility pools
+
+**Status:** TODO
+
+**Depends on:** M19.1
+
+### Objective
+
+Implement groups per `D049`: `groups` / `group_members` tables; create by any
+member; add a friend by any member; immediate membership; unilateral leave.
+Groups have no game-state role.
+
+### Acceptance Criteria
+
+- Schema migration adds the two tables with the constraints `D049` implies
+  (member-of to create; added user must be a friend of the adder).
+- Table-invite eligibility (`M19.3`) resolves as: target is a friend of the
+  creator **or** shares a group with the creator.
+- Leaving a group revokes future eligibility and touches no table, series, or
+  game.
+- Tests cover immediate membership, unilateral leave, transitive eligibility,
+  and that a non-friend cannot be added.
+
+## M19.3 — The table and the participants relation
+
+**Status:** TODO
+
+**Depends on:** M19.1
+
+### Objective
+
+Introduce the **table** (`D048`): a set of 2–4 participants that a series belongs
+to, keyed by exact participant set. Replace `games.white_user_id`/`black_user_id`
+and `game_series.user_a_id`/`user_b_id` with a participants relation
+(`seat_index`, `participant_ref`, kind). Chess maps its two seats onto it and
+behaves identically.
+
+### Acceptance Criteria
+
+- Per-game-type table-size range (chess: exactly 2; deck-builder: 2–4) enforced,
+  with the range carried by the game type, not hard-coded per call site.
+- Series identity is exact-set match; a different set is a different series.
+- A 2-participant chess table produces byte-identical behaviour to today's pair
+  in existing tests (adjust fixtures, not assertions).
+- Migration is forward-only and preserves all existing games, series, and
+  history.
+
+## M19.4 — Migration V3: drop the pair-model constraints
+
+**Status:** TODO
+
+**Depends on:** M19.3
+
+### Objective
+
+`D053`: allow parallel active series per pair, and remove the friend-removal
+lifecycle.
+
+### Acceptance Criteria
+
+- `V3` migration drops the partial unique index
+  `game_series_one_active_per_pair` and the column
+  `game_series.close_after_current_game`.
+- `SeriesService.openWithGame` no longer silently reuses an existing active
+  series: "Play" against a friend with one offers opening it or starting
+  another.
+- Existing `SeriesService` tests that assert one-series-per-pair are updated to
+  the new behaviour (they encode `D011`, which is superseded — record the change
+  in the task note, do not just delete).
+- `docs/ARCHITECTURE.md` §16 (one `ACTIVE` series per pair) updated.
+
+## M19.5 — Unfriending no longer closes a series
+
+**Status:** TODO
+
+**Depends on:** M19.4
+
+### Objective
+
+`D053` part 2: remove the `close_after_current_game` code path (`SeriesService`,
+`FriendRoutes` removal handler) so unfriending affects the friends list only.
+
+### Acceptance Criteria
+
+- Removing a friend leaves every active series running and every game untouched.
+- The `SeriesClosesAfterLastGameTest` / friend-removal series tests are updated
+  to assert the new behaviour, with the supersession of `D013` noted.
+- `docs/ARCHITECTURE.md` §17 (Friend Removal and Series Lifecycle) updated or
+  removed.
+- Series exit becomes its own action (`M19.8`).
+
+## M19.6 — Seat rotation by cycle
+
+**Status:** TODO
+
+**Depends on:** M19.3
+
+### Objective
+
+Implement `D050`: cycle rotation for N rotating participants; chess is the N = 2
+case and keeps `D014` behaviour.
+
+### Acceptance Criteria
+
+- Per-table persistence of cycle length N and the previous cycle's base order.
+- The property test `D050` specifies: over N ∈ {2, 3, 4}, (a) every seat first
+  once / last once per cycle; (b) N ≥ 3 consecutive cycles are not rotations of
+  each other; (c) N ≥ 3 a cycle *may* match a rotation of the cycle two before;
+  (d) an enemy participant is never in a base order and is always the final
+  turn.
+- Existing chess colour-alternation tests pass unchanged (they are the N = 2
+  instance).
+
+## M19.7 — Non-user participant kind
+
+**Status:** TODO
+
+**Depends on:** M19.3
+
+### Objective
+
+`D051`: a participant kind that is not a `users` row, carrying persistent
+per-instance state, discriminated by kind. MVP only needs the shape and the
+"human" kind wired; the Enemy Lord and AI-player kinds are deck-builder-rules
+work.
+
+### Acceptance Criteria
+
+- A participants row references either `users.id` or a non-user participant id,
+  by kind.
+- No non-user participant appears in a friends list, a dashboard, `lastSeenAt`,
+  or username uniqueness.
+- Seat rotation (`M19.6`) filters on kind.
+- The chess-level participant type carries no deck/market/hand vocabulary.
+
+## M19.8 — Resignation, series exit, and continue-among-remainder for N participants
+
+**Status:** TODO
+
+**Depends on:** M19.3, M19.7
+
+### Objective
+
+`D052`: separate resigning a game from leaving a series; add the post-resignation
+"continue at this table?" / "continue among yourselves?" flow; add explicit
+series exit.
+
+### Acceptance Criteria
+
+- Chess (N = 2) resignation and rematch behaviour is unchanged.
+- In an N ≥ 3 game, resignation ends only that participation; the game continues;
+  the resigner is asked about continuing; declining cancels the table
+  auto-rematch and offers the remainder a new table + new series.
+- "Continue among the remainder" is implemented as ordinary new-table creation,
+  not a series mutation.
+- A participant can leave a series between games; it ends the series and does not
+  disturb an in-progress game.
+
+## M19.9 — Undo storage sizing (spike, before undo is built)
+
+**Status:** TODO
+
+**Depends on:** M19.1
+
+### Objective
+
+`D055` accepted unbounded snapshot retention within a shuffle boundary without
+sizing it. Cost it against a realistic deck-builder state (up to five
+participants' deck / hand / discard) and action count.
+
+### Acceptance Criteria
+
+- A written analysis: retained-snapshot size and per-action write cost for a
+  representative game, under the current whole-`state`-blob model.
+- A recommendation on snapshot form (whole / compressed / delta) and on whether
+  `state` is written whole or in parts.
+- Confirmation that the command signature moves to `append` / `truncateTo`
+  (`docs/PLATFORM-REVIEW.md`), since `save(wholeGame)` cannot express a bounded
+  rewind.
+- No implementation; this feeds the later undo task.
+
+## M19.10 — Per-viewer state projection and the `(gameId, version)` identity
+
+**Status:** TODO
+
+**Depends on:** M19.3
+
+### Objective
+
+Per-viewer projection is mandatory for any hidden-information ruleset
+(`docs/PLATFORM-REVIEW.md`). A consequence not yet recorded: two viewers at the
+same version get different payloads, so `(gameId, version)` stops being a state
+identity.
+
+### Acceptance Criteria
+
+- A recorded decision for how state is keyed once projection is per-viewer —
+  caching, dedup, and "seen this update" logic on the client all need the viewer
+  in the key.
+- The `GameView.of(stored, viewer, opponent)` seam is assessed: it currently
+  projects perspective, not visibility.
+- Deck order, unknown-position card identity, and the seed are confirmed
+  stripped before state leaves the server.
+
+## M19.11 — `last_login_at` / `last_action_at` on `users`
+
+**Status:** TODO
+
+**Depends on:** —
+
+### Objective
+
+Interview item `C`: add engagement-tracking timestamps alongside `created_at` and
+`last_seen_at`. This is a data-model change, independent of the multi-participant
+work, and can land early.
+
+### Acceptance Criteria
+
+- Migration adds `last_login_at` and `last_action_at` (nullable), distinct from
+  `last_seen_at` (`D010`'s throttled activity marker).
+- `last_login_at` set on session start; `last_action_at` on an accepted command.
+- Not exposed through the API. No response shape changes.
+- `docs/DECISIONS.md` note or a short decision recording what each column means
+  and why it is separate from `last_seen_at`.
+
+## M19.12 — Error and connection-failure logging
+
+**Status:** TODO
+
+**Depends on:** —
+
+### Objective
+
+Interview item `C`: connection failures and caught errors must be logged rather
+than failing silently. Independent of the multi-participant work.
+
+### Acceptance Criteria
+
+- Realtime connection failures, dropped sockets, and caught command errors reach
+  the server log at an appropriate level, without logging secrets (`M16.5`
+  policy).
+- Tests cover that a forced connection failure produces a log line.

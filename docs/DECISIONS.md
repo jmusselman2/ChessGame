@@ -2516,3 +2516,691 @@ than a plausible-looking `AlreadyFriends`. Nothing can reach it today; when
   Tables and multi-participant series do not exist in this codebase — it is
   strictly two-player, keyed by `white_user_id`/`black_user_id` — and that
   concept belongs to the future platform work (`D044`), not here.
+
+---
+
+## D048 — The Table Replaces the Friend Pair as the Unit of Continuity
+
+**Date:** 2026-09-09
+
+**Status:** Accepted
+
+**Relates to:** `D009`, `D011`, `D013`, `D044`, `PRODUCT` *Friends* / *Game
+Series*, `ARCHITECTURE` §15–§17, deck-builder design interview A1–A4
+
+**Supersedes:** `D011` (the schema change is in `D053`)
+
+**Scope:** Governs deck-builder / multi-participant platform design. Changes no
+current code or schema; the chess implementation and the live beta are untouched
+until `M19` tasks act on it.
+
+### Decision
+
+There are four social entities, not two:
+
+| entity | shape | role |
+|---|---|---|
+| person | one account (`users`) | identity |
+| friendship | 2 people, symmetric (exists today) | relationship |
+| group | *n* people, standing named pool (`D049`) | invite convenience only |
+| table | 2–4 participants, one per game/series | **unit of continuity** |
+
+- A **table** is a creator-assembled set of 2–4 participants. It, not the friend
+  pair, is what a series belongs to. A series is keyed to a table's **exact
+  participant set**.
+- **Table size is game-defined, not a platform constant.** The platform carries a
+  per-game-type minimum and maximum; a table knows its own valid range
+  independent of which game is played. Chess: exactly 2. Deck-builder MVP: 2–4
+  humans. (A future deck-builder solo mode of 1–4 humans plus the enemy is a
+  named non-MVP item.) A table always has at least 2 *participants* total; the
+  scripted enemy (`D051`) counts toward that floor.
+- **Invite-eligibility runs through the creator only.** Each invited participant
+  needs a relationship to the creator/host — a friendship, or co-membership in
+  one of the creator's groups. Participants need no relationship to each other,
+  and eligibility propagates transitively through a group.
+- **Series identity is exact-set match.** A different participant set is a
+  different series; there is no substitution tolerance and no "mostly the same
+  table" rule. Series *revival* — the identical set later resuming a prior
+  series's identity for stat-tracking — is a named future feature, not MVP.
+  Per-table statistics are out of MVP scope.
+
+### Rationale
+
+The "friend pair" was a database artifact — `game_series.user_a_id`/`user_b_id`
+and `games.white_user_id`/`black_user_id`, ordered-pair keys — not a design
+principle. The thing that actually recurs is a specific set of people who sat
+down together, which is 2 for chess and 2–4 for the deck-builder.
+
+"Table" was chosen over *match*, *party*, and *lineup*: it scales 2→4 without
+rewording, it is the term board and card games already use, and it does not
+collide with "group".
+
+Exact-set series identity is the only rule that stays coherent. "How much roster
+overlap counts as the same series" has no principled answer, and every fuzzy
+version needs a roster-mutation concept the platform is better off without.
+
+### Alternatives Considered
+
+- **Keep pair-keying and special-case N > 2.** Rejected: the pair is welded into
+  three tables and every series and game query.
+- **Fuzzy series identity (majority overlap = same series).** Rejected: no
+  principled threshold, and it forces a "table with a hole in it" state.
+- **Table size as a platform constant.** Rejected: the deck-builder genuinely
+  varies 2–4, and a future mode varies 1–4.
+
+### Consequences
+
+- `games.white_user_id`/`black_user_id` and `game_series.user_a_id`/`user_b_id`
+  become a participants relation — `(game_id | table_id, seat_index,
+  participant_ref)` — with chess mapping its two seats onto it. `M19` work.
+- The one-active-series-per-pair rule and its partial unique index are removed
+  (`D053`, migration V3).
+- A 2-participant table is behaviourally identical to today's pair, so chess is
+  unaffected until `M19` acts on this.
+- New `groups` / `group_members` and `tables` / `table_participants` tables are
+  `M19` work; their shape depends on the module-structure decision (`M19.1`).
+
+---
+
+## D049 — Groups Are a Standing Invite Pool With No Structural Role in Games
+
+**Date:** 2026-09-09
+
+**Status:** Accepted
+
+**Relates to:** `D009`, `D047`, `D048`, deck-builder design interview A1, A4;
+future-work notes: "suggest friends" prompt, per-user approval setting
+
+**Scope:** Governs deck-builder / multi-participant platform design. Changes no
+current code or schema.
+
+### Decision
+
+- A **group** is a named, standing pool of people. Its only function is
+  invite-eligibility: members of a group are eligible to be invited to each
+  other's tables (`D048`). A group has no presence in game state, series
+  identity, the dashboard, or any game rule.
+- **Membership rules mirror friendship (`D009`):** any member may create a group
+  they belong to; any member may add one of their own friends; membership takes
+  effect immediately with no confirmation step; any member may leave
+  unilaterally at any time.
+- **Invite-eligibility through a group is transitive.** If the creator's group
+  contains A, B, and C, then A may invite B and C to a table even though A, B,
+  and C are not friends with one another.
+- Adding a friend to a group therefore places that friend in invite-range of
+  people they have no direct relationship with. Unilateral leave is the release
+  valve.
+- A **"suggest friends"** prompt for table co-participants who are not yet
+  friends is a named future feature, higher priority than most, not MVP.
+- A future **per-user approval setting** (require approval for friend requests
+  and/or game invites) is anticipated. `D047`'s `friendships.status` column is
+  the room already made for the friend-request half. This decision makes **no**
+  equivalent provision for group or table membership; those entities do not
+  exist yet and `D044` governs when they are built.
+
+### Rationale
+
+Friendship is two-person and symmetric. Assembling a four-person table by
+requiring all six pairwise friendships is impractical; a group lets one
+relationship — to the host — stand in for the rest.
+
+Mirroring friendship's "immediate, no accept step" keeps a single mental model
+for "someone added me to something", rather than one rule for friends and a
+different one for groups.
+
+### Alternatives Considered
+
+- **Require full pairwise friendship for a table.** Rejected: impractical at
+  N = 4.
+- **Group membership requires acceptance.** Rejected for MVP: inconsistent with
+  friendship, and the anticipated approval setting covers both uniformly later.
+- **Group as a game-state concept (a shared series across a whole group).**
+  Rejected: the *table* is that concept, and it is deliberately per-game.
+
+### Consequences
+
+- New `groups` / `group_members` tables (`M19`, shape gated on `M19.1`).
+- Table-invite eligibility resolves to: the target is a friend of the creator,
+  **or** shares a group with the creator.
+- Leaving a group revokes future invite-eligibility and touches no existing
+  table, series, or game.
+
+---
+
+## D050 — Seat Rotation by Cycle; Chess's Colour Alternation Is Its Two-Seat Case
+
+**Date:** 2026-09-09
+
+**Status:** Accepted
+
+**Relates to:** `D014` (generalised; the chess statement stands), `D048`, `D051`,
+deck-builder design interview A6
+
+**Scope:** Governs deck-builder / multi-participant platform design. `D014` is
+unchanged and is now understood as the N = 2 instance of this rule.
+
+### Decision
+
+Turn-order advantage is handled by **cycle rotation**, defined for any number of
+rotating participants N.
+
+- A **cycle** is N consecutive games at a table. At cycle start a fixed **base
+  seat order** is set. Game 1 of the cycle picks the first player at random; each
+  later game rotates the base order by one position (every participant moves one
+  seat earlier; the first wraps to last).
+- Over one full cycle, **every seat is first exactly once and last exactly
+  once** — one operation delivers both fairness guarantees, with no rejection
+  sampling or anti-clustering logic.
+- **Cycle boundary, N ≥ 3:** the next cycle's base order must not be *any
+  rotation* of the immediately preceding cycle's base order — the whole
+  rotation-family is excluded, not just the prior arrangement. Only the one
+  preceding cycle is excluded.
+- **N = 2:** exactly one rotation-family exists, so the boundary constraint is
+  vacuous. The mechanism reduces to per-game alternation — `D014`'s existing
+  chess behaviour, unchanged.
+- **N = 3:** two families; cycles strictly alternate between them.
+- **N = 4:** six families; each new cycle's base order is drawn from the five not
+  excluded.
+- **N = 1:** degenerate; nothing rotates.
+- The **scripted enemy** (`D051`) is *not* a rotating participant. It is excluded
+  from the rotation function entirely and always takes the **final turn** of
+  every game, in every mode. A computer player standing in for a human in a
+  normal mode (`D051`) *is* a rotating participant and rotates exactly like a
+  human. The rotation function's parameter is therefore **"rotating
+  participants"**, never "human seats".
+
+### Worked Example
+
+N = 4, base order `[A, B, C, D]` chosen at random for cycle 1:
+
+| game | order after rotation | first | last |
+|---|---|---|---|
+| 1 | `[A, B, C, D]` | A | D |
+| 2 | `[B, C, D, A]` | B | A |
+| 3 | `[C, D, A, B]` | C | B |
+| 4 | `[D, A, B, C]` | D | C |
+
+Cycle 1 covers every seat as first once and last once.
+
+Cycle 2's base order is drawn at random from the orders that are **not** a
+rotation of `[A, B, C, D]` — i.e. excluding
+`{[A,B,C,D], [B,C,D,A], [C,D,A,B], [D,A,B,C]}`, leaving five candidates. Say
+`[A, C, B, D]` is drawn; cycle 2 rotates it:
+`[A,C,B,D] -> [C,B,D,A] -> [B,D,A,C] -> [D,A,C,B]`.
+
+Cycle 3 excludes rotations of `[A, C, B, D]` only; rotations of `[A, B, C, D]`
+are eligible again.
+
+With the enemy present (3 humans + enemy), the enemy is never in the base order.
+If the humans rotate `[H1, H2, H3]`, game 1's turn sequence is
+`H1, H2, H3, Enemy`; game 2's is `H2, H3, H1, Enemy`; and so on. The enemy is
+always last and is never an input to the rotation.
+
+### Required Test (M19)
+
+A property test over N ∈ {2, 3, 4} asserting:
+
+1. within any single cycle, every seat is first exactly once and last exactly
+   once;
+2. for N ≥ 3, consecutive cycles' base orders are not rotations of each other;
+3. for N ≥ 3, a cycle's base order *may* equal a rotation of the cycle two
+   before it (only the immediately preceding cycle is excluded);
+4. an enemy participant is absent from every base order and present as the final
+   turn of every game.
+
+### Rationale
+
+Turn order confers real advantage in every turn-based game; a deterministic
+rotation makes fairness auditable rather than merely statistical. The single
+rotate-by-one operation yields both "first once" and "last once" per cycle for
+free — separate anti-clustering logic would be more code and more failure modes.
+
+The cycle-boundary rule stops a table from permanently freezing seat *adjacency*
+— who always plays immediately after whom — which rotation alone does not
+prevent. Excluding only the immediately preceding cycle keeps the constraint
+satisfiable at small N (N = 3 has only two families).
+
+### Alternatives Considered
+
+- **Re-randomise every game independently.** Rejected: loses the per-cycle
+  "first once / last once" guarantee and can cluster.
+- **Rotate by one forever, no cycle boundary.** Rejected: seat adjacency never
+  changes, so relative advantage between two specific players is fixed for the
+  life of the table.
+- **Exclude every prior cycle's family, not just the last.** Rejected: becomes
+  unsatisfiable quickly at small N.
+
+### Consequences
+
+- The rotation function takes rotating participants only; the enemy is filtered
+  out before it is called and appended as the last turn afterward.
+- Chess keeps `D014` verbatim; `D014` is now labelled the N = 2 instance here.
+- Cycle length N and the previous cycle's base order must be persisted per table.
+
+---
+
+## D051 — Participants That Are Not Users: the Enemy Lord and Future AI Players
+
+**Date:** 2026-09-09
+
+**Status:** Accepted
+
+**Relates to:** `D006`, `D044`, `D048`, `D050`, deck-builder design interview A8;
+future-work note: AI players for normal modes
+
+**Scope:** Governs deck-builder / multi-participant platform design. Changes no
+current code or schema.
+
+### Decision
+
+- Only real human accounts get rows in `users`. A **non-human participant is a
+  distinct participant kind** — not a `users` row, not a boolean flag on a game.
+- A non-human participant carries persistent per-instance state (a deck, a
+  discard, draw behaviour) through that kind's own storage, subject to the same
+  reload and audit guarantees as a human's canonical state.
+- Two mechanically distinct non-human kinds are already foreseen:
+  - **Enemy Lord** (deck-builder MVP): a fixed pre-built deck; no market
+    purchases — its "acquire" sends the card to an exhausted pile, not its deck;
+    in practice never reshuffles; excluded from seat rotation (`D050`); always
+    takes the final turn.
+  - **Future AI player** (normal modes, not MVP): deck and market behaviour
+    identical to a human; included in seat rotation like a human. Nearer to a
+    real player than the Enemy Lord is.
+- The **"participant" concept must span chess and the deck-builder.**
+  Game-specific notions — market, deck, acquisition, hand — must not appear in
+  what "participant" means at the chess level.
+
+### Architecture Note (recommendation, not a decision)
+
+Subtyping the two non-human kinds is defensible: the shared behaviour is deep —
+both own a deck, draw, may reshuffle, touch the market. The one genuine Liskov
+risk is the acquisition outcome (deck vs. exhausted pile). It dissolves if the
+shared contract is written one level up — *"remove a card from the market and
+apply this participant's acquisition effect"* rather than *"add the card to the
+participant's deck"*. Whoever implements must write the contract at that level.
+
+### Rationale
+
+A `users` row for the Enemy Lord would leak it into friend lists, dashboards,
+`lastSeenAt`, and username uniqueness — everything that treats a `users` row as a
+person. A bare flag cannot hold a deck, and the enemy has real per-game state
+that must persist across its turns and survive a reload. Naming the two kinds now
+keeps the type hierarchy honest: the participant abstraction has to admit at
+least "human", "scripted enemy", and "AI player", and `D050`'s rotation
+parameter had to be phrased around that.
+
+### Alternatives Considered
+
+- **A reserved `users` row for the enemy.** Rejected: every person-shaped query
+  would need an exception.
+- **One "bot" kind covering both.** Rejected: their rotation status and
+  acquisition behaviour genuinely differ, forcing `if enemy` branches
+  downstream.
+- **Model the enemy as server code with no stored state.** Rejected: its deck
+  order and hand are canonical game facts under the same reload/audit rules as a
+  human's.
+
+### Consequences
+
+- A participants row references either a `users.id` or a non-user participant id,
+  discriminated by kind.
+- Seat rotation (`D050`) filters on kind: humans and AI players rotate; the Enemy
+  Lord does not.
+- The chess-level participant type stays free of deck-builder vocabulary;
+  deck/market/hand live in the deck-builder's own participant extension.
+
+---
+
+## D052 — Resignation, Series Exit, and Rematch Continuation for N Participants
+
+**Date:** 2026-09-09
+
+**Status:** Accepted
+
+**Relates to:** `D013`, `D015`, `D018`, `D048`, `PRODUCT` *Resignation* /
+*Automatic Rematches*, deck-builder design interview A5
+
+**Scope:** Governs deck-builder / multi-participant platform design. Chess (N = 2)
+behaviour is unchanged.
+
+### Decision
+
+- **Automatic rematch is unchanged for a clean game end.** A game that ends
+  normally in an active series auto-starts the next series game with zero
+  confirmation from anyone, at any table size — exactly as chess does today
+  (`D015`).
+- **Resigning a game and leaving a series are separate actions.**
+  - Mid-game resignation ends only the resigner's participation in *that game*.
+    The remaining participants (and the enemy, if present) play on.
+  - After a resignation, and before any rematch auto-starts, the resigner is
+    asked whether they want to continue at this table.
+  - If the resigner declines, the automatic rematch for the **whole table** is
+    cancelled — the full original participant set does not auto-continue.
+  - The remaining participants are then offered the option to continue among
+    themselves. In the data model this is a **new table and a new series**
+    (different exact set, per `D048`). The prompt wording invokes continuity
+    ("keep playing with the people still here") for retention, but there is no
+    persistent "same table" state and no special post-accept UI branch — it is
+    the ordinary new-table flow.
+- Any participant may **leave a series** at any point between games. Leaving ends
+  the series (no further auto-rematches for that exact set) and does not disturb
+  a game already in progress.
+
+### Rationale
+
+At N = 2, resignation ends the game and the series question is trivial. At N ≥ 3
+the game continues without the resigner, so "does the table carry on" becomes a
+real choice — one only the resigner can trigger and only the remainder can
+accept.
+
+Making "continue among the remainder" an ordinary new-table creation avoids a
+second lifecycle: no "partial table" state, no rules for what a table with a hole
+in it means. Exact-set series identity (`D048`) already implies a table minus one
+player is a different series; this gives that transition a prompt instead of a
+silent drop.
+
+### Alternatives Considered
+
+- **Resignation always ends the whole series** (chess behaviour lifted directly).
+  Rejected: punishes three players for one player's resignation.
+- **The table auto-continues with the remaining players as "the same series".**
+  Rejected: breaks exact-set identity and needs a roster-mutation concept.
+- **No prompt; the remainder silently get a fresh series.** Rejected: loses the
+  retention moment and surprises players who expected the table to be over.
+
+### Consequences
+
+- A resignation in an N ≥ 3 game raises a post-game "continue at this table?"
+  decision for the resigner, then a "continue among yourselves?" offer for the
+  remainder.
+- "Continue among the remainder" is implemented as new-table + new-series, not a
+  series mutation.
+- Series exit is now an explicit player action, not a side effect of the friend
+  graph — `D013`'s "removing a friend closes the series" is separately removed
+  (`D053`).
+
+---
+
+## D053 — Chess Product Rules That Change: Parallel Series, and Unfriending No Longer Closes a Series
+
+**Date:** 2026-09-09
+
+**Status:** Accepted
+
+**Relates to:** `D011` (removed), `D013` (removed), `D014` (kept, see `D050`),
+`D046`, `D047`, `CLAUDE.md` *Product Rules That Must Not Be Changed Silently*,
+`PRODUCT` *Friends* / *Removing a Friend* / *Game Series* / *Automatic
+Rematches*, deck-builder design interview A7, E3
+
+**Supersedes:** `D011` entirely; `D013` entirely.
+
+**Scope:** These are changes to **chess** product rules, made deliberately and
+recorded here because `CLAUDE.md` marks them "must not be changed silently". The
+code and schema changes are `M19` work (migration V3); nothing changes in this
+commit beyond the documentation of the rules themselves.
+
+### Decision
+
+Two rules change, for chess as well as the deck-builder:
+
+**1. "One active series per friend pair" is removed.**
+
+Two people may have several concurrent independent series, the same way they
+could sit at two physical boards at once. The restriction (`D011`) was a
+dashboard-simplicity choice with no deeper justification, and it is meaningless
+once the **table** (`D048`), not the pair, is the unit of continuity.
+
+- **Schema:** the partial unique index `game_series_one_active_per_pair` **must
+  be dropped** — it is the enforcement, so removing the rule is a migration
+  (**V3**, `M19`), not a code change alone.
+- `SeriesService.openWithGame` currently opens the existing active series if one
+  exists. With the rule gone, "Play" against a friend who already has a series
+  must **offer** opening it or starting another, rather than silently reusing it.
+
+**2. Removing a friend no longer closes a series.**
+
+Unfriending affects the friends list only. It does not end a series, does not set
+`close_after_current_game`, and does not touch table or group membership.
+Friendship matters only at the moment of invite-eligibility (`D048`, `D049`);
+once a table or series exists it persists independently of the friend graph.
+Series exit is now an explicit player action (`D052`).
+
+- **Schema:** this removes the entire `close_after_current_game` lifecycle path
+  from `D013`. `game_series.close_after_current_game` becomes dead and is dropped
+  in the same **V3** migration.
+
+`D014` (initial colours random, rematch colours alternate) is **kept**, and is
+now the N = 2 case of `D050`.
+
+### Rationale
+
+Both rules were shaped by the two-player pair model. `D011` kept the dashboard
+legible when a pair could only mean one thing; `D013` kept friend removal from
+stranding a game. Neither reasoning survives tables that outlive the friend
+graph.
+
+Removing a friend to end a shared game is an odd coupling — it uses the social
+graph as a game control. `D052` gives series exit its own action, which is
+clearer and works at N ≥ 3 where "unfriend" has no single target.
+
+Doing this for chess too avoids maintaining a chess/deck-builder behavioural fork
+for rules that have no chess-specific reason to differ.
+
+### Alternatives Considered
+
+- **Keep both rules for chess, change only the deck-builder.** Rejected: a
+  permanent fork for no benefit, and the pair-keyed schema would have to stay.
+- **Keep "one active series per pair" as a soft default** (reuse unless asked).
+  Folded in: "Play" offers the choice, but nothing forbids parallel series.
+- **Leave the indexes as harmless no-ops.** Rejected:
+  `game_series_one_active_per_pair` actively rejects a second series, so it must
+  go before parallel series can exist.
+
+### Consequences
+
+- **Migration V3 (`M19`):** drop index `game_series_one_active_per_pair`; drop
+  column `game_series.close_after_current_game`. The pair columns themselves are
+  handled by the table migration (`D048`).
+- `CLAUDE.md` *Product Rules That Must Not Be Changed Silently* and `PRODUCT.md`
+  (*Friends*, *Removing a Friend*, *Game Series*, *Automatic Rematches*) are
+  updated in **this** change to state the new rules and mark the old ones
+  superseded.
+- `PRODUCT.md`'s "If the friendship is later restored, a new active series may be
+  started" line becomes moot and is removed.
+- The `M8-03` remediation (`D046`, removing the `areFriends` check at series
+  creation) is consistent with this and needs no further change.
+
+---
+
+## D054 — The Client Computes Legality in the Deck-Builder Too, Because Nothing Legal Depends on Hidden Contents
+
+**Date:** 2026-09-09
+
+**Status:** Accepted
+
+**Relates to:** `D004`, `D021`, `ARCHITECTURE` §7 §11, `D044`,
+`PLATFORM-REVIEW` *What chess did not prove — hidden information*, deck-builder
+design interview D2
+
+**Scope:** Governs deck-builder client design. Changes no current code.
+
+### Decision
+
+- The deck-builder client **computes and pre-validates legal actions locally**
+  for immediate UI feedback, exactly as the chess client does. The server stays
+  authoritative and independently re-validates every submitted action; `D004` is
+  unchanged.
+- This is **full local validation, not a safe subset.** It is sound because
+  legality in this ruleset never depends on information the client does not
+  legitimately hold: the player's own hand, fully public state, and opponents'
+  hand **counts** — which are always rendered, never concealed.
+- **Load-bearing fact:** opponent hand size is public and on screen at all times,
+  and legality depends on hidden *contents* nowhere. **If any future card or rule
+  makes an action's legality depend on hidden contents rather than counts, this
+  reasoning must be revisited for that action type** — the client cannot
+  pre-validate what it cannot see.
+
+### Rationale
+
+Chess's instant-tap feel came from local pre-validation. Losing it to hidden
+information would be a real UX regression, and it turns out not to be necessary
+here. The alternative pattern — the server enumerates every legal action into a
+capability list — is the right tool for a ruleset where the client genuinely
+cannot compute entitlement. This ruleset is not that case.
+
+### Alternatives Considered
+
+- **Server-enumerated legal-action list, client renders buttons only.** Rejected
+  for MVP as unnecessary latency; kept on the shelf for any future
+  hidden-contents rule.
+- **Send hidden state to the client and have it decline to render it.** Rejected
+  outright. Foreclosed by existing decisions (client untrusted; seed and deck
+  order must never reach a client), and "the app chooses not to display it" is
+  not a boundary against decompilation or traffic inspection.
+
+### Consequences
+
+- The deck-builder client links the deck-builder rules module the same way the
+  chess client links `game-core`.
+- Every action still carries the version it was decided against; a stale or
+  illegal submission is refused with canonical state attached (`D021`).
+- Design checklist item: any new card whose legality reads hidden contents
+  triggers a per-action review against this decision.
+
+---
+
+## D055 — Undo Reaches Back to the Last Shuffle, and That Sets the Storage Cost
+
+**Date:** 2026-09-09
+
+**Status:** Accepted
+
+**Relates to:** `D016`, `D021`, `D029`, `D044`,
+`PLATFORM-REVIEW` *Prior state is kept to a turn horizon* / *Randomness is
+materialised*, deck-builder design interview D3
+
+**Scope:** Governs deck-builder undo design. Changes no current code.
+
+### Decision
+
+- Undo depth is **unlimited within a shuffle boundary.** Any number of actions
+  may be taken back, as far as the most recent shuffle, provided the required
+  consent is given for each locked step (`D016`'s retrospective and intrinsic
+  locks, plus mutual agreement to pass either). There is no turn-based or
+  fixed-N cap.
+- A **shuffle is a hard, global, permanent barrier**: no undo crosses it, with
+  or without agreement. (Already recorded in `PLATFORM-REVIEW`; restated here as
+  the bound on retention.)
+- **Accepted cost, stated plainly:** full prior-state snapshots must be retained
+  for every action since the last shuffle, and that span can be arbitrarily long
+  — a deck that never exhausts is never barred. Combined with the per-action
+  whole-`state`-blob rewrite in the current persistence model, and with up to
+  five participants' decks, hands, and discards in that blob (`D048`), this is
+  `O(actions-since-shuffle x blob-size)` retained and `O(blob-size)` written per
+  action.
+- **This cost was accepted without being measured.** Before `M19` implements
+  undo, the persistence approach must be **costed against a realistic
+  deck-builder state size and action count** — specifically whether
+  `position_before` snapshots move to a compressed or delta form, and whether
+  the `state` blob is written whole or in parts. The `append` / `truncateTo`
+  command-log change already noted in `PLATFORM-REVIEW` is a prerequisite either
+  way.
+
+### Rationale
+
+Players expect "undo my mistake" to work regardless of how many small actions a
+turn contained; a fixed cap would cut off legitimate takebacks mid-turn. The
+shuffle barrier already gives a natural, meaningful bound — it is where hidden
+information genuinely resets — so an additional arbitrary cap buys storage at the
+price of a rule players must learn.
+
+Naming the cost as un-costed is the point: D3 was answered on player experience,
+and the mechanism underneath it (whole-blob rewrite, uncompressed snapshots) was
+never sized. That sizing is a real task, not a footnote.
+
+### Alternatives Considered
+
+- **Fixed depth cap** (last N actions, or current turn only). Rejected: cuts
+  legitimate takebacks and adds a rule to explain.
+- **Cap consented undo at the current turn boundary.** Rejected as a *limit*;
+  still available as the *implementation* of retention (checkpoint per closed
+  turn).
+- **Decide the storage form now.** Deferred: it needs a realistic state-size
+  model that does not exist until the deck-builder's state shape is designed.
+
+### Consequences
+
+- `M19` undo work carries an explicit sizing sub-task before implementation
+  (`M19.9`).
+- `undoBarrierSeq` (the last-shuffle sequence number) is the retention floor:
+  snapshots at or after it are kept, earlier ones may be pruned.
+- The command signature must change to `append` / `truncateTo`
+  (`PLATFORM-REVIEW`); the current `save(wholeGame)` cannot express a bounded
+  rewind and forces the O(N) rewrite.
+
+---
+
+## D056 — Players Get a Readable History View, Which Reshapes the "Audit Never Leaves the Server" Rule
+
+**Date:** 2026-09-09
+
+**Status:** Accepted
+
+**Relates to:** `D020`, `D022`, `D044`,
+`PLATFORM-REVIEW` *Randomness is materialised* (projection checklist),
+deck-builder design interview D4
+
+**Scope:** Governs deck-builder design. Changes no current code. Does **not**
+apply to a future ruleset with permanently hidden information.
+
+### Decision
+
+- The deck-builder gives players a **readable history view** — a human-legible
+  reformatting of the actual game event log ("Turn 3: Alice played Ironclad,
+  bought Sentry; Turn 4: Bob drew 2, attacked Alice for 3"), equivalent to notes
+  a spectator could have written while watching.
+- **No per-viewer projection is required for this view**, because this game has
+  **no permanently hidden information**: the active player's hand is public
+  during their turn, and every drawn card is revealed in play. The view reports
+  only events that actually occurred; a card still in a deck when the game ended
+  was never an event, so there is no conceal/reveal decision to make about it.
+- This changes the standing understanding that audit/event data never leaves the
+  server. The correct statement for the deck-builder is: **raw `game_events`
+  rows and the canonical `state` are server-only; a derived, replay-equivalent
+  history view is a legitimate player-facing surface.** The two reconcile through
+  the derivation — the view exposes only what a participant was entitled to
+  observe as it happened, which for this ruleset is everything that occurred.
+- For a future ruleset **with** permanently hidden information this does not hold
+  and the history view would need per-viewer redaction. Out of scope; flagged so
+  the reconciliation above is not over-generalised.
+
+### Rationale
+
+A history view is a normal expectation for a strategy game and there is no reason
+to withhold it when nothing is permanently secret. The old "audit never leaves
+the server" framing was written for chess, where the audit and the board are the
+same information, and for the general worry that event payloads (which will
+record what was drawn) could leak hidden state. In a no-permanent-secrets
+ruleset that worry does not bite. Stating the boundary precisely keeps a future
+hidden-info game from inheriting a rule that was safe only here.
+
+### Alternatives Considered
+
+- **No history view for MVP.** Rejected: cheap here and expected.
+- **Expose raw `game_events` through the API.** Rejected: couples the client to
+  the audit schema and would leak hidden state in a future ruleset. The derived
+  view is the interface.
+- **Keep "audit never leaves the server" verbatim, treat the view as an
+  exception.** Rejected: better to state the actual boundary than carry a rule
+  the main new feature immediately contradicts.
+
+### Consequences
+
+- A history-view endpoint derives from `game_events` server-side and returns
+  formatted lines, not rows.
+- `PLATFORM-REVIEW.md`'s projection checklist gains: "history view — safe to
+  expose in a no-permanent-secrets ruleset; needs per-viewer redaction
+  otherwise."
+- The `(gameId, version)`-identity consequence of per-viewer **state**
+  projection is separate and unrecorded; it is carried as an `M19` task, not
+  here.

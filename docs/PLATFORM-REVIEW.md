@@ -396,10 +396,20 @@ last of those.
 ## Design notes for the deck-builder
 
 Everything above is a measurement. This section is not: it is design input
-settled with the project owner on 2026-09-08, for a system that does not exist
-yet. It binds nothing. When the deck-builder starts, whatever survives contact
-with it gets its own decision; until then this is here so the reasoning is not
-re-derived from scratch.
+settled with the project owner across two sessions (2026-09-08 and 2026-09-09),
+for a system that does not exist yet. When the deck-builder starts, whatever
+survives contact with it is confirmed or revised then.
+
+The 2026-09-09 session produced decisions rather than notes: **`D048`–`D056`**
+cover seating and continuity (the *table* replacing the friend pair), groups,
+seat rotation, non-user participants, resignation and series exit for N players,
+the chess product rules that change as a result, client-side legality, the undo
+horizon, and the player-visible history view. Those decisions are authoritative;
+the subsections below summarise them and keep the reasoning that did not fit a
+decision record. The 2026-09-08 material (undo mechanism, shuffle barrier,
+randomness, turn structure, the public active hand) remains as notes — it is
+reflected in `D044` and in `PRODUCT`/`ARCHITECTURE` pointers but was not
+re-recorded as its own decisions.
 
 ### The action history should be a stack in storage, as it already is in the domain
 
@@ -499,7 +509,9 @@ retrospective undo lock exactly as an opponent's move does in chess: the enemy
 acting *is* another participant having acted.
 
 *(How four players are seated — what replaces the friendship pair as the unit of
-continuity — is deliberately out of scope here and is its own piece of work.)*
+continuity — is now decided: `D048` (the table), `D049` (groups), `D050` (seat
+rotation), `D051` (non-user participants), `D052` (resignation and series exit
+for N players). See the summary below.)*
 
 **Reactions are prompted, not open priority.** "When an opponent deals damage to
 you, you may discard this card to prevent up to 3" is a bounded question put to
@@ -617,6 +629,84 @@ plus a known deck composition reconstructs the same thing. Chess has no analogue
 for either; there is nothing in a chess position that both players may not see.
 This is the single most important thing on the projection checklist, because
 unlike a leaked hand it would hand over the entire future of the game.
+
+Projection checklist so far, for this ruleset:
+
+- **deck order** — never leaves the server;
+- **card identity where the viewer does not know the position** — stripped
+  before state leaves the server;
+- **the seed** — never leaves the server;
+- **the player-visible history view** (`D056`) — safe to expose here, because
+  this ruleset has no permanently hidden information and the view reports only
+  events that occurred; a ruleset *with* permanent secrets would need per-viewer
+  redaction of that view.
+
+### Seating, continuity, and participants (2026-09-09 — see `D048`–`D053`)
+
+The **table** — a creator-assembled set of 2–4 participants — replaces the
+friend pair as the unit of continuity, and a series is keyed to a table's exact
+participant set (`D048`). Table size is game-defined (chess: 2; deck-builder MVP:
+2–4). **Groups** are a standing invite-eligibility pool with no role in game
+state (`D049`); membership mirrors friendship — immediate, unilateral leave.
+Invite-eligibility runs through the table creator only and propagates
+transitively through a group.
+
+**Seat rotation** (`D050`) generalises chess's colour alternation: a *cycle* is N
+games with a fixed base order that rotates by one each game, so every seat is
+first once and last once per cycle; for N ≥ 3 the next cycle's base order may not
+be a rotation of the immediately preceding one. Chess is the N = 2 case,
+unchanged. The **scripted enemy** (`D051`) is a non-`users` participant kind, is
+excluded from rotation, and always takes the last turn; a future AI player is a
+separate kind that rotates like a human.
+
+**Resignation and series exit** (`D052`) separate: resigning ends only that
+game's participation; the resigner is then asked whether to continue at the
+table, and declining cancels the table's auto-rematch and offers the remainder a
+fresh table. Series exit is an explicit action, not a friend-graph side effect.
+
+Two chess product rules change as a result (`D053`): one active series per friend
+pair is **removed** (drop index `game_series_one_active_per_pair`, migration V3),
+and unfriending **no longer closes a series** (drop
+`game_series.close_after_current_game`). `D014` is kept as `D050`'s N = 2 case.
+
+### Client legality, undo horizon, history view (2026-09-09 — see `D054`–`D056`)
+
+- **The deck-builder client computes legality locally**, in full, like chess
+  (`D054`) — sound only because legality never depends on hidden *contents*,
+  just on the player's own hand, public state, and opponent hand *counts*. Any
+  future card that breaks that assumption forces a per-action rethink.
+- **Undo reaches back to the last shuffle with no depth cap** (`D055`). The
+  accepted cost — retained full snapshots for an unbounded span, times a
+  whole-blob rewrite per action, times up to five participants' zones — was
+  never sized, and `M19` carries an explicit costing task before undo is built.
+- **Players get a readable history view** (`D056`) derived from `game_events`,
+  with no per-viewer redaction, because this ruleset has no permanent secrets.
+  The "audit never leaves the server" rule becomes: raw rows and canonical state
+  are server-only, a derived replay-equivalent view is a legitimate surface.
+
+### Still open
+
+Named here so they are not lost; none is decided.
+
+- **Repository / module structure for the deck-builder** (`M19.1`). Same repo,
+  same server, separate module — or a new project. Most of the seating design
+  assumes shared concepts, which leans toward same-repo, but it is not decided.
+  This gates the shape of most other `M19` work.
+- **Performance under deck-builder load.** Three uncosted things: the
+  `loadForUpdate` row lock held across rule resolution; `inSeries`'s N+1
+  (test-only today); and the whole-`state`-blob read-and-rewrite per action,
+  which now also carries `D055`'s snapshot retention. The blob cost is the one
+  to size first.
+- **`(gameId, version)` stops being a state identity** once per-viewer
+  projection means two viewers at the same version get different payloads.
+  Anything keyed on it — caching, dedup, "seen this update" — needs the viewer
+  in the key. A consequence of an already-settled decision; needs a recorded
+  decision, not another interview. Carried as an `M19` task.
+- **Target concurrency / load** — deliberately not guessed; revisit with real
+  usage data. New `users` columns `last_login_at` / `last_action_at` are a first
+  step toward having something to look at.
+- **Spectators** — out of MVP scope, but the projection model should not assume a
+  fixed cap on who can observe a game.
 
 ## What changes now
 

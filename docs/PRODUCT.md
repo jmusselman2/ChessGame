@@ -95,35 +95,35 @@ Supported:
 
 Friendships are mutual immediately.
 
-No approval workflow is required for MVP.
+No approval workflow is required for the chess MVP. A future per-user setting to
+require approval for friend requests and/or game invites is anticipated, and
+`friendships.status` (`D047`) is the room already made for it.
 
-Not included:
+Not included in the chess MVP:
 
 - chat,
 - blocking,
 - followers,
-- groups,
 - contact syncing,
 - social feeds,
 - detailed profiles.
 
+*Groups* — a standing named pool of people used only for game-invite eligibility
+— are a deck-builder platform concept (`D049`), not part of chess. They have no
+role in game state or series identity.
+
 ### Removing a Friend
 
-Removing a friend must not delete:
+Removing a friend affects the friends list only (`D053`, superseding `D013`). It
+does not:
 
-- the current game,
-- completed games,
-- move history,
-- historical series records.
+- end or close any series,
+- disable an automatic rematch,
+- terminate or alter any game,
+- delete completed games, move history, or historical series records.
 
-If the pair has an active series:
-
-1. the current game remains playable until it ends,
-2. automatic rematch is disabled for that series,
-3. when the current game ends, no new game is created,
-4. the series becomes `CLOSED`.
-
-If the friendship is later restored, a new active series may be started.
+A series is left running until a participant explicitly leaves it. Friendship
+matters only when a game is first started — see *Starting a Game* — not after.
 
 ## Last Seen
 
@@ -143,15 +143,18 @@ The MVP does not need to prominently display last-seen information.
 
 ## Game Series
 
-A `GameSeries` represents the ongoing sequence of games between two friends.
+A `GameSeries` represents an ongoing sequence of games between the same two
+players.
 
 For MVP:
 
-- one `ACTIVE` series per friend pair,
-- selecting Play/Open should open the existing active series if one exists,
-- do not silently create parallel active series,
+- a pair may have **more than one** `ACTIVE` series at a time (`D053`,
+  superseding `D011`), the same way two people could sit at two boards at once,
+- selecting Play for a friend who already has an active series **offers** opening
+  it or starting another; it does not silently reuse one,
 - closed historical series remain available for history,
-- removing a friend causes the current active series to close after its current game finishes.
+- a series ends only when a participant explicitly leaves it; removing a friend
+  does not close it.
 
 Recommended lifecycle:
 
@@ -160,9 +163,15 @@ ACTIVE
 CLOSED
 ```
 
+The unit a series belongs to is being generalised from the friend pair to a
+*table* (a chosen set of 2–4 participants) as part of the deck-builder platform
+work; see `D048` and `docs/PLATFORM-REVIEW.md`. Chess remains two-player.
+
 ## Starting a Game
 
-A friend can be selected and the game starts directly.
+A friend can be selected and the game starts directly. If that friend already
+has an active series, the player is offered opening it or starting another
+(`D053`); a new series is never silently reused or silently duplicated.
 
 No per-game invite code.
 
@@ -193,7 +202,8 @@ No:
 
 Future versions may allow automatic rematches to be disabled manually.
 
-For MVP, automatic rematches are on unless the friendship is removed and the current series is being closed.
+For MVP, automatic rematches are always on for an active series (`D053`). A
+series stops producing rematches only when a participant explicitly leaves it.
 
 ## Takebacks / Undo
 
