@@ -1,18 +1,49 @@
 # Undo Storage Sizing — the `M19.9` Spike
 
 **Measured:** 2026-09-10, against `claude-autopilot` at `81e0c8d`
+**Backlog task:** [`M19.9`](BACKLOG.md#m199--undo-storage-sizing-spike-before-undo-is-built)
 **Discharges:** `D055`'s explicit obligation to cost the persistence approach
 before `M19` implements undo
-**Status:** analysis and recommendations. **Nothing here is implemented, and
-nothing here is an accepted decision yet** — the undo task decides, and records
-what it decides. This document is deliberately below `docs/DECISIONS.md`,
-`PRODUCT.md`, `ARCHITECTURE.md`, `MVP.md` and `BACKLOG.md` in precedence, for the
-same reason `PLATFORM-REVIEW.md` is: it describes and recommends, it does not
-bind.
+**Status:** nonbinding analysis. Its measurements stand. **Its recommendations
+have been decided on:** the binding outcome is
+[`D061`](DECISIONS.md#d061--undo-restores-a-full-snapshot-taken-at-every-independently-undoable-boundary-and-never-replays-rules)
+(accepted 2026-09-13), which adopts some of them and rejects or defers others. See
+[*Outcome*](#outcome--d061-2026-09-13) below. Nothing here is implemented.
+
+This document is deliberately below `docs/DECISIONS.md`, `PRODUCT.md`,
+`ARCHITECTURE.md`, `MVP.md` and `BACKLOG.md` in precedence, for the same reason
+`PLATFORM-REVIEW.md` is: it describes and recommends, it does not bind. **Where it
+and `D061` differ, `D061` governs.** The recommendation text below is kept as it
+was first made, and every passage `D061` changed is labelled where it appears.
 
 It also assumes **no** answer to `M19.1`. Every number below is about a state
 document and a write pattern, not about where code lives, so the analysis holds
-under any of `M19.1`'s four layouts.
+under any repository or module layout. Neither this document nor `D061` bears on
+that open question.
+
+## Outcome — `D061` (2026-09-13)
+
+The binding policy: **one full, restorable state snapshot at every independently
+undoable command boundary**, persisted with append/truncate semantics and pruned
+at shuffle or equivalent hidden-information barriers. **Canonical restoration
+never replays commands through the rules.** Exact data-level deltas may replace
+snapshots only after the real implementation has been measured, and only if
+they restore exactly without executing rules. An "equivalent" barrier is an
+event that, like a shuffle, cannot be undone correctly. A reveal such as a draw
+is not a barrier, because undo by agreement may still pass it.
+
+| recommendation below | outcome under `D061` |
+|---|---|
+| §1 Delta form: store the action and its inverse, with a full checkpoint at each barrier, and replay from the checkpoint | **Rejected.** Restoration by replay through rules is not safe once a bug fix changes rule behaviour. Full snapshots are adopted. *Data-level* deltas, which apply recorded state changes without running rules, remain a later option that needs measurement |
+| §1 Per-row compression not worth it | **Agreed**, and not adopted |
+| §2 Write `state` in parts, per seat plus a shared row | **Not adopted.** It may be revisited with measurements of the real implementation |
+| §3 `append` / `truncateTo` as a prerequisite; `truncateTo` refuses to cross `undoBarrierSeq`; pruning in the transaction that records the shuffle | **Adopted**, all three |
+| Card instances as ids against a static catalogue | **Not decided by `D061`.** Still a recommendation for state-shape design |
+
+Two terms are kept distinct. **Replay** reruns recorded gameplay commands through
+a rules implementation. **Data-level delta restoration** applies recorded state
+changes directly, without executing rules. Restoring a recorded full snapshot is
+safe across later rule-code changes; replay is not necessarily safe.
 
 ## What `D055` bought, and what it cost
 
@@ -47,6 +78,26 @@ encoding tricks, because that is the model being costed.
 The deck-builder state shape **does not exist yet**, so those figures are a model
 and not a measurement. They are stated as such throughout; the chess figures are
 real.
+
+## Assumptions
+
+- **No `M19.1` answer.** Nothing here depends on where the deck-builder's code
+  lives.
+- **The modelled state shape** is the one `D048`/`D051` imply: per seat, a deck,
+  hand, discard and play area plus counters; a shared ten-pile market; a trash;
+  and a turn record. The real shape will differ.
+- **Card instances are compact ids** against a static catalogue unless a figure
+  says "verbose".
+- **Plain JSON**, with no encoding tricks, as the current persistence model
+  stores it.
+- **Action counts are estimates**, not observations: 8–15 actions per turn, and
+  four players each reshuffling roughly every other turn.
+- **The write pattern is `save(wholeGame)` as built at `81e0c8d`.**
+- **The chess game is random legal play** (`Random(19)`). It is representative
+  of state sizes and write volume, not of real play quality or game length.
+- **Synthetic snapshots are more self-similar than real play**, which is why the
+  modelled sequence-compression figure is not quoted. The same caution applies to
+  the modelled delta ratio.
 
 ## Chess, as built (96 plies)
 
@@ -141,7 +192,17 @@ the clearest way to say it: at 960 actions, playing one card writes 2.36 MB.
 
 ## Recommendations
 
+*As made on 2026-09-10. `D061` has since decided on each of them; see
+[*Outcome*](#outcome--d061-2026-09-13). The labels below mark what changed.*
+
 ### 1. Snapshot form — **delta, with a full checkpoint at each barrier**
+
+> **Rejected by `D061` (2026-09-13).** This recommendation restores earlier states
+> by replaying actions through the rules from a checkpoint. `D061` instead adopts
+> one full snapshot at every independently undoable boundary. The measurements in
+> this section still stand, and they are why exact *data-level* deltas remain a
+> possible later optimisation, provided the real implementation is measured and
+> the deltas restore without running rules.
 
 Measured, at the five-participant size:
 
@@ -180,13 +241,27 @@ that checkpoint, which is sound here because the ruleset is deterministic and th
 randomness is materialised (`PLATFORM-REVIEW`, *Randomness is materialised*) —
 a replay cannot reshuffle differently.
 
+*(`D061`: this soundness argument holds only while the rules code is unchanged.
+Rules change rarely, but a bug fix to a card's effect would replay every
+in-flight game into a state its players never had, with no error. This is the
+reason the recommendation was rejected. `PLATFORM-REVIEW` makes the same argument
+against seed replay.)*
+
 This is a real departure from chess, and it should be named as one. `D029` keeps
 `position_before` per move precisely so an undo is exact without replay. That is
 right for chess: 96 snapshots at 451 B is 43 KB, replay buys nothing, and storing
 the position is simpler than storing an inverse. It stops being right when one
 action changes 1% of a document and there may be a thousand of them.
 
+*(`D061` did not make that departure. Deck-builder undo keeps `D029`'s principle,
+and the measurements above show why that is affordable: once append/truncate
+removes the quadratic rewrite, a full snapshot is a few kilobytes per boundary.)*
+
 ### 2. Whole-state vs. partial — **write in parts: per seat, plus a shared row**
+
+> **Not adopted by `D061` (2026-09-13).** Per-seat splitting is not taken up as a
+> speculative optimisation. It may be revisited with measurements of the real
+> implementation, and the version-guard constraint below would still apply.
 
 One action touches one or two seats' zones, sometimes a market pile, and the turn
 record. The current model rewrites everything.
@@ -211,7 +286,19 @@ Two constraints to carry, neither of which blocks it:
 Combined with delta snapshots, this removes the quadratic term entirely: per
 action, one seat row rewritten and one small delta appended.
 
+*(`D061`: the quadratic term is removed by §3 alone. Append/truncate with full
+snapshots makes each action's write one snapshot, a few kilobytes, without
+either optimisation.)*
+
 ### 3. `append` / `truncateTo` — **confirmed, and it is the prerequisite, not a nicety**
+
+> **Adopted by `D061` (2026-09-13)**, including both requirements under *Two things
+> the signature should carry* below. `truncateTo` refusing to cross
+> `undoBarrierSeq` is binding. Pruning is binding too: inaccessible history is
+> deleted in the same transaction that records the shuffle or equivalent barrier.
+> "May be deleted" below reads as "is deleted" under `D061`, and "snapshots and
+> deltas" reads as "snapshots". Pruning applies to undo history, not to the
+> append-only audit trail.
 
 `PLATFORM-REVIEW` already argued the signature has to change. The measurement
 makes it concrete: `save(wholeGame)` is handed the resulting game and cannot tell
@@ -241,20 +328,20 @@ Two things the signature should carry:
 
 ## Summary
 
-| question | answer |
-|---|---|
-| Representative snapshot | **2.5 KB** at 5 participants, compact ids; 12 KB if definitions are embedded |
-| Realistic action count | 8–15 per turn; **10–30 between shuffles**; ~960 pathological |
-| Retained bytes | 74 KB typical, 2.4 MB pathological — **affordable** |
-| Per-action write, as built | 74 KB typical, **2.4 MB** pathological — **not affordable** |
-| Snapshot form | **Delta + a full checkpoint at each barrier.** Per-row compression buys 1.95× and is not worth it |
-| State persistence | **In parts, per seat plus shared** — ~8× off the per-action write at 5 participants |
-| `append` / `truncateTo` | **Confirmed prerequisite.** `save(wholeGame)` cannot express a bounded rewind; it is the whole source of the 42× |
-| Card representation | **Ids against a static catalogue** — 5× smaller, costs nothing |
+| question | answer (2026-09-10) | binding outcome (`D061`, 2026-09-13) |
+|---|---|---|
+| Representative snapshot | **2.5 KB** at 5 participants, compact ids; 12 KB if definitions are embedded | measurement stands |
+| Realistic action count | 8–15 per turn; **10–30 between shuffles**; ~960 pathological | estimate stands |
+| Retained bytes | 74 KB typical, 2.4 MB pathological — **affordable** | measurement stands; full snapshot retention accepted |
+| Per-action write, as built | 74 KB typical, **2.4 MB** pathological — **not affordable** | measurement stands; fixed by append/truncate |
+| Snapshot form | **Delta + a full checkpoint at each barrier**, reached by replay. Per-row compression buys 1.95× and is not worth it | **Rejected:** a full snapshot at every independently undoable boundary, and no replay. Data-level deltas only after measurement. No compression |
+| State persistence | **In parts, per seat plus shared** — ~8× off the per-action write at 5 participants | **Not adopted**; revisit only with measurements |
+| `append` / `truncateTo` | **Confirmed prerequisite.** `save(wholeGame)` cannot express a bounded rewind; it is the whole source of the 42× | **Adopted**, with a `truncateTo` that refuses to cross the barrier and pruning in the barrier's transaction |
+| Card representation | **Ids against a static catalogue** — 5× smaller, costs nothing | not decided by `D061` |
 
 `D055`'s accepted retention cost survives measurement. Its *mechanism* does not,
 and the fix was already named — the command signature — which this confirms and
-sizes.
+sizes. `D061` records that fix as binding and keeps full snapshots.
 
 Chess is left alone. 1.8 MB per game is not a problem, and changing it before a
 second ruleset exists is what `D044` forbids.

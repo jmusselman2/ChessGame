@@ -4600,7 +4600,10 @@ architecture change", so the autonomous loop must stop and ask rather than pick
 one.
 
 Nothing here touches the chess implementation or the live beta until its own
-task runs. `D048`–`D056` changed documentation only.
+task runs. `D048`–`D056` changed documentation only. So did `D061`, the binding
+undo-storage policy that followed `M19.9`, and `D062`, the documentation policy
+for analysis and decision tasks. Both date from 2026-09-13, and neither bears on
+`M19.1`.
 
 The carried evaluation findings were a separate track and blocked none of this.
 All six — `M10-01`, `M12-01`, `M14-01`/`02`/`03`, and `M18-01` — were
@@ -4894,80 +4897,38 @@ participants' deck / hand / discard) and action count.
   rewind.
 - No implementation; this feeds the later undo task.
 
-### Completion Note — 2026-09-10
+### Completion Note — 2026-09-10 (condensed 2026-09-13 under `D062`)
 
-The analysis is `docs/UNDO-STORAGE.md`. Nothing was implemented, and nothing is
-recorded as an accepted decision: `M19.9` is a spike, so it produces
-recommendations and the undo task decides. The document sits below
-`DECISIONS.md`/`ARCHITECTURE.md` in precedence for the same reason
-`PLATFORM-REVIEW.md` does.
+**Analysis:** [`docs/UNDO-STORAGE.md`](UNDO-STORAGE.md), which holds the method,
+the assumptions, every measurement, and the recommendations as first made.
+**Binding outcome:**
+[`D061`](DECISIONS.md#d061--undo-restores-a-full-snapshot-taken-at-every-independently-undoable-boundary-and-never-replays-rules),
+2026-09-13. No code changed.
 
-**Method, since a sizing claim is worth what its method is worth.** Two probes,
-run against the production serializer and the real `save(wholeGame)` write
-pattern, then deleted rather than left in the suite — they print numbers and
-assert nothing, and a size assertion would be a brittle test of a model that is
-about to change. The chess figures are **real** (a 96-ply game, moves chosen
-uniformly from `ChessRules.legalMoves` under `Random(19)`). The deck-builder
-figures are **modelled**, because that state shape does not exist yet; the
-document says so wherever they appear.
+**Essential result.** The chess figures are real (a 96-ply random legal game).
+The deck-builder figures are modelled, because that state shape does not exist
+yet.
 
-**The headline: `D055`'s accepted retention cost survives measurement, and its
-mechanism does not.**
+- `D055`'s retention cost **survives measurement**: about 74 KB of snapshots for
+  a typical span between shuffles, and about 2.4 MB for a pathological game that
+  never shuffles.
+- The write pattern **does not**. `save(wholeGame)` rewrites the whole history on
+  every action, which makes the total quadratic. That is 42× amplification
+  already measurable in chess (1,844,774 bytes written to store 43 KB), and about
+  1.13 GB modelled for the pathological deck-builder game.
+- `append` / `truncateTo` is confirmed as a prerequisite.
 
-- Retained snapshots for a typical span are **74 KB**, and **2.4 MB** for the
-  pathological never-shuffles game. That is affordable. `D055` was right to
-  accept it.
-- What is not affordable is `save(wholeGame)`'s O(N) rewrite per action, which
-  makes the total quadratic. The typical 30-action span already writes
-  **1.14 MB**; the pathological one writes **1.13 GB to store 2.4 MB**, and at
-  that point playing one card writes 2.36 MB.
-- Chess already pays this: **1,844,774 bytes written to store a 43 KB move
-  history — 42× amplification.** Invisible at chess's scale, and left alone
-  (`D044`), but it is the mechanism rather than the magnitude that does not
-  survive a many-actions-per-turn game.
+**What `D061` did with the recommendations.** Delta snapshots replayed from a
+barrier checkpoint: **rejected**, because they restore by replay. One full
+snapshot at every independently undoable boundary is adopted instead, and exact
+data-level deltas stay possible only after the real implementation is measured.
+Per-seat `state` rows: **not adopted**. `append` / `truncateTo`, a `truncateTo`
+that refuses to cross the barrier, and pruning in the barrier's transaction:
+**adopted**. Card ids against a static catalogue: **not decided** by
+`D061`. Chess is unchanged.
 
-**Recommendations, with the measurement that decided each.**
-
-1. **Delta snapshots, plus one full checkpoint at each shuffle barrier.** One
-   action changes **2 characters of a 2,460-byte document** (a counter), or about
-   ten bytes when a card changes zone — 0.4%–1%. Per-row compression was measured
-   at only **1.95×** on real chess data, because a few hundred bytes cannot warm
-   a gzip dictionary; compressing the whole run together reaches 18.5×, but it
-   gets that from inter-row similarity and would have to be rewritten per action,
-   which is the quadratic problem in a different coat. A delta captures the same
-   redundancy structurally and stays row-addressable for `truncateTo`. The
-   checkpoint is free, because `undoBarrierSeq` is already the retention floor and
-   the barrier is already a write. **This departs from `D029`** — chess stores
-   `position_before` precisely to avoid replay — and the document says so
-   explicitly rather than quietly generalising: storing the position is simpler
-   when there are 96 of them at 451 B, and stops being simpler at a thousand
-   actions changing 1% each. Replay is sound here because the ruleset is
-   deterministic and the randomness is materialised.
-2. **Write the state in parts — per seat, plus a shared row.** One action touches
-   one or two seats; the current model rewrites all five. Measured at ~**8×** off
-   the per-action write at five participants, growing with participant count.
-   Two constraints carried: atomicity is not lost (`save` already writes several
-   rows in one transaction), and **the version must stay on one row**, because
-   `D021`'s guarded update needs a single row to settle a race on — splitting the
-   version across seats would break the one platform concept `M18.1` found most
-   portable.
-3. **`append` / `truncateTo` confirmed as a prerequisite, not a nicety.**
-   `save(wholeGame)` is handed the resulting game and cannot tell a push from a
-   pop, so it must delete and re-insert everything; that is the entire source of
-   the 42×. Neither operation undo needs is expressible through it. Two additions
-   recommended: `truncateTo` should **refuse to cross `undoBarrierSeq`**, so no
-   rules bug can reach past a permanent barrier, and pruning below the barrier
-   should happen in the transaction that records the shuffle.
-4. **Card instances as ids against a static catalogue.** The cheapest win in the
-   document: **2.5 KB versus 12 KB** at five participants, for a catalogue the
-   server already has. Every other figure assumes it.
-
-`D055`'s *Consequences* and `PLATFORM-REVIEW`'s rewrite-cost paragraph now point
-here, so the obligation `D055` created is discharged in a place the undo task will
-actually find.
-
-No code changed. Verified with `.\gradlew.bat build` (BUILD SUCCESSFUL) and
-`git diff --check`.
+Verified on 2026-09-10 with `.\gradlew.bat build` (BUILD SUCCESSFUL) and
+`git diff --check`. The 2026-09-13 condensation changed documentation only.
 
 ---
 
@@ -4984,6 +4945,41 @@ Per-viewer projection is mandatory for any hidden-information ruleset
 same version get different payloads, so `(gameId, version)` stops being a state
 identity.
 
+### Required Outputs
+
+This is an analysis and decision task, documented under `D062`:
+
+1. **One focused, standalone game-state visibility and security analysis
+   document** in `docs/` (for example `docs/GAME-STATE-VISIBILITY.md`). If a
+   suitable focused document already exists when the task starts, update and
+   reuse it rather than creating a duplicate. It consolidates, in one place:
+   - per-viewer state projection, and the `GameView.of` seam;
+   - hidden-state exposure;
+   - deck order, unknown-position card identity, and randomness secrets (the
+     seed);
+   - viewer-specific payload identity — `(gameId, version)`;
+   - caching, dedup, and "seen this update" logic;
+   - history visibility — the `D056` history view, and the server-only undo
+     snapshots of `D061`;
+   - spectators;
+   - how each of the above is validated and tested.
+
+   It absorbs `PLATFORM-REVIEW`'s projection checklist, which then points to it.
+   It states its status, evidence or method, assumptions, and relationship to
+   binding decisions. It is **not** a repository-wide security catchall:
+   authentication, logging (`M16.5`), and infrastructure security stay in their
+   existing documents.
+2. **A numbered decision in `docs/DECISIONS.md` for each binding conclusion**,
+   linking to the document, with the document linking back.
+3. **A concise completion pointer in this backlog** when done: a link to the
+   document and the decisions, plus the essential outcome, not a restatement of
+   the analysis.
+4. **The document added to `CLAUDE.md`'s conditional required-reading list** in
+   the same change that creates it.
+
+None of the conclusions are decided in advance. The criteria below say what the
+analysis must answer, not what the answers are.
+
 ### Acceptance Criteria
 
 - A recorded decision for how state is keyed once projection is per-viewer —
@@ -4993,6 +4989,8 @@ identity.
   projects perspective, not visibility.
 - Deck order, unknown-position card identity, and the seed are confirmed
   stripped before state leaves the server.
+- The four required outputs above exist, with reciprocal links among the backlog
+  entry, the document, and each decision.
 
 ## M19.11 — `last_login_at` / `last_action_at` on `users`
 

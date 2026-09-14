@@ -892,6 +892,9 @@ recursive type: a state that contains snapshots of states.
 - Persistence (`M6.4`, `M10`, `M11`) stores the active move history alongside
   canonical current state, which is what `D020` already calls for.
 - `M4.2` adds *who* may undo and until when; `M4.3` locks a terminal move.
+- **2026-09-13:** `D061` carries this decision's principle to deck-builder undo:
+  restore a recorded state, never re-derive it by replay. `M19.9` had
+  recommended departing from it at deck-builder scale.
 
 ---
 
@@ -2272,7 +2275,9 @@ break something.
   prior state is kept, and seeded randomness. It is design input for a system that
   does not exist, it binds nothing, and anything that survives contact with the
   real second ruleset earns its own decision then. It is recorded there rather
-  than here for exactly that reason.
+  than here for exactly that reason. **Since decided:** how far back prior state
+  is kept (`D055`), and how it is stored and restored (`D061`, which rejects the
+  notes' per-closed-turn checkpoint).
 
 ---
 
@@ -3105,6 +3110,14 @@ materialised*, deck-builder design interview D3
   the `state` blob is written whole or in parts. The `append` / `truncateTo`
   command-log change already noted in `PLATFORM-REVIEW` is a prerequisite either
   way.
+- **Resolved 2026-09-13 by `D061`:** one full snapshot at every independently
+  undoable command boundary, append/truncate persistence, and pruning at the
+  shuffle or an equivalent barrier, in the transaction that records it. The
+  storage operation itself refuses to truncate past the barrier. No restoration
+  replays commands through rules. Delta encoding and writing `state` in parts
+  are not adopted. Exact data-level deltas stay available only after the real
+  implementation has been measured. The undo depth and barrier rules above are
+  unchanged.
 
 ### Rationale
 
@@ -3124,9 +3137,13 @@ never sized. That sizing is a real task, not a footnote.
   legitimate takebacks and adds a rule to explain.
 - **Cap consented undo at the current turn boundary.** Rejected as a *limit*;
   still available as the *implementation* of retention (checkpoint per closed
-  turn).
+  turn). **Superseded in part 2026-09-13 by `D061`:** a checkpoint per closed
+  turn is no longer an available retention implementation. It would either lose
+  intermediate action states this decision keeps reachable, or reach them only
+  by replay.
 - **Decide the storage form now.** Deferred: it needs a realistic state-size
   model that does not exist until the deck-builder's state shape is designed.
+  **Decided 2026-09-13 in `D061`**, after `M19.9` measured it.
 
 ### Consequences
 
@@ -3138,8 +3155,20 @@ never sized. That sizing is a real task, not a footnote.
   chess. Its recommendations are delta snapshots with a full checkpoint at each
   barrier, per-seat state rows, and card instances as ids against a static
   catalogue. They are recommendations: the undo task decides and records.
+  **Decided 2026-09-13 in `D061`.** It rejects restoring by replay from a
+  checkpoint and adopts full snapshots at every independently undoable boundary.
+  It adopts `append` / `truncateTo`, a `truncateTo` that refuses to cross the
+  barrier, and pruning in the transaction that records the barrier. It does not
+  adopt per-seat rows or delta encoding without measurements of the real
+  implementation. The card-id recommendation is left to state-shape design.
 - `undoBarrierSeq` (the last-shuffle sequence number) is the retention floor:
-  snapshots at or after it are kept, earlier ones may be pruned.
+  snapshots at or after it are kept, earlier ones may be pruned. (`D061`:
+  `undoBarrierSeq` records the most recent barrier of either kind, a shuffle or
+  an equivalent event that cannot be undone correctly, and it is the barrier
+  entry's own sequence number. For a draw that forces a reshuffle, that is the
+  `Reshuffle` entry, not the `Draw`. History before the barrier is inaccessible
+  and is pruned in the transaction that records the barrier, and `truncateTo`
+  refuses to cross it. The audit trail is not pruned.)
 - The command signature must change to `append` / `truncateTo`
   (`PLATFORM-REVIEW`); the current `save(wholeGame)` cannot express a bounded
   rewind and forces the O(N) rewrite.
@@ -3209,7 +3238,11 @@ hidden-info game from inheriting a rule that was safe only here.
   otherwise."
 - The `(gameId, version)`-identity consequence of per-viewer **state**
   projection is separate and unrecorded; it is carried as an `M19` task, not
-  here.
+  here. (That task is `M19.10`. Under `D062` it produces one focused game-state
+  visibility and security document, plus a decision for each binding conclusion.)
+- "Replay-equivalent" above means equivalent to what an observer saw, derived
+  from recorded events. It does not mean rerunning commands through rules, which
+  `D061` forbids for canonical restoration.
 
 ---
 
@@ -3498,3 +3531,348 @@ dormant".
 - If `GET /me` ever becomes a route the client polls, `last_login_at` needs
   `LastSeenTracker`'s throttle for the reason `D010` gives. It is not polled
   today: the app calls it once per startup.
+
+---
+
+## D061 — Undo Restores a Full Snapshot Taken at Every Independently Undoable Boundary, and Never Replays Rules
+
+**Date:** 2026-09-13
+
+**Status:** Accepted
+
+**Relates to:** `D016`, `D020`, `D021`, `D029`, `D044`, `D055`, `D056`,
+[`M19.9`](BACKLOG.md#m199--undo-storage-sizing-spike-before-undo-is-built),
+[`docs/UNDO-STORAGE.md`](UNDO-STORAGE.md), `PLATFORM-REVIEW` *The action
+history should be a stack in storage* / *Prior state is kept to a turn horizon*
+/ *Randomness is materialised*
+
+**Resolves:** the storage-form question `D055` deferred ("whether
+`position_before` snapshots move to a compressed or delta form, and whether the
+`state` blob is written whole or in parts").
+
+**Supersedes in part:** `D055`'s *Alternatives Considered* note that a checkpoint
+per closed turn "is still available as the *implementation* of retention".
+
+**Scope:** Governs undo storage and restoration for the deck-builder and any
+later ruleset. Changes no current code. Chess already satisfies the restoration
+half — it restores a recorded prior position (`D029`) — and keeps its current
+`save(wholeGame)` write pattern, as `D044` and `docs/UNDO-STORAGE.md` leave it.
+This decision holds under any repository, module, or server layout and does not
+bear on `M19.1`, which remains open.
+
+### Decision
+
+The binding policy, as approved by the project owner:
+
+> Start with one full, restorable state snapshot at every independently undoable
+> command boundary. Persist snapshots using append/truncate semantics and prune
+> inaccessible history at shuffle or equivalent hidden-information barriers.
+> Canonical restoration must never replay commands through the game's mutable
+> rules implementation. After measuring the real implementation, snapshots may
+> be replaced with exact data-level deltas if those deltas preserve exact
+> restoration without executing game rules.
+
+**Terms, kept distinct throughout the documentation:**
+
+- **Replay** — rerunning recorded gameplay commands through a rules
+  implementation, from any starting point: the game's start, a checkpoint, or a
+  seed.
+- **Data-level delta restoration** — directly applying recorded state changes to
+  stored state, without executing gameplay rules.
+- **Snapshot** — the complete canonical state at one boundary, restorable by
+  loading it.
+
+Restoring a recorded full snapshot is safe across later rule-code changes.
+Replay is not necessarily safe.
+
+**What a boundary is.**
+
+- "One snapshot per action" means one snapshot for every state transition a
+  player can **independently undo**. A turn may contain many such actions, and
+  in a deck-building game usually does.
+- Automatic effects that belong to one command, and resolve as part of it, do not
+  need snapshots of their own unless a player can independently undo to one of
+  those intermediate states.
+- Prompted choices, reactions, and other separately undoable transitions — the
+  *pending decision* in `PLATFORM-REVIEW` *Turn structure and sequencing* — may
+  need their own boundaries.
+- A closed turn is **not** a pruning point. Under `D055`, every action back to the
+  most recent shuffle stays reachable by consented undo, so the snapshot at each
+  of those boundaries is kept.
+
+**What a snapshot contains.** The complete canonical state needed for exact
+restoration: every zone including hidden ones (deck order), randomness state,
+counters, turn and sequencing state, pending choices, and any other
+rule-relevant state. History and audit records are **not** recursively embedded
+in each snapshot — a snapshot does not contain earlier snapshots, for the reason
+`D029` kept history outside `GameState`.
+
+**Persistence.** Undo history is written with append/truncate semantics
+(`append` / `truncateTo`, as `PLATFORM-REVIEW` and `docs/UNDO-STORAGE.md`
+describe), not by rewriting the whole history on every write.
+
+**The storage layer enforces the barrier itself.** These requirements are
+binding:
+
+- **`undoBarrierSeq` records the most recent barrier of either kind** — a shuffle
+  or an equivalent barrier (below). It is the sequence number of the barrier
+  entry itself, and it advances in the transaction that writes that entry. It is
+  not only "the last-shuffle sequence number", which is how `D055` first
+  described it.
+- **`truncateTo` refuses to cross the most recent barrier** (`undoBarrierSeq`).
+  A truncation that would remove the barrier entry, or anything before it, is
+  refused by the storage operation itself, whatever the caller asks for. The
+  rules layer's eligibility check (`seq > undoBarrierSeq`) is the first guard,
+  not the only one, so a rules bug cannot rewind past a barrier.
+- **Pruning happens in the transaction that records the barrier.** The history
+  that a new barrier makes inaccessible is deleted in the same transaction that
+  writes the barrier. Unreachable history is never left behind for a later
+  cleanup job, and there is no window in which it still exists.
+
+**Barriers and pruning.** A shuffle is a hard undo barrier (`D055`). Another
+event is an **equivalent** barrier only if, like a shuffle, it **cannot be undone
+correctly**. Restoring the prior state would present information players have
+already seen as still hidden, and not restoring it would re-roll the outcome
+(`PLATFORM-REVIEW` *Prior state is kept to a turn horizon*). **A reveal is not a
+barrier.** Drawing a card or playing one face up moves information from hidden
+to known, but it does not stop undo. It locks unilateral undo only (`D016`, and
+the intrinsic lock in `D044`), and undo by agreement may still reach past it
+(`D055`), so the snapshots before it are kept. Undo history before the most
+recent barrier is inaccessible and is pruned, as described above. Pruning
+applies to undo history only: the append-only audit trail (`D020`,
+`game_events`) and the history view derived from it (`D056`) are not undo
+history and are not pruned by this.
+
+**Restoration.** Canonical undo restoration loads a stored snapshot — or, if the
+measured optimisation below is later adopted, applies stored data-level deltas.
+It never replays commands through rules.
+
+**The measured optimisation, and what is not adopted.** Once the real
+implementation exists and has been measured, snapshots may be replaced with exact
+data-level deltas, provided the deltas restore exactly without executing rules.
+Nothing is adopted speculatively: not replay, not event sourcing through rules,
+not per-seat state splitting, not delta encoding, not compression.
+
+**What became of `M19.9`'s recommendations** (`docs/UNDO-STORAGE.md`):
+
+| recommendation (2026-09-10) | outcome |
+|---|---|
+| Store the action and its inverse, with a full checkpoint at each barrier, and reach earlier states by replaying from the checkpoint | **Rejected** — it restores by replay. Full snapshots are adopted instead. Exact data-level deltas remain a later option that needs measurement |
+| Write `state` in parts, per seat plus a shared row | **Not adopted.** It may be revisited with measurements of the real implementation |
+| `append` / `truncateTo` as a prerequisite; `truncateTo` refuses to cross `undoBarrierSeq`; prune below the barrier in the transaction that records the shuffle | **Adopted**, all three, and pruning covers equivalent barriers too |
+| Card instances as ids against a static catalogue | **Not decided here** — it is a question about state shape, not undo storage |
+
+The measurements themselves stand, and remain the evidence for the sizes above.
+
+### Rationale
+
+`M19.9` measured the cost `D055` accepted. **Retention is affordable**: about
+74 KB of snapshots for a typical span between shuffles, and about 2.4 MB for a
+pathological game that never shuffles (modelled, five participants). **The write
+pattern was not affordable**, because `save(wholeGame)`'s per-action rewrite makes
+the total quadratic. Append/truncate fixes that whichever form each record takes.
+Once the quadratic term is gone, a full snapshot costs a few kilobytes per
+boundary, and in exchange restoration is exact and simple.
+
+The recommendation to replay from a checkpoint rested on determinism: the rules
+are deterministic and randomness is materialised, so a replay cannot reshuffle
+differently. That holds only while the rules code is unchanged. Rules are
+expected to change rarely, but bug fixes still change rule behaviour, and that
+alone is enough. A fix to a card's effect would make every in-flight game replay
+into a state the players never had, silently and with no error.
+`PLATFORM-REVIEW` already made this argument about seed replay. It applies to
+replay from any starting point. `D029` reached the same conclusion for chess, and
+`D020` already rejected replay-based state reconstruction.
+
+Data-level deltas do not have that problem. They record *what changed*, not *how
+to recompute it*, so a rules change cannot alter what they restore. They are a
+legitimate optimisation, but they add encode/apply code whose own correctness has
+to be proven and make debugging harder. The only numbers so far come from a
+synthetic model, so they have to be justified against the real implementation.
+Per-seat state rows are in the same position, and also have to keep `D021`'s
+version guard on a single row.
+
+The barrier is enforced in storage as well as in the rules because it is
+permanent. `D055` allows no undo past a shuffle, even by agreement, so a rewind
+across one is not a recoverable mistake. It would restore a deck order players
+have already seen. If a precondition on `truncateTo` is what makes that
+impossible, then a bug in the eligibility check cannot cause it. Pruning in the
+barrier's own transaction is cheap, because the barrier is already a write. It
+also means "inaccessible" and "deleted" never disagree: there is no period in
+which history exists that nothing may reach, and no separate cleanup job that
+could fail or fall behind.
+
+### Alternatives Considered
+
+- **Action plus inverse, replayed from a barrier checkpoint** (`M19.9`
+  recommendation 1). Rejected: it restores by replay.
+- **Replay from the start of the game, or event sourcing through rules.**
+  Rejected for the same reason, and already rejected by `D020` and `D029`.
+- **A checkpoint per closed turn, pruning per-action snapshots as the turn
+  closes** (the turn horizon in `PLATFORM-REVIEW`; `D055`'s alternatives).
+  Rejected: a closed turn's intermediate states would either be lost, although
+  `D055` keeps them reachable, or be reachable only by replay.
+- **Data-level deltas now.** Deferred until the real implementation can be
+  measured. The ~250× figure is from a synthetic model.
+- **Per-seat state rows now.** Deferred for the same reason.
+- **Per-row compression.** Not adopted: 1.95× measured on real chess data.
+- **Enforce the barrier only in the rules layer's eligibility check.** Rejected:
+  one bug there would allow an irreversible rewind across a shuffle. The storage
+  precondition costs one comparison.
+- **Prune inaccessible history later, in a background cleanup job.** Rejected: it
+  leaves unreachable history in place for a while, adds a job that can fail or
+  fall behind, and saves nothing, because the barrier is already a write.
+
+### Consequences
+
+- Whichever task implements deck-builder undo builds to this decision. A proposal
+  to move to data-level deltas or per-seat rows must bring measurements of the
+  real implementation, show exact restoration without executing rules, and be
+  recorded as a decision that supersedes the relevant part of this one.
+- `docs/UNDO-STORAGE.md` now records this outcome next to each recommendation it
+  changed. `D055`, `D029`, `D044`, `PLATFORM-REVIEW`, `ARCHITECTURE` §31, and
+  `M19.9`'s completion note point here.
+- The shuffle barrier's own reasoning is unchanged (`D055`, `PLATFORM-REVIEW`).
+  `Reshuffle` and `Draw` stay separate log entries, and **the barrier is the
+  `Reshuffle` entry itself**, not the action that caused it. When a draw from an
+  empty deck forces a reshuffle, `undoBarrierSeq` is the `Reshuffle` entry's
+  sequence number. The `Draw` that follows it is independently undoable, and its
+  snapshot is the post-reshuffle state. Where `PLATFORM-REVIEW` says the barrier
+  is "inclusive of the action that triggered the shuffle", the split governs.
+- Two unrelated uses of "replay" are unaffected. `D056`'s "replay-equivalent"
+  history view means a record equivalent to what an observer saw, derived from
+  recorded events, and it reruns no rules. The chess Android client's
+  `OnlineGame.replayOf` rebuilds a position for *previewing* legal moves on the
+  client. It is not canonical restoration.
+- Snapshots contain hidden state, so they stay server-side and are never
+  projected to a viewer (`PLATFORM-REVIEW` *Undo*). How per-viewer projection
+  works is `M19.10`'s to decide.
+- Chess changes nothing.
+
+---
+
+## D062 — Analysis Tasks Get a Backlog Pointer, a Decision per Binding Conclusion, and a Standalone Document Chosen by Its Evidence
+
+**Date:** 2026-09-13
+
+**Status:** Accepted
+
+**Relates to:** `D044`, `D055`, `D061`, `M18.1`, `M19.9`, `M19.10`, `CLAUDE.md`
+*Required Reading* / *Document Precedence*, `docs/AUTONOMOUS-DEVELOPMENT.md`
+
+**Scope:** How analysis and decision work is documented. It decides no product or
+architecture question, and in particular does not bear on `M19.1`, which remains
+open. It applies from now on and to `M19.9` and `M19.10`. It does not restructure
+earlier completion notes retroactively, or the evaluation reports under `evals/`,
+which follow `docs/INDEPENDENT-EVALUATION.md`.
+
+### Decision
+
+**Where each part of an analysis goes.**
+
+- Every completed analysis task receives a concise completion note or pointer in
+  `docs/BACKLOG.md`.
+- Every binding conclusion receives a numbered entry in `docs/DECISIONS.md`.
+- Whether to write a standalone analysis document depends mainly on **the nature
+  of the evidence and its likely future reuse**, not on raw length.
+
+**When a standalone document is warranted.**
+
+- Deliberately nonbinding analysis gets a standalone document unless the whole
+  analysis is trivial.
+- "Too short to justify a standalone document" means the complete analysis fits
+  in one concise paragraph, roughly 150 words or fewer, and contains no reusable
+  method, measurements, calculations, table, decision matrix, threat model, or
+  material likely to be cited by later work.
+- This is a guideline, not a hard line-count rule. **When uncertain, prefer a
+  standalone document.**
+- Security-sensitive analysis may get a standalone document even when short.
+
+**Consolidation of game-state security.**
+
+- Closely related game-state security topics go in **one focused document**
+  rather than many small files. The topics are per-viewer projection,
+  hidden-state exposure, deck order and randomness secrets, viewer-specific
+  payload identity, caching, history visibility, spectators, and the validation
+  and testing concerns that go with them.
+- That document is not a repository-wide security catchall. Authentication,
+  logging, infrastructure, and unrelated security topics stay in their existing
+  documents.
+
+**Backlog entries and discoverability.**
+
+- When a standalone analysis exists, the backlog entry is normally a short pointer
+  plus the essential outcome, not a duplicate essay. It may be slightly longer
+  when important operational context must stay visible in the backlog, but it
+  should never approach a 500-word duplicate.
+- Backlinks from `docs/BACKLOG.md` and `docs/DECISIONS.md` are enough for
+  ordinary discoverability.
+- Important or cross-cutting standalone documents are also added to `CLAUDE.md`'s
+  conditional required-reading list, once they exist.
+
+**What a standalone document must say, and keeping it fresh.**
+
+- Every standalone analysis document states its **status**, its **evidence or
+  method**, its **assumptions**, and its **relationship to binding decisions**.
+- When a later decision adopts, modifies, rejects, or supersedes a standalone
+  document's recommendations, that document is updated **in the same change**
+  with the outcome and a backlink to the decision.
+- Freshness takes priority. A known contradiction is not left in place because
+  the passage was historically accurate. History is kept by labelling it clearly,
+  and the current rule is made unambiguous.
+
+**Applied now.**
+
+- `M19.9`: `docs/UNDO-STORAGE.md` stays its standalone evidence document and now
+  carries `D061`'s outcome. The backlog completion note is condensed to a pointer
+  plus the essential result. The backlog task, the document, and `D061` link to
+  each other. `CLAUDE.md` lists the document under conditional required reading.
+- `M19.10`: its required output is one focused game-state visibility and security
+  document consolidating the topics above, a concise backlog pointer, and a
+  numbered decision for each binding conclusion. It reuses an appropriate
+  existing document rather than duplicating one. The document is added to
+  `CLAUDE.md` when it is created. This decision does not anticipate any of its
+  conclusions.
+
+### Rationale
+
+`M19.9` showed both failure modes. Its analysis was right to be a standalone
+document: measurements, a method, tables, and recommendations a later task would
+cite. But the backlog completion note restated most of it, at roughly 700 words.
+When the recommendations were later changed, three places (the document, the
+note, and `D055`) all described the superseded position, and the backlog was not
+the place a reader would expect to find it corrected. One home for the evidence,
+one home for the binding conclusion, and a short pointer between them makes the
+next change a single edit per fact.
+
+Length is the wrong test, because a short threat model or a single measured
+table gets reused and a long narrative often does not. Security-sensitive
+material is exactly what later work has to cite precisely. The game-state topics
+are listed together because they are one question — what may a given viewer see,
+and how is that kept true — so splitting them would scatter the same invariants
+across several files.
+
+### Alternatives Considered
+
+- **A line-count threshold.** Rejected: it measures the wrong thing, and a hard
+  line invites splitting and padding to get around it.
+- **Keep everything in backlog completion notes.** Rejected: the backlog is a task
+  ledger, and a long note there duplicates and outlives its evidence.
+- **A repository-wide `SECURITY.md` for all security analysis.** Rejected: it
+  would mix game-state visibility with authentication, logging, and
+  infrastructure, which already have homes.
+- **Record the policy only in `docs/AUTONOMOUS-DEVELOPMENT.md`.** Rejected: that
+  document is lowest in precedence and covers the autonomous loop, while this
+  policy applies to all analysis work, including human-directed work.
+
+### Consequences
+
+- `CLAUDE.md` (*Required Reading*, *Document Precedence*, *Development Rules*) and
+  `docs/AUTONOMOUS-DEVELOPMENT.md` point here.
+- `docs/UNDO-STORAGE.md` and `docs/PLATFORM-REVIEW.md` now state their status,
+  method, assumptions, and relationship to binding decisions.
+- `M19.9`'s completion note is condensed. `M19.10`'s acceptance criteria name the
+  required outputs.
+- Standalone analysis documents carry no precedence of their own. `CLAUDE.md`
+  already said so of `docs/PLATFORM-REVIEW.md` (`D044`), and it now says so of
+  `docs/UNDO-STORAGE.md`.

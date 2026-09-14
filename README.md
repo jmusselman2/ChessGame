@@ -33,6 +33,7 @@ The long-term goal is not to remain a chess application. Chess is being used to 
     ├── MVP.md
     ├── ARCHITECTURE.md
     ├── PLATFORM-REVIEW.md
+    ├── UNDO-STORAGE.md
     ├── DECISIONS.md
     ├── BACKLOG.md
     ├── DEVELOPMENT.md

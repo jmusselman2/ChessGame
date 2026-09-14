@@ -25,6 +25,18 @@ the turn-based platform, or that designs the deck-building game. It records what
 the chess MVP proved reusable, what stayed chess-specific, and what chess never
 exercised at all.
 
+Also read `docs/UNDO-STORAGE.md` before any work that designs or implements undo
+history, snapshot retention, or undo persistence for the deck-builder or another
+ruleset. It holds `M19.9`'s measurements and method. Its binding outcome is
+`D061`: a full snapshot at every independently undoable boundary, append/truncate
+persistence that refuses to truncate past a barrier, pruning in the transaction
+that records a shuffle (or an equivalent event that cannot be undone correctly;
+a reveal is not one), and never replaying commands through rules to restore
+canonical state.
+
+Standalone analysis documents follow `D062`. Important or cross-cutting ones are
+added to this list once they exist.
+
 ## Document Precedence
 
 If documents appear to conflict, use this precedence order:
@@ -41,6 +53,9 @@ If documents appear to conflict, use this precedence order:
 descriptive — a review of what was built, plus design notes for a system that
 does not exist yet — and it defers to every document above it. Anything in it
 that needs to bind becomes a decision in `docs/DECISIONS.md` (see `D044`).
+`docs/UNDO-STORAGE.md` is absent for the same reason: it is nonbinding analysis,
+and `D061` is its binding outcome. Standalone analysis documents in general carry
+no precedence of their own (`D062`).
 
 If a lower-precedence document conflicts with a higher-precedence document, do not silently reconcile them. Follow the higher-precedence document and update the stale lower-precedence document when appropriate.
 
@@ -58,6 +73,7 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - Every accepted game-state mutation increments the game version.
 - Persist current canonical state directly, plus active move history and append-only audit events.
 - Do not implement full event sourcing.
+- Canonical undo restoration never replays commands through the rules. It restores recorded full state, or, only after measurement, exact data-level deltas that execute no rules (`D061`).
 - Do not introduce microservices for the MVP.
 - Do not add speculative deck-building abstractions during the chess MVP.
 - Keep user, friendship, game-series, persistence, and transport concerns outside the chess rules engine.
@@ -96,6 +112,7 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - Do not silently change product requirements.
 - Record meaningful architectural decisions in `docs/DECISIONS.md`.
 - Update `docs/BACKLOG.md` when work is completed.
+- Document analysis and decision tasks per `D062`. Each gets a concise backlog completion note or pointer, and each binding conclusion gets a numbered decision. A standalone analysis document is chosen by the nature of its evidence and its likely reuse, not its length, and it states its status, method, assumptions, and relationship to binding decisions. When a later decision changes its recommendations, update it in the same change.
 - Prefer immutable domain state where practical.
 - Keep rule logic out of Compose.
 - Keep persistence DTOs out of the pure game domain.

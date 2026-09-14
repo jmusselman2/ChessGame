@@ -969,6 +969,13 @@ what this file says elsewhere:
   back; a game with hidden information also needs an intrinsic lock for any
   action that revealed something to anyone, the actor included.
 
+Undo *storage* beyond chess has since been decided. Under `D061`, deck-builder
+undo keeps one full snapshot at every independently undoable command boundary,
+persists it with append/truncate semantics, and prunes history at shuffle
+barriers. Canonical restoration never replays commands through the rules. That
+is §20's exact-restore principle (`D029`), carried forward.
+`docs/UNDO-STORAGE.md` holds the measurements.
+
 `D044` decides what follows: **nothing is extracted, generalised, or renamed
 until a second ruleset exists**, and it names the six candidates for that moment.
 No generic engine interface, no command hierarchy, no seat abstraction, no

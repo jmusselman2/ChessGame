@@ -19,6 +19,22 @@ it does not change any rule. Where a conclusion needed deciding rather than
 observing, it was decided in `D044` and this document defers to it, to
 `ARCHITECTURE.md`, and to `PRODUCT.md` as usual.
 
+These are the four things `D062` asks every standalone analysis document to
+state:
+
+- **Status:** descriptive review, plus nonbinding design notes (*Design notes for
+  the deck-builder*). It carries no precedence. `D044` decides what follows from
+  the review. Where a note has since become a decision — `D048`–`D056` and
+  `D061` — the decision governs, and the note is labelled where it differs.
+- **Evidence and method:** the chess code as built at `9941402`, its tests, the
+  concurrency defects found and repaired, emulator play-throughs, and one real
+  user's game (`M17.1`). *The measurement* below counts files and lines.
+- **Assumptions:** "proven" means implemented, tested, and exercised in real play.
+  The design notes assume the planned deck-builder's shape as described by the
+  project owner on 2026-09-08 and 2026-09-09, and that game does not exist yet.
+- **Relationship to binding decisions:** `D044` (what to extract, and when);
+  `D048`–`D056` and `D061` for the design notes they settled.
+
 ## The measurement
 
 The cheapest question first: how much of the server is about chess?
@@ -421,7 +437,8 @@ the subsections below summarise them and keep the reasoning that did not fit a
 decision record. The 2026-09-08 material (undo mechanism, shuffle barrier,
 randomness, turn structure, the public active hand) remains as notes — it is
 reflected in `D044` and in `PRODUCT`/`ARCHITECTURE` pointers but was not
-re-recorded as its own decisions.
+re-recorded as its own decisions — except undo storage and restoration, which
+`D061` decided on 2026-09-13 after `M19.9` measured it.
 
 ### The action history should be a stack in storage, as it already is in the domain
 
@@ -452,7 +469,22 @@ The fix is to make the command say what it did — `append(action)` /
 insert, undo becomes `delete where game_id = ? and seq > ?`, and nothing else
 about the model changes.
 
+**Decided 2026-09-13 (`D061`):** deck-builder undo history is persisted with these
+append/truncate semantics, one full snapshot per independently undoable boundary.
+`truncateTo` itself refuses to cross the undo barrier, and history before a new
+barrier is deleted in the transaction that records it. `M19.9`'s alternative
+recommendation, deltas replayed from a checkpoint, was rejected.
+
 ### Prior state is kept to a turn horizon, not to a reveal
+
+> **Superseded in part 2026-09-13 by `D055` and `D061`.** The turn horizon below —
+> per-action snapshots pruned as a turn closes, with one checkpoint per closed
+> turn — is **not** the storage policy. `D055` keeps every action back to the
+> most recent shuffle reachable by consented undo. `D061` therefore keeps one full
+> snapshot at every independently undoable boundary, and prunes only at the
+> shuffle or an equivalent barrier. What still stands: a reveal does not bound
+> retention, and the shuffle is a hard, global, permanent barrier, for the
+> reasons given here.
 
 The expensive column is not the action, it is `position_before`: a full state
 snapshot per row, which exists only to make undo exact.
@@ -463,7 +495,8 @@ wrong, and it is wrong because of consented undo.** Both locks restrain the acto
 alone; two players who agree may rewind past a reveal, so a reveal cannot be
 treated as the point beyond which prior state is discardable.
 
-Two horizons work, and the tighter of the two applies.
+*(Historical, 2026-09-08 — the turn-horizon half of the following was superseded;
+see the note above.)* Two horizons work, and the tighter of the two applies.
 
 The turn boundary, which the deck-builder has anyway now that ending a turn is a
 command:
@@ -498,9 +531,16 @@ barrier — and **inclusive of the action that triggered the shuffle**, since a
 reshuffle raised inside a draw would otherwise unwind with that draw. One integer
 on the game row records it, and eligibility gains `seq > undoBarrierSeq`.
 
+*(Refined by the `Reshuffle`/`Draw` split below, and binding in `D061`: the
+barrier is the `Reshuffle` entry itself, not the draw that forced it, so the draw
+stays independently undoable. `undoBarrierSeq` is that entry's sequence number,
+and it also records any equivalent barrier — an event that, like a shuffle,
+cannot be undone correctly.)*
+
 **Nothing here re-executes rules.** Restoring a stored snapshot is safe under any
 future rules change; reconstructing state by replaying actions is not, which is
-the subject of the next note.
+the subject of *Randomness is materialised* below. `D061` makes this binding:
+canonical undo restoration never replays commands through the rules.
 
 ### Turn structure and sequencing
 
@@ -563,7 +603,12 @@ chess from the opposite direction.
 
 Two consequences worth keeping in view. A draw that triggers a reshuffle always
 reveals — the deck was empty, so no top card could have been known — so it is
-locked twice over, by the reveal and by the shuffle barrier. And consented undo
+reveal-locked: its player cannot take it back alone. It is **not** behind the
+shuffle barrier. The `Reshuffle` entry just before it is the barrier (see the
+split below, binding in `D061`), so a consented undo can still take the draw
+back, though never the reshuffle. *(This sentence originally said the draw was
+"locked twice over, by the reveal and by the shuffle barrier". It was corrected
+2026-09-14 to match the split and `D061`.)* And consented undo
 remains outside the rest of this: two players who agree may rewind past a
 *reveal*, and no mechanism can make that information-safe, because it is an
 agreement to disregard something already seen rather than a technical guarantee.
@@ -636,8 +681,13 @@ actually played — silently, with no error anywhere. Chess never risks this
 because it never replays: `state` is canonical and history serves undo and
 display. **Keep that property.** Seed and counter are for generating randomness
 reproducibly during forward execution, and for debugging; they are not a
-state-recovery mechanism. This is also why the turn-horizon scheme above stores
-snapshots rather than replaying forward from checkpoints.
+state-recovery mechanism. This is also why undo stores snapshots rather than
+replaying forward from checkpoints — now binding in `D061`, which applies the
+same argument to replay from any starting point. A seed, a checkpoint, and the
+game's start are all ruled out, because a bug fix to the rules would change what
+any of them replays into. Applying recorded state changes directly, as
+data-level deltas that execute no rules, is not replay. `D061` leaves it open as
+a measured optimisation.
 
 **Neither the seed nor the deck order may reach a client.** Materialising the
 shuffle moves the secret: canonical state now literally contains the order of
@@ -649,7 +699,9 @@ for either; there is nothing in a chess position that both players may not see.
 This is the single most important thing on the projection checklist, because
 unlike a leaked hand it would hand over the entire future of the game.
 
-Projection checklist so far, for this ruleset:
+Projection checklist so far, for this ruleset. `M19.10` consolidates it into one
+focused game-state visibility and security document (`D062`), and this list will
+point there once that document exists:
 
 - **deck order** — never leaves the server;
 - **card identity where the viewer does not know the position** — stripped
@@ -658,7 +710,10 @@ Projection checklist so far, for this ruleset:
 - **the player-visible history view** (`D056`) — safe to expose here, because
   this ruleset has no permanently hidden information and the view reports only
   events that occurred; a ruleset *with* permanent secrets would need per-viewer
-  redaction of that view.
+  redaction of that view;
+- **undo snapshots** (`D061`) — contain the complete canonical state, hidden
+  zones included, so they stay server-side and are never projected (*Undo*,
+  above).
 
 ### Seating, continuity, and participants (2026-09-09 — see `D048`–`D053`)
 
@@ -697,7 +752,10 @@ and unfriending **no longer closes a series** (drop
 - **Undo reaches back to the last shuffle with no depth cap** (`D055`). The
   accepted cost — retained full snapshots for an unbounded span, times a
   whole-blob rewrite per action, times up to five participants' zones — was
-  never sized, and `M19` carries an explicit costing task before undo is built.
+  never sized when it was accepted. **Since sized** (`M19.9`,
+  `docs/UNDO-STORAGE.md`: retention affordable, whole-history rewrite not) **and
+  decided** (`D061`: a full snapshot per independently undoable boundary,
+  append/truncate, pruning at the barrier, no replay).
 - **Players get a readable history view** (`D056`) derived from `game_events`,
   with no per-viewer redaction, because this ruleset has no permanent secrets.
   The "audit never leaves the server" rule becomes: raw rows and canonical state
@@ -711,16 +769,20 @@ Named here so they are not lost; none is decided.
   same server, separate module — or a new project. Most of the seating design
   assumes shared concepts, which leans toward same-repo, but it is not decided.
   This gates the shape of most other `M19` work.
-- **Performance under deck-builder load.** Three uncosted things: the
-  `loadForUpdate` row lock held across rule resolution; `inSeries`'s N+1
-  (test-only today); and the whole-`state`-blob read-and-rewrite per action,
-  which now also carries `D055`'s snapshot retention. The blob cost is the one
-  to size first.
+- **Performance under deck-builder load.** Two uncosted things: the
+  `loadForUpdate` row lock held across rule resolution, and `inSeries`'s N+1
+  (test-only today). The third, the whole-`state`-blob read-and-rewrite per
+  action with `D055`'s snapshot retention on top, was sized in `M19.9`
+  (`docs/UNDO-STORAGE.md`). Its history-rewrite half is decided by `D061`
+  (append/truncate). Writing the current `state` whole or in parts is left for
+  measurement of the real implementation.
 - **`(gameId, version)` stops being a state identity** once per-viewer
   projection means two viewers at the same version get different payloads.
   Anything keyed on it — caching, dedup, "seen this update" — needs the viewer
   in the key. A consequence of an already-settled decision; needs a recorded
-  decision, not another interview. Carried as an `M19` task.
+  decision, not another interview. Carried as `M19.10`, which produces one
+  focused game-state visibility and security document and a decision for each
+  binding conclusion (`D062`).
 - **Target concurrency / load** — deliberately not guessed; revisit with real
   usage data. New `users` columns `last_login_at` / `last_action_at` are a first
   step toward having something to look at.

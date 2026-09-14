@@ -20,7 +20,11 @@ Work continuously through the backlog. The normal autonomous task loop is
 8. Mark the task `DONE` and add its completion note in `docs/BACKLOG.md`
    (date + how it was locally verified). Update any other affected documentation
    (`DECISIONS.md`, `DEVELOPMENT.md`; `PRODUCT.md`/`ARCHITECTURE.md` only when a
-   higher-precedence doc is stale).
+   higher-precedence doc is stale). For an analysis or decision task, follow
+   `D062`: a concise completion pointer, a numbered decision for each binding
+   conclusion, a standalone analysis document where its evidence warrants one,
+   and an update to any standalone document whose recommendations a decision
+   changes.
 9. Review `git status` and `git diff`, and run `git diff --check` — it must
    report nothing (exit 0). Fix any trailing-whitespace or conflict-marker
    errors it flags before committing.
