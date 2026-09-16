@@ -4592,18 +4592,22 @@ into decisions **`D048`–`D056`**. This milestone is the work those decisions
 imply: generalising the two-player, pair-keyed platform into a multi-participant
 one, and changing the two chess product rules that the pair model had forced.
 
-**This milestone cannot be fully planned until `M19.1`.** Where the deck-builder
-code lives — same repo and module, same server, or a new project — decides the
-shape of almost everything below. `M19.1` is a decision task that needs human
-input; per the Stop Conditions it is a "significant difficult-to-reverse
-architecture change", so the autonomous loop must stop and ask rather than pick
-one.
+**`M19.1` is deferred, and it does not block chess-only work (`D063`).** Where
+the deck-builder's code lives — same repo and module, same server, or a new
+project — is a human, difficult-to-reverse architecture decision. But no
+remaining task in this milestone writes deck-builder-specific code or needs to
+know where game-specific rules are implemented. The participants schema
+(`M19.3`) and everything built on it are server and schema work that chess
+exercises on its own, and it holds under any of the four layouts. So `M19.1` is
+`BLOCKED` until the first task that actually requires deck-builder-specific code,
+or a concrete decision about where game-specific rules live. That task lists
+`M19.1` as a dependency, and the loop stops there and asks.
 
 Nothing here touches the chess implementation or the live beta until its own
 task runs. `D048`–`D056` changed documentation only. So did `D061`, the binding
 undo-storage policy that followed `M19.9`, and `D062`, the documentation policy
 for analysis and decision tasks. Both date from 2026-09-13, and neither bears on
-`M19.1`.
+`M19.1`. `D063` (2026-09-16) records the deferral. It decides no layout either.
 
 The carried evaluation findings were a separate track and blocked none of this.
 All six — `M10-01`, `M12-01`, `M14-01`/`02`/`03`, and `M18-01` — were
@@ -4613,9 +4617,15 @@ remediated on 2026-09-10 before this milestone was started, under `D057`,
 
 ## M19.1 — Decide the deck-builder's repository and module structure
 
-**Status:** TODO
+**Status:** BLOCKED — deferred (`D063`, 2026-09-16)
 
-**Depends on:** —
+**Depends on:** — *Deferred until* the first task that requires
+deck-builder-specific code (rules, a `deck-core`-style module, a deck-builder
+game-type registration, client UI) or a concrete decision about where
+game-specific rules are implemented. No such task exists yet. When one is added,
+it lists `M19.1` under **Depends on**, and this task returns to `TODO` with human
+sign-off still required. It blocks no chess-only work: `M19.3`–`M19.8` and
+`M19.10` do not depend on it.
 
 ### Objective
 
@@ -4630,7 +4640,10 @@ project? Chess and the deck-builder must both ship and be supported (`E2`).
   friends, tables, series, realtime, persistence) is factored out of
   chess-specific code without violating `D044` (extract only with two
   implementations in view).
-- The decision states which of `M19.2`–`M19.11` change scope as a result.
+- The decision states which of `M19.2`–`M19.11` change scope as a result. Any of
+  these already `DONE` by then were built without an answer (`D063`). The
+  decision names what, if anything, they need changed. It does not assume they
+  anticipated a layout.
 - Human sign-off in the conversation, as a difficult-to-reverse architecture
   change.
 
@@ -4741,20 +4754,38 @@ regressions, and `.\gradlew.bat build`.
 
 **Status:** TODO
 
-**Depends on:** M19.1
+**Depends on:** — *revised 2026-09-16 (`D063`):* the dependency on `M19.1` was
+removed. This task is server and schema work in the existing `server` module.
+It needs no decision about where future deck-builder rules or modules live, and
+it takes none.
 
 ### Objective
 
-Introduce the **table** (`D048`): a set of 2–4 participants that a series belongs
-to, keyed by exact participant set. Replace `games.white_user_id`/`black_user_id`
-and `game_series.user_a_id`/`user_b_id` with a participants relation
-(`seat_index`, `participant_ref`, kind). Chess maps its two seats onto it and
-behaves identically.
+Introduce the **table** (`D048`): a set of participants that a series belongs to,
+keyed by exact participant set. Replace `games.white_user_id`/`black_user_id` and
+`game_series.user_a_id`/`user_b_id` with a participants relation (`seat_index`,
+`participant_ref`, kind). Chess maps its two seats onto it and behaves
+identically.
+
+Build this for chess only, and don't make it harder for a deck-builder to join
+later. Player-count limits belong to the game type, not the platform. Chess is
+the only game type registered.
 
 ### Acceptance Criteria
 
-- Per-game-type table-size range (chess: exactly 2; deck-builder: 2–4) enforced,
-  with the range carried by the game type, not hard-coded per call site.
+- Player-count constraints (minimum and maximum participants) are **stored per
+  game type**. They are not a platform constant, not a hard-coded 2, and not
+  repeated at call sites. Table creation checks the table's size against its game
+  type's range.
+- Chess is registered as the only game type, with exactly 2 players
+  (minimum 2, maximum 2).
+- Nothing in the schema or the table/participant code caps a table at 2. A future
+  2–4-player game type needs only a new registration with its own range, not a
+  schema change. A test shows that the size check reads the game type's range
+  rather than assuming chess's. A test-only range is enough. The test does not
+  register a deck-builder type.
+- No deck-builder-specific code is added: no deck-builder game type, rules,
+  module, or UI (`D044`, `D063`).
 - Series identity is exact-set match; a different set is a different series.
 - A 2-participant chess table produces byte-identical behaviour to today's pair
   in existing tests (adjust fixtures, not assertions).

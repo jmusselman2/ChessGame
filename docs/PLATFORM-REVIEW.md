@@ -768,7 +768,10 @@ Named here so they are not lost; none is decided.
 - **Repository / module structure for the deck-builder** (`M19.1`). Same repo,
   same server, separate module — or a new project. Most of the seating design
   assumes shared concepts, which leans toward same-repo, but it is not decided.
-  This gates the shape of most other `M19` work.
+  It was once expected to gate the shape of most other `M19` work. `D063`
+  (2026-09-16) found that it does not. It is deferred until the first task that
+  needs deck-builder-specific code. The participants schema (`M19.3`) is built
+  without it, with player-count ranges stored per game type.
 - **Performance under deck-builder load.** Two uncosted things: the
   `loadForUpdate` row lock held across rule resolution, and `inSeries`'s N+1
   (test-only today). The third, the whole-`state`-blob read-and-rewrite per

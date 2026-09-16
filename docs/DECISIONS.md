@@ -2604,6 +2604,10 @@ version needs a roster-mutation concept the platform is better off without.
   unaffected until `M19` acts on this.
 - New `groups` / `group_members` and `tables` / `table_participants` tables are
   `M19` work; their shape depends on the module-structure decision (`M19.1`).
+  **Superseded in part 2026-09-16 by `D063`:** neither shape depends on
+  `M19.1`. Groups were built without it (`M19.2`). The tables and
+  participants schema is built without it too, with player-count ranges stored
+  per game type (`M19.3`).
 
 ---
 
@@ -2665,6 +2669,8 @@ different one for groups.
 ### Consequences
 
 - New `groups` / `group_members` tables (`M19`, shape gated on `M19.1`).
+  **Superseded in part by `D063`:** the shape was not gated. `M19.2` built them
+  in `server` with no `M19.1` answer.
 - Table-invite eligibility resolves to: the target is a friend of the creator,
   **or** shares a group with the creator.
 - Leaving a group revokes future invite-eligibility and touches no existing
@@ -3876,3 +3882,75 @@ across several files.
 - Standalone analysis documents carry no precedence of their own. `CLAUDE.md`
   already said so of `docs/PLATFORM-REVIEW.md` (`D044`), and it now says so of
   `docs/UNDO-STORAGE.md`.
+
+---
+
+## D063 — The Deck-Builder's Repository Layout Is Deferred Until Deck-Builder Code Needs It
+
+**Date:** 2026-09-16
+
+**Status:** Accepted
+
+**Relates to:** `D044`, `D048`, `D049`, `D051`, `M19.1`, `M19.2`, `M19.3`,
+`M19.9`, `docs/PLATFORM-REVIEW.md` *Still open*
+
+**Supersedes in part:** the `M19.1` gating sentences in the *Consequences* of
+`D048` and `D049`
+
+**Scope:** Backlog dependency and schema-design constraint only. It **does not
+decide** the deck-builder's repository, server process, or module structure.
+That remains `M19.1`, which still needs human sign-off.
+
+### Decision
+
+- **`M19.1` is deferred.** It stays open, is marked `BLOCKED`, and blocks no
+  chess-only work. It becomes a dependency of the first task that actually
+  requires deck-builder-specific code, or a concrete decision about where
+  game-specific rules are implemented. That task lists `M19.1` under
+  **Depends on**, and the autonomous loop stops there and asks.
+- **`M19.3` does not depend on `M19.1`.** It builds the participants schema in
+  `server` for chess alone. It neither assumes nor forecloses any of `M19.1`'s
+  layouts.
+- **Player-count constraints are stored per game type.** Each game type carries
+  a minimum and a maximum participant count, and table creation validates
+  against them. There is no platform constant and no hard-coded 2.
+- **Chess is registered as exactly 2 players** and is the only game type
+  registered.
+- **The schema must stay able to host a 2–4-player deck-builder.** Nothing caps a
+  table at 2. Adding such a game type is a new registration with its own range,
+  not a schema change. No deck-builder type, rules, or module is added now
+  (`D044`).
+
+### Rationale
+
+`D048` said the tables schema's shape depends on `M19.1`, but no concrete part of
+it does. Every layout `M19.1` is choosing between keeps canonical state in a Ktor
+server that must replace today's pair keys with a participants relation (`D048`).
+Even "new project, own server" would need that same relation. `M19.2` and `M19.9` already had their `M19.1`
+dependencies revised on the same grounds. Holding `M19.3`–`M19.8` and `M19.10`
+behind a decision they don't use would stall all chess-side generalisation. It
+would also push the owner to settle a difficult-to-reverse layout before any
+deck-builder code exists to inform it.
+
+Storing the range per game type is what `D048` already requires ("table size is
+game-defined, not a platform constant"). With only chess registered, it is the
+cheapest form that keeps 2–4 a registration rather than a migration.
+
+### Alternatives Considered
+
+- **Decide `M19.1` now.** Rejected by the owner for now. It would be decided from
+  one implementation, the situation `D044` warns about.
+- **Keep `M19.3` blocked.** Rejected: nothing in its acceptance criteria turns on
+  the layout.
+- **Register the deck-builder's 2–4 range now.** Rejected: that is deck-builder
+  code with no ruleset behind it, and a test-only range proves the same thing.
+
+### Consequences
+
+- `docs/BACKLOG.md`: `M19.1` is `BLOCKED` (deferred). `M19.3` has no dependency
+  and its acceptance criteria follow the bullets above. `M19.4`–`M19.8` and
+  `M19.10` are unblocked through `M19.3`.
+- `docs/PLATFORM-REVIEW.md` *Still open* no longer says `M19.1` gates most `M19`
+  work.
+- When `M19.1` is decided, its decision states what, if anything, the work
+  already done without it needs changed.
