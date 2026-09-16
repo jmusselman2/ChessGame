@@ -640,8 +640,12 @@ The exact persistence representation of `currentState` may be refined during imp
 
 Seat order is turn order. Chess maps White to seat 0 and Black to seat 1
 (`ChessSeats`); that mapping lives in chess code, and the participants relation
-itself knows nothing about colours. Every participant is a user until `M19.7` adds
-a non-user kind (`D051`).
+itself knows nothing about colours. A seat is a participant of a kind (`D051`,
+`D067`): `USER` is a person with a `users` row, `COMPUTER` is not a person but
+rotates like one, and `SCRIPTED` never rotates and always moves last. A non-user
+participant lives in `non_user_participants`, with an opaque `state` document for
+its game type's rules. Anything person-shaped (friends, dashboards, `lastSeenAt`,
+usernames, realtime recipients, chess colours) reads only the `USER` seats.
 
 ## 19. Chess State Persistence
 
@@ -833,6 +837,7 @@ game_types          -- D063, M19.3: each game type's min/max participants
 tables              -- D048, M19.3: one row per exact participant set per game type
 table_participants  -- who sits at a table, by seat
 game_participants   -- who took which seat in one game
+non_user_participants -- D051, D067, M19.7: participants that are not people, with opaque state
 ```
 
 Columns removed since:

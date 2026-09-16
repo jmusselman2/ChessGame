@@ -1,6 +1,13 @@
 package com.jmussel.chessgame.server.series
 
+import com.jmussel.chessgame.server.db.Participant
 import kotlin.random.Random
+
+/** The participants that take part in seat rotation, in order: people and computer players (`D050`, `D051`). */
+fun List<Participant>.rotating(): List<Participant> = filter { it.kind.rotates }
+
+/** The participants that never rotate and always take the final turn, in order (`D050`, `D051`). */
+fun List<Participant>.finalTurn(): List<Participant> = filterNot { it.kind.rotates }
 
 /**
  * Where a series is in its seat rotation (`D050`).

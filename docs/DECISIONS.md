@@ -4175,3 +4175,71 @@ At N = 2, carrying the rotation on is the only reading of "vacuous" under which
   `nextBoolean`: heads draws the first candidate, and tails the last.
 - `SeatRotationTest` is `D050`'s required property test over N ∈ {2, 3, 4}. With
   the exclusion disabled, four of its tests fail.
+
+---
+
+## D067 — Participant Kinds Are Named for What the Platform Does With Them: `USER`, `COMPUTER`, `SCRIPTED`
+
+**Date:** 2026-09-16
+
+**Status:** Accepted
+
+**Relates to:** `D044`, `D050`, `D051`, `D063`, `D064`, `M19.7`, `ARCHITECTURE` §18,
+§27
+
+**Scope:** How `D051`'s non-user participant is represented. Adds no game type and
+no rules, and takes no `M19.1` decision.
+
+### Decision
+
+- **Three kinds, named by platform behaviour rather than by the deck-builder's
+  characters:**
+  - `USER` is a person with a `users` row, and rotates.
+  - `COMPUTER` is not a person, plays a seat as a person would, and rotates. This
+    is `D051`'s future AI player.
+  - `SCRIPTED` is not a person, never rotates, and always takes the final turn.
+    This is `D051`'s Enemy Lord.
+
+  Rotation is the only thing the platform knows about a kind
+  (`ParticipantKind.rotates`). Everything else these participants do belongs to a
+  game type's rules, and none exist yet.
+- **A non-user participant is a row in `non_user_participants`.** The row holds an
+  id, a kind, and `state jsonb`. The platform stores that document and never reads
+  it. That is `D051`'s "persistent per-instance state" without inventing its shape.
+- **A seat names exactly one reference, and the database checks it.** A seat's
+  `user_id` is set if and only if its kind is `USER`, and its
+  `non_user_participant_id` is set if and only if it is not. A composite reference
+  `(non_user_participant_id, kind) → non_user_participants (id, kind)` stops a seat
+  from claiming a kind its participant does not have. Nobody, person or not, takes
+  two seats at a table or in a game.
+- **In Kotlin, a seat is a `Participant(kind, ref)`.** `userId` is non-null only for
+  a person. Anything person-shaped reads `userIds` and never sees anyone else: the
+  dashboard's and history's opponent, realtime recipients, and chess's
+  White/Black. Seat rotation filters on kind (`rotating()`, `finalTurn()`) before
+  and after `SeatRotation` (`D050`).
+- **The canonical set key stays `KIND:ref`** (`D064`), and stored rotations now
+  store `KIND:ref` too. A bare id still reads as a user.
+
+### Rationale
+
+`D051` names two characters from a game that does not exist yet. Naming kinds
+after them (`ENEMY_LORD`, `AI_PLAYER`) would put deck-builder vocabulary into the
+chess-level participant type, which `D051` itself forbids, and would amount to
+registering deck-builder concepts before `M19.1` (`D063`). What the platform
+actually needs to tell apart is who is a person and who rotates. The names say
+that, and a game type can seat its own characters as one of them.
+
+### Alternatives Considered
+
+- **A `rotates` boolean instead of a kind.** Rejected: `D051` requires
+  discrimination by kind, and "is it a person" is a second axis.
+- **Kind columns without the composite reference.** Rejected: the kind would then
+  be recorded twice, with nothing keeping the two copies equal.
+- **Typed state per kind.** Rejected until a ruleset defines one (`D044`).
+
+### Consequences
+
+- `V9__non_user_participants.sql`, `NonUserParticipantRepository`, and
+  `Participant` / `ParticipantKind`.
+- `SeriesService` seats scripted participants last and rotates the rest. Chess
+  never seats one: its tables are two users.

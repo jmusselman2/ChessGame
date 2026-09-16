@@ -36,17 +36,17 @@ data class StoredGame(
     val seriesId: Uuid,
     val sequenceNumber: Int,
     /** Who took each seat, in seat order ([ChessSeats]). */
-    val participants: List<Uuid>,
+    val participants: List<Participant>,
     val version: Long,
     val game: ChessGame,
     /** When the game was finalized, and `null` while it is still running. */
     val endedAt: OffsetDateTime? = null,
 ) {
     val whiteUserId: Uuid
-        get() = participants[ChessSeats.WHITE]
+        get() = requireNotNull(participants[ChessSeats.WHITE].userId) { "Chess is played by people" }
 
     val blackUserId: Uuid
-        get() = participants[ChessSeats.BLACK]
+        get() = requireNotNull(participants[ChessSeats.BLACK].userId) { "Chess is played by people" }
 
     val isComplete: Boolean
         get() = game.isOver
@@ -85,7 +85,7 @@ class GameRepository(
     fun create(
         seriesId: Uuid,
         sequenceNumber: Int,
-        participants: List<Uuid>,
+        participants: List<Participant>,
         game: ChessGame,
     ): Uuid =
         transaction(database) {
@@ -107,18 +107,28 @@ class GameRepository(
                 row[GamesTable.endedAt] = if (game.isOver) now else null
             }
 
-            participants.forEachIndexed { seat, userId ->
+            participants.forEachIndexed { seat, participant ->
                 GameParticipantsTable.insert { row ->
                     row[GameParticipantsTable.gameId] = id
                     row[GameParticipantsTable.seatIndex] = seat
-                    row[GameParticipantsTable.kind] = USER_PARTICIPANT
-                    row[GameParticipantsTable.userId] = userId
+                    row[GameParticipantsTable.kind] = participant.kind.name
+                    row[GameParticipantsTable.userId] = participant.userId
+                    row[GameParticipantsTable.nonUserParticipantId] = participant.ref.takeIf { participant.userId == null }
                 }
             }
 
             writeHistory(id, game)
             id
         }
+
+    /** Inserts [game] seating these users in this order: every chess game. */
+    @JvmName("createForUsers")
+    fun create(
+        seriesId: Uuid,
+        sequenceNumber: Int,
+        users: List<Uuid>,
+        game: ChessGame,
+    ): Uuid = create(seriesId, sequenceNumber, users.map(Participant::user), game)
 
     /**
      * The game with [id], or `null` when there is none.

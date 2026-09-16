@@ -69,7 +69,11 @@ class HistoryQueries(
             val tableParticipants = participantsOfTables(seriesRows.map { it[GameSeriesTable.tableId] }.toSet())
 
             // A chess table seats two, so the opponent is whoever else is at it.
-            fun opponentOf(row: ResultRow): Uuid? = tableParticipants[row[GameSeriesTable.tableId]].orEmpty().singleOrNull { it != userId }
+            fun opponentOf(row: ResultRow): Uuid? =
+                tableParticipants[row[GameSeriesTable.tableId]].orEmpty().userIds.singleOrNull {
+                    it !=
+                        userId
+                }
 
             val gamesBySeries = finishedGames(seriesIds, userId)
             val opponents = usersById(seriesRows.mapNotNull(::opponentOf).toSet())
@@ -119,7 +123,7 @@ class HistoryQueries(
             FinishedGameView(
                 gameId = row[GamesTable.id],
                 sequenceNumber = row[GamesTable.sequenceNumber],
-                yourSide = ChessSeats.sideOf(seats[row[GamesTable.id]].orEmpty().indexOf(userId)).name,
+                yourSide = ChessSeats.sideOf(seats[row[GamesTable.id]].orEmpty().indexOfFirst { it.userId == userId }).name,
                 result = row[GamesTable.result],
                 terminationReason = row[GamesTable.terminationReason],
                 // Full moves as the position counts them; a game is summarised, not replayed.

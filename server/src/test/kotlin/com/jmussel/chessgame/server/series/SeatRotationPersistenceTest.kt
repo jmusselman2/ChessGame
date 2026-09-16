@@ -4,6 +4,7 @@ package com.jmussel.chessgame.server.series
 
 import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.db.GameSeriesTable
+import com.jmussel.chessgame.server.db.Participant
 import com.jmussel.chessgame.server.db.TableRepository
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -83,10 +84,10 @@ class SeatRotationPersistenceTest {
             val c = fixture.named("auth-cat", "Cat")
             val d = fixture.named("auth-dev", "Dev")
             transaction(fixture.database) { exec("insert into game_types values ('TEST_TWO_TO_FOUR', 2, 4)") }
-            val seats = listOf(fixture.white, fixture.black, c, d)
+            val seats = listOf(fixture.white, fixture.black, c, d).map(Participant::user)
             val series = GameSeriesRepository(fixture.database, TableRepository(fixture.database))
             val opened = series.openOrCreate("TEST_TWO_TO_FOUR", seats).series
-            val cycle = SeatCycle(baseOrder = listOf(d, c, fixture.black, fixture.white), gameInCycle = 3, previousBaseOrder = seats)
+            val cycle = SeatCycle(baseOrder = seats.reversed(), gameInCycle = 3, previousBaseOrder = seats)
 
             series.saveSeatRotation(opened.id, cycle)
 

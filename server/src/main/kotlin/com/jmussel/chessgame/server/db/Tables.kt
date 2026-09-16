@@ -116,12 +116,26 @@ object TablesTable : Table("tables") {
     override val primaryKey = PrimaryKey(id)
 }
 
-/** Who sits at a table. Every participant is a user until `M19.7` adds another kind (`D051`). */
+/**
+ * A participant that is not a person (`D051`): an identity, a kind, and the per-instance state
+ * its game type's rules keep. The platform stores [state] and never reads into it.
+ */
+object NonUserParticipantsTable : Table("non_user_participants") {
+    val id = uuid("id")
+    val kind = text("kind")
+    val state = jsonb<JsonObject>("state", StorageJson)
+    val createdAt = timestampWithTimeZone("created_at")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+/** Who sits at a table: a user, or a non-user participant, by [kind] (`D051`). */
 object TableParticipantsTable : Table("table_participants") {
     val tableId = uuid("table_id")
     val seatIndex = integer("seat_index")
     val kind = text("kind")
     val userId = uuid("user_id").nullable()
+    val nonUserParticipantId = uuid("non_user_participant_id").nullable()
 
     override val primaryKey = PrimaryKey(tableId, seatIndex)
 }
@@ -132,6 +146,7 @@ object GameParticipantsTable : Table("game_participants") {
     val seatIndex = integer("seat_index")
     val kind = text("kind")
     val userId = uuid("user_id").nullable()
+    val nonUserParticipantId = uuid("non_user_participant_id").nullable()
 
     override val primaryKey = PrimaryKey(gameId, seatIndex)
 }

@@ -27,19 +27,19 @@ data class StoredSeries(
     val id: Uuid,
     val tableId: Uuid,
     /** The table's participants, in its seat order. */
-    val participants: List<Uuid>,
+    val participants: List<Participant>,
     val status: String,
     val currentGameId: Uuid?,
     val createdAt: Instant,
     val closedAt: Instant?,
     /** Where the series is in its seat rotation (`D050`), or `null` before it has one. */
-    val seatRotation: SeatCycle<Uuid>? = null,
+    val seatRotation: SeatCycle<Participant>? = null,
 ) {
     val isActive: Boolean
         get() = status == ACTIVE_SERIES
 
     /** The other player at a two-participant table, given one of them. */
-    fun opponentOf(userId: Uuid): Uuid = participants.single { it != userId }
+    fun opponentOf(userId: Uuid): Uuid = participants.userIds.single { it != userId }
 }
 
 /** Whether opening a series found one or made one. */
@@ -80,7 +80,7 @@ class GameSeriesRepository(
      */
     fun openOrCreate(
         gameType: String,
-        participants: Collection<Uuid>,
+        participants: Collection<Participant>,
     ): OpenedSeries {
         val table = tables.findOrCreate(gameType, participants)
 
@@ -91,6 +91,13 @@ class GameSeriesRepository(
                 ?: OpenedSeries(create(table), created = true)
         }
     }
+
+    /** The newest active series of the table seating exactly these users, or a new one. */
+    @JvmName("openOrCreateForUsers")
+    fun openOrCreate(
+        gameType: String,
+        users: Collection<Uuid>,
+    ): OpenedSeries = openOrCreate(gameType, users.map(Participant::user))
 
     /** Every active series at [tableId], newest first. */
     fun activeAt(tableId: Uuid): List<StoredSeries> =
@@ -186,7 +193,7 @@ class GameSeriesRepository(
     /** Records where [seriesId] is in its seat rotation, beside the game that position produced. */
     fun saveSeatRotation(
         seriesId: Uuid,
-        cycle: SeatCycle<Uuid>,
+        cycle: SeatCycle<Participant>,
     ) {
         transaction(database) {
             GameSeriesTable.update({ GameSeriesTable.id eq seriesId }) { row ->

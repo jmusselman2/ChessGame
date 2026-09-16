@@ -179,7 +179,7 @@ class TableRepositoryTest {
             val again = fixture.tables.findOrCreate(GameTypes.CHESS, listOf(alex, jordan))
 
             assertEquals(first, again)
-            assertEquals(listOf(jordan, alex).sorted(), first.participants, "seats are in id order")
+            assertEquals(listOf(jordan, alex).sorted(), first.participants.userIds, "seats are in id order")
             assertEquals(1, fixture.tableCount())
         }
     }
@@ -214,7 +214,7 @@ class TableRepositoryTest {
             assertEquals(threeOfUs.series.id, sameThree.series.id)
             assertEquals(false, sameThree.created)
             assertNotEquals(threeOfUs.series.id, twoOfUs.series.id)
-            assertEquals(listOf(a, b, c).sorted(), threeOfUs.series.participants)
+            assertEquals(listOf(a, b, c).sorted(), threeOfUs.series.participants.userIds)
         }
     }
 
@@ -259,11 +259,11 @@ class TableRepositoryTest {
                 GameRepository(fixture.database).create(
                     seriesId = series.id,
                     sequenceNumber = 1,
-                    participants = listOf(c, a, d, b),
+                    users = listOf(c, a, d, b),
                     game = ChessGame.newGame(),
                 )
 
-            assertEquals(listOf(c, a, d, b), GameRepository(fixture.database).load(game)?.participants)
+            assertEquals(listOf(c, a, d, b), GameRepository(fixture.database).load(game)?.participants?.userIds)
         }
     }
 

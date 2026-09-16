@@ -24,9 +24,6 @@ object GameTypes {
     const val CHESS: String = "CHESS"
 }
 
-/** The one participant kind that exists until `M19.7` (`D051`): a `users` row. */
-const val USER_PARTICIPANT: String = "USER"
-
 /**
  * How chess maps its two sides onto a game's seats.
  *
@@ -44,7 +41,7 @@ object ChessSeats {
 data class StoredTable(
     val id: Uuid,
     val gameType: String,
-    val participants: List<Uuid>,
+    val participants: List<Participant>,
 )
 
 /** Raised when a table is requested for a game type that is not registered. */
@@ -71,9 +68,9 @@ class TableSizeOutOfRangeException(
  * chess's 2 is a row in `game_types`, and a game type that seats 2–4 would be another row
  * (`D063`).
  *
- * Every participant is a user until `M19.7`. Seats are assigned in id order, which is the
- * canonical order of the set and carries no meaning of its own — who moves first is a
- * property of each game ([GameParticipantsTable]), not of the table.
+ * A participant is a user or a non-user participant, by kind (`D051`). Seats are assigned in
+ * ref order, which is the canonical order of the set and carries no meaning of its own — who
+ * moves first is a property of each game ([GameParticipantsTable]), not of the table.
  */
 class TableRepository(
     private val database: Database,
@@ -91,16 +88,16 @@ class TableRepository(
      */
     fun findOrCreate(
         gameType: String,
-        participants: Collection<Uuid>,
+        participants: Collection<Participant>,
     ): StoredTable {
-        require(participants.toSet().size == participants.size) { "A table seats each participant once" }
+        require(participants.map { it.ref }.toSet().size == participants.size) { "A table seats each participant once" }
 
         val allowed = participantRange(gameType) ?: throw UnknownGameTypeException(gameType)
         if (participants.size !in allowed) {
             throw TableSizeOutOfRangeException(gameType, participants.size, allowed)
         }
 
-        val seats = participants.sorted()
+        val seats = participants.sortedBy { it.ref }
         val key = participantSetOf(seats)
 
         find(gameType, key)?.let { return it }
@@ -112,6 +109,13 @@ class TableRepository(
             requireNotNull(find(gameType, key)) { "The table vanished after a conflict" }
         }
     }
+
+    /** The table of [gameType] seating exactly these users: the case every table so far is. */
+    @JvmName("findOrCreateForUsers")
+    fun findOrCreate(
+        gameType: String,
+        users: Collection<Uuid>,
+    ): StoredTable = findOrCreate(gameType, users.map(Participant::user))
 
     /** How many participants a table of [gameType] seats, or `null` if it is not registered. */
     fun participantRange(gameType: String): IntRange? =
@@ -181,7 +185,7 @@ class TableRepository(
     private fun insert(
         gameType: String,
         key: String,
-        seats: List<Uuid>,
+        seats: List<Participant>,
     ): StoredTable {
         val id = Uuid.random()
 
@@ -192,12 +196,13 @@ class TableRepository(
             row[TablesTable.createdAt] = Instant.now().atOffset(ZoneOffset.UTC)
         }
 
-        seats.forEachIndexed { seat, userId ->
+        seats.forEachIndexed { seat, participant ->
             TableParticipantsTable.insert { row ->
                 row[TableParticipantsTable.tableId] = id
                 row[TableParticipantsTable.seatIndex] = seat
-                row[TableParticipantsTable.kind] = USER_PARTICIPANT
-                row[TableParticipantsTable.userId] = userId
+                row[TableParticipantsTable.kind] = participant.kind.name
+                row[TableParticipantsTable.userId] = participant.userId
+                row[TableParticipantsTable.nonUserParticipantId] = participant.ref.takeIf { participant.userId == null }
             }
         }
 
@@ -206,14 +211,15 @@ class TableRepository(
 
     companion object {
         /**
-         * The canonical form of a participant set: each participant as `KIND:ref`, in id order,
+         * The canonical form of a participant set: each participant as `KIND:ref`, in ref order,
          * comma-joined.
          *
          * `V5__tables_and_participants.sql` computes the same string for the pairs it carries
          * over, so a table made by the migration and one made here for the same people are the
          * same table.
          */
-        fun participantSetOf(participants: Collection<Uuid>): String = participants.sorted().joinToString(",") { "$USER_PARTICIPANT:$it" }
+        fun participantSetOf(participants: Collection<Participant>): String =
+            participants.sortedBy { it.ref }.joinToString(",") { it.toString() }
     }
 }
 
@@ -222,7 +228,7 @@ class TableRepository(
  *
  * One query however many tables are asked about. Must be called inside a transaction.
  */
-fun participantsOfTables(tableIds: Collection<Uuid>): Map<Uuid, List<Uuid>> {
+fun participantsOfTables(tableIds: Collection<Uuid>): Map<Uuid, List<Participant>> {
     if (tableIds.isEmpty()) return emptyMap()
 
     return TableParticipantsTable
@@ -230,7 +236,11 @@ fun participantsOfTables(tableIds: Collection<Uuid>): Map<Uuid, List<Uuid>> {
         .where { TableParticipantsTable.tableId inList tableIds }
         .orderBy(TableParticipantsTable.seatIndex to SortOrder.ASC)
         .groupBy({ it[TableParticipantsTable.tableId] }) { row ->
-            requireNotNull(row[TableParticipantsTable.userId]) { "Every table participant is a user until M19.7" }
+            participantOf(
+                kind = row[TableParticipantsTable.kind],
+                userId = row[TableParticipantsTable.userId],
+                nonUserId = row[TableParticipantsTable.nonUserParticipantId],
+            )
         }
 }
 
@@ -245,7 +255,7 @@ fun tablesSeating(userId: Uuid): Query =
  *
  * One query however many games are asked about. Must be called inside a transaction.
  */
-fun participantsOfGames(gameIds: Collection<Uuid>): Map<Uuid, List<Uuid>> {
+fun participantsOfGames(gameIds: Collection<Uuid>): Map<Uuid, List<Participant>> {
     if (gameIds.isEmpty()) return emptyMap()
 
     return GameParticipantsTable
@@ -253,6 +263,22 @@ fun participantsOfGames(gameIds: Collection<Uuid>): Map<Uuid, List<Uuid>> {
         .where { GameParticipantsTable.gameId inList gameIds }
         .orderBy(GameParticipantsTable.seatIndex to SortOrder.ASC)
         .groupBy({ it[GameParticipantsTable.gameId] }) { row ->
-            requireNotNull(row[GameParticipantsTable.userId]) { "Every game participant is a user until M19.7" }
+            participantOf(
+                kind = row[GameParticipantsTable.kind],
+                userId = row[GameParticipantsTable.userId],
+                nonUserId = row[GameParticipantsTable.nonUserParticipantId],
+            )
         }
+}
+
+/** A stored seat as a [Participant]; the schema guarantees exactly the right reference is set. */
+private fun participantOf(
+    kind: String,
+    userId: Uuid?,
+    nonUserId: Uuid?,
+): Participant {
+    val participantKind = ParticipantKind.valueOf(kind)
+    val ref = if (participantKind == ParticipantKind.USER) userId else nonUserId
+
+    return Participant(participantKind, requireNotNull(ref) { "A $kind seat names nobody" })
 }

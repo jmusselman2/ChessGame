@@ -48,7 +48,7 @@ class M10AdversarialTest {
                 games.create(
                     seriesId = series.id,
                     sequenceNumber = 1,
-                    participants = listOf(white, black),
+                    users = listOf(white, black),
                     game = initial,
                 )
             val played = ChessRules.applyMove(initial, Move(Square.parse("e2"), Square.parse("e4")))

@@ -71,8 +71,9 @@ class DashboardQueries(
             val tableParticipants = participantsOfTables(rows.map { it[GameSeriesTable.tableId] }.toSet())
             val gameSeats = participantsOfGames(rows.mapNotNull { it.getOrNull(GamesTable.id) }.toSet())
 
-            // A chess table seats two, so the opponent is whoever else is at it.
-            fun opponentIdOf(tableId: Uuid): Uuid? = tableParticipants[tableId].orEmpty().singleOrNull { it != userId }
+            // A chess table seats two, so the opponent is the other person at it. Only people are
+            // opponents on a dashboard: a participant that is not a user is never listed (`D051`).
+            fun opponentIdOf(tableId: Uuid): Uuid? = tableParticipants[tableId].orEmpty().userIds.singleOrNull { it != userId }
 
             val opponentIds = rows.mapNotNull { opponentIdOf(it[GameSeriesTable.tableId]) }.toSet()
 
@@ -101,7 +102,7 @@ class DashboardQueries(
                     gameVersion = gameId?.let { row[GamesTable.version] },
                     yourSide =
                         gameId?.let {
-                            ChessSeats.sideOf(gameSeats[gameId].orEmpty().indexOf(userId)).name
+                            ChessSeats.sideOf(gameSeats[gameId].orEmpty().indexOfFirst { it.userId == userId }).name
                         },
                     sideToMove = gameId?.let { row[GamesTable.sideToMove] },
                     fullmoveNumber = gameId?.let { row[GamesTable.state].fullmoveNumber },

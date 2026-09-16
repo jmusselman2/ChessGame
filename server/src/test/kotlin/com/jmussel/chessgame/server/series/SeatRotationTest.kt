@@ -1,10 +1,16 @@
+@file:OptIn(ExperimentalUuidApi::class)
+
 package com.jmussel.chessgame.server.series
 
+import com.jmussel.chessgame.server.db.Participant
+import com.jmussel.chessgame.server.db.ParticipantKind
 import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /**
  * `D050`'s required property test: seat rotation by cycle, over N ∈ {2, 3, 4}.
@@ -124,6 +130,38 @@ class SeatRotationTest {
                     cycle = SeatRotation.next(cycle, random)
                 }
             }
+        }
+    }
+
+    /**
+     * `M19.7`: rotation filters on participant kind (`D051`). People and computer players rotate;
+     * a scripted participant is filtered out before the rotation and appended as the last turn.
+     */
+    @Test
+    fun rotationFiltersOnParticipantKind() {
+        val ana = Participant.user(Uuid.random())
+        val ben = Participant.user(Uuid.random())
+        val computer = Participant(ParticipantKind.COMPUTER, Uuid.random())
+        val scripted = Participant(ParticipantKind.SCRIPTED, Uuid.random())
+        val seats = listOf(ana, scripted, computer, ben)
+
+        assertEquals(listOf(ana, computer, ben), seats.rotating())
+        assertEquals(listOf(scripted), seats.finalTurn())
+
+        for (seed in seeds) {
+            val random = Random(seed)
+            var cycle = SeatRotation.firstCycle(seats.rotating(), random)
+            val firsts = mutableListOf<Participant>()
+
+            repeat(3 * 4) {
+                assertFalse(scripted in cycle.baseOrder, "seed=$seed: the scripted participant never rotates")
+                val order = SeatRotation.turnOrder(cycle, finalTurn = seats.finalTurn())
+                assertEquals(scripted, order.last(), "seed=$seed: and always moves last")
+                firsts += order.first()
+                cycle = SeatRotation.next(cycle, random)
+            }
+
+            assertEquals(setOf(ana, computer, ben), firsts.toSet(), "seed=$seed: the computer player rotates like a person")
         }
     }
 

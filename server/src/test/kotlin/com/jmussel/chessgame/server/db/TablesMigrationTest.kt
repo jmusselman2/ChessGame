@@ -116,7 +116,7 @@ class TablesMigrationTest {
             val other = requireNotNull(series.find(otherSeries))
             assertEquals(closed.tableId, active.tableId, "one pair, one table")
             assertNotEquals(active.tableId, other.tableId)
-            assertEquals(listOf(jaLow, jaHigh), active.participants, "the pair's stored order is the seat order")
+            assertEquals(listOf(jaLow, jaHigh), active.participants.userIds, "the pair's stored order is the seat order")
             assertEquals(CLOSED_SERIES, closed.status)
             assertEquals(running, active.currentGameId)
 

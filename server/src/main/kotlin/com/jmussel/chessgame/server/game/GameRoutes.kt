@@ -14,6 +14,7 @@ import com.jmussel.chessgame.server.auth.authenticatedUser
 import com.jmussel.chessgame.server.commandLogLine
 import com.jmussel.chessgame.server.db.StoredGame
 import com.jmussel.chessgame.server.db.UserRepository
+import com.jmussel.chessgame.server.db.userIds
 import com.jmussel.chessgame.server.realtime.RealtimeHub
 import com.jmussel.chessgame.server.realtime.RealtimeMessage
 import io.ktor.http.HttpStatusCode
@@ -345,7 +346,7 @@ private suspend fun RealtimeHub.announce(result: CommandResult) {
     val game = result.game
 
     publish(
-        userIds = game.participants,
+        userIds = game.participants.userIds,
         message = RealtimeMessage.gameUpdated(game.id, game.version),
     )
 }

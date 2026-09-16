@@ -303,7 +303,7 @@ class EngagementTimestampTest {
             GameRepository(database).create(
                 seriesId = series.id,
                 sequenceNumber = 1,
-                participants = listOf(white, black),
+                users = listOf(white, black),
                 game = ChessGame.newGame(),
             )
 

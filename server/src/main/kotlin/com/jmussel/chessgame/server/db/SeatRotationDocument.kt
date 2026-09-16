@@ -5,7 +5,6 @@ package com.jmussel.chessgame.server.db
 import com.jmussel.chessgame.server.series.SeatCycle
 import kotlinx.serialization.Serializable
 import kotlin.uuid.ExperimentalUuidApi
-import kotlin.uuid.Uuid
 
 /**
  * How a series' place in its seat rotation is stored (`D050`).
@@ -14,6 +13,9 @@ import kotlin.uuid.Uuid
  * about JSON. [cycleLength] is stored rather than only implied by the base order, because it
  * is one of the facts `D050` requires be persisted, and a document that disagrees with itself
  * is refused on the way back in.
+ *
+ * Each participant is stored as `KIND:ref` (`D051`), so a scripted participant that never
+ * rotates can be told from one that does; an entry with no kind is a user.
  */
 @Serializable
 data class SeatRotationDocument(
@@ -22,23 +24,23 @@ data class SeatRotationDocument(
     val gameInCycle: Int,
     val previousBaseOrder: List<String>? = null,
 ) {
-    fun toCycle(): SeatCycle<Uuid> {
+    fun toCycle(): SeatCycle<Participant> {
         check(cycleLength == baseOrder.size) { "A stored cycle of $cycleLength has a base order of ${baseOrder.size}" }
 
         return SeatCycle(
-            baseOrder = baseOrder.map(Uuid::parse),
+            baseOrder = baseOrder.map(Participant::parse),
             gameInCycle = gameInCycle,
-            previousBaseOrder = previousBaseOrder?.map(Uuid::parse),
+            previousBaseOrder = previousBaseOrder?.map(Participant::parse),
         )
     }
 
     companion object {
-        fun of(cycle: SeatCycle<Uuid>): SeatRotationDocument =
+        fun of(cycle: SeatCycle<Participant>): SeatRotationDocument =
             SeatRotationDocument(
                 cycleLength = cycle.cycleLength,
-                baseOrder = cycle.baseOrder.map(Uuid::toString),
+                baseOrder = cycle.baseOrder.map(Participant::toString),
                 gameInCycle = cycle.gameInCycle,
-                previousBaseOrder = cycle.previousBaseOrder?.map(Uuid::toString),
+                previousBaseOrder = cycle.previousBaseOrder?.map(Participant::toString),
             )
     }
 }

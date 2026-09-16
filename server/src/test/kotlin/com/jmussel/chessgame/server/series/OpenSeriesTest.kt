@@ -162,7 +162,7 @@ class OpenSeriesTest {
 
             val series = fixture.series.openOrCreate(GameTypes.CHESS, listOf(alex, jordan)).series
 
-            assertTrue(series.participants[0] < series.participants[1])
+            assertTrue(series.participants[0].ref < series.participants[1].ref)
         }
     }
 

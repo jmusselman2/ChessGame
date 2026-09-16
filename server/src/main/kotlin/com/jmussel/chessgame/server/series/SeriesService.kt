@@ -6,6 +6,7 @@ import com.jmussel.chessgame.core.chess.ChessGame
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.db.GameTypes
+import com.jmussel.chessgame.server.db.Participant
 import com.jmussel.chessgame.server.db.StoredGame
 import com.jmussel.chessgame.server.db.StoredSeries
 import com.jmussel.chessgame.server.db.TableRepository
@@ -69,7 +70,7 @@ class SeriesService(
         friend: Uuid,
         startAnother: Boolean = false,
     ): PlayOutcome {
-        val table = tables.findOrCreate(GameTypes.CHESS, listOf(caller, friend))
+        val table = tables.findOrCreate(GameTypes.CHESS, listOf(Participant.user(caller), Participant.user(friend)))
 
         return transaction(database) {
             tables.lockForUpdate(table.id)
@@ -119,14 +120,14 @@ class SeriesService(
         // two rotating participants, so each game reverses the last one's colours (`D014`):
         // whoever had Black plays White in the rematch. A series from before the rotation was
         // recorded picks it up from the game that just ended, which gives the same reversal.
-        val played = series.seatRotation ?: SeatCycle(baseOrder = finished.participants)
+        val played = series.seatRotation ?: SeatCycle(baseOrder = finished.participants.rotating())
         val rotation = SeatRotation.next(played, random)
 
         val gameId =
             games.create(
                 seriesId = series.id,
                 sequenceNumber = finished.sequenceNumber + 1,
-                participants = SeatRotation.turnOrder(rotation),
+                participants = SeatRotation.turnOrder(rotation, finalTurn = series.participants.finalTurn()),
                 game = ChessGame.newGame(),
             )
 
@@ -153,13 +154,13 @@ class SeriesService(
      * for White (`D014`). Seat order is turn order, so whoever the draw puts first plays White.
      */
     private fun startFirstGame(series: StoredSeries): StoredSeries {
-        val rotation = SeatRotation.firstCycle(series.participants, random)
+        val rotation = SeatRotation.firstCycle(series.participants.rotating(), random)
 
         val gameId =
             games.create(
                 seriesId = series.id,
                 sequenceNumber = FIRST_GAME,
-                participants = SeatRotation.turnOrder(rotation),
+                participants = SeatRotation.turnOrder(rotation, finalTurn = series.participants.finalTurn()),
                 game = ChessGame.newGame(),
             )
 

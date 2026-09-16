@@ -5125,7 +5125,7 @@ the colour and series regressions, and `.\gradlew.bat build`.
 
 ## M19.7 — Non-user participant kind
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M19.3
 
@@ -5144,6 +5144,63 @@ work.
   or username uniqueness.
 - Seat rotation (`M19.6`) filters on kind.
 - The chess-level participant type carries no deck/market/hand vocabulary.
+
+### Completion Note — 2026-09-16
+
+`V9__non_user_participants.sql`, `Participant` / `ParticipantKind`,
+`NonUserParticipantRepository`, and every seat read and written as a kind plus a
+reference. The representation is recorded in
+[`D067`](DECISIONS.md#d067--participant-kinds-are-named-for-what-the-platform-does-with-them-user-computer-scripted).
+No game type, rules, or deck-builder vocabulary was added, so this was not
+`M19.1`'s trigger.
+
+**The shape.** A seat (`table_participants`, `game_participants`) references
+`users.id` when its kind is `USER`, and `non_user_participants.id` otherwise.
+Check constraints make it exactly one of the two. A composite
+`(non_user_participant_id, kind)` reference keeps a seat from claiming a kind its
+participant does not have. `non_user_participants` holds an id, a kind (`COMPUTER`
+or `SCRIPTED`), and an opaque `state jsonb` for the per-instance state `D051`
+requires. The platform stores that state and never reads it.
+
+**Kinds are named by what the platform does with them.** `COMPUTER` rotates,
+like `D051`'s AI player. `SCRIPTED` never rotates and always moves last, like
+`D051`'s Enemy Lord. Naming them after the deck-builder's characters would have
+put deck-builder vocabulary into the chess-level participant type, which the last
+criterion rules out.
+
+**Never a person anywhere a person is shown.** Everything person-shaped reads
+`Participant.userId` / `userIds`: the dashboard's and history's opponent,
+realtime recipients, `StoredSeries.opponentOf`, and chess's White and Black.
+`aNonUserParticipantIsNeverAPerson` seats two users, a `SCRIPTED` participant and
+a `COMPUTER` participant at one table with a live game. It then checks that no
+`users` row was created (so no username or `last_seen_at`), that neither can be
+found as a user, that the friends list is unchanged, and that the only dashboard
+opponent is the other person.
+
+**Rotation filters on kind.** `rotating()` and `finalTurn()` split the seats
+before and after `SeatRotation`. `SeriesService` rotates the rest and seats
+scripted participants last. `SeatRotationTest.rotationFiltersOnParticipantKind`
+runs 25 seeds of a table with two people, a computer player and a scripted
+participant: the scripted participant is never in a base order and always moves
+last, and the computer player takes first turns like a person.
+
+**Schema and storage tests (`NonUserParticipantTest`, 6):** a mixed table has the
+same identity whichever order it is named in, and every seat comes back as its
+kind. A game seats a mixed turn order. Six malformed seats are refused (a wrong
+reference for the kind, both references, a mismatched kind, a non-user
+participant of kind `USER`, a second seat for the same participant). Non-user state
+survives a reload, and a person cannot be created as a non-user participant.
+
+**Existing tests** changed only accessors. Where they compared seats with user
+ids they read `.userIds`, and the named `participants =` arguments of user-only
+fixtures became `users =`. A `@JvmName` overload keeps the all-users form of
+`TableRepository.findOrCreate`, `GameSeriesRepository.openOrCreate` and
+`GameRepository.create`, because every table so far is all users. Stored rotations
+now write `KIND:ref`, and a bare id still reads as a user.
+
+Verified with `.\gradlew.bat :server:test` (539 tests) and `.\gradlew.bat build`.
+
+---
 
 ## M19.8 — Resignation, series exit, and continue-among-remainder for N participants
 
