@@ -23,8 +23,12 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 /**
- * A series' lifecycle: active, marked to close after its current game, then closed — each
- * step safe to repeat.
+ * A series' lifecycle: active, then closed, each step safe to repeat.
+ *
+ * Until `M19.5` there was a step between the two: marked to close after the current game,
+ * which removing a friend set (`D013`). `D053` superseded that, and the mark and the tests of
+ * it went with it. A series now ends only by being closed — which `M19.8` makes a player's
+ * explicit action — and removing a friend leaves it active.
  *
  * Skipped when this machine has no test database (see [DatabaseTestSupport]).
  */
@@ -66,39 +70,13 @@ class SeriesLifecycleTest {
         }
 
     @Test
-    fun aNewSeriesIsActiveAndNotClosing() {
+    fun aNewSeriesIsActive() {
         withFixture { fixture ->
             val series = assertNotNull(fixture.series.find(fixture.openSeries()))
 
             assertEquals(ACTIVE_SERIES, series.status)
             assertTrue(series.isActive)
-            assertFalse(series.closeAfterCurrentGame)
             assertNull(series.closedAt)
-        }
-    }
-
-    @Test
-    fun aSeriesCanBeMarkedToCloseAfterItsCurrentGame() {
-        withFixture { fixture ->
-            val id = fixture.openSeries()
-
-            assertTrue(fixture.series.markCloseAfterCurrentGame(id))
-
-            val series = assertNotNull(fixture.series.find(id))
-
-            assertTrue(series.closeAfterCurrentGame)
-            assertEquals(ACTIVE_SERIES, series.status, "it stays active until the game ends")
-        }
-    }
-
-    @Test
-    fun markingTwiceChangesNothing() {
-        withFixture { fixture ->
-            val id = fixture.openSeries()
-            fixture.series.markCloseAfterCurrentGame(id)
-
-            assertFalse(fixture.series.markCloseAfterCurrentGame(id), "already marked")
-            assertTrue(assertNotNull(fixture.series.find(id)).closeAfterCurrentGame)
         }
     }
 
@@ -131,50 +109,6 @@ class SeriesLifecycleTest {
     }
 
     @Test
-    fun aMarkedSeriesClosesWhenAsked() {
-        withFixture { fixture ->
-            val id = fixture.openSeries()
-            fixture.series.markCloseAfterCurrentGame(id)
-
-            assertTrue(fixture.series.closeIfMarked(id))
-            assertEquals(CLOSED_SERIES, assertNotNull(fixture.series.find(id)).status)
-        }
-    }
-
-    @Test
-    fun anUnmarkedSeriesStaysActive() {
-        withFixture { fixture ->
-            val id = fixture.openSeries()
-
-            assertFalse(fixture.series.closeIfMarked(id), "this series still wants its rematch")
-            assertEquals(ACTIVE_SERIES, assertNotNull(fixture.series.find(id)).status)
-        }
-    }
-
-    @Test
-    fun closingAMarkedSeriesTwiceIsSafe() {
-        withFixture { fixture ->
-            val id = fixture.openSeries()
-            fixture.series.markCloseAfterCurrentGame(id)
-            val at = Instant.parse("2026-08-26T12:00:00Z")
-            fixture.series.closeIfMarked(id, at)
-
-            assertFalse(fixture.series.closeIfMarked(id, Instant.parse("2026-08-26T14:00:00Z")))
-            assertEquals(at, assertNotNull(fixture.series.find(id)).closedAt)
-        }
-    }
-
-    @Test
-    fun aClosedSeriesCannotBeMarkedAgain() {
-        withFixture { fixture ->
-            val id = fixture.openSeries()
-            fixture.series.close(id)
-
-            assertFalse(fixture.series.markCloseAfterCurrentGame(id))
-        }
-    }
-
-    @Test
     fun aClosedSeriesIsNoLongerTheActiveOne() {
         withFixture { fixture ->
             val jordan = fixture.named("auth-1", "Jordan")
@@ -193,7 +127,7 @@ class SeriesLifecycleTest {
     }
 
     @Test
-    fun removingAFriendMarksTheSeriesTheSameWay() {
+    fun removingAFriendLeavesTheSeriesActive() {
         withFixture { fixture ->
             val jordan = fixture.named("auth-1", "Jordan")
             val alex = fixture.named("auth-2", "Alex")
@@ -205,16 +139,17 @@ class SeriesLifecycleTest {
 
             fixture.friendships.remove(jordan, alex)
 
-            assertTrue(assertNotNull(fixture.series.find(id)).closeAfterCurrentGame)
-            assertTrue(fixture.series.closeIfMarked(id))
+            // Until `M19.5` this asserted the series was marked to close (`D013`). `D053`
+            // superseded that: unfriending affects the friends list only.
+            val series = assertNotNull(fixture.series.find(id))
+            assertEquals(ACTIVE_SERIES, series.status)
+            assertNull(series.closedAt)
         }
     }
 
     @Test
-    fun markingAnUnknownSeriesDoesNothing() {
+    fun closingAnUnknownSeriesDoesNothing() {
         withFixture { fixture ->
-            assertFalse(fixture.series.markCloseAfterCurrentGame(Uuid.random()))
-            assertFalse(fixture.series.closeIfMarked(Uuid.random()))
             assertFalse(fixture.series.close(Uuid.random()))
         }
     }

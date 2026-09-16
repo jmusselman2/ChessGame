@@ -566,7 +566,6 @@ GameSeries
 - currentGameId
 - status
 - automaticRematch
-- closeAfterCurrentGame
 - createdAt
 - updatedAt
 ```
@@ -601,22 +600,21 @@ For MVP:
 
 ## 17. Friend Removal and Series Lifecycle
 
-When a friendship is removed:
+Removing a friend affects the friends list only (`D053`, superseding `D013`):
 
-1. delete/deactivate the friendship relationship,
-2. retain all game history,
-3. if an active series exists, set it to close after the current game,
-4. do not terminate the current game,
-5. suppress creation of the next automatic rematch,
-6. when the current game ends, set the series to `CLOSED`.
+1. the friendship row is deactivated rather than deleted, so it stays in history,
+2. no series is closed, marked, or otherwise written,
+3. no game is touched, and automatic rematches carry on.
 
-The close transition must be idempotent.
+A series persists independently of the friend graph. Friendship matters only when
+Play is first offered (`D046`, `D048`). A series ends only when it is closed, and
+closing becomes a participant's explicit action in `M19.8` (`D052`). A closed series
+lets its current game finish, gets no rematch, and stays readable as history
+(`D012`). Closing is idempotent.
 
-If the friendship is restored later, a new active series may be created.
-
-This covers the series that exists when the removal runs. A series created
-concurrently with a removal is not marked, and is deliberately left open
-(`D046`).
+Until `M19.5`, removal marked the pair's active series to close after its current
+game (`game_series.close_after_current_game`). `V7` dropped that column along with
+the code that wrote and read it.
 
 ## 18. Game Model
 

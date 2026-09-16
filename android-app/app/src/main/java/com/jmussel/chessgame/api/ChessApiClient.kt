@@ -125,7 +125,6 @@ data class DashboardEntryDto(
     val sideToMove: String? = null,
     val moveNumber: Int? = null,
     val yourTurn: Boolean = false,
-    val closeAfterCurrentGame: Boolean = false,
 )
 
 /** A series as the server describes it to one of its two players. */
@@ -134,7 +133,6 @@ data class SeriesSummaryDto(
     val seriesId: String,
     val opponent: UserSummaryDto,
     val status: String,
-    val closeAfterCurrentGame: Boolean = false,
     val currentGameId: String? = null,
 )
 
@@ -322,10 +320,9 @@ class ChessApiClient(
     suspend fun addFriend(username: String): String = post("/friends", username)
 
     /**
-     * Stops being friends with [username], and says what that did.
+     * Stops being friends with [username], and returns the server's sentence about it.
      *
-     * The game under way is not cancelled: it finishes and the series closes after it
-     * (`D013`), which is what the returned sentence says.
+     * Only the friends list changes: every series and game with them carries on (`D053`).
      */
     suspend fun removeFriend(username: String): String = delete("/friends/$username")
 

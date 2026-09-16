@@ -31,6 +31,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -72,7 +73,6 @@ class RemoveFriendTest {
                     row[GameSeriesTable.id] = id
                     row[GameSeriesTable.tableId] = TableRepository(database).findOrCreate(GameTypes.CHESS, listOf(lower, higher)).id
                     row[GameSeriesTable.status] = "ACTIVE"
-                    row[GameSeriesTable.closeAfterCurrentGame] = false
                     row[GameSeriesTable.createdAt] = Instant.now().atOffset(ZoneOffset.UTC)
                 }
             }
@@ -84,7 +84,7 @@ class RemoveFriendTest {
                 GameSeriesTable.selectAll().where { GameSeriesTable.id eq id }.single()
             }
 
-        fun closesAfterCurrentGame(id: Uuid): Boolean = seriesRow(id)[GameSeriesTable.closeAfterCurrentGame]
+        fun seriesClosedAt(id: Uuid) = seriesRow(id)[GameSeriesTable.closedAt]
 
         fun seriesStatus(id: Uuid): String = seriesRow(id)[GameSeriesTable.status]
     }
@@ -162,20 +162,20 @@ class RemoveFriendTest {
     }
 
     @Test
-    fun theActiveSeriesIsMarkedToCloseAfterItsCurrentGame() {
+    fun theActiveSeriesIsLeftRunning() {
         withFriends { fixture ->
             val jordan = fixture.named("auth-1", "Jordan")
             val alex = fixture.named("auth-2", "Alex")
             fixture.friendships.add(jordan, alex)
             val series = fixture.activeSeries(jordan, alex)
 
-            assertFalse(fixture.closesAfterCurrentGame(series))
+            assertEquals(RemoveFriendResult.Removed, fixture.friendships.remove(jordan, alex))
 
-            val result = fixture.friendships.remove(jordan, alex) as RemoveFriendResult.Removed
-
-            assertTrue(result.seriesMarkedToClose)
-            assertTrue(fixture.closesAfterCurrentGame(series))
-            assertEquals("ACTIVE", fixture.seriesStatus(series), "the series stays active until the game ends")
+            // Until `M19.5` the removal marked this series to close after its current game
+            // (`D013`). `D053` superseded that: removing a friend affects the friends list
+            // only, and the series carries on with its rematches.
+            assertEquals("ACTIVE", fixture.seriesStatus(series))
+            assertNull(fixture.seriesClosedAt(series))
         }
     }
 
@@ -211,8 +211,9 @@ class RemoveFriendTest {
 
             fixture.friendships.remove(jordan, alex)
 
-            assertTrue(fixture.closesAfterCurrentGame(withAlex))
-            assertFalse(fixture.closesAfterCurrentGame(withSam))
+            assertEquals("ACTIVE", fixture.seriesStatus(withAlex))
+            assertEquals("ACTIVE", fixture.seriesStatus(withSam))
+            assertTrue(fixture.friendships.areFriends(jordan, sam), "only the one friendship ended")
         }
     }
 

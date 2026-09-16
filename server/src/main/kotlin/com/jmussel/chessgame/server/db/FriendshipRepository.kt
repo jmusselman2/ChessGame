@@ -6,13 +6,11 @@ import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inSubQuery
 import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -52,16 +50,10 @@ const val ACTIVE_SERIES: String = "ACTIVE"
 /** What happened to a remove-friend request. */
 sealed interface RemoveFriendResult {
     /**
-     * The friendship is over.
-     *
-     * [seriesMarkedToClose] reports what this removal *did*: whether it found an active
-     * series for the pair and marked it to close after its current game. It is not a
-     * promise about the future. Series creation does not consult the friendship (`D046`),
-     * so one committing alongside this removal was invisible to it and is left open.
+     * The friendship is over, and nothing else changed: every series and game the pair has
+     * carries on (`D053`, superseding `D013`).
      */
-    data class Removed(
-        val seriesMarkedToClose: Boolean,
-    ) : RemoveFriendResult
+    data object Removed : RemoveFriendResult
 
     /** They were not friends to begin with. */
     data object NotFriends : RemoveFriendResult
@@ -152,22 +144,12 @@ class FriendshipRepository(
         }
 
     /**
-     * Removes the friendship between [first] and [second] and marks their active series to
-     * close after its current game.
+     * Removes the friendship between [first] and [second].
      *
-     * Both happen in one transaction, so the removal and the mark land together or not at
-     * all: the friendship cannot end while the series it could see keeps making rematches.
-     * That is a statement about the series this removal *read*. Since `D046`, creating a
-     * series does not consult the friendship, so one committing concurrently with this
-     * transaction is not seen, not marked, and deliberately left open — the pair may end up
-     * un-friended with a live series, and that is accepted rather than defended against.
-     *
-     * A pair may have several active series (`D053`); every one this transaction can see is
-     * marked. `M19.5` removes this lifecycle altogether.
-     *
-     * Nothing is deleted and no game is touched: the row stays for history, the current
-     * game plays on, and only the *next* automatic rematch is disabled (`D013`). The
-     * series' own transition to `CLOSED` happens when that game ends.
+     * The friends list is all it affects (`D053`, superseding `D013`). It does not close,
+     * mark, or otherwise touch any series or game the pair has: those persist independently
+     * of the friend graph, and a series ends only when a participant leaves it (`D052`). The
+     * row is deactivated rather than deleted, so the friendship stays in history.
      */
     fun remove(
         first: Uuid,
@@ -194,23 +176,7 @@ class FriendshipRepository(
                 return@transaction RemoveFriendResult.NotFriends
             }
 
-            // The pair's table is the one whose exact participant set is these two (`D048`).
-            val pairTables =
-                TablesTable
-                    .select(TablesTable.id)
-                    .where { TablesTable.participantSet eq TableRepository.participantSetOf(listOf(lower, higher)) }
-
-            val seriesClosing =
-                GameSeriesTable.update(
-                    {
-                        (GameSeriesTable.tableId inSubQuery pairTables) and
-                            (GameSeriesTable.status eq ACTIVE_SERIES)
-                    },
-                ) { row ->
-                    row[GameSeriesTable.closeAfterCurrentGame] = true
-                }
-
-            RemoveFriendResult.Removed(seriesMarkedToClose = seriesClosing > 0)
+            RemoveFriendResult.Removed
         }
     }
 

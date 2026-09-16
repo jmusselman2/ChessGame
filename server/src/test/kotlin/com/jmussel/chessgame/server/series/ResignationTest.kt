@@ -22,8 +22,8 @@ import kotlin.uuid.ExperimentalUuidApi
  *
  * A resignation ends the game like any other terminal result: it is final once accepted
  * (`D018`), it finalizes the game exactly once (`M13.1`), and the series then follows the
- * same fork as after a normal finish — the automatic rematch while it is active (`D015`),
- * the end of it when it was marked to close (`D013`).
+ * same outcome as after a normal finish — the automatic rematch while it is active (`D015`),
+ * and nothing once it has been closed.
  *
  * Skipped when this machine has no test database (see [DatabaseTestSupport]).
  */
@@ -148,15 +148,18 @@ class ResignationTest {
     }
 
     @Test
-    fun aClosingSeriesEndsInstead() {
+    fun aClosedSeriesEndsInstead() {
         withSeries { fixture ->
-            fixture.seriesRepository.markCloseAfterCurrentGame(fixture.seriesId)
+            // Until `M19.5` the series here was marked to close after this game, which removing
+            // a friend did (`D013`, superseded by `D053`). A closed series is what still gets no
+            // rematch.
+            fixture.seriesRepository.close(fixture.seriesId)
 
             fixture.commands.resign(fixture.white, fixture.firstGameId, 0)
 
             assertEquals(CLOSED_SERIES, fixture.series().status)
             assertEquals(1, fixture.gamesInSeries().size, "no game follows the last one")
-            assertEquals(1, fixture.events(SeriesService.SERIES_CLOSED).size)
+            assertTrue(fixture.events(SeriesService.REMATCH_CREATED).isEmpty())
         }
     }
 

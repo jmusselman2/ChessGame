@@ -66,7 +66,6 @@ class GameRepositoryTest {
                     row[GameSeriesTable.id] = series
                     row[GameSeriesTable.tableId] = TableRepository(database).findOrCreate(GameTypes.CHESS, listOf(lower, higher)).id
                     row[GameSeriesTable.status] = "ACTIVE"
-                    row[GameSeriesTable.closeAfterCurrentGame] = false
                     row[GameSeriesTable.createdAt] = now
                 }
             }

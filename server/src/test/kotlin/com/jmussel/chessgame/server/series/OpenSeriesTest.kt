@@ -123,7 +123,6 @@ class OpenSeriesTest {
 
             assertTrue(opened.created)
             assertTrue(opened.series.isActive)
-            assertFalse(opened.series.closeAfterCurrentGame)
             assertNull(opened.series.currentGameId, "the first game is created separately")
             assertEquals(alex, opened.series.opponentOf(jordan))
         }
@@ -265,7 +264,6 @@ class OpenSeriesTest {
 
             assertEquals("Alex", summary.opponent.username)
             assertEquals(ACTIVE_SERIES, summary.status)
-            assertFalse(summary.closeAfterCurrentGame)
             assertNotNull(summary.currentGameId, "opening a series starts its first game (M9.2)")
         }
     }

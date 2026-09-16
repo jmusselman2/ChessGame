@@ -28,7 +28,6 @@ data class StoredSeries(
     /** The table's participants, in its seat order. */
     val participants: List<Uuid>,
     val status: String,
-    val closeAfterCurrentGame: Boolean,
     val currentGameId: Uuid?,
     val createdAt: Instant,
     val closedAt: Instant?,
@@ -115,7 +114,6 @@ class GameSeriesRepository(
                 row[GameSeriesTable.id] = id
                 row[GameSeriesTable.tableId] = table.id
                 row[GameSeriesTable.status] = ACTIVE_SERIES
-                row[GameSeriesTable.closeAfterCurrentGame] = false
                 row[GameSeriesTable.createdAt] = now.atOffset(ZoneOffset.UTC)
             }
 
@@ -124,30 +122,10 @@ class GameSeriesRepository(
                 tableId = table.id,
                 participants = table.participants,
                 status = ACTIVE_SERIES,
-                closeAfterCurrentGame = false,
                 currentGameId = null,
                 createdAt = now,
                 closedAt = null,
             )
-        }
-
-    /**
-     * Marks [seriesId] to close once its current game finishes.
-     *
-     * Idempotent: marking a series that is already marked, or one that is already closed,
-     * changes nothing and reports `false`.
-     */
-    fun markCloseAfterCurrentGame(seriesId: Uuid): Boolean =
-        transaction(database) {
-            GameSeriesTable.update(
-                {
-                    (GameSeriesTable.id eq seriesId) and
-                        (GameSeriesTable.status eq ACTIVE_SERIES) and
-                        (GameSeriesTable.closeAfterCurrentGame eq false)
-                },
-            ) { row ->
-                row[GameSeriesTable.closeAfterCurrentGame] = true
-            } > 0
         }
 
     /**
@@ -169,21 +147,6 @@ class GameSeriesRepository(
                 row[GameSeriesTable.closedAt] = at.atOffset(ZoneOffset.UTC)
             } > 0
         }
-
-    /**
-     * Closes [seriesId] only if it was marked to close after its current game.
-     *
-     * This is what a finished game asks: "am I the last one?" A series that was not marked
-     * stays active and goes on to its automatic rematch (`D015`).
-     */
-    fun closeIfMarked(
-        seriesId: Uuid,
-        at: Instant = Instant.now(),
-    ): Boolean {
-        val series = find(seriesId) ?: return false
-        if (!series.isActive || !series.closeAfterCurrentGame) return false
-        return close(seriesId, at)
-    }
 
     /**
      * Appends one audit event about a series (`ARCHITECTURE.md` §9).
@@ -278,7 +241,6 @@ class GameSeriesRepository(
             tableId = tableId,
             participants = participantsOfTables(listOf(tableId))[tableId].orEmpty(),
             status = row[GameSeriesTable.status],
-            closeAfterCurrentGame = row[GameSeriesTable.closeAfterCurrentGame],
             currentGameId = row[GameSeriesTable.currentGameId],
             createdAt = row[GameSeriesTable.createdAt].toInstant(),
             closedAt = row[GameSeriesTable.closedAt]?.toInstant(),

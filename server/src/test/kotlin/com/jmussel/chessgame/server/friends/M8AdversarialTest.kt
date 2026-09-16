@@ -5,6 +5,7 @@ package com.jmussel.chessgame.server.friends
 import com.jmussel.chessgame.server.api.SeriesSummary
 import com.jmussel.chessgame.server.api.UserSummary
 import com.jmussel.chessgame.server.auth.TestTokens
+import com.jmussel.chessgame.server.db.ACTIVE_SERIES
 import com.jmussel.chessgame.server.db.AddFriendResult
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
@@ -49,7 +50,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -183,26 +183,27 @@ class M8AdversarialTest {
         }
     }
 
+    /**
+     * The `M8` evaluator's removal-and-mark atomicity scenario, re-pointed at `D053`.
+     *
+     * It used to reject the series mark with a trigger and prove the friend removal rolled
+     * back with it (`D013` made the two one transaction). Since `M19.5` a removal writes no
+     * series at all, so the same trigger — now refusing *any* change to `game_series` — must
+     * not stop a removal. If removing a friend ever starts touching a series again, this fails
+     * and points at the decision.
+     */
     @Test
-    fun aSeriesMarkFailureRollsBackFriendRemovalAndRetrySucceeds() {
+    fun aFriendRemovalWritesNoSeriesSoASeriesThatRefusesChangeDoesNotStopIt() {
         withDatabase { fixture ->
             val jordan = fixture.named(CALLER, "Jordan")
             val alex = fixture.named(FRIEND, "Alex")
             fixture.friendships.add(jordan, alex)
             val seriesId = insertActiveSeries(fixture.database, jordan, alex)
-            rejectSeriesMarks(fixture.dataSource)
-
-            val failure = runCatching { fixture.friendships.remove(jordan, alex) }.exceptionOrNull()
-
-            assertNotNull(failure)
-            assertTrue(fixture.friendships.areFriends(jordan, alex), "the first mutation rolled back")
-            assertFalse(seriesIsMarked(fixture.database, seriesId))
-
-            execute(fixture.dataSource, "drop trigger evaluator_reject_series_mark on game_series")
+            rejectSeriesChanges(fixture.dataSource)
 
             assertIs<RemoveFriendResult.Removed>(fixture.friendships.remove(jordan, alex))
             assertFalse(fixture.friendships.areFriends(jordan, alex))
-            assertTrue(seriesIsMarked(fixture.database, seriesId))
+            assertEquals(ACTIVE_SERIES, seriesStatus(fixture.database, seriesId))
         }
     }
 
@@ -259,10 +260,10 @@ class M8AdversarialTest {
                     json.decodeFromString<SeriesSummary>(opened.bodyAsText())
 
                     val pairSeries = activeSeriesFor(fixture.database, jordan, alex)
-                    assertEquals(1, pairSeries.size)
-                    assertFalse(
-                        pairSeries.single()[GameSeriesTable.closeAfterCurrentGame],
-                        "`D046`: creation does not check the friendship, so nothing marks this series",
+                    assertEquals(
+                        1,
+                        pairSeries.size,
+                        "`D046`: creation does not check the friendship, and `D053`: removal does not end a series",
                     )
                 }
             } finally {
@@ -357,23 +358,20 @@ class M8AdversarialTest {
         )
     }
 
-    private fun rejectSeriesMarks(dataSource: DataSource) {
+    private fun rejectSeriesChanges(dataSource: DataSource) {
         execute(
             dataSource,
             """
-            create function evaluator_reject_series_mark() returns trigger language plpgsql as
+            create function evaluator_reject_series_change() returns trigger language plpgsql as
             ${'$'}${'$'}
             begin
-                if new.close_after_current_game and not old.close_after_current_game then
-                    raise exception 'evaluator rejects the series marker';
-                end if;
-                return new;
+                raise exception 'evaluator rejects any change to a series';
             end;
             ${'$'}${'$'};
 
-            create trigger evaluator_reject_series_mark
+            create trigger evaluator_reject_series_change
             before update on game_series
-            for each row execute function evaluator_reject_series_mark();
+            for each row execute function evaluator_reject_series_change();
             """.trimIndent(),
         )
     }
@@ -467,22 +465,21 @@ class M8AdversarialTest {
                 row[GameSeriesTable.id] = seriesId
                 row[GameSeriesTable.tableId] = TableRepository(database).findOrCreate(GameTypes.CHESS, listOf(lower, higher)).id
                 row[GameSeriesTable.status] = "ACTIVE"
-                row[GameSeriesTable.closeAfterCurrentGame] = false
                 row[GameSeriesTable.createdAt] = Instant.now().atOffset(java.time.ZoneOffset.UTC)
             }
         }
         return seriesId
     }
 
-    private fun seriesIsMarked(
+    private fun seriesStatus(
         database: Database,
         seriesId: Uuid,
-    ): Boolean =
+    ): String =
         transaction(database) {
             GameSeriesTable
                 .selectAll()
                 .where { GameSeriesTable.id eq seriesId }
-                .single()[GameSeriesTable.closeAfterCurrentGame]
+                .single()[GameSeriesTable.status]
         }
 
     private fun activeSeriesFor(

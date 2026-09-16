@@ -235,7 +235,7 @@ class DashboardSectionsTest {
 
     @Test
     fun aGameAgainstSomeoneWhoIsNoLongerAFriendIsNotAFriendRow() {
-        // Removing a friend leaves the game in progress alone (`D013`), so the series can
+        // Removing a friend leaves every series alone (`D053`), so a series can
         // outlive the friendship; the Friends section still only lists friends.
         val rows = DashboardSections.friends(listOf(person("Alex")), listOf(entry("Chris", yourTurn = true)))
 

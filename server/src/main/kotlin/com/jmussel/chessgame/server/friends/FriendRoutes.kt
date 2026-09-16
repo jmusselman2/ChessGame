@@ -95,21 +95,11 @@ fun Route.friendRoutes(
             return@delete
         }
 
-        when (val result = friendships.remove(caller.userId, friend.id)) {
-            // Both sentences say only what the removal actually did. The pair can hold at
-            // most one `ACTIVE` series, so having marked one is the whole story; having
-            // marked none is not a promise that none will appear, because creating a series
-            // does not consult the friendship (`D046`).
-            is RemoveFriendResult.Removed ->
-                call.respondText(
-                    text =
-                        if (result.seriesMarkedToClose) {
-                            "Removed ${friend.username}; your current game finishes first"
-                        } else {
-                            "Removed ${friend.username}"
-                        },
-                    status = HttpStatusCode.OK,
-                )
+        when (friendships.remove(caller.userId, friend.id)) {
+            // Removing a friend changes the friends list and nothing else (`D053`), so there
+            // is nothing more to say about games.
+            RemoveFriendResult.Removed ->
+                call.respondText("Removed ${friend.username}", status = HttpStatusCode.OK)
 
             RemoveFriendResult.NotFriends ->
                 call.respondText("Not friends with ${friend.username}", status = HttpStatusCode.NotFound)

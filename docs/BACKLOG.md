@@ -4955,7 +4955,7 @@ dashboard and friends tests, the `:android-app` unit tests above, and
 
 ## M19.5 — Unfriending no longer closes a series
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M19.4
 
@@ -4972,6 +4972,75 @@ dashboard and friends tests, the `:android-app` unit tests above, and
 - `docs/ARCHITECTURE.md` §17 (Friend Removal and Series Lifecycle) updated or
   removed.
 - Series exit becomes its own action (`M19.8`).
+
+### Completion Note — 2026-09-16
+
+`V7__series_outlive_friendships.sql` drops `game_series.close_after_current_game`,
+and everything that wrote or read it is gone. `FriendshipRepository.remove`
+deactivates the friendship and writes nothing else, and `RemoveFriendResult.Removed`
+is a plain object. `SeriesService.settleAfter` has two outcomes left: no rematch
+for a series that is no longer active, and a rematch for one that is. The
+`closeSeries` branch, `markCloseAfterCurrentGame`, `closeIfMarked` and the
+`SeriesClosed` audit event went with it. `StoredSeries`, `ActiveSeriesView`,
+`SeriesSummary` and `DashboardEntry` lost the field. `DELETE /friends/{username}`
+answers `Removed <name>` and nothing more. `D053`'s "V3" drop of this column
+landed here rather than in `M19.4`, for the reason recorded there.
+
+**API compatibility.** Removing a response field is safe for every app build.
+The DTOs defaulted `closeAfterCurrentGame` to `false`, and nothing on screen
+read it. The app's copies are removed too, and the JSON is lenient either way.
+
+**The app's removal warning said the opposite of the new rule** ("there just
+will not be another one"). It now says games carry on (`Friends.removalWarning`),
+and `FriendsTest.theRemovalWarningSaysGamesCarryOn` asserts the old promise is
+gone.
+
+**Tests updated to the new behaviour, each noting `D013`'s supersession:**
+
+- `SeriesClosesAfterLastGameTest` became **`SeriesOutlivesFriendshipTest`**. Its
+  first half now asserts the reverse of what it did: unfriending mid-game, the
+  game finishes, the rematch follows, and the series stays active. Unfriending
+  between games changes no column of the series. The second half keeps what that
+  file proved about an *ending* series, re-pointed from "marked" to "closed". A
+  closed series lets its game finish and gets no rematch, however often and
+  however concurrently it is asked. The pair then starts a fresh series.
+- `RemoveFriendTest.theActiveSeriesIsMarkedToCloseAfterItsCurrentGame` became
+  `theActiveSeriesIsLeftRunning`, and `anotherPairsSeriesIsNotTouched` now
+  expects both series active.
+- `SeriesLifecycleTest` lost the six tests of the mark itself
+  (`aSeriesCanBeMarkedToCloseAfterItsCurrentGame`, `markingTwiceChangesNothing`,
+  `aMarkedSeriesClosesWhenAsked`, `anUnmarkedSeriesStaysActive`,
+  `closingAMarkedSeriesTwiceIsSafe`, `aClosedSeriesCannotBeMarkedAgain`). Their
+  requirement was `D013`, and the operations they tested no longer exist. Close
+  and its idempotence stay covered there. `removingAFriendMarksTheSeriesTheSameWay`
+  became `removingAFriendLeavesTheSeriesActive`.
+- `M8AdversarialTest.aSeriesMarkFailureRollsBackFriendRemovalAndRetrySucceeds`
+  became `aFriendRemovalWritesNoSeriesSoASeriesThatRefusesChangeDoesNotStopIt`.
+  The trigger now refuses *any* update to `game_series`, and the removal must
+  still succeed. If removal ever touches a series again, this test fails.
+- `AutomaticRematchTest.aSeriesMarkedToCloseGetsNoRematch` became
+  `unfriendingDoesNotCostTheRematch`, and
+  `DashboardTest.aSeriesClosingAfterThisGameSaysSo` became
+  `unfriendingLeavesTheSeriesOnTheDashboard`.
+- `ResignationTest.aClosingSeriesEndsInstead` and `HistoryTest.aClosedSeriesStaysReadable`
+  close the series directly instead of marking it. The same goes for
+  `SeriesIdempotencyTest.aClosedSeriesIsNotReopened`, which gained
+  `unfriendingMidGameLeavesTheSeriesToCarryOn` at the HTTP boundary: after the
+  removal and a resignation, Play is offered the same series, now at its rematch.
+
+**How does a series end now?** Until `M19.8` adds series exit, only through
+`GameSeriesRepository.close`, which no route calls. That is `D053` as written:
+"a series ends only when a participant explicitly leaves it".
+
+**Docs.** `ARCHITECTURE` §17 is rewritten, and §16's conceptual `GameSeries`
+lost the field. `MVP.md`'s friend-removal lines were stale since `D053` and now
+match it. `D053`'s consequence gained a note on how its "V3" was split
+(`V6`/`V7`). `PRODUCT.md` already said this.
+
+Verified with `.\gradlew.bat :server:test` (519 tests),
+`.\gradlew.bat :android-app:testDebugUnitTest` (427), and `.\gradlew.bat build`.
+
+---
 
 ## M19.6 — Seat rotation by cycle
 

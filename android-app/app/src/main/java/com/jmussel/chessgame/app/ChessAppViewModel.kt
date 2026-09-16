@@ -965,7 +965,7 @@ class ChessAppViewModel(
     /**
      * Removes [friend], after the confirmation has been given.
      *
-     * What that does to a game under way is the server's to say (`D013`), so its sentence
+     * Only the friends list changes (`D053`); the server says so in its own sentence, which
      * is what the player reads. The list is reloaded rather than guessed at.
      */
     fun removeFriend(friend: UserSummaryDto) {

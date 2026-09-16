@@ -150,7 +150,6 @@ class DashboardTest {
             assertEquals(fixture.currentGame(seriesId).id, entry.gameId)
             assertEquals(0, entry.gameVersion)
             assertEquals(1, entry.fullmoveNumber)
-            assertFalse(entry.closeAfterCurrentGame)
         }
     }
 
@@ -224,7 +223,7 @@ class DashboardTest {
     }
 
     @Test
-    fun aSeriesClosingAfterThisGameSaysSo() {
+    fun unfriendingLeavesTheSeriesOnTheDashboard() {
         withFixture { fixture ->
             val jordan = fixture.named("auth-1", "Jordan")
             val alex = fixture.named("auth-2", "Alex")
@@ -232,11 +231,21 @@ class DashboardTest {
 
             fixture.friendships.remove(jordan, alex)
 
-            assertTrue(
+            // Until `M19.5` the entry said the series would close after this game (`D013`).
+            // `D053` superseded that: the series is simply still there.
+            assertEquals(
+                seriesId,
                 fixture.dashboard
                     .activeSeriesFor(jordan)
                     .single()
-                    .closeAfterCurrentGame,
+                    .seriesId,
+            )
+            assertEquals(
+                seriesId,
+                fixture.dashboard
+                    .activeSeriesFor(alex)
+                    .single()
+                    .seriesId,
             )
         }
     }

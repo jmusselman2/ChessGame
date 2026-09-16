@@ -167,7 +167,6 @@ class M6AdversarialTest {
                     row[GameSeriesTable.id] = series
                     row[GameSeriesTable.tableId] = TableRepository(database).findOrCreate(GameTypes.CHESS, listOf(userA, userB)).id
                     row[GameSeriesTable.status] = "ACTIVE"
-                    row[GameSeriesTable.closeAfterCurrentGame] = false
                     row[GameSeriesTable.createdAt] = now
                 }
             }

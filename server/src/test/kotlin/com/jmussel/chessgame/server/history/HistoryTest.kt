@@ -34,7 +34,7 @@ import kotlin.uuid.Uuid
  *
  * A finished game and a closed series stay available (`D012`), and they are read-only by
  * construction rather than by a rule stated in the history layer: a finished game refuses
- * every command (`D017`) and a closed series never gets another one (`D013`).
+ * every command (`D017`) and a closed series never gets another one.
  *
  * Skipped when this machine has no test database (see [DatabaseTestSupport]).
  */
@@ -112,7 +112,7 @@ class HistoryTest {
     @Test
     fun aClosedSeriesStaysReadable() {
         withSeries { fixture ->
-            fixture.seriesRepository.markCloseAfterCurrentGame(fixture.seriesId)
+            fixture.seriesRepository.close(fixture.seriesId)
             fixture.playFoolsMate(fixture.firstGameId)
 
             val series = fixture.history(fixture.white).single()

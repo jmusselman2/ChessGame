@@ -10,6 +10,7 @@ import com.jmussel.chessgame.server.api.SeriesSummary
 import com.jmussel.chessgame.server.auth.TestTokens
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
+import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.testModule
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.delete
@@ -30,11 +31,13 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
+import org.jetbrains.exposed.v1.jdbc.Database
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /**
  * "Play with this friend", however many times it is tapped.
@@ -52,7 +55,7 @@ class SeriesIdempotencyTest {
     private val tokens = TestTokens()
     private val json = Json { ignoreUnknownKeys = true }
 
-    private fun withFriends(block: suspend ApplicationTestBuilder.() -> Unit) =
+    private fun withFriends(block: suspend ApplicationTestBuilder.(Database) -> Unit) =
         DatabaseTestSupport.withMigratedDatabase { dataSource ->
             val database = Databases.connect(dataSource)
 
@@ -72,7 +75,7 @@ class SeriesIdempotencyTest {
                     setBody("Alex")
                 }
 
-                block()
+                block(database)
             }
         }
 
@@ -308,26 +311,42 @@ class SeriesIdempotencyTest {
 
     @Test
     fun aClosedSeriesIsNotReopened() {
-        withFriends {
+        withFriends { database ->
             val opened = play(JORDAN)
             val firstGame = assertNotNull(opened.currentGameId)
             val closedSeries = opened.seriesId
 
-            // Removing the friend marks the series to close after this game (`D013`).
-            removeFriend(JORDAN, "Alex")
+            // Until `M19.5` this series was closed by removing the friend (`D013`). `D053`
+            // superseded that, so the series is closed directly: that is what `M19.8`'s
+            // explicit series exit does.
+            GameSeriesRepository(database).close(Uuid.parse(closedSeries))
             resign(JORDAN, firstGame, 0)
 
-            // They make up, and "Play" starts something new rather than reviving the old.
-            client.post("/friends") {
-                authorizedAs(JORDAN)
-                setBody("Alex")
-            }
-
+            // "Play" starts something new rather than reviving the old.
             val reopened = play(JORDAN)
 
             assertNotEquals(closedSeries, reopened.seriesId, "a new series (`D012`)")
             assertNotEquals(firstGame, reopened.currentGameId)
             assertEquals(2, gameCount(), "the closed series kept its game and the new one has its own")
+        }
+    }
+
+    @Test
+    fun unfriendingMidGameLeavesTheSeriesToCarryOn() {
+        withFriends {
+            val opened = play(JORDAN)
+            val firstGame = assertNotNull(opened.currentGameId)
+
+            assertEquals(HttpStatusCode.OK, removeFriend(JORDAN, "Alex").status)
+            resign(JORDAN, firstGame, 0)
+
+            // `D053`, superseding `D013`: the rematch still follows, and Play — even with no
+            // friendship between them now — is offered that same series.
+            val after = play(ALEX)
+            assertEquals(opened.seriesId, after.seriesId)
+            assertNotEquals(firstGame, after.currentGameId, "the rematch")
+            assertEquals(2, gameCount())
+            assertEquals(1, dashboard(JORDAN).size)
         }
     }
 

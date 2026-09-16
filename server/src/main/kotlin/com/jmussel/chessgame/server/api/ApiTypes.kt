@@ -73,7 +73,6 @@ data class SeriesSummary(
     val seriesId: String,
     val opponent: UserSummary,
     val status: String,
-    val closeAfterCurrentGame: Boolean,
     val currentGameId: String? = null,
 ) {
     companion object {
@@ -89,7 +88,6 @@ data class SeriesSummary(
                 opponent =
                     requireNotNull(opponent.toSummaryOrNull()) { "An opponent always has a username" },
                 status = series.status,
-                closeAfterCurrentGame = series.closeAfterCurrentGame,
                 currentGameId = series.currentGameId?.toString(),
             )
         }
@@ -116,7 +114,6 @@ data class DashboardEntry(
     val sideToMove: String? = null,
     val moveNumber: Int? = null,
     val yourTurn: Boolean = false,
-    val closeAfterCurrentGame: Boolean = false,
 ) {
     companion object {
         fun of(view: com.jmussel.chessgame.server.db.ActiveSeriesView): DashboardEntry? {
@@ -131,7 +128,6 @@ data class DashboardEntry(
                 sideToMove = view.sideToMove,
                 moveNumber = view.fullmoveNumber,
                 yourTurn = view.isYourTurn,
-                closeAfterCurrentGame = view.closeAfterCurrentGame,
             )
         }
     }

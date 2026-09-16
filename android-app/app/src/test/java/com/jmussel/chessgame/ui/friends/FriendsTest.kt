@@ -51,11 +51,12 @@ class FriendsTest {
     }
 
     @Test
-    fun theRemovalWarningSaysTheCurrentGameSurvives() {
+    fun theRemovalWarningSaysGamesCarryOn() {
         val warning = Friends.removalWarning("Alex")
 
         assertTrue("names the friend", warning.contains("Alex"))
-        assertTrue("says the game finishes", warning.contains("finish"))
-        assertTrue("says there is no next one", warning.contains("not be another"))
+        // `D053` superseded `D013`: this used to say there would not be another game.
+        assertTrue("says games carry on", warning.contains("carry on"))
+        assertFalse("no longer promises the series ends", warning.contains("not be another"))
     }
 }

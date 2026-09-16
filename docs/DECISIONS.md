@@ -3011,7 +3011,9 @@ for rules that have no chess-specific reason to differ.
 
 - **Migration V3 (`M19`):** drop index `game_series_one_active_per_pair`; drop
   column `game_series.close_after_current_game`. The pair columns themselves are
-  handled by the table migration (`D048`).
+  handled by the table migration (`D048`). *Implemented as two migrations:* `V6`
+  dropped the index (by then rebuilt on `table_id`, `D064`) in `M19.4`, and `V7`
+  dropped the column in `M19.5`, beside the code that still read it.
 - `CLAUDE.md` *Product Rules That Must Not Be Changed Silently* and `PRODUCT.md`
   (*Friends*, *Removing a Friend*, *Game Series*, *Automatic Rematches*) are
   updated in **this** change to state the new rules and mark the old ones

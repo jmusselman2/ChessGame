@@ -48,7 +48,7 @@ data class FriendsActions(
  * What the friends screen says.
  *
  * Who exists, who is already a friend, and what removing one does are the server's and the
- * database's answers (`D009`, `D013`), so a refusal is repeated in the server's own words
+ * database's answers (`D009`, `D053`), so a refusal is repeated in the server's own words
  * rather than re-worded from a status code. Only the things the server has no opinion
  * about — an empty box, a lost connection, and the warning before a removal — are written
  * here.
@@ -71,12 +71,11 @@ object Friends {
     /**
      * What removing [username] will actually do.
      *
-     * Removing a friend does not end the game being played: it finishes, and the series
-     * closes after it rather than starting the next one (`D013`). A player about to tap
-     * "Remove" is entitled to know that before they do.
+     * Only the friends list changes (`D053`, superseding `D013`): games with them carry on,
+     * rematches included. That is the opposite of what the warning used to say, and a player
+     * who remembers the old behaviour is entitled to know before tapping "Remove".
      */
-    fun removalWarning(username: String): String =
-        "Remove $username? A game you are playing now will finish as normal — there just will not be another one."
+    fun removalWarning(username: String): String = "Remove $username from your friends? Games you are playing together carry on as normal."
 
     private const val REFUSED = "The server would not do that. Try again."
     private const val UNREACHABLE = "Could not reach the server. Check your connection and try again."

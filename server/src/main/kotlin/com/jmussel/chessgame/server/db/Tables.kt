@@ -140,7 +140,6 @@ object GameSeriesTable : Table("game_series") {
     val id = uuid("id")
     val tableId = uuid("table_id")
     val status = text("status")
-    val closeAfterCurrentGame = bool("close_after_current_game")
     val currentGameId = uuid("current_game_id").nullable()
     val createdAt = timestampWithTimeZone("created_at")
     val closedAt = timestampWithTimeZone("closed_at").nullable()

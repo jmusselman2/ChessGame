@@ -19,7 +19,6 @@ import kotlin.uuid.Uuid
 data class ActiveSeriesView(
     val seriesId: Uuid,
     val opponent: StoredUser,
-    val closeAfterCurrentGame: Boolean,
     val gameId: Uuid?,
     val gameVersion: Long?,
     /** `WHITE` or `BLACK` — the side the viewer is playing, or `null` with no game yet. */
@@ -56,7 +55,6 @@ class DashboardQueries(
                     ).select(
                         GameSeriesTable.id,
                         GameSeriesTable.tableId,
-                        GameSeriesTable.closeAfterCurrentGame,
                         GameSeriesTable.createdAt,
                         GamesTable.id,
                         GamesTable.version,
@@ -99,7 +97,6 @@ class DashboardQueries(
                 ActiveSeriesView(
                     seriesId = row[GameSeriesTable.id],
                     opponent = opponent,
-                    closeAfterCurrentGame = row[GameSeriesTable.closeAfterCurrentGame],
                     gameId = gameId,
                     gameVersion = gameId?.let { row[GamesTable.version] },
                     yourSide =

@@ -868,7 +868,7 @@ class ChessAppTest {
                     httpClient =
                         httpClient(
                             friends = emptyList(),
-                            removalOutcome = "Removed Alex; your current game finishes first",
+                            removalOutcome = "Removed Alex",
                         ),
                 )
             val alex = UserSummaryDto(userId = "user-1", username = "Alex")
@@ -878,7 +878,7 @@ class ChessAppTest {
             viewModel.friendsJob?.join()
 
             assertNull(viewModel.friends.removing)
-            assertEquals("Removed Alex; your current game finishes first", viewModel.friends.message)
+            assertEquals("Removed Alex", viewModel.friends.message)
             assertEquals(listOf("/friends/Alex", "/friends"), paths)
         }
 

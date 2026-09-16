@@ -31,7 +31,7 @@ import com.jmussel.chessgame.ui.theme.ChessGameTheme
  * A friend is found by their exact username and added by name (`D009`); the friendship is
  * mutual the moment it is made, so there is nothing to accept and nobody to wait for.
  * Removing one asks first, and says what it will really do, because it does not do the
- * obvious thing (`D013`).
+ * obvious thing: games with them carry on (`D053`).
  */
 @Composable
 fun FriendsScreen(

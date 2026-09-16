@@ -76,8 +76,7 @@ class ChessApiClientTest {
                     "yourSide": "WHITE",
                     "sideToMove": "WHITE",
                     "moveNumber": 18,
-                    "yourTurn": true,
-                    "closeAfterCurrentGame": false
+                    "yourTurn": true
                   }
                 ]
                 """.trimIndent(),
@@ -138,8 +137,7 @@ class ChessApiClientTest {
                   {
                     "seriesId": "series-1",
                     "opponent": {"userId": "user-1", "username": "Alex"},
-                    "yourTurn": false,
-                    "closeAfterCurrentGame": true
+                    "yourTurn": false
                   }
                 ]
                 """.trimIndent(),
@@ -149,7 +147,6 @@ class ChessApiClientTest {
 
         assertNull(entry.gameId)
         assertNull(entry.moveNumber)
-        assertTrue(entry.closeAfterCurrentGame)
     }
 
     @Test
@@ -194,7 +191,6 @@ class ChessApiClientTest {
                   "seriesId": "series-1",
                   "opponent": {"userId": "user-1", "username": "Alex"},
                   "status": "ACTIVE",
-                  "closeAfterCurrentGame": false,
                   "currentGameId": "game-1"
                 }
                 """.trimIndent(),
@@ -478,12 +474,12 @@ class ChessApiClientTest {
 
     @Test
     fun aFriendIsRemovedByName() {
-        val client = clientReplying("Removed Alex; your current game finishes first")
+        val client = clientReplying("Removed Alex")
 
         val outcome = runBlocking { client.removeFriend("Alex") }
 
         val request = requests.single()
-        assertEquals("Removed Alex; your current game finishes first", outcome)
+        assertEquals("Removed Alex", outcome)
         assertEquals("/friends/Alex", request.url.encodedPath)
         assertEquals(HttpMethod.Delete, request.method)
     }

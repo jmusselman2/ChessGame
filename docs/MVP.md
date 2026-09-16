@@ -94,8 +94,9 @@ for task-level status.
 - Remove friend works.
 - Historical games survive friend removal.
 - Current game survives friend removal.
-- Removing a friend disables the next automatic rematch for that series.
-- Series closes when the current game ends.
+- Removing a friend affects the friends list only: the series and its automatic
+  rematches carry on (`D053`, superseding `D013`'s "disables the next rematch and
+  closes the series after the current game").
 
 ### Multiplayer
 

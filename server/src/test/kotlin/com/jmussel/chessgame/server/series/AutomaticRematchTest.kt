@@ -4,6 +4,7 @@ package com.jmussel.chessgame.server.series
 
 import com.jmussel.chessgame.core.chess.Move
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
+import com.jmussel.chessgame.server.db.FriendshipRepository
 import kotlinx.serialization.json.jsonPrimitive
 import java.util.concurrent.Callable
 import java.util.concurrent.CyclicBarrier
@@ -143,15 +144,17 @@ class AutomaticRematchTest {
     }
 
     @Test
-    fun aSeriesMarkedToCloseGetsNoRematch() {
+    fun unfriendingDoesNotCostTheRematch() {
         withSeries { fixture ->
-            fixture.seriesRepository.markCloseAfterCurrentGame(fixture.seriesId)
+            // Until `M19.5` this was `aSeriesMarkedToCloseGetsNoRematch`: removing a friend
+            // marked the series and no game followed (`D013`). `D053` superseded that.
+            FriendshipRepository(fixture.database).remove(fixture.white, fixture.black)
 
             fixture.playFoolsMate(fixture.firstGameId)
 
-            assertEquals(1, fixture.gamesInSeries().size, "no game follows the last one (`D013`)")
-            assertTrue(fixture.events(REMATCH).isEmpty())
-            assertEquals(fixture.firstGameId, fixture.series().currentGameId)
+            assertEquals(2, fixture.gamesInSeries().size, "the next game follows as usual")
+            assertEquals(1, fixture.events(REMATCH).size)
+            assertTrue(fixture.series().isActive)
         }
     }
 
