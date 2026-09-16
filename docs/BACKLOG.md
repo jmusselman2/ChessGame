@@ -4601,7 +4601,8 @@ know where game-specific rules are implemented. The participants schema
 exercises on its own, and it holds under any of the four layouts. So `M19.1` is
 `BLOCKED` until the first task that actually requires deck-builder-specific code,
 or a concrete decision about where game-specific rules live. That task lists
-`M19.1` as a dependency, and the loop stops there and asks.
+`M19.1` as a dependency, and the loop stops there and asks. *2026-09-16:* `M19.8`
+turned out to be that task. `M19.3`–`M19.7` were built without `M19.1`.
 
 Nothing here touches the chess implementation or the live beta until its own
 task runs. `D048`–`D056` changed documentation only. So did `D061`, the binding
@@ -4617,15 +4618,17 @@ remediated on 2026-09-10 before this milestone was started, under `D057`,
 
 ## M19.1 — Decide the deck-builder's repository and module structure
 
-**Status:** BLOCKED — deferred (`D063`, 2026-09-16)
+**Status:** TODO — needs human sign-off. `M19.8` made it a dependency on
+2026-09-16 (`D063`'s trigger). The autonomous loop does not select or decide it.
 
 **Depends on:** — *Deferred until* the first task that requires
 deck-builder-specific code (rules, a `deck-core`-style module, a deck-builder
 game-type registration, client UI) or a concrete decision about where
-game-specific rules are implemented. No such task exists yet. When one is added,
-it lists `M19.1` under **Depends on**, and this task returns to `TODO` with human
-sign-off still required. It blocks no chess-only work: `M19.3`–`M19.8` and
-`M19.10` do not depend on it.
+game-specific rules are implemented. When such a task is found, it lists `M19.1`
+under **Depends on**, and this task returns to `TODO` with human sign-off still
+required. That happened on 2026-09-16: `M19.8`'s N ≥ 3 resignation needs a game
+that continues after a resignation, which no chess-only change can provide (see
+`M19.8`). `M19.10` still does not depend on it.
 
 ### Objective
 
@@ -5206,7 +5209,18 @@ Verified with `.\gradlew.bat :server:test` (539 tests) and `.\gradlew.bat build`
 
 **Status:** TODO
 
-**Depends on:** M19.3, M19.7
+**Depends on:** M19.3, M19.7, **M19.1** — *added 2026-09-16 under `D063`'s trigger.*
+The second criterion needs an N ≥ 3 game in which one participant resigns and
+the game **continues**. The server can store and run exactly one kind of game
+today: `games.state` is a chess `GameStateDocument`, and
+`GameCommandService.resign` applies `ChessRules.resign`, which always ends the
+game. A game that carries on after a resignation therefore needs either a second
+ruleset's state and rules, or a seam that dispatches state and commands by game
+type. Either one is "a concrete decision about where game-specific rules are
+implemented", which is `M19.1`, and `D044` forbids the generic seam before a
+second ruleset exists. Criteria 1 and 4 (chess resignation unchanged, series
+exit between games) and the new-table half of criterion 3 need no such decision.
+Splitting them out is the owner's call, not the loop's.
 
 ### Objective
 
