@@ -7,9 +7,9 @@ import com.jmussel.chessgame.server.db.CLOSED_SERIES
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.db.GameTypes
-import com.jmussel.chessgame.server.db.OpenedSeries
 import com.jmussel.chessgame.server.db.StoredGame
 import com.jmussel.chessgame.server.db.StoredSeries
+import com.jmussel.chessgame.server.db.TableRepository
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -19,52 +19,71 @@ import kotlin.random.Random
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
+/** What asking to play a friend came to (`D053`). */
+sealed interface PlayOutcome {
+    /** A new series was started, with its first game. */
+    data class Started(
+        val series: StoredSeries,
+    ) : PlayOutcome
+
+    /**
+     * The pair already has active series, so nothing was started: the player is offered
+     * opening one of these or starting another. Newest first.
+     */
+    data class Offered(
+        val existing: List<StoredSeries>,
+    ) : PlayOutcome
+}
+
 /**
- * Opening a series and making sure it has a game to play.
+ * Starting a series, and settling what a finished game leaves behind.
  *
  * "Play with this friend" is meant to be one tap that lands the player in a game
- * (`docs/PRODUCT.md`), so opening a series with no current game starts its first one. The
- * colours for that first game are a coin toss and every later game reverses them (`D014`).
+ * (`docs/PRODUCT.md`), so starting a series starts its first game with it. The colours for
+ * that first game are a coin toss and every later game reverses them (`D014`).
  *
- * It also settles what a finished game leaves behind: the next game, or the end of the
- * series.
+ * A pair may have several active series at once (`D053`), so Play never silently reuses one
+ * and never silently duplicates one: when the pair already has a series it is offered back
+ * ([PlayOutcome.Offered]) and a second series is started only when asked for.
  */
 class SeriesService(
     private val database: Database,
     private val series: GameSeriesRepository,
     private val games: GameRepository,
     private val random: Random = Random.Default,
+    private val tables: TableRepository = TableRepository(database),
 ) {
     /**
-     * The pair's active series, with a current game, creating either if they do not exist.
+     * Play [friend]: start a series with its first game, or offer the series they already have.
      *
-     * Creating the game and pointing the series at it happen in one transaction, so a
-     * series is never left claiming a game that was not written. The result says whether
-     * this call is the one that started it, because a game nobody asked for is the one
-     * thing the other player cannot find out for themselves (`SeriesRoutes`).
+     * With [startAnother] the player has already been offered the existing ones and chosen a
+     * new series, so one is started whatever exists.
      *
      * Both players tapping "Play" at the same moment is the case this has to survive. The
-     * series row is locked before the first game is started and re-read under that lock,
-     * so the second request waits for the first, finds the game it created, and hands that
-     * back — the same mechanism [settleAfter] uses for the same class of race. Without the
-     * lock both would find no current game and both would try to be game one of the
-     * series, and the second would be refused by the database.
+     * pair's table row is locked before deciding whether a series exists, so the second
+     * request waits for the first, sees the series it started, and is offered it — one tap
+     * each, one series, one game. The series, its first game, and the series pointing at that
+     * game are one transaction, so a series is never left claiming a game that was not
+     * written.
      */
-    fun openWithGame(
+    fun play(
         caller: Uuid,
         friend: Uuid,
-    ): OpenedSeries {
-        val opened = series.openOrCreate(GameTypes.CHESS, listOf(caller, friend))
-        if (opened.series.currentGameId != null) return opened
+        startAnother: Boolean = false,
+    ): PlayOutcome {
+        val table = tables.findOrCreate(GameTypes.CHESS, listOf(caller, friend))
 
-        val (withGame, startedGame) =
-            transaction(database) {
-                val current = series.findForUpdate(opened.series.id) ?: opened.series
+        return transaction(database) {
+            tables.lockForUpdate(table.id)
 
-                if (current.currentGameId != null) current to false else startFirstGame(current) to true
+            val active = series.activeAt(table.id)
+
+            if (active.isNotEmpty() && !startAnother) {
+                PlayOutcome.Offered(active)
+            } else {
+                PlayOutcome.Started(startFirstGame(series.create(table)))
             }
-
-        return OpenedSeries(series = withGame, created = opened.created, startedGame = startedGame)
+        }
     }
 
     /**

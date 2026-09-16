@@ -17,6 +17,7 @@ import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.db.StoredGame
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.series.seriesService
+import com.jmussel.chessgame.server.series.startSeries
 import com.jmussel.chessgame.server.testModule
 import com.jmussel.chessgame.server.user.Username
 import io.ktor.client.request.get
@@ -78,9 +79,9 @@ class MakeMoveTest {
             friendships.add(jordan, alex)
 
             val jordanIsLower = jordan < alex
-            val opened = seriesService(database, FixedCoin(jordanIsLower)).openWithGame(jordan, alex)
+            val opened = seriesService(database, FixedCoin(jordanIsLower)).startSeries(jordan, alex)
 
-            gameId = assertNotNull(opened.series.currentGameId)
+            gameId = assertNotNull(opened.currentGameId)
             white = jordan
             black = alex
 

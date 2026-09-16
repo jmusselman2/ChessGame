@@ -9,7 +9,6 @@ import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.GameSeriesRepository
-import com.jmussel.chessgame.server.db.GameTypes
 import com.jmussel.chessgame.server.db.GamesTable
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.user.Username
@@ -20,6 +19,7 @@ import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.uuid.ExperimentalUuidApi
@@ -89,14 +89,14 @@ class InitialGameTest {
         withFixture { fixture ->
             val (jordan, alex) = fixture.friends()
 
-            val opened = fixture.service(Random(1)).openWithGame(jordan, alex)
+            val opened = fixture.service(Random(1)).startSeries(jordan, alex)
 
-            val gameId = assertNotNull(opened.series.currentGameId, "the series has a game to play")
+            val gameId = assertNotNull(opened.currentGameId, "the series has a game to play")
             val game = assertNotNull(fixture.games.load(gameId))
 
             assertEquals(ChessGame.newGame(), game.game, "it starts from the standard position")
             assertEquals(1, game.sequenceNumber)
-            assertEquals(opened.series.id, game.seriesId)
+            assertEquals(opened.id, game.seriesId)
             assertEquals(1, fixture.gameCount())
         }
     }
@@ -106,10 +106,10 @@ class InitialGameTest {
         withFixture { fixture ->
             val (jordan, alex) = fixture.friends()
 
-            val opened = fixture.service(Random(1)).openWithGame(jordan, alex)
-            val stored = assertNotNull(fixture.series.find(opened.series.id))
+            val opened = fixture.service(Random(1)).startSeries(jordan, alex)
+            val stored = assertNotNull(fixture.series.find(opened.id))
 
-            assertEquals(opened.series.currentGameId, stored.currentGameId)
+            assertEquals(opened.currentGameId, stored.currentGameId)
         }
     }
 
@@ -118,8 +118,8 @@ class InitialGameTest {
         withFixture { fixture ->
             val (jordan, alex) = fixture.friends()
 
-            val opened = fixture.service(Random(1)).openWithGame(jordan, alex)
-            val game = assertNotNull(fixture.games.load(opened.series.currentGameId!!))
+            val opened = fixture.service(Random(1)).startSeries(jordan, alex)
+            val game = assertNotNull(fixture.games.load(opened.currentGameId!!))
 
             assertEquals(setOf(jordan, alex), setOf(game.whiteUserId, game.blackUserId))
             assertFalse(game.whiteUserId == game.blackUserId)
@@ -130,8 +130,8 @@ class InitialGameTest {
     fun theColoursFollowTheCoinToss() {
         withFixture { fixture ->
             val (jordan, alex) = fixture.friends()
-            val series = fixture.series.openOrCreate(GameTypes.CHESS, listOf(jordan, alex)).series
-            val (lower, higher) = series.participants
+            // A chess table seats the pair in id order, and the toss is over those two seats.
+            val (lower, higher) = listOf(jordan, alex).sorted()
 
             val heads = SeriesServiceOver(fixture, ScriptedRandom(true)).open(jordan, alex)
 
@@ -144,11 +144,9 @@ class InitialGameTest {
     fun theOtherTossGivesTheOtherColours() {
         withFixture { fixture ->
             val (jordan, alex) = fixture.friends()
-            val series = fixture.series.openOrCreate(GameTypes.CHESS, listOf(jordan, alex)).series
+            val (lower, higher) = listOf(jordan, alex).sorted()
 
             val tails = SeriesServiceOver(fixture, ScriptedRandom(false)).open(jordan, alex)
-
-            val (lower, higher) = series.participants
 
             assertEquals(higher, tails.whiteUserId)
             assertEquals(lower, tails.blackUserId)
@@ -165,8 +163,8 @@ class InitialGameTest {
                 val friend = fixture.named("auth-$index", "Friend$index")
                 fixture.friendships.add(jordan, friend)
 
-                val opened = fixture.service(Random.Default).openWithGame(jordan, friend)
-                val game = assertNotNull(fixture.games.load(opened.series.currentGameId!!))
+                val opened = fixture.service(Random.Default).startSeries(jordan, friend)
+                val game = assertNotNull(fixture.games.load(opened.currentGameId!!))
                 whitePlayers += game.whiteUserId
             }
 
@@ -178,16 +176,19 @@ class InitialGameTest {
     }
 
     @Test
-    fun openingAgainDoesNotStartASecondGame() {
+    fun playingAgainOffersTheSeriesInsteadOfStartingASecondGame() {
         withFixture { fixture ->
             val (jordan, alex) = fixture.friends()
             val service = fixture.service(Random(1))
 
-            val first = service.openWithGame(jordan, alex)
-            val again = service.openWithGame(alex, jordan)
+            val first = service.startSeries(jordan, alex)
+            val again = service.play(alex, jordan)
 
-            assertEquals(first.series.currentGameId, again.series.currentGameId)
-            assertFalse(again.created)
+            // `D053`, superseding `D011`: playing again no longer silently reopens the pair's
+            // series. It offers it, and starts nothing until another is asked for.
+            val offered = assertIs<PlayOutcome.Offered>(again)
+            assertEquals(listOf(first.id), offered.existing.map { it.id })
+            assertEquals(first.currentGameId, offered.existing.single().currentGameId)
             assertEquals(1, fixture.gameCount())
         }
     }
@@ -197,8 +198,8 @@ class InitialGameTest {
         withFixture { fixture ->
             val (jordan, alex) = fixture.friends()
 
-            val opened = fixture.service(Random(1)).openWithGame(jordan, alex)
-            val game = assertNotNull(fixture.games.load(opened.series.currentGameId!!))
+            val opened = fixture.service(Random(1)).startSeries(jordan, alex)
+            val game = assertNotNull(fixture.games.load(opened.currentGameId!!))
 
             assertEquals(Side.WHITE, game.game.sideToMove)
             assertEquals(0, game.version)
@@ -217,8 +218,8 @@ class InitialGameTest {
         ) = fixture.games.load(
             fixture
                 .service(random)
-                .openWithGame(caller, friend)
-                .series.currentGameId!!,
+                .startSeries(caller, friend)
+                .currentGameId!!,
         )!!
     }
 }

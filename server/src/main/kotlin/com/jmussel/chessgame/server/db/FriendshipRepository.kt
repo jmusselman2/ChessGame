@@ -162,8 +162,8 @@ class FriendshipRepository(
      * transaction is not seen, not marked, and deliberately left open — the pair may end up
      * un-friended with a live series, and that is accepted rather than defended against.
      *
-     * At most one series per pair can be `ACTIVE` at a time, so when this does mark one,
-     * there is no second one it missed.
+     * A pair may have several active series (`D053`); every one this transaction can see is
+     * marked. `M19.5` removes this lifecycle altogether.
      *
      * Nothing is deleted and no game is touched: the row stays for history, the current
      * game plays on, and only the *next* automatic rematch is disabled (`D013`). The

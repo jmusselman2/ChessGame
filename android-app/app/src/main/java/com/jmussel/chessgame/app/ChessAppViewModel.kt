@@ -12,6 +12,7 @@ import com.jmussel.chessgame.api.ChessCommandRefusedException
 import com.jmussel.chessgame.api.CurrentUserDto
 import com.jmussel.chessgame.api.GameViewDto
 import com.jmussel.chessgame.api.RealtimeMessageDto
+import com.jmussel.chessgame.api.SeriesOpening
 import com.jmussel.chessgame.api.ServerWakePolicy
 import com.jmussel.chessgame.api.UserSummaryDto
 import com.jmussel.chessgame.api.withServerWake
@@ -33,6 +34,7 @@ import com.jmussel.chessgame.ui.history.HistoryMessages
 import com.jmussel.chessgame.ui.history.HistoryUiState
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import com.jmussel.chessgame.ui.onboarding.UsernameOnboarding
+import com.jmussel.chessgame.ui.series.PlayOffer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -90,6 +92,15 @@ class ChessAppViewModel(
     var game: OnlineGameState? by mutableStateOf(null)
         private set
 
+    /**
+     * The choice Play is waiting on, when the friend already had a series (`D053`), or `null`.
+     *
+     * Held here rather than in one screen's state because Play is on two screens, and the
+     * choice is the same one whichever raised it.
+     */
+    var playOffer: PlayOffer? by mutableStateOf(null)
+        private set
+
     /** What the screens are built from. */
     val app: ChessAppDependencies
         get() = dependencies
@@ -121,6 +132,9 @@ class ChessAppViewModel(
 
     /** The history load in flight, if any. Internal for the same reason. */
     internal var historyJob: Job? = null
+
+    /** Starting another series from an offer, while it runs. */
+    internal var playOfferJob: Job? = null
         private set
 
     /** The move in flight, if any. Internal for the same reason. */
@@ -755,10 +769,10 @@ class ChessAppViewModel(
     /**
      * "Play with this friend", from the dashboard.
      *
-     * Whether that opens the series already running or starts one is the server's business
-     * (`D011`), so both the friend with a game under way and the friend without go through
-     * the same request. The dashboard is reloaded afterwards, because starting a series
-     * changes it.
+     * Whether the pair already has a series is the server's to say, so the friend with a game
+     * under way and the friend without go through the same request. A new series opens its
+     * game; an existing one is offered, never silently reused (`D053`). The dashboard is
+     * reloaded afterwards either way, because what the server knows may be newer than it.
      */
     fun playFriend(row: FriendRow) {
         if (dashboardJob?.isActive == true) return
@@ -768,8 +782,17 @@ class ChessAppViewModel(
                 dashboard = dashboard.copy(busy = true)
 
                 try {
-                    val gameId = dependencies.chessApi.openSeries(row.username).currentGameId
+                    val opening = dependencies.chessApi.openSeries(row.username)
                     fetchDashboard()
+
+                    val gameId =
+                        when (opening) {
+                            is SeriesOpening.Offered -> {
+                                playOffer = PlayOffer(username = row.username, existing = opening.existing)
+                                return@launch
+                            }
+                            is SeriesOpening.Started -> opening.series.currentGameId
+                        }
 
                     if (gameId == null) {
                         dashboard = dashboard.copy(message = "No game with ${row.username} to open yet.")
@@ -955,14 +978,22 @@ class ChessAppViewModel(
     }
 
     /**
-     * Opens the game with [friend], asking the server for the series it belongs to.
+     * Plays [friend], from the friends screen.
      *
-     * Whether that opens the series already running or starts one is the server's business,
-     * not the app's (`D011`). A series between games has nothing to open yet, and says so.
+     * A new series opens its game. When the pair already has one, the server offers it rather
+     * than reusing it (`D053`), and the player chooses ([playOffer]). A series between games
+     * has nothing to open yet, and says so.
      */
     fun playFriend(friend: UserSummaryDto) {
         runOnFriends { api ->
-            val gameId = api.openSeries(friend.username).currentGameId
+            val gameId =
+                when (val opening = api.openSeries(friend.username)) {
+                    is SeriesOpening.Offered -> {
+                        playOffer = PlayOffer(username = friend.username, existing = opening.existing)
+                        return@runOnFriends
+                    }
+                    is SeriesOpening.Started -> opening.series.currentGameId
+                }
 
             if (gameId == null) {
                 friends = friends.copy(message = "No game with ${friend.username} to open yet.")
@@ -971,6 +1002,51 @@ class ChessAppViewModel(
                 openOnlineGame(gameId)
             }
         }
+    }
+
+    /** Takes the offer's "Open": the newest offered series' game. */
+    fun openOfferedGame() {
+        val offer = playOffer ?: return
+        if (offer.busy) return
+        val gameId = offer.newestGameId ?: return
+
+        playOffer = null
+        openOnlineGame(gameId)
+    }
+
+    /**
+     * Takes the offer's "Start another": a new series alongside the ones the pair has (`D053`).
+     *
+     * The offer stays up, busy, until the server answers, so a second tap cannot start a third
+     * series; a refusal is shown on the offer itself, where the player made the choice.
+     */
+    fun startAnotherSeries() {
+        val offer = playOffer ?: return
+        if (playOfferJob?.isActive == true) return
+
+        playOfferJob =
+            viewModelScope.launch {
+                playOffer = offer.copy(busy = true, message = null)
+
+                try {
+                    val gameId = dependencies.chessApi.startAnotherSeries(offer.username).currentGameId
+                    playOffer = null
+                    fetchDashboard()
+                    gameId?.let(::openOnlineGame)
+                } catch (refused: ChessApiException) {
+                    playOffer = offer.copy(message = DashboardMessages.messageFor(refused))
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (unreachable: Exception) {
+                    playOffer = offer.copy(message = DashboardMessages.unreachableMessage())
+                }
+            }
+    }
+
+    /** Leaves the offer without choosing: nothing is opened and nothing is started. */
+    fun dismissPlayOffer() {
+        if (playOffer?.busy == true) return
+        playOffer = null
     }
 
     /** The friends list as the server has it now. */

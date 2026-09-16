@@ -15,6 +15,7 @@ import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.StoredGame
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.series.seriesService
+import com.jmussel.chessgame.server.series.startSeries
 import com.jmussel.chessgame.server.testModule
 import com.jmussel.chessgame.server.user.Username
 import io.ktor.client.request.get
@@ -73,9 +74,9 @@ class UndoMoveTest {
             val alex = named("auth-2", "Alex")
             FriendshipRepository(database).add(jordan, alex)
 
-            val opened = seriesService(database, FixedCoin(jordan < alex)).openWithGame(jordan, alex)
+            val opened = seriesService(database, FixedCoin(jordan < alex)).startSeries(jordan, alex)
 
-            gameId = assertNotNull(opened.series.currentGameId)
+            gameId = assertNotNull(opened.currentGameId)
             white = jordan
             black = alex
         }

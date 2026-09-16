@@ -30,6 +30,9 @@ import com.jmussel.chessgame.ui.history.HistoryScreen
 import com.jmussel.chessgame.ui.history.HistoryUiState
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import com.jmussel.chessgame.ui.onboarding.UsernameScreen
+import com.jmussel.chessgame.ui.series.PlayOffer
+import com.jmussel.chessgame.ui.series.PlayOfferActions
+import com.jmussel.chessgame.ui.series.PlayOfferDialog
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
 /**
@@ -70,7 +73,12 @@ fun ChessApp(
     onClaimUsername: (String) -> Unit = {},
     friendsActions: FriendsActions = FriendsActions(),
     dashboardActions: DashboardActions = DashboardActions(),
+    playOffer: PlayOffer? = null,
+    playOfferActions: PlayOfferActions = PlayOfferActions(),
 ) {
+    // Play is on two screens and raises the same choice from either (`D053`).
+    playOffer?.let { PlayOfferDialog(offer = it, actions = playOfferActions) }
+
     Column(modifier = modifier.fillMaxSize()) {
         ShellChrome(
             navigation = navigation,

@@ -123,6 +123,24 @@ class TableRepository(
                 ?.let { it[GameTypesTable.minParticipants]..it[GameTypesTable.maxParticipants] }
         }
 
+    /**
+     * Locks the table with [id] until the surrounding transaction ends.
+     *
+     * What serialises decisions about a table's series now that nothing in the schema limits
+     * how many it may have (`D053`): two requests that both ask "does this table have a series
+     * yet?" take turns, so the second sees what the first created. Must be called inside a
+     * transaction.
+     */
+    fun lockForUpdate(id: Uuid) {
+        transaction(database) {
+            TablesTable
+                .select(TablesTable.id)
+                .where { TablesTable.id eq id }
+                .forUpdate()
+                .toList()
+        }
+    }
+
     /** The table with [id], or `null`. */
     fun find(id: Uuid): StoredTable? =
         transaction(database) {

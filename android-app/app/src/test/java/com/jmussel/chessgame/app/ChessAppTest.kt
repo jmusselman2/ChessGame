@@ -126,6 +126,7 @@ class ChessAppTest {
                 model.gameJob,
                 model.moveJob,
                 model.updatesJob,
+                model.playOfferJob,
             ).forEach { job -> job?.cancel() }
         }
 
@@ -1107,6 +1108,121 @@ class ChessAppTest {
 
             assertEquals(Destination.Dashboard, viewModel.navigation.current)
             assertEquals("No such user", viewModel.dashboard.message)
+        }
+
+    /** The body `POST /series` answers with when the pair already has a series (`D053`). */
+    private val offerOfGameAlex =
+        """{"existing":[{"seriesId":"series-1","opponent":{"userId":"user-1","username":"Alex"},""" +
+            """"status":"ACTIVE","currentGameId":"game-Alex"}]}"""
+
+    @Test
+    fun playingAFriendYouAlreadyPlayOffersTheChoiceAndOpensNothing() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            username = "Jordan",
+                            friends = listOf("Alex"),
+                            games = listOf("Alex"),
+                            refusals = 1,
+                            refusalPath = "/series",
+                            refusalStatus = HttpStatusCode.Conflict,
+                            refusalBody = offerOfGameAlex,
+                        ),
+                )
+            viewModel.start()
+            viewModel.startupJob?.join()
+            viewModel.dashboardJob?.join()
+
+            val row = DashboardSections.friends(viewModel.friends.friends, viewModel.dashboard.entries).single()
+            viewModel.playFriend(row)
+            viewModel.dashboardJob?.join()
+
+            assertEquals(Destination.Dashboard, viewModel.navigation.current)
+            assertEquals("Alex", viewModel.playOffer?.username)
+            assertEquals("game-Alex", viewModel.playOffer?.newestGameId)
+            assertNull("an offer is not a failure", viewModel.dashboard.message)
+        }
+
+    @Test
+    fun choosingOpenFromTheOfferOpensTheNewestGame() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            username = "Jordan",
+                            refusals = 1,
+                            refusalPath = "/series",
+                            refusalStatus = HttpStatusCode.Conflict,
+                            refusalBody = offerOfGameAlex,
+                        ),
+                )
+            viewModel.restartAt(Destination.Friends)
+
+            viewModel.playFriend(UserSummaryDto(userId = "user-1", username = "Alex"))
+            viewModel.friendsJob?.join()
+            viewModel.openOfferedGame()
+            viewModel.gameJob?.join()
+
+            assertNull(viewModel.playOffer)
+            assertEquals(Destination.OnlineGame("game-Alex"), viewModel.navigation.current)
+            assertEquals("nothing else was asked of /series", 1, paths.count { it == "/series" })
+        }
+
+    @Test
+    fun choosingStartAnotherAsksForAnotherSeriesAndOpensItsGame() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            username = "Jordan",
+                            currentGameId = "game-new",
+                            refusals = 1,
+                            refusalPath = "/series",
+                            refusalStatus = HttpStatusCode.Conflict,
+                            refusalBody = offerOfGameAlex,
+                        ),
+                )
+            viewModel.restartAt(Destination.Friends)
+
+            viewModel.playFriend(UserSummaryDto(userId = "user-1", username = "Alex"))
+            viewModel.friendsJob?.join()
+            viewModel.startAnotherSeries()
+            viewModel.playOfferJob?.join()
+            viewModel.gameJob?.join()
+
+            val another = requests.last { it.url.encodedPath == "/series" }
+            assertEquals("true", another.url.parameters["another"])
+            assertNull(viewModel.playOffer)
+            assertEquals(Destination.OnlineGame("game-new"), viewModel.navigation.current)
+        }
+
+    @Test
+    fun dismissingTheOfferChangesNothing() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            username = "Jordan",
+                            refusals = 1,
+                            refusalPath = "/series",
+                            refusalStatus = HttpStatusCode.Conflict,
+                            refusalBody = offerOfGameAlex,
+                        ),
+                )
+            viewModel.restartAt(Destination.Friends)
+
+            viewModel.playFriend(UserSummaryDto(userId = "user-1", username = "Alex"))
+            viewModel.friendsJob?.join()
+            viewModel.dismissPlayOffer()
+
+            assertNull(viewModel.playOffer)
+            assertEquals(Destination.Friends, viewModel.navigation.current)
+            assertEquals(1, paths.count { it == "/series" })
         }
 
     @Test

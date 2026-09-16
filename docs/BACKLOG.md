@@ -4859,7 +4859,7 @@ over the new tables, and `.\gradlew.bat build`.
 
 ## M19.4 — Migration V3: drop the pair-model constraints
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M19.3
 
@@ -4881,6 +4881,77 @@ lifecycle.
   the new behaviour (they encode `D011`, which is superseded — record the change
   in the task note, do not just delete).
 - `docs/ARCHITECTURE.md` §16 (one `ACTIVE` series per pair) updated.
+
+### Completion Note — 2026-09-16
+
+`V6__parallel_series.sql`, `SeriesService.play`, the `409` offer from `POST
+/series`, `POST /series?another=true`, and the app's offer dialog. The API and the
+concurrency choices are recorded in
+[`D065`](DECISIONS.md#d065--play-answers-409-with-an-offer-when-the-pair-already-has-a-series-and-the-table-lock-replaces-the-unique-index).
+
+**Migration numbering and scope.** The criteria's "`V3`" is `V6`, allocated in
+landing order as `M19.2` noted. The index it drops is the one `M19.3` rebuilt on
+`table_id` (`game_series_one_active_per_table`, `D064`). **The column
+`close_after_current_game` is not dropped here. `M19.5` drops it.** `V6` could
+not remove it without also removing the friend-removal lifecycle that still
+writes and reads it (`FriendshipRepository.remove`, `SeriesService.settleAfter`,
+and the `closeAfterCurrentGame` field on two API types). That lifecycle is
+exactly `M19.5`'s objective. Splitting them this way keeps each migration beside
+the code change that makes it safe.
+
+**The offer.** When the pair has no active series, Play starts one with its first
+game and answers `201`, as before. When the pair has one or more, nothing is
+started: `409` carries a `SeriesOffer` listing them, newest first. "Start
+another" is `?another=true` and always starts one. The app shows one dialog
+whichever screen Play was tapped on (`PlayOfferDialog`). "Open" goes to the
+newest offered game with no further request, "Start another" posts
+`?another=true` and opens the new game, and dismissing it changes nothing. The
+dialog stays up and disabled while "Start another" runs, and a refusal is shown
+on the dialog itself.
+
+**The double tap without the index.** `SeriesService.play` locks the pair's
+`tables` row, then asks whether an active series exists, then creates the series
+and its first game, all in one transaction. **Checked with the lock disabled**:
+`simultaneousOpensProduceExactlyOneActiveSeries` then fails ("exactly one attempt
+may create the series ==> expected: <1> but was: <2>"), and passes with it
+restored.
+
+**Tests that encoded `D011`, updated rather than deleted:**
+
+- `InitialSchemaTest.onlyOneActiveSeriesExistsPerPair` became
+  `aPairMayHaveSeveralActiveSeries`. Its comment records the old assertion and why
+  it changed.
+- `OpenSeriesTest.theEndpointOpensTheExistingSeriesTheSecondTime` became
+  `theEndpointOffersTheExistingSeriesTheSecondTime`, which now expects `409` with
+  the offer instead of `200` with the same series.
+- `InitialGameTest.openingAgainDoesNotStartASecondGame` became
+  `playingAgainOffersTheSeriesInsteadOfStartingASecondGame`.
+- `SeriesIdempotencyTest` was re-described under `D053`. Its `play` helper now
+  lands where the player lands, which is the new series or the offered one ("Open").
+  Its assertions of one series and one game still hold, because the second tap is
+  offered the first tap's series. Two new tests pin the raw offer
+  (`aSecondTapIsOfferedTheSeriesAndStartsNothing`) and a real parallel series
+  (`choosingAnotherStartsAParallelSeriesWithItsOwnGame`).
+- `SeriesClosesAfterLastGameTest` and the coin-toss tests in `InitialGameTest`
+  changed fixtures only. The coin-toss tests no longer create a series before the
+  one under test, because creating one first would now get an offer.
+
+New: `OpenSeriesTest.theEndpointStartsAnotherSeriesWhenAskedTo`, three
+`ChessApiClientTest` cases (the offer, a non-offer `409`, and `another=true`), four
+`ChessAppTest` cases (offer raised, Open, Start another, and dismiss), and
+`PlayOffersTest`. `GameSeriesRepository.findActive` became `activeAt` (a list).
+`SeriesService.openWithGame` became `play`. Tests that only need a first series
+use the `startSeries` test helper, which fails if Play would have offered one.
+
+**Docs.** `ARCHITECTURE` §16 describes the offer and the lock, and §27 drops the
+one-active-series constraint. `MVP.md`'s "One `ACTIVE` series per pair" was stale
+since `D053` and now says what `D053` says. `PRODUCT.md` already did.
+
+Verified with `.\gradlew.bat :server:test` over the series, schema, realtime,
+dashboard and friends tests, the `:android-app` unit tests above, and
+`.\gradlew.bat build`.
+
+---
 
 ## M19.5 — Unfriending no longer closes a series
 

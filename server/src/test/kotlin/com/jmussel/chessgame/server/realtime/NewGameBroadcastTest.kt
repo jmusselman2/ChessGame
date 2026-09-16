@@ -90,8 +90,8 @@ class NewGameBroadcastTest {
 
             val waiting = alex.connect()
 
-            // Tapping "Play" again opens the game already under way and creates nothing
-            // (`M16.4`), so there is no news to carry. Announcing here would be harmless
+            // Tapping "Play" again is offered the game already under way and creates nothing
+            // (`M16.4`, `D053`), so there is no news to carry. Announcing here would be harmless
             // but untrue, and a message per tap is a message per tap.
             jordan.openSeries("Alex")
             assertNull(waiting.nextMessageOrNull())

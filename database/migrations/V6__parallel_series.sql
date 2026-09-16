@@ -1,0 +1,22 @@
+-- Several active series per pair (D053, M19.4).
+--
+-- D011 allowed a pair one ACTIVE series at a time, and a partial unique index
+-- enforced it. D053 removed the rule: two people may play several independent
+-- series at once, the way they could sit at two boards. "Play" against a friend
+-- who already has a series now offers opening it or starting another instead of
+-- silently reusing it, so the index that would refuse the second series goes.
+--
+-- The index was built on the pair columns in V1 as game_series_one_active_per_pair
+-- and rebuilt on table_id as game_series_one_active_per_table by V5 (M19.3,
+-- D064). This drops the V5 form, which is the only one that exists.
+--
+-- What the index also did was make two simultaneous first taps on "Play" produce
+-- one series rather than two. That guarantee is kept without it: SeriesService
+-- locks the table row before deciding whether a series exists, so the second
+-- request waits and is offered the series the first one started.
+--
+-- game_series.close_after_current_game is dropped by M19.5, together with the
+-- friend-removal lifecycle that still writes and reads it; dropping the column
+-- here would remove it from under code that has not been changed yet.
+
+drop index game_series_one_active_per_table;

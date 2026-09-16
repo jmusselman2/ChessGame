@@ -16,6 +16,7 @@ import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.StoredGame
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.series.seriesService
+import com.jmussel.chessgame.server.series.startSeries
 import com.jmussel.chessgame.server.user.Username
 import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -67,9 +68,9 @@ class FinalizeGameTest {
             val alex = named("auth-2", "Alex")
             FriendshipRepository(database).add(jordan, alex)
 
-            val opened = seriesService(database, FixedCoin(jordan < alex)).openWithGame(jordan, alex)
+            val opened = seriesService(database, FixedCoin(jordan < alex)).startSeries(jordan, alex)
 
-            gameId = assertNotNull(opened.series.currentGameId)
+            gameId = assertNotNull(opened.currentGameId)
             white = jordan
             black = alex
         }

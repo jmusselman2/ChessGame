@@ -14,6 +14,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.uuid.ExperimentalUuidApi
@@ -180,10 +181,9 @@ class SeriesClosesAfterLastGameTest {
 
             // Closing frees the pair: befriending again opens a new series rather than
             // reviving the old one (`D012`).
-            val reopened = fixture.series.openWithGame(fixture.white, fixture.black)
+            val reopened = assertIs<PlayOutcome.Started>(fixture.series.play(fixture.white, fixture.black))
 
-            assertTrue(reopened.created, "a new series, not the closed one")
-            assertTrue(reopened.series.id != fixture.seriesId)
+            assertTrue(reopened.series.id != fixture.seriesId, "a new series, not the closed one")
             assertEquals(CLOSED_SERIES, fixture.series().status, "the old series stays closed")
         }
     }

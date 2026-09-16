@@ -96,6 +96,15 @@ data class SeriesSummary(
     }
 }
 
+/**
+ * The answer to "Play" when the pair already has active series (`D053`): nothing was started,
+ * and these are the series the player may open instead of starting another. Newest first.
+ */
+@Serializable
+data class SeriesOffer(
+    val existing: List<SeriesSummary>,
+)
+
 /** One dashboard line: an active series, the game it is at, and whose move it is. */
 @Serializable
 data class DashboardEntry(

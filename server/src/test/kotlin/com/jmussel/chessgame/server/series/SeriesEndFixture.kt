@@ -47,10 +47,10 @@ internal class SeriesEndFixture(
         val alex = named("auth-2", "Alex")
         FriendshipRepository(database).add(jordan, alex)
 
-        val opened = series.openWithGame(jordan, alex)
+        val opened = series.startSeries(jordan, alex)
 
-        seriesId = opened.series.id
-        firstGameId = assertNotNull(opened.series.currentGameId)
+        seriesId = opened.id
+        firstGameId = assertNotNull(opened.currentGameId)
 
         // Which of them has White is the series' coin toss to make (`D014`), not this
         // fixture's; take it from the game it created.

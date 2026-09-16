@@ -587,8 +587,14 @@ and a different set is a different table and a different series.
 
 For MVP:
 
-- at most one `ACTIVE` series per table (for chess, per pair — until `M19.4`),
-- an existing active series is opened instead of creating a parallel one,
+- a table may have **several** `ACTIVE` series at once (`D053`, superseding
+  `D011`; `M19.4`),
+- "Play" never silently reuses one: `POST /series` starts a series and its first
+  game when the pair has none (`201`), and otherwise starts nothing and answers
+  `409` with a `SeriesOffer` listing the active series, newest first;
+  `POST /series?another=true` is the player choosing another (`D065`),
+- whether a table has a series is decided under the table row's lock, so two
+  simultaneous first taps start one series, not two,
 - closed series remain historical,
 - creation does not check that the pair are friends (`D046`), so a series may
   outlive — or never have had — a friendship between its two players.
@@ -841,7 +847,6 @@ Use database constraints for race-sensitive invariants where possible, including
 
 - normalized username uniqueness,
 - friendship uniqueness,
-- one active series per table (per pair, for chess),
 - one table per exact participant set per game type,
 - one seat per participant per table and per game,
 - rematch/idempotency-related uniqueness where appropriate,

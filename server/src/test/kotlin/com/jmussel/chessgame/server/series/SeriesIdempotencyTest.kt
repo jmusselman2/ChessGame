@@ -5,6 +5,7 @@ package com.jmussel.chessgame.server.series
 import com.jmussel.chessgame.server.api.DashboardEntry
 import com.jmussel.chessgame.server.api.GameView
 import com.jmussel.chessgame.server.api.SeriesHistoryEntry
+import com.jmussel.chessgame.server.api.SeriesOffer
 import com.jmussel.chessgame.server.api.SeriesSummary
 import com.jmussel.chessgame.server.auth.TestTokens
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
@@ -19,6 +20,7 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import io.ktor.server.testing.testApplication
@@ -37,9 +39,12 @@ import kotlin.uuid.ExperimentalUuidApi
 /**
  * "Play with this friend", however many times it is tapped.
  *
- * One pair has one active series (`D011`) and one game to play in it, and a finished game
- * is followed by exactly one rematch (`D015`). This is those rules held at the API
- * boundary, where the taps actually arrive — including both players tapping at once.
+ * Tapping Play for a friend with no series starts one, with one game. Tapping it again starts
+ * nothing: the series is offered back (`D053`, which superseded `D011`'s "one active series per
+ * pair" — the rule these tests were first written for), and a second series exists only when
+ * the player asks for another. A finished game is followed by exactly one rematch (`D015`).
+ * This is those rules held at the API boundary, where the taps actually arrive — including
+ * both players tapping at once.
  *
  * Skipped when this machine has no test database (see [DatabaseTestSupport]).
  */
@@ -73,14 +78,29 @@ class SeriesIdempotencyTest {
 
     private fun HttpRequestBuilder.authorizedAs(subject: String) = header("Authorization", "Bearer ${tokens.tokenFor(subject)}")
 
-    private suspend fun ApplicationTestBuilder.play(subject: String): SeriesSummary =
-        json.decodeFromString(
-            client
-                .post("/series") {
-                    authorizedAs(subject)
-                    setBody(if (subject == JORDAN) "Alex" else "Jordan")
-                }.bodyAsText(),
-        )
+    private suspend fun ApplicationTestBuilder.tapPlay(
+        subject: String,
+        another: Boolean = false,
+    ): HttpResponse =
+        client.post(if (another) "/series?another=true" else "/series") {
+            authorizedAs(subject)
+            setBody(if (subject == JORDAN) "Alex" else "Jordan")
+        }
+
+    /**
+     * Taps Play and lands in a series: the one it started, or — when the pair already has one
+     * and it is offered (`D053`) — the newest offered, which is what choosing "Open" does.
+     */
+    private suspend fun ApplicationTestBuilder.play(subject: String): SeriesSummary {
+        val response = tapPlay(subject)
+
+        return if (response.status == HttpStatusCode.Conflict) {
+            json.decodeFromString<SeriesOffer>(response.bodyAsText()).existing.first()
+        } else {
+            assertEquals(HttpStatusCode.Created, response.status)
+            json.decodeFromString(response.bodyAsText())
+        }
+    }
 
     private suspend fun ApplicationTestBuilder.readGame(
         subject: String,
@@ -139,6 +159,38 @@ class SeriesIdempotencyTest {
     }
 
     @Test
+    fun aSecondTapIsOfferedTheSeriesAndStartsNothing() {
+        withFriends {
+            val first = tapPlay(JORDAN)
+            val second = tapPlay(JORDAN)
+
+            assertEquals(HttpStatusCode.Created, first.status)
+            assertEquals(HttpStatusCode.Conflict, second.status, "not reused silently (`D053`)")
+            assertEquals(
+                listOf(json.decodeFromString<SeriesSummary>(first.bodyAsText())),
+                json.decodeFromString<SeriesOffer>(second.bodyAsText()).existing,
+            )
+            assertEquals(1, gameCount(), "the second tap started nothing")
+        }
+    }
+
+    @Test
+    fun choosingAnotherStartsAParallelSeriesWithItsOwnGame() {
+        withFriends {
+            val first = play(JORDAN)
+            val another = tapPlay(ALEX, another = true)
+
+            assertEquals(HttpStatusCode.Created, another.status)
+            val second = json.decodeFromString<SeriesSummary>(another.bodyAsText())
+            assertNotEquals(first.seriesId, second.seriesId)
+            assertNotEquals(first.currentGameId, second.currentGameId)
+            assertEquals(2, gameCount())
+            assertEquals(2, dashboard(JORDAN).size, "both series are live for both players")
+            assertEquals(2, dashboard(ALEX).size)
+        }
+    }
+
+    @Test
     fun tappingPlayTwiceOpensTheSameGame() {
         withFriends {
             val first = play(JORDAN)
@@ -172,7 +224,7 @@ class SeriesIdempotencyTest {
                     }
                 }
 
-            assertEquals(1, opened.map { it.seriesId }.distinct().size, "one series (`D011`)")
+            assertEquals(1, opened.map { it.seriesId }.distinct().size, "one series: the later tap is offered it")
             assertEquals(1, opened.map { it.currentGameId }.distinct().size, "one game in it")
             assertEquals(1, gameCount())
         }
@@ -257,8 +309,9 @@ class SeriesIdempotencyTest {
     @Test
     fun aClosedSeriesIsNotReopened() {
         withFriends {
-            val firstGame = assertNotNull(play(JORDAN).currentGameId)
-            val closedSeries = play(JORDAN).seriesId
+            val opened = play(JORDAN)
+            val firstGame = assertNotNull(opened.currentGameId)
+            val closedSeries = opened.seriesId
 
             // Removing the friend marks the series to close after this game (`D013`).
             removeFriend(JORDAN, "Alex")

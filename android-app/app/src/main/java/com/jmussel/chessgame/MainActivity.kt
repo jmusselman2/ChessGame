@@ -16,6 +16,7 @@ import com.jmussel.chessgame.app.ChessAppDependencies
 import com.jmussel.chessgame.app.ChessAppViewModel
 import com.jmussel.chessgame.ui.dashboard.DashboardActions
 import com.jmussel.chessgame.ui.friends.FriendsActions
+import com.jmussel.chessgame.ui.series.PlayOfferActions
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
 /**
@@ -66,6 +67,15 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                val playOfferActions =
+                    remember(viewModel) {
+                        PlayOfferActions(
+                            onOpen = viewModel::openOfferedGame,
+                            onStartAnother = viewModel::startAnotherSeries,
+                            onDismiss = viewModel::dismissPlayOffer,
+                        )
+                    }
+
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     ChessApp(
                         navigation = viewModel.navigation,
@@ -97,6 +107,8 @@ class MainActivity : ComponentActivity() {
                         onClaimUsername = viewModel::claimUsername,
                         friendsActions = friendsActions,
                         dashboardActions = dashboardActions,
+                        playOffer = viewModel.playOffer,
+                        playOfferActions = playOfferActions,
                     )
                 }
             }

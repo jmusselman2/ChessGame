@@ -100,7 +100,8 @@ for task-level status.
 ### Multiplayer
 
 - Game series can be created/opened.
-- One `ACTIVE` series per pair for MVP.
+- A pair may have several `ACTIVE` series; Play offers an existing one rather than
+  reusing it silently (`D053`, superseding `D011`'s one series per pair).
 - Initial colors are random.
 - Server is authoritative.
 - `MakeMove` uses expected game version.

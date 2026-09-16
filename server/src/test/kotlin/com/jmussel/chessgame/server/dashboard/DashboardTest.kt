@@ -16,6 +16,7 @@ import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.db.GameTypes
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.series.seriesService
+import com.jmussel.chessgame.server.series.startSeries
 import com.jmussel.chessgame.server.testModule
 import com.jmussel.chessgame.server.user.Username
 import io.ktor.client.request.get
@@ -70,7 +71,7 @@ class DashboardTest {
             friendships.add(caller, friend)
             val callerIsLower = caller < friend
             val service = seriesService(database, FixedCoin(callerIsLower))
-            return service.openWithGame(caller, friend).series.id
+            return service.startSeries(caller, friend).id
         }
 
         fun currentGame(seriesId: Uuid) = games.load(assertNotNull(series.find(seriesId)?.currentGameId))!!

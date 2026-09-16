@@ -4027,3 +4027,78 @@ chess.
   criteria name the old `game_series_one_active_per_pair`.
 - If a per-user approval setting (`D049`) or any server-side invite gate is ever
   wanted, it is a new decision superseding `D046`, not an extension of this one.
+
+---
+
+## D065 — Play Answers `409` With an Offer When the Pair Already Has a Series, and the Table Lock Replaces the Unique Index
+
+**Date:** 2026-09-16
+
+**Status:** Accepted
+
+**Relates to:** `D011` (superseded by `D053`), `D021`, `D046`, `D053`, `D064`,
+`M16.4`, `M19.4`, `ARCHITECTURE` §16, `PRODUCT` *Starting a Game*
+
+**Scope:** How `D053`'s "Play offers opening it or starting another" is carried by
+the API, and what keeps a double tap from starting two series once the index is
+gone. Chess only; no layout decision (`M19.1`).
+
+### Decision
+
+- **`POST /series` (body: a username) never silently reuses a series.**
+  - The pair has no active series: a series and its first game are started, and
+    the answer is `201` with the `SeriesSummary`, exactly as before.
+  - The pair has one or more: **nothing is started**, and the answer is `409
+    Conflict` with a `SeriesOffer { existing: [SeriesSummary] }`, newest first.
+    This is the offer. The `200` "opened the existing one" answer is gone.
+- **`POST /series?another=true`** is the player's answer "start another". It
+  always starts a new series with its first game and answers `201`.
+- **The offer's "Open"** needs no request. The app opens the newest offered
+  series' current game with the ordinary `GET /games/{gameId}`.
+- **A double tap still starts one series.** `V6` drops the partial unique index
+  that used to settle it. Instead, `SeriesService.play` locks the pair's `tables`
+  row (`SELECT … FOR UPDATE`) before asking whether an active series exists, and
+  creates the series and its first game in that same transaction. A concurrent
+  second tap waits, sees the first's series, and is offered it.
+- **"Start another" is not deduplicated.** It is an explicit choice made from the
+  offer, and the app keeps the offer up and disabled while that request runs. A
+  direct caller who sends it twice gets two series, which is what they asked for.
+- **The app** shows one dialog for the offer, whichever screen Play was tapped on:
+  "Open" or "Start another", and dismissing it changes nothing.
+
+### Rationale
+
+`409` is the honest status: the request as sent ("play this friend") conflicts
+with state the player has not yet decided about, and the body carries exactly
+what they need to decide. A `200` carrying either a series or an offer would make
+every client branch on the body shape. A separate "does this pair have a
+series?" read would reopen the race it is meant to settle.
+
+The lock is what the index was really doing for `M16.4`'s "both players tap Play
+at once" case. With parallel series allowed, only a lock can still turn two
+simultaneous "is there one?" questions into one series. Locking the table row
+keeps it narrow: unrelated pairs never contend. The test
+`simultaneousOpensProduceExactlyOneActiveSeries` fails when that lock is removed.
+This was checked, and eight racing opens then create two series.
+
+### Alternatives Considered
+
+- **Keep `POST /series` reusing, and add `another` alongside it.** Rejected: that
+  is the silent reuse `D053` removed.
+- **An idempotency key for "start another".** Not needed yet. The choice is
+  deliberate and made from a disabled-while-busy dialog.
+- **A unique index on "series created within N seconds".** Rejected: a time
+  window is not a rule.
+
+### Consequences
+
+- `V6__parallel_series.sql` drops `game_series_one_active_per_table`.
+  `game_series.close_after_current_game` is dropped by `M19.5`, together with the
+  code that still reads it.
+- Older app builds, including the beta APK, read a `409` from Play as a refusal
+  and show its body. They cannot start a second series, and they can still open
+  the existing game from the dashboard. That limit is acceptable, because the beta
+  must be rebuilt before it is handed out again anyway.
+- `GameSeriesRepository.openOrCreate` stays as a storage primitive ("newest
+  active or new", under the same lock), for fixtures. The product path is
+  `SeriesService.play`.

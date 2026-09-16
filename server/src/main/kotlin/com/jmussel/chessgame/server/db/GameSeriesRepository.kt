@@ -58,24 +58,23 @@ data class OpenedSeries(
  * Series of games at a table.
  *
  * A series belongs to a table — the exact set of people playing it (`D048`) — so the same
- * people always reach the same series, and a different set reaches a different one.
+ * people always reach their own series, and a different set reaches different ones.
  *
- * A table has at most one `ACTIVE` series (`D011`, until `M19.4`), enforced by a partial
- * unique index rather than by hoping two requests do not arrive at once: "start a game with
- * this friend" opens the series that already exists instead of quietly creating a parallel
- * one. Closed series stay for history (`D012`).
+ * A table may have several `ACTIVE` series at once (`D053`). Nothing in the schema limits it,
+ * so the decisions that depend on how many there are take the table's row lock first
+ * ([TableRepository.lockForUpdate]). Closed series stay for history (`D012`).
  */
 class GameSeriesRepository(
     private val database: Database,
     private val tables: TableRepository = TableRepository(database),
 ) {
     /**
-     * The active series of the [gameType] table seating exactly [participants], opening the
-     * existing one or creating the table and the series as needed.
+     * The newest active series of the [gameType] table seating exactly [participants], or a
+     * new one when it has none.
      *
-     * The table checks the participant set against its game type before anything is written
-     * ([TableRepository.findOrCreate]). If two requests race, the database refuses the second
-     * insert and this returns the series the other one created.
+     * A storage primitive: whether a player should be *offered* an existing series instead is
+     * the product's question, and `SeriesService.play` asks it. The table is locked while
+     * deciding, so simultaneous calls agree on one series.
      */
     fun openOrCreate(
         gameType: String,
@@ -83,30 +82,53 @@ class GameSeriesRepository(
     ): OpenedSeries {
         val table = tables.findOrCreate(gameType, participants)
 
-        findActive(table.id)?.let { return OpenedSeries(it, created = false) }
+        return transaction(database) {
+            tables.lockForUpdate(table.id)
 
-        val created =
-            try {
-                transaction(database) { insert(table) }
-            } catch (e: Exception) {
-                if (!e.isUniqueViolation()) throw e
-                // Another request created it a moment ago; that one is the series.
-                val existing =
-                    requireNotNull(findActive(table.id)) { "The active series vanished after a conflict" }
-                return OpenedSeries(existing, created = false)
-            }
-
-        return OpenedSeries(created, created = true)
+            activeAt(table.id).firstOrNull()?.let { OpenedSeries(it, created = false) }
+                ?: OpenedSeries(create(table), created = true)
+        }
     }
 
-    /** The active series at [tableId], or `null`. */
-    fun findActive(tableId: Uuid): StoredSeries? =
+    /** Every active series at [tableId], newest first. */
+    fun activeAt(tableId: Uuid): List<StoredSeries> =
         transaction(database) {
             GameSeriesTable
                 .selectAll()
                 .where { (GameSeriesTable.tableId eq tableId) and (GameSeriesTable.status eq ACTIVE_SERIES) }
-                .singleOrNull()
-                ?.let(::toSeries)
+                .orderBy(GameSeriesTable.createdAt to SortOrder.DESC)
+                .map(::toSeries)
+        }
+
+    /**
+     * A new active series at [table], with no game yet.
+     *
+     * Always a new one: a table may have several (`D053`). Callers deciding whether to make
+     * one should hold the table's lock while they decide.
+     */
+    fun create(table: StoredTable): StoredSeries =
+        transaction(database) {
+            val id = Uuid.random()
+            val now = Instant.now()
+
+            GameSeriesTable.insert { row ->
+                row[GameSeriesTable.id] = id
+                row[GameSeriesTable.tableId] = table.id
+                row[GameSeriesTable.status] = ACTIVE_SERIES
+                row[GameSeriesTable.closeAfterCurrentGame] = false
+                row[GameSeriesTable.createdAt] = now.atOffset(ZoneOffset.UTC)
+            }
+
+            StoredSeries(
+                id = id,
+                tableId = table.id,
+                participants = table.participants,
+                status = ACTIVE_SERIES,
+                closeAfterCurrentGame = false,
+                currentGameId = null,
+                createdAt = now,
+                closedAt = null,
+            )
         }
 
     /**
@@ -246,30 +268,6 @@ class GameSeriesRepository(
                 .orderBy(GameSeriesTable.createdAt to SortOrder.DESC)
                 .map(::toSeries)
         }
-
-    private fun insert(table: StoredTable): StoredSeries {
-        val id = Uuid.random()
-        val now = Instant.now()
-
-        GameSeriesTable.insert { row ->
-            row[GameSeriesTable.id] = id
-            row[GameSeriesTable.tableId] = table.id
-            row[GameSeriesTable.status] = ACTIVE_SERIES
-            row[GameSeriesTable.closeAfterCurrentGame] = false
-            row[GameSeriesTable.createdAt] = now.atOffset(ZoneOffset.UTC)
-        }
-
-        return StoredSeries(
-            id = id,
-            tableId = table.id,
-            participants = table.participants,
-            status = ACTIVE_SERIES,
-            closeAfterCurrentGame = false,
-            currentGameId = null,
-            createdAt = now,
-            closedAt = null,
-        )
-    }
 
     /** Must be called inside a transaction: the participants are read beside the row. */
     private fun toSeries(row: ResultRow): StoredSeries {

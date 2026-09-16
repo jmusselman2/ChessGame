@@ -10,6 +10,7 @@ import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.series.seriesService
+import com.jmussel.chessgame.server.series.startSeries
 import com.jmussel.chessgame.server.testModule
 import com.jmussel.chessgame.server.user.Username
 import io.ktor.client.request.get
@@ -66,8 +67,8 @@ class GameViewTest {
             val alex = named("auth-2", "Alex")
             FriendshipRepository(database).add(jordan, alex)
 
-            val opened = seriesService(database).openWithGame(jordan, alex)
-            val gameId = assertNotNull(opened.series.currentGameId)
+            val opened = seriesService(database).startSeries(jordan, alex)
+            val gameId = assertNotNull(opened.currentGameId)
 
             testApplication {
                 application { testModule(tokens.verifier(), database) }

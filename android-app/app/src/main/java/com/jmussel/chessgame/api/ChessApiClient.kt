@@ -12,6 +12,7 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
+import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
@@ -136,6 +137,28 @@ data class SeriesSummaryDto(
     val closeAfterCurrentGame: Boolean = false,
     val currentGameId: String? = null,
 )
+
+/** The series the server offers when Play finds the pair already has some (`D053`). Newest first. */
+@Serializable
+data class SeriesOfferDto(
+    val existing: List<SeriesSummaryDto>,
+)
+
+/** What tapping Play came to. */
+sealed interface SeriesOpening {
+    /** A new series was started, and its first game with it. */
+    data class Started(
+        val series: SeriesSummaryDto,
+    ) : SeriesOpening
+
+    /**
+     * Nothing was started, because the pair already has active series: the player chooses
+     * between opening one of these and starting another (`D053`).
+     */
+    data class Offered(
+        val existing: List<SeriesSummaryDto>,
+    ) : SeriesOpening
+}
 
 /** What a client asks the server to play: intent, never a board state. */
 @Serializable
@@ -380,12 +403,40 @@ class ChessApiClient(
         )
 
     /**
-     * The active series with [username], opening the existing one or starting it.
+     * "Play with this friend": a new series, or the offer of the ones the pair already has.
      *
-     * "Play with this friend" is one action, and which of the two it turns out to be is
-     * the server's business, not the app's (`D011`).
+     * The server never silently reuses a series (`D053`). When the pair has one it answers
+     * `409` with the series it is offering, and nothing has been started; any other refusal
+     * is raised as usual.
      */
-    suspend fun openSeries(username: String): SeriesSummaryDto = post("/series", username)
+    suspend fun openSeries(username: String): SeriesOpening {
+        val response =
+            httpClient.post(config.url(SERIES)) {
+                header(HttpHeaders.Authorization, "Bearer ${accessToken()}")
+                setBody(username)
+            }
+
+        if (response.status.isSuccess()) return SeriesOpening.Started(response.body())
+
+        val text = response.bodyAsText()
+        val offer =
+            if (response.status == HttpStatusCode.Conflict) {
+                runCatching { Json.decodeFromString<SeriesOfferDto>(text) }.getOrNull()
+            } else {
+                null
+            }
+
+        if (offer != null) return SeriesOpening.Offered(offer.existing)
+
+        throw ChessApiException(
+            status = response.status.value,
+            explanation = text.trim(),
+            message = "Chess server refused $SERIES: ${response.status}",
+        )
+    }
+
+    /** Starts another series with [username] after being offered the ones they already have. */
+    suspend fun startAnotherSeries(username: String): SeriesSummaryDto = post("$SERIES?another=true", username)
 
     private suspend inline fun <reified T> get(path: String): T =
         read(path) {
@@ -460,6 +511,8 @@ class ChessApiClient(
     }
 
     companion object {
+        private const val SERIES = "/series"
+
         /** Lenient so a newer server can add fields without breaking an older app. */
         val Json: Json =
             Json {

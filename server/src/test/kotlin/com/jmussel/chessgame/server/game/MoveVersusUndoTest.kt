@@ -13,6 +13,7 @@ import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.StoredGame
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.series.seriesService
+import com.jmussel.chessgame.server.series.startSeries
 import com.jmussel.chessgame.server.user.Username
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -64,8 +65,8 @@ class MoveVersusUndoTest {
             val alex = named("auth-black-$round", "Black$round")
             FriendshipRepository(database).add(jordan, alex)
 
-            val opened = seriesService(database, FixedCoin(jordan < alex)).openWithGame(jordan, alex)
-            val gameId = assertNotNull(opened.series.currentGameId)
+            val opened = seriesService(database, FixedCoin(jordan < alex)).startSeries(jordan, alex)
+            val gameId = assertNotNull(opened.currentGameId)
 
             val played = commands.makeMove(jordan, gameId, 0, Move.of("g1", "f3"))
             assertTrue(played is CommandResult.Applied, "setup move failed: $played")

@@ -2,6 +2,7 @@
 
 package com.jmussel.chessgame.server.series
 
+import com.jmussel.chessgame.server.api.SeriesOffer
 import com.jmussel.chessgame.server.api.SeriesSummary
 import com.jmussel.chessgame.server.auth.authenticatedUser
 import com.jmussel.chessgame.server.db.UserRepository
@@ -17,10 +18,13 @@ import io.ktor.server.routing.post
 import kotlin.uuid.ExperimentalUuidApi
 
 /**
- * Starting or opening the series with a friend.
+ * Playing a friend.
  *
- * "Play with this friend" is one action: it opens the pair's active series if there is one
- * and creates it otherwise, so parallel active series never appear (`D011`).
+ * `POST /series` with a username starts a series and its first game, and answers `201` with
+ * it. When the pair already has an active series nothing is started: the answer is `409` with
+ * a [SeriesOffer] listing them, so the app can offer opening one or starting another rather
+ * than silently reusing one (`D053`). `POST /series?another=true` is the player choosing
+ * another, and always starts one.
  *
  * The server does not check that the two are friends (`D046`). The app only ever offers
  * people the player already knows, and that selection is the gate; re-deciding it here
@@ -54,28 +58,39 @@ fun Route.seriesRoutes(
             return@post
         }
 
-        val opened = series.openWithGame(caller.userId, friend.id)
+        val startAnother = call.request.queryParameters[ANOTHER] == "true"
 
-        // A game the other player did not ask for is the one thing they cannot find out
-        // for themselves: nothing they did caused it, and until they hear, their dashboard
-        // says they have no game with this friend. Moves announce themselves already
-        // (`GameRoutes`), so without this the gap lasts until their next app start -- and
-        // when the coin toss (`D014`) made them White, it is their move they are not being
-        // shown. The caller is told too, for the same reason moves tell both sides: a
-        // second device of theirs may be open.
-        if (opened.startedGame) {
-            opened.series.currentGameId?.let { gameId ->
-                realtime.publish(
-                    userIds = listOf(caller.userId, friend.id),
-                    message = RealtimeMessage.gameUpdated(gameId, NEW_GAME_VERSION),
+        when (val outcome = series.play(caller.userId, friend.id, startAnother)) {
+            is PlayOutcome.Offered ->
+                call.respond(
+                    status = HttpStatusCode.Conflict,
+                    message =
+                        SeriesOffer(
+                            existing = outcome.existing.map { SeriesSummary.of(it, opponent = friend, viewer = caller.userId) },
+                        ),
+                )
+
+            is PlayOutcome.Started -> {
+                // A game the other player did not ask for is the one thing they cannot find
+                // out for themselves: nothing they did caused it, and until they hear, their
+                // dashboard does not show it. Moves announce themselves already
+                // (`GameRoutes`), so without this the gap lasts until their next app start --
+                // and when the coin toss (`D014`) made them White, it is their move they are
+                // not being shown. The caller is told too, for the same reason moves tell both
+                // sides: a second device of theirs may be open.
+                outcome.series.currentGameId?.let { gameId ->
+                    realtime.publish(
+                        userIds = listOf(caller.userId, friend.id),
+                        message = RealtimeMessage.gameUpdated(gameId, NEW_GAME_VERSION),
+                    )
+                }
+
+                call.respond(
+                    status = HttpStatusCode.Created,
+                    message = SeriesSummary.of(outcome.series, opponent = friend, viewer = caller.userId),
                 )
             }
         }
-
-        call.respond(
-            status = if (opened.created) HttpStatusCode.Created else HttpStatusCode.OK,
-            message = SeriesSummary.of(opened.series, opponent = friend, viewer = caller.userId),
-        )
     }
 }
 
@@ -87,3 +102,6 @@ fun Route.seriesRoutes(
  * by the time it arrives.
  */
 private const val NEW_GAME_VERSION: Long = 0
+
+/** The query parameter that asks for another series when the pair already has one. */
+private const val ANOTHER = "another"
