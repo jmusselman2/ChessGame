@@ -5044,7 +5044,7 @@ Verified with `.\gradlew.bat :server:test` (519 tests),
 
 ## M19.6 — Seat rotation by cycle
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M19.3
 
@@ -5063,6 +5063,65 @@ case and keeps `D014` behaviour.
   turn.
 - Existing chess colour-alternation tests pass unchanged (they are the N = 2
   instance).
+
+### Completion Note — 2026-09-16
+
+`SeatRotation` (pure), `V8__seat_rotation.sql`, and `SeriesService` taking every
+game's seat order from it. The choices the criteria left open, and the one they
+did not, are in
+[`D066`](DECISIONS.md#d066--seat-rotation-is-kept-per-series-and-at-two-seats-a-cycle-boundary-carries-the-rotation-on).
+
+**Per series, not per table, and why that is the criterion's intent.** The
+criterion asks for per-table persistence. `D053` (built in `M19.4`) lets a table
+hold several active series, so a table-wide cycle would interleave their games.
+A rematch in one series could then keep the previous game's colours, which breaks
+`D014`. The state is on `game_series.seat_rotation`: cycle length, base order,
+game in cycle, and the previous cycle's base order. For a table with one series
+that is the same state.
+
+**N = 2 reduces to `D014` only if the rotation carries on at the boundary.**
+Drawing "at random from the orders not excluded" when none are excluded would
+repeat colours half the time. When the candidate set is empty (N ≤ 2), the next
+cycle keeps the base order. `twoSeatsAlternateEveryGame` asserts per-game reversal
+across ten cycles under 25 seeds.
+
+**The property test (`SeatRotationTest`)** covers `D050`'s four properties over
+N ∈ {2, 3, 4}. It plays 12 cycles under each of 25 seeds.
+
+1. Every seat is first once and last once in each cycle.
+2. Consecutive base orders are not rotations of each other (N ≥ 3), and each cycle
+   records the one before.
+3. A rotation of the cycle two before is allowed. This is checked two ways: as a
+   rule (all of its rotations are in the candidate set) and in practice (it
+   happens). At N = 3 cycles must strictly alternate families.
+4. An enemy is never in a base order and always takes the final turn.
+
+It also covers N = 1, the first cycle reaching every order, and the candidate
+counts `D050` gives (five families at N = 4, one at N = 3, none at N = 2).
+**Checked against a broken implementation**: with the rotation exclusion removed,
+four of the nine tests fail.
+
+**Persistence (`SeatRotationPersistenceTest`)**: the first game opens cycle 1,
+rematches advance it and cross into cycle 2 with the previous base order
+recorded, a series with no recorded rotation (as before `V8`) picks it up from
+the finished game, and a four-seat cycle with a previous cycle round-trips.
+
+**Existing chess colour tests pass without assertion changes.** `InitialGameTest`,
+`AutomaticRematchTest`, `ResignationTest` and the command tests all still assert
+the random first toss and the alternation. What changed is their coins. The
+first game's colours are now a draw (`nextInt`) between two base orders rather
+than `nextBoolean`, so each fixed coin scripts `nextInt` the same way: heads
+draws the first candidate, which is the same toss. That is a fixture change in
+nine test files.
+
+**Not here:** filtering participants by kind before rotating (`M19.7`).
+`turnOrder` takes the final-turn participants explicitly, so `M19.7` only has to
+supply them.
+
+Verified with `.\gradlew.bat :server:test --tests "*SeatRotation*"` (13 tests),
+the colour and series regressions, and `.\gradlew.bat build`.
+
+---
 
 ## M19.7 — Non-user participant kind
 

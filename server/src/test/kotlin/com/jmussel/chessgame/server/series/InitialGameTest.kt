@@ -82,6 +82,8 @@ class InitialGameTest {
         override fun nextBits(bitCount: Int): Int = 0
 
         override fun nextBoolean(): Boolean = answers[index++ % answers.size]
+
+        override fun nextInt(until: Int): Int = if (nextBoolean()) 0 else until - 1
     }
 
     @Test

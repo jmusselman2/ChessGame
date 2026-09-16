@@ -141,6 +141,9 @@ object GameSeriesTable : Table("game_series") {
     val tableId = uuid("table_id")
     val status = text("status")
     val currentGameId = uuid("current_game_id").nullable()
+
+    /** Where the series is in its seat rotation (`D050`), or `null` before its first game. */
+    val seatRotation = jsonb<SeatRotationDocument>("seat_rotation", StorageJson).nullable()
     val createdAt = timestampWithTimeZone("created_at")
     val closedAt = timestampWithTimeZone("closed_at").nullable()
 

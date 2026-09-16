@@ -2,6 +2,7 @@
 
 package com.jmussel.chessgame.server.db
 
+import com.jmussel.chessgame.server.series.SeatCycle
 import kotlinx.serialization.json.JsonObject
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -31,6 +32,8 @@ data class StoredSeries(
     val currentGameId: Uuid?,
     val createdAt: Instant,
     val closedAt: Instant?,
+    /** Where the series is in its seat rotation (`D050`), or `null` before it has one. */
+    val seatRotation: SeatCycle<Uuid>? = null,
 ) {
     val isActive: Boolean
         get() = status == ACTIVE_SERIES
@@ -180,6 +183,18 @@ class GameSeriesRepository(
                 .map { StoredGameEvent(type = it[GameEventsTable.type], payload = it[GameEventsTable.payload]) }
         }
 
+    /** Records where [seriesId] is in its seat rotation, beside the game that position produced. */
+    fun saveSeatRotation(
+        seriesId: Uuid,
+        cycle: SeatCycle<Uuid>,
+    ) {
+        transaction(database) {
+            GameSeriesTable.update({ GameSeriesTable.id eq seriesId }) { row ->
+                row[GameSeriesTable.seatRotation] = SeatRotationDocument.of(cycle)
+            }
+        }
+    }
+
     /** Points [seriesId] at [gameId] as its current game. */
     fun attachCurrentGame(
         seriesId: Uuid,
@@ -244,6 +259,7 @@ class GameSeriesRepository(
             currentGameId = row[GameSeriesTable.currentGameId],
             createdAt = row[GameSeriesTable.createdAt].toInstant(),
             closedAt = row[GameSeriesTable.closedAt]?.toInstant(),
+            seatRotation = row[GameSeriesTable.seatRotation]?.toCycle(),
         )
     }
 }

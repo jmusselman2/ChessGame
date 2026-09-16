@@ -4104,3 +4104,74 @@ This was checked, and eight racing opens then create two series.
 - `GameSeriesRepository.openOrCreate` stays as a storage primitive ("newest
   active or new", under the same lock), for fixtures. The product path is
   `SeriesService.play`.
+
+---
+
+## D066 — Seat Rotation Is Kept per Series, and at Two Seats a Cycle Boundary Carries the Rotation On
+
+**Date:** 2026-09-16
+
+**Status:** Accepted
+
+**Relates to:** `D014`, `D050`, `D051`, `D053`, `M19.6`, `ARCHITECTURE` §25, §27
+
+**Scope:** How `D050` is implemented. It resolves two points `D050` left open or
+that later decisions made ambiguous. Chess behaviour is unchanged.
+
+### Decision
+
+- **The rotation state is persisted per series, not per table.** `M19.6`'s
+  criteria say "per-table persistence". But a table may hold several active series
+  at once (`D053`, implemented in `M19.4`). A table-wide cycle would interleave
+  their games. A rematch in one series could then keep the previous game's colours,
+  because a game of the other series had advanced the shared cycle. That breaks
+  `D014` within a series. `game_series.seat_rotation` holds the cycle length, the
+  current base order, the game reached in the cycle, and the previous cycle's base
+  order. For a table with one series, this is the per-table state the criterion
+  describes.
+- **When no base order is left to draw, the rotation carries on.** `D050` says the
+  cycle-boundary exclusion is "vacuous" at N = 2 and that the mechanism "reduces to
+  per-game alternation". Read literally, "draw the next base order at random from
+  those not excluded" would let game 3 repeat game 2's colours half the time,
+  whichever way "vacuous" is taken. So when the candidate set is empty (N = 2, and
+  N = 1), the next cycle keeps the finished cycle's base order. The rotation then
+  continues unbroken, and chess alternates every game across cycle boundaries.
+  N ≥ 3 is exactly as `D050` states.
+- **Base orders are drawn from an enumerated candidate list.** A base order is one
+  uniform draw (`Random.nextInt`) from the enumerated permutations that are not
+  rotations of the previous base order. There is no retry loop. At the four seats
+  `D048` foresees, that is 24 orders.
+- **The enemy is outside the function.** `SeatRotation` rotates the participants it
+  is given. `turnOrder(cycle, finalTurn)` appends the participants who always move
+  last, and refuses one who also rotates. Deciding who is which by kind is `M19.7`'s
+  (`D051`).
+- **Series from before `V8`** have no stored rotation. Their next rematch starts a
+  cycle whose base order is the finished game's seat order. This reproduces
+  `D014`'s reversal, so no backfill is needed.
+
+### Rationale
+
+`D050` was written for "a table", in the same interview that allowed parallel
+series (`D053`). When a table had one series at a time, the two could not diverge.
+Now that they can, `D014`'s promise ("rematch colours alternate") can hold only
+where a rematch comes from, and that is a series.
+
+At N = 2, carrying the rotation on is the only reading of "vacuous" under which
+`D050` reduces to `D014`, and `D050` says in so many words that it does.
+
+### Alternatives Considered
+
+- **Per-table state, as the criterion reads.** Rejected: interleaved parallel
+  series break `D014`.
+- **Re-draw at every N = 2 boundary.** Rejected: that is not alternation.
+- **Shuffle and reject rotations of the previous order.** Rejected: it is
+  unbounded under a scripted `Random`, and it is less direct than enumerating.
+
+### Consequences
+
+- `V8__seat_rotation.sql` adds `game_series.seat_rotation` (`jsonb`, nullable).
+- `SeriesService` takes every game's seat order from the rotation. The first game's
+  draw is the coin toss for White. Test coins script `nextInt` alongside
+  `nextBoolean`: heads draws the first candidate, and tails the last.
+- `SeatRotationTest` is `D050`'s required property test over N ∈ {2, 3, 4}. With
+  the exclusion disabled, four of its tests fail.

@@ -84,6 +84,8 @@ class DashboardTest {
         override fun nextBits(bitCount: Int): Int = 0
 
         override fun nextBoolean(): Boolean = value
+
+        override fun nextInt(until: Int): Int = if (value) 0 else until - 1
     }
 
     private fun withFixture(block: (Fixture) -> Unit) =

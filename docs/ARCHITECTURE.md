@@ -777,13 +777,22 @@ The operation must be safe under retries and concurrent observation.
 
 ## 25. Color Assignment
 
+Turn order is decided by seat rotation by cycle (`D050`, `M19.6`), and chess's
+colours are its two-seat case (`D014`). Seat order is turn order, so seat 0 plays
+White.
+
 For a newly created series:
 
-- assign White/Black randomly.
+- the first cycle's base order is drawn at random: the coin toss for White.
 
 For automatic rematches:
 
-- alternate colors from the previous game.
+- the rotation moves one seat, which for two seats alternates colours every game,
+  across cycle boundaries too (`D066`).
+
+`SeatRotation` is pure. A series stores its place in the rotation in
+`game_series.seat_rotation`, per series rather than per table, because a table may
+hold parallel series (`D053`, `D066`).
 
 ## 26. Database Ownership
 
@@ -839,6 +848,8 @@ Columns added since:
 friendships.status                  -- D047
 users.last_login_at                 -- D060, M19.11: a session starting
 users.last_action_at                -- D060, M19.11: a command being accepted
+game_series.table_id                -- D048, M19.3: the table a series belongs to
+game_series.seat_rotation           -- D050, D066, M19.6: the series' place in its seat rotation
 ```
 
 Use database constraints for race-sensitive invariants where possible, including:

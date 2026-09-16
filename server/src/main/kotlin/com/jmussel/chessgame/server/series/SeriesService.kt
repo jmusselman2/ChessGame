@@ -115,19 +115,23 @@ class SeriesService(
         series: StoredSeries,
         finished: StoredGame,
     ): StoredSeries {
-        // Colours alternate from one game to the next (`D014`): whoever had Black plays
-        // White in the rematch. Taken from the game that just ended rather than counted
-        // from the sequence number, so the series stays consistent even if a game is ever
-        // created out of band.
+        // The next turn order comes from the series' seat rotation (`D050`). For chess that is
+        // two rotating participants, so each game reverses the last one's colours (`D014`):
+        // whoever had Black plays White in the rematch. A series from before the rotation was
+        // recorded picks it up from the game that just ended, which gives the same reversal.
+        val played = series.seatRotation ?: SeatCycle(baseOrder = finished.participants)
+        val rotation = SeatRotation.next(played, random)
+
         val gameId =
             games.create(
                 seriesId = series.id,
                 sequenceNumber = finished.sequenceNumber + 1,
-                participants = listOf(finished.blackUserId, finished.whiteUserId),
+                participants = SeatRotation.turnOrder(rotation),
                 game = ChessGame.newGame(),
             )
 
         this.series.attachCurrentGame(series.id, gameId)
+        this.series.saveSeatRotation(series.id, rotation)
         this.series.recordEvent(
             seriesId = series.id,
             gameId = gameId,
@@ -139,35 +143,30 @@ class SeriesService(
                 },
         )
 
-        return series.copy(currentGameId = gameId)
+        return series.copy(currentGameId = gameId, seatRotation = rotation)
     }
 
+    /**
+     * The series' first game, in the first cycle of its seat rotation (`D050`).
+     *
+     * The cycle's base order is drawn at random, which for chess's two seats is the coin toss
+     * for White (`D014`). Seat order is turn order, so whoever the draw puts first plays White.
+     */
     private fun startFirstGame(series: StoredSeries): StoredSeries {
-        val (white, black) = randomColours(series)
+        val rotation = SeatRotation.firstCycle(series.participants, random)
 
         val gameId =
             games.create(
                 seriesId = series.id,
                 sequenceNumber = FIRST_GAME,
-                participants = listOf(white, black),
+                participants = SeatRotation.turnOrder(rotation),
                 game = ChessGame.newGame(),
             )
 
         this.series.attachCurrentGame(series.id, gameId)
+        this.series.saveSeatRotation(series.id, rotation)
 
-        return series.copy(currentGameId = gameId)
-    }
-
-    /**
-     * Who plays White in the series' first game — a coin toss (`D014`).
-     *
-     * A chess table seats exactly two, in id order, so this is the same toss over the same
-     * two seats that the pair columns gave before `M19.3`.
-     */
-    private fun randomColours(series: StoredSeries): Pair<Uuid, Uuid> {
-        val (first, second) = series.participants
-
-        return if (random.nextBoolean()) first to second else second to first
+        return series.copy(currentGameId = gameId, seatRotation = rotation)
     }
 
     companion object {
