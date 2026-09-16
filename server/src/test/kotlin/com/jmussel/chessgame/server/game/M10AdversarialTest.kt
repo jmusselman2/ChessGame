@@ -10,6 +10,7 @@ import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.GameSeriesRepository
+import com.jmussel.chessgame.server.db.GameTypes
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.user.Username
 import java.lang.reflect.InvocationTargetException
@@ -40,15 +41,14 @@ class M10AdversarialTest {
             users.claimUsername(white, Username.of("White"))
             users.claimUsername(black, Username.of("Black"))
 
-            val series = GameSeriesRepository(database).openOrCreate(white, black).series
+            val series = GameSeriesRepository(database).openOrCreate(GameTypes.CHESS, listOf(white, black)).series
             val games = GameRepository(database)
             val initial = ChessGame.newGame()
             val gameId =
                 games.create(
                     seriesId = series.id,
                     sequenceNumber = 1,
-                    whiteUserId = white,
-                    blackUserId = black,
+                    participants = listOf(white, black),
                     game = initial,
                 )
             val played = ChessRules.applyMove(initial, Move(Square.parse("e2"), Square.parse("e4")))

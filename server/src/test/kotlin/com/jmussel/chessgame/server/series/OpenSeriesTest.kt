@@ -11,6 +11,7 @@ import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.db.GameSeriesTable
+import com.jmussel.chessgame.server.db.GameTypes
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.testModule
 import com.jmussel.chessgame.server.user.Username
@@ -116,7 +117,7 @@ class OpenSeriesTest {
         withSeries { fixture ->
             val (jordan, alex) = fixture.friends()
 
-            val opened = fixture.series.openOrCreate(jordan, alex)
+            val opened = fixture.series.openOrCreate(GameTypes.CHESS, listOf(jordan, alex))
 
             assertTrue(opened.created)
             assertTrue(opened.series.isActive)
@@ -130,9 +131,9 @@ class OpenSeriesTest {
     fun openingAgainReturnsTheSameSeries() {
         withSeries { fixture ->
             val (jordan, alex) = fixture.friends()
-            val first = fixture.series.openOrCreate(jordan, alex)
+            val first = fixture.series.openOrCreate(GameTypes.CHESS, listOf(jordan, alex))
 
-            val again = fixture.series.openOrCreate(jordan, alex)
+            val again = fixture.series.openOrCreate(GameTypes.CHESS, listOf(jordan, alex))
 
             assertFalse(again.created)
             assertEquals(first.series.id, again.series.id)
@@ -144,9 +145,9 @@ class OpenSeriesTest {
     fun eitherSideOpensTheSameSeries() {
         withSeries { fixture ->
             val (jordan, alex) = fixture.friends()
-            val fromJordan = fixture.series.openOrCreate(jordan, alex)
+            val fromJordan = fixture.series.openOrCreate(GameTypes.CHESS, listOf(jordan, alex))
 
-            val fromAlex = fixture.series.openOrCreate(alex, jordan)
+            val fromAlex = fixture.series.openOrCreate(GameTypes.CHESS, listOf(alex, jordan))
 
             assertEquals(fromJordan.series.id, fromAlex.series.id)
             assertEquals(1, fixture.seriesCount())
@@ -158,9 +159,9 @@ class OpenSeriesTest {
         withSeries { fixture ->
             val (jordan, alex) = fixture.friends()
 
-            val series = fixture.series.openOrCreate(alex, jordan).series
+            val series = fixture.series.openOrCreate(GameTypes.CHESS, listOf(alex, jordan)).series
 
-            assertTrue(series.userAId < series.userBId)
+            assertTrue(series.participants[0] < series.participants[1])
         }
     }
 
@@ -168,10 +169,10 @@ class OpenSeriesTest {
     fun aClosedSeriesLeavesRoomForANewOne() {
         withSeries { fixture ->
             val (jordan, alex) = fixture.friends()
-            val first = fixture.series.openOrCreate(jordan, alex).series
+            val first = fixture.series.openOrCreate(GameTypes.CHESS, listOf(jordan, alex)).series
             fixture.close(first.id)
 
-            val second = fixture.series.openOrCreate(jordan, alex)
+            val second = fixture.series.openOrCreate(GameTypes.CHESS, listOf(jordan, alex))
 
             assertTrue(second.created)
             assertFalse(second.series.id == first.id)
@@ -187,8 +188,8 @@ class OpenSeriesTest {
             val sam = fixture.named("auth-3", "Sam")
             fixture.friendships.add(jordan, sam)
 
-            val withAlex = fixture.series.openOrCreate(jordan, alex).series
-            val withSam = fixture.series.openOrCreate(jordan, sam).series
+            val withAlex = fixture.series.openOrCreate(GameTypes.CHESS, listOf(jordan, alex)).series
+            val withSam = fixture.series.openOrCreate(GameTypes.CHESS, listOf(jordan, sam)).series
 
             assertFalse(withAlex.id == withSam.id)
             assertEquals(2, fixture.seriesCount())
@@ -207,7 +208,7 @@ class OpenSeriesTest {
         withSeries { fixture ->
             val (jordan, _) = fixture.friends()
 
-            assertFailsWith<IllegalArgumentException> { fixture.series.openOrCreate(jordan, jordan) }
+            assertFailsWith<IllegalArgumentException> { fixture.series.openOrCreate(GameTypes.CHESS, listOf(jordan, jordan)) }
         }
     }
 
@@ -228,9 +229,9 @@ class OpenSeriesTest {
                                     barrier.await(10, TimeUnit.SECONDS)
                                     // Half open it from each side, as two players tapping Play would.
                                     if (attempt % 2 == 0) {
-                                        fixture.series.openOrCreate(jordan, alex)
+                                        fixture.series.openOrCreate(GameTypes.CHESS, listOf(jordan, alex))
                                     } else {
-                                        fixture.series.openOrCreate(alex, jordan)
+                                        fixture.series.openOrCreate(GameTypes.CHESS, listOf(alex, jordan))
                                     }
                                 }
                             },

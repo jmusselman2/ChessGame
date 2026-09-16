@@ -9,6 +9,7 @@ import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.GameSeriesRepository
+import com.jmussel.chessgame.server.db.GameTypes
 import com.jmussel.chessgame.server.db.GamesTable
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.user.Username
@@ -129,9 +130,8 @@ class InitialGameTest {
     fun theColoursFollowTheCoinToss() {
         withFixture { fixture ->
             val (jordan, alex) = fixture.friends()
-            val series = fixture.series.openOrCreate(jordan, alex).series
-            val lower = series.userAId
-            val higher = series.userBId
+            val series = fixture.series.openOrCreate(GameTypes.CHESS, listOf(jordan, alex)).series
+            val (lower, higher) = series.participants
 
             val heads = SeriesServiceOver(fixture, ScriptedRandom(true)).open(jordan, alex)
 
@@ -144,12 +144,14 @@ class InitialGameTest {
     fun theOtherTossGivesTheOtherColours() {
         withFixture { fixture ->
             val (jordan, alex) = fixture.friends()
-            val series = fixture.series.openOrCreate(jordan, alex).series
+            val series = fixture.series.openOrCreate(GameTypes.CHESS, listOf(jordan, alex)).series
 
             val tails = SeriesServiceOver(fixture, ScriptedRandom(false)).open(jordan, alex)
 
-            assertEquals(series.userBId, tails.whiteUserId)
-            assertEquals(series.userAId, tails.blackUserId)
+            val (lower, higher) = series.participants
+
+            assertEquals(higher, tails.whiteUserId)
+            assertEquals(lower, tails.blackUserId)
         }
     }
 

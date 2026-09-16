@@ -7,6 +7,7 @@ import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.db.GameSeriesTable
+import com.jmussel.chessgame.server.db.GameTypes
 import com.jmussel.chessgame.server.db.GamesTable
 import com.jmussel.chessgame.server.db.GroupRepository
 import com.jmussel.chessgame.server.db.UserRepository
@@ -159,7 +160,7 @@ class InviteEligibilityTest {
 
             // A real series with a real game, so "touches nothing" is checked against
             // something that exists. Groups have no game-state role at all (`D049`).
-            val opened = GameSeriesRepository(fixture.database).openOrCreate(host, friend)
+            val opened = GameSeriesRepository(fixture.database).openOrCreate(GameTypes.CHESS, listOf(host, friend))
             val seriesBefore = fixture.seriesCount()
             val gamesBefore = fixture.gameCount()
 

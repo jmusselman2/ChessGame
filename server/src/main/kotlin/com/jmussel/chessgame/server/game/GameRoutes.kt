@@ -345,7 +345,7 @@ private suspend fun RealtimeHub.announce(result: CommandResult) {
     val game = result.game
 
     publish(
-        userIds = listOf(game.whiteUserId, game.blackUserId),
+        userIds = game.participants,
         message = RealtimeMessage.gameUpdated(game.id, game.version),
     )
 }

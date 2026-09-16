@@ -87,10 +87,58 @@ object GroupMembersTable : Table("group_members") {
     override val primaryKey = PrimaryKey(groupId, userId)
 }
 
+/**
+ * A game type, and how many participants a table of it seats (`D048`, `D063`).
+ *
+ * The range lives here and nowhere else: table creation reads it rather than assuming any
+ * particular count.
+ */
+object GameTypesTable : Table("game_types") {
+    val id = text("id")
+    val minParticipants = integer("min_participants")
+    val maxParticipants = integer("max_participants")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+/**
+ * A table: one exact set of participants for one game type, which series belong to (`D048`).
+ *
+ * [participantSet] is the canonical form of that set, unique per game type, so the same
+ * people always find the same table and a different set is a different table.
+ */
+object TablesTable : Table("tables") {
+    val id = uuid("id")
+    val gameType = text("game_type")
+    val participantSet = text("participant_set")
+    val createdAt = timestampWithTimeZone("created_at")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+/** Who sits at a table. Every participant is a user until `M19.7` adds another kind (`D051`). */
+object TableParticipantsTable : Table("table_participants") {
+    val tableId = uuid("table_id")
+    val seatIndex = integer("seat_index")
+    val kind = text("kind")
+    val userId = uuid("user_id").nullable()
+
+    override val primaryKey = PrimaryKey(tableId, seatIndex)
+}
+
+/** Who took which seat in one game. Seat order is turn order; for chess, see [ChessSeats]. */
+object GameParticipantsTable : Table("game_participants") {
+    val gameId = uuid("game_id")
+    val seatIndex = integer("seat_index")
+    val kind = text("kind")
+    val userId = uuid("user_id").nullable()
+
+    override val primaryKey = PrimaryKey(gameId, seatIndex)
+}
+
 object GameSeriesTable : Table("game_series") {
     val id = uuid("id")
-    val userAId = uuid("user_a_id")
-    val userBId = uuid("user_b_id")
+    val tableId = uuid("table_id")
     val status = text("status")
     val closeAfterCurrentGame = bool("close_after_current_game")
     val currentGameId = uuid("current_game_id").nullable()
@@ -104,8 +152,6 @@ object GamesTable : Table("games") {
     val id = uuid("id")
     val seriesId = uuid("series_id")
     val sequenceNumber = integer("sequence_number")
-    val whiteUserId = uuid("white_user_id")
-    val blackUserId = uuid("black_user_id")
     val status = text("status")
     val version = long("version")
     val sideToMove = text("side_to_move")

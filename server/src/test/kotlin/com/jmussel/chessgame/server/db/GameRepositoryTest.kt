@@ -64,8 +64,7 @@ class GameRepositoryTest {
                 val (lower, higher) = if (white < black) white to black else black to white
                 GameSeriesTable.insert { row ->
                     row[GameSeriesTable.id] = series
-                    row[GameSeriesTable.userAId] = lower
-                    row[GameSeriesTable.userBId] = higher
+                    row[GameSeriesTable.tableId] = TableRepository(database).findOrCreate(GameTypes.CHESS, listOf(lower, higher)).id
                     row[GameSeriesTable.status] = "ACTIVE"
                     row[GameSeriesTable.closeAfterCurrentGame] = false
                     row[GameSeriesTable.createdAt] = now
@@ -73,7 +72,7 @@ class GameRepositoryTest {
             }
         }
 
-        fun create(game: ChessGame): Uuid = repository.create(series, 1, white, black, game)
+        fun create(game: ChessGame): Uuid = repository.create(series, 1, listOf(white, black), game)
 
         fun gameRowCount(): Int = transaction(database) { GamesTable.selectAll().count().toInt() }
 
@@ -294,8 +293,7 @@ class GameRepositoryTest {
                 fixture.repository.create(
                     fixture.series,
                     1,
-                    fixture.white,
-                    fixture.black,
+                    listOf(fixture.white, fixture.black),
                     played(Move.of("e2", "e4")),
                 )
             }

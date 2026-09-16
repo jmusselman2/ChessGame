@@ -548,15 +548,21 @@ the table and is `M19.3` work.
 
 ## 16. Game Series Model
 
-A `GameSeries` represents the ongoing sequence of games between two players.
+A `GameSeries` represents the ongoing sequence of games at one **table**: an exact
+set of participants for one game type (`D048`). Since `M19.3` the series no longer
+names a pair of players; it names its table, and the table names its participants.
 
 Conceptually:
 
 ```text
+Table
+- tableId
+- gameType            -- whose registered range decides how many it seats
+- participants        -- in seat order; unique as a set per game type
+
 GameSeries
 - seriesId
-- playerAId
-- playerBId
+- tableId
 - currentGameId
 - status
 - automaticRematch
@@ -572,9 +578,16 @@ ACTIVE
 CLOSED
 ```
 
+How many participants a table seats is **stored per game type** (`game_types`),
+read at table creation, and never assumed (`D063`). Chess is registered as exactly
+2 and is the only game type. Nothing in the schema caps a table at 2.
+
+Series identity is an **exact-set match**: the same people reach the same table,
+and a different set is a different table and a different series.
+
 For MVP:
 
-- at most one `ACTIVE` series per pair,
+- at most one `ACTIVE` series per table (for chess, per pair — until `M19.4`),
 - an existing active series is opened instead of creating a parallel one,
 - closed series remain historical,
 - creation does not check that the pair are friends (`D046`), so a series may
@@ -609,8 +622,7 @@ Conceptually:
 Game
 - gameId
 - seriesId
-- whitePlayerId
-- blackPlayerId
+- participants        -- one per seat, in turn order (game_participants)
 - status
 - currentTurnPlayerId
 - version
@@ -621,6 +633,11 @@ Game
 ```
 
 The exact persistence representation of `currentState` may be refined during implementation.
+
+Seat order is turn order. Chess maps White to seat 0 and Black to seat 1
+(`ChessSeats`); that mapping lives in chess code, and the participants relation
+itself knows nothing about colours. Every participant is a user until `M19.7` adds
+a non-user kind (`D051`).
 
 ## 19. Chess State Persistence
 
@@ -797,8 +814,19 @@ game_events
 Added since:
 
 ```text
-groups          -- D049, M19.2: standing invite-eligibility pools
-group_members   -- one row per person per group; left_at rather than deletion
+groups              -- D049, M19.2: standing invite-eligibility pools
+group_members       -- one row per person per group; left_at rather than deletion
+game_types          -- D063, M19.3: each game type's min/max participants
+tables              -- D048, M19.3: one row per exact participant set per game type
+table_participants  -- who sits at a table, by seat
+game_participants   -- who took which seat in one game
+```
+
+Columns removed since:
+
+```text
+game_series.user_a_id / user_b_id   -- M19.3: replaced by game_series.table_id
+games.white_user_id / black_user_id -- M19.3: replaced by game_participants
 ```
 
 Columns added since:
@@ -813,13 +841,17 @@ Use database constraints for race-sensitive invariants where possible, including
 
 - normalized username uniqueness,
 - friendship uniqueness,
-- one active series per pair,
+- one active series per table (per pair, for chess),
+- one table per exact participant set per game type,
+- one seat per participant per table and per game,
 - rematch/idempotency-related uniqueness where appropriate,
 - one group membership per person per group.
 
 Invariants that need a row in another table cannot be constraints and are
 enforced in a repository transaction instead — a group containing its creator,
-and a group member being a friend of whoever added them (§15.1).
+and a group member being a friend of whoever added them (§15.1), a table's size
+lying within its game type's range, and a table's participant-set key agreeing
+with its seats (§16).
 
 ## 28. Security Boundary
 

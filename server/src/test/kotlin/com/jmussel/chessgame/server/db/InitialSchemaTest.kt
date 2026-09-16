@@ -15,7 +15,18 @@ import kotlin.test.assertTrue
  */
 class InitialSchemaTest {
     private val tables =
-        listOf("users", "friendships", "game_series", "games", "moves", "game_events")
+        listOf(
+            "users",
+            "friendships",
+            "game_series",
+            "games",
+            "moves",
+            "game_events",
+            "game_types",
+            "tables",
+            "table_participants",
+            "game_participants",
+        )
 
     @Test
     fun everyTableExists() {
@@ -388,18 +399,52 @@ class InitialSchemaTest {
                 }
         }
 
+    /**
+     * A series for the pair, at the pair's chess table (`M19.3`), which is found or made first
+     * so that asking twice for the same pair reaches the same table.
+     */
     private fun insertSeries(
         dataSource: DataSource,
         userA: String,
         userB: String,
-    ): String =
-        queryForString(
+    ): String {
+        val participantSet = "USER:$userA,USER:$userB"
+
+        execute(
             dataSource,
-            "insert into game_series (user_a_id, user_b_id) values (?::uuid, ?::uuid) returning id::text",
+            """
+            insert into tables (game_type, participant_set) values ('CHESS', ?)
+            on conflict (game_type, participant_set) do nothing
+            """.trimIndent(),
+            participantSet,
+        )
+        val table =
+            queryForString(
+                dataSource,
+                "select id::text from tables where game_type = 'CHESS' and participant_set = ?",
+                participantSet,
+            )
+        execute(
+            dataSource,
+            """
+            insert into table_participants (table_id, seat_index, user_id)
+            values (?::uuid, 0, ?::uuid), (?::uuid, 1, ?::uuid)
+            on conflict do nothing
+            """.trimIndent(),
+            table,
             userA,
+            table,
             userB,
         )
 
+        return queryForString(
+            dataSource,
+            "insert into game_series (table_id) values (?::uuid) returning id::text",
+            table,
+        )
+    }
+
+    /** A game with [white] in seat 0 and [black] in seat 1, written in one transaction. */
     private fun insertGame(
         dataSource: DataSource,
         series: String,
@@ -407,17 +452,37 @@ class InitialSchemaTest {
         black: String,
         sequence: Int,
     ): String =
-        queryForString(
-            dataSource,
-            """
-            insert into games (series_id, sequence_number, white_user_id, black_user_id, state)
-            values (?::uuid, $sequence, ?::uuid, ?::uuid, '{}'::jsonb)
-            returning id::text
-            """.trimIndent(),
-            series,
-            white,
-            black,
-        )
+        dataSource.connection.use { connection ->
+            val game =
+                connection
+                    .prepareStatement(
+                        """
+                        insert into games (series_id, sequence_number, state)
+                        values (?::uuid, $sequence, '{}'::jsonb)
+                        returning id::text
+                        """.trimIndent(),
+                    ).use { statement ->
+                        statement.setString(1, series)
+                        statement.executeQuery().use { rows ->
+                            check(rows.next()) { "no row returned" }
+                            rows.getString(1)
+                        }
+                    }
+
+            connection
+                .prepareStatement(
+                    """
+                    insert into game_participants (game_id, seat_index, user_id)
+                    values (?::uuid, 0, ?::uuid), (?::uuid, 1, ?::uuid)
+                    """.trimIndent(),
+                ).use { statement ->
+                    listOf(game, white, game, black).forEachIndexed { index, value -> statement.setString(index + 1, value) }
+                    statement.execute()
+                }
+
+            connection.commit()
+            game
+        }
 
     private fun aGame(dataSource: DataSource): String {
         val (white, black) = twoUsers(dataSource)

@@ -13,6 +13,7 @@ import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.GameSeriesRepository
+import com.jmussel.chessgame.server.db.GameTypes
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.series.seriesService
 import com.jmussel.chessgame.server.testModule
@@ -289,7 +290,7 @@ class DashboardTest {
             val jordan = fixture.named("auth-1", "Jordan")
             val alex = fixture.named("auth-2", "Alex")
             fixture.friendships.add(jordan, alex)
-            fixture.series.openOrCreate(jordan, alex)
+            fixture.series.openOrCreate(GameTypes.CHESS, listOf(jordan, alex))
 
             val entry = fixture.dashboard.activeSeriesFor(jordan).single()
 

@@ -3954,3 +3954,76 @@ cheapest form that keeps 2–4 a registration rather than a migration.
   work.
 - When `M19.1` is decided, its decision states what, if anything, the work
   already done without it needs changed.
+
+---
+
+## D064 — A Table Is Keyed by Its Canonical Participant Set, Seats Are Turn Order, and Invite Eligibility Stays Out of Table Creation
+
+**Date:** 2026-09-16
+
+**Status:** Accepted
+
+**Relates to:** `D044`, `D046`, `D048`, `D049`, `D051`, `D063`, `M19.2`, `M19.3`,
+`ARCHITECTURE` §16, §18, §27
+
+**Scope:** The implementation choices `M19.3` had to make that `D048` and `D063`
+left open. Decides no repository or module layout (`M19.1`).
+
+### Decision
+
+- **Exact-set identity is a unique key.** `tables.participant_set` is the
+  canonical form of the set — each participant as `KIND:ref`, sorted by id,
+  comma-joined — and `(game_type, participant_set)` is unique. The same people
+  find the same table in any order; any other set is another table, and so
+  another series. `V5__tables_and_participants.sql` computes the same string for
+  the pairs it carries over, so a migrated pair and a newly requested one meet.
+- **A table's seats are in id order and mean nothing else.** Turn order belongs
+  to each game: `game_participants.seat_index` is turn order. Chess maps White to
+  seat 0 and Black to seat 1 in one place (`ChessSeats`), so the relation itself
+  carries no colour. `D050`'s base orders will be per-cycle state, not table
+  seats.
+- **The range is a row.** `game_types(min_participants, max_participants)` is
+  read on every table creation. Chess is `('CHESS', 2, 2)`. Registering a type is
+  an insert, not a schema change (`D063`).
+- **Invite eligibility is not checked when a table is created.** `M19.2`'s note
+  asked `M19.3` to call `InviteEligibility.canInvite` at table creation. `D046`
+  says series creation performs no server-side relationship check "now or going
+  forward", and chess's `POST /series` behaviour must stay identical (`M19.3`).
+  `D046` governs: `canInvite` remains the rule for whatever *offers* invitees
+  (the invite UI, `D046`'s gate), and table creation checks only what belongs to
+  the table — size within range, nobody seated twice.
+- **Participant kind is a column now, admitting `USER` only.** A `USER`
+  participant always names a `users` row. `M19.7` widens the check (`D051`).
+
+### Rationale
+
+A key column makes "same set, same table" a database fact that survives a race
+(concurrent requests for a new table get one row), rather than a query that two
+transactions can both answer "none". A string of sorted refs is the simplest key
+PostgreSQL can make unique, and it already has room for a non-user kind.
+
+Separating the table's seat order from turn order is what lets rematch colours
+alternate without the table changing, and it is the separation `D044`'s first
+extraction candidate ("the seat … kept separate from turn order") asked for.
+
+Enforcing eligibility at table creation would reverse a decision the owner made
+explicitly, for a check `D046` showed could only be raced, and it would change
+chess.
+
+### Alternatives Considered
+
+- **No key; find a table by comparing participant rows.** Rejected: not
+  race-safe without a lock protocol.
+- **Colour columns kept on `games` beside the participants.** Rejected: two
+  sources of truth for who is White.
+- **Wire `canInvite` into `POST /series`.** Rejected under `D046`.
+
+### Consequences
+
+- `ARCHITECTURE` §16, §18 and §27 describe tables, seats and the removed pair
+  columns.
+- The one-active-series index is rebuilt on `table_id` as
+  `game_series_one_active_per_table`. That is the index `M19.4` drops; its
+  criteria name the old `game_series_one_active_per_pair`.
+- If a per-user approval setting (`D049`) or any server-side invite gate is ever
+  wanted, it is a new decision superseding `D046`, not an extension of this one.

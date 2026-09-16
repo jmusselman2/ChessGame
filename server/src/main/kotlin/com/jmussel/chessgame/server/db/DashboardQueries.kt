@@ -7,7 +7,7 @@ import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.or
+import org.jetbrains.exposed.v1.core.inSubQuery
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -35,9 +35,10 @@ data class ActiveSeriesView(
 /**
  * Loading the dashboard.
  *
- * A returning player lands straight on this, so it has to be cheap: two queries whatever
- * the number of series — one join of the active series onto their current game, and one
- * lookup of every opponent named by those rows. It never grows a query per series.
+ * A returning player lands straight on this, so it has to be cheap: four queries whatever
+ * the number of series — one join of the active series onto their current game, one for
+ * the participants of those series' tables, one for the seats of those games, and one
+ * lookup of every opponent they name. It never grows a query per series.
  */
 class DashboardQueries(
     private val database: Database,
@@ -54,32 +55,28 @@ class DashboardQueries(
                         otherColumn = GamesTable.id,
                     ).select(
                         GameSeriesTable.id,
-                        GameSeriesTable.userAId,
-                        GameSeriesTable.userBId,
+                        GameSeriesTable.tableId,
                         GameSeriesTable.closeAfterCurrentGame,
                         GameSeriesTable.createdAt,
                         GamesTable.id,
                         GamesTable.version,
-                        GamesTable.whiteUserId,
                         GamesTable.sideToMove,
                         GamesTable.state,
                     ).where {
-                        ((GameSeriesTable.userAId eq userId) or (GameSeriesTable.userBId eq userId)) and
+                        (GameSeriesTable.tableId inSubQuery tablesSeating(userId)) and
                             (GameSeriesTable.status eq ACTIVE_SERIES)
                     }.orderBy(GameSeriesTable.createdAt to SortOrder.DESC)
                     .toList()
 
             if (rows.isEmpty()) return@transaction emptyList()
 
-            val opponentIds =
-                rows
-                    .map { row ->
-                        if (row[GameSeriesTable.userAId] == userId) {
-                            row[GameSeriesTable.userBId]
-                        } else {
-                            row[GameSeriesTable.userAId]
-                        }
-                    }.toSet()
+            val tableParticipants = participantsOfTables(rows.map { it[GameSeriesTable.tableId] }.toSet())
+            val gameSeats = participantsOfGames(rows.mapNotNull { it.getOrNull(GamesTable.id) }.toSet())
+
+            // A chess table seats two, so the opponent is whoever else is at it.
+            fun opponentIdOf(tableId: Uuid): Uuid? = tableParticipants[tableId].orEmpty().singleOrNull { it != userId }
+
+            val opponentIds = rows.mapNotNull { opponentIdOf(it[GameSeriesTable.tableId]) }.toSet()
 
             val opponents =
                 UsersTable
@@ -96,13 +93,7 @@ class DashboardQueries(
                     }
 
             rows.mapNotNull { row ->
-                val opponentId =
-                    if (row[GameSeriesTable.userAId] == userId) {
-                        row[GameSeriesTable.userBId]
-                    } else {
-                        row[GameSeriesTable.userAId]
-                    }
-                val opponent = opponents[opponentId] ?: return@mapNotNull null
+                val opponent = opponentIdOf(row[GameSeriesTable.tableId])?.let(opponents::get) ?: return@mapNotNull null
                 val gameId = row.getOrNull(GamesTable.id)
 
                 ActiveSeriesView(
@@ -113,7 +104,7 @@ class DashboardQueries(
                     gameVersion = gameId?.let { row[GamesTable.version] },
                     yourSide =
                         gameId?.let {
-                            if (row[GamesTable.whiteUserId] == userId) "WHITE" else "BLACK"
+                            ChessSeats.sideOf(gameSeats[gameId].orEmpty().indexOf(userId)).name
                         },
                     sideToMove = gameId?.let { row[GamesTable.sideToMove] },
                     fullmoveNumber = gameId?.let { row[GamesTable.state].fullmoveNumber },

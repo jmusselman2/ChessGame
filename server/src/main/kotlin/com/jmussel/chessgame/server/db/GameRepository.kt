@@ -35,13 +35,19 @@ data class StoredGame(
     val id: Uuid,
     val seriesId: Uuid,
     val sequenceNumber: Int,
-    val whiteUserId: Uuid,
-    val blackUserId: Uuid,
+    /** Who took each seat, in seat order ([ChessSeats]). */
+    val participants: List<Uuid>,
     val version: Long,
     val game: ChessGame,
     /** When the game was finalized, and `null` while it is still running. */
     val endedAt: OffsetDateTime? = null,
 ) {
+    val whiteUserId: Uuid
+        get() = participants[ChessSeats.WHITE]
+
+    val blackUserId: Uuid
+        get() = participants[ChessSeats.BLACK]
+
     val isComplete: Boolean
         get() = game.isOver
 
@@ -72,12 +78,14 @@ class StaleGameVersionException(
 class GameRepository(
     private val database: Database,
 ) {
-    /** Inserts [game] as game [sequenceNumber] of [seriesId], and returns its id. */
+    /**
+     * Inserts [game] as game [sequenceNumber] of [seriesId], seating [participants] in that
+     * order, and returns its id. The row and its seats are one transaction.
+     */
     fun create(
         seriesId: Uuid,
         sequenceNumber: Int,
-        whiteUserId: Uuid,
-        blackUserId: Uuid,
+        participants: List<Uuid>,
         game: ChessGame,
     ): Uuid =
         transaction(database) {
@@ -88,8 +96,6 @@ class GameRepository(
                 row[GamesTable.id] = id
                 row[GamesTable.seriesId] = seriesId
                 row[GamesTable.sequenceNumber] = sequenceNumber
-                row[GamesTable.whiteUserId] = whiteUserId
-                row[GamesTable.blackUserId] = blackUserId
                 row[GamesTable.status] = statusOf(game)
                 row[GamesTable.version] = 0
                 row[GamesTable.sideToMove] = game.sideToMove.name
@@ -99,6 +105,15 @@ class GameRepository(
                 row[GamesTable.createdAt] = now
                 row[GamesTable.updatedAt] = now
                 row[GamesTable.endedAt] = if (game.isOver) now else null
+            }
+
+            participants.forEachIndexed { seat, userId ->
+                GameParticipantsTable.insert { row ->
+                    row[GameParticipantsTable.gameId] = id
+                    row[GameParticipantsTable.seatIndex] = seat
+                    row[GameParticipantsTable.kind] = USER_PARTICIPANT
+                    row[GameParticipantsTable.userId] = userId
+                }
             }
 
             writeHistory(id, game)
@@ -199,14 +214,18 @@ class GameRepository(
             if (currentVersion(id) != game.version) ReadAttempt.Torn else ReadAttempt.Settled(game)
         }
 
-    /** The row, and the history stored beside it, as one game. */
+    /**
+     * The row, and the seats and history stored beside it, as one game.
+     *
+     * The seats are written once, with the row, and never change, so reading them cannot tear
+     * the way the history can.
+     */
     private fun storedGameOf(row: ResultRow): StoredGame =
         StoredGame(
             id = row[GamesTable.id],
             seriesId = row[GamesTable.seriesId],
             sequenceNumber = row[GamesTable.sequenceNumber],
-            whiteUserId = row[GamesTable.whiteUserId],
-            blackUserId = row[GamesTable.blackUserId],
+            participants = participantsOfGames(listOf(row[GamesTable.id]))[row[GamesTable.id]].orEmpty(),
             version = row[GamesTable.version],
             game = ChessGame(state = row[GamesTable.state].toGameState(), history = readHistory(row[GamesTable.id])),
             endedAt = row[GamesTable.endedAt],

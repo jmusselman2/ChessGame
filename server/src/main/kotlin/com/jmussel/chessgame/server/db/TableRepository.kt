@@ -1,0 +1,240 @@
+@file:OptIn(ExperimentalUuidApi::class)
+
+package com.jmussel.chessgame.server.db
+
+import com.jmussel.chessgame.core.chess.Side
+import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.Query
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.select
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.time.Instant
+import java.time.ZoneOffset
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
+
+/** The game types this server knows. Chess is the only one registered (`D063`). */
+object GameTypes {
+    const val CHESS: String = "CHESS"
+}
+
+/** The one participant kind that exists until `M19.7` (`D051`): a `users` row. */
+const val USER_PARTICIPANT: String = "USER"
+
+/**
+ * How chess maps its two sides onto a game's seats.
+ *
+ * Seat order is turn order, and White moves first, so White is seat 0. This is the only place
+ * that knows it; the participants relation itself says nothing about colours.
+ */
+object ChessSeats {
+    const val WHITE: Int = 0
+    const val BLACK: Int = 1
+
+    fun sideOf(seat: Int): Side = if (seat == WHITE) Side.WHITE else Side.BLACK
+}
+
+/** A table as the database holds it: a game type and its exact participant set, in seat order. */
+data class StoredTable(
+    val id: Uuid,
+    val gameType: String,
+    val participants: List<Uuid>,
+)
+
+/** Raised when a table is requested for a game type that is not registered. */
+class UnknownGameTypeException(
+    val gameType: String,
+) : IllegalArgumentException("No game type $gameType is registered")
+
+/** Raised when a table's size is outside what its game type seats (`D048`). */
+class TableSizeOutOfRangeException(
+    val gameType: String,
+    val size: Int,
+    val allowed: IntRange,
+) : IllegalArgumentException("A $gameType table seats ${allowed.first}-${allowed.last} participants, not $size")
+
+/**
+ * Tables: the exact participant sets that series belong to (`D048`).
+ *
+ * A table is found by its participants rather than created per request, so the same people
+ * always sit at the same table for a game type and a different set is a different table —
+ * which is what makes series identity an exact-set match.
+ *
+ * How many participants a table seats is read from its game type's registration every time
+ * ([participantRange]). There is no platform-wide count here and no assumption that it is 2:
+ * chess's 2 is a row in `game_types`, and a game type that seats 2–4 would be another row
+ * (`D063`).
+ *
+ * Every participant is a user until `M19.7`. Seats are assigned in id order, which is the
+ * canonical order of the set and carries no meaning of its own — who moves first is a
+ * property of each game ([GameParticipantsTable]), not of the table.
+ */
+class TableRepository(
+    private val database: Database,
+) {
+    /**
+     * The table of [gameType] seating exactly [participants], creating it if it does not exist.
+     *
+     * Refused before anything is written when a participant is named twice, when the game
+     * type is not registered, or when the set's size is outside the game type's range. If two
+     * requests race to create the same table, the database refuses the second insert and this
+     * returns the table the other one created.
+     *
+     * Not to be called inside a transaction: a refused insert aborts the transaction it runs
+     * in, and the recovery needs a fresh one.
+     */
+    fun findOrCreate(
+        gameType: String,
+        participants: Collection<Uuid>,
+    ): StoredTable {
+        require(participants.toSet().size == participants.size) { "A table seats each participant once" }
+
+        val allowed = participantRange(gameType) ?: throw UnknownGameTypeException(gameType)
+        if (participants.size !in allowed) {
+            throw TableSizeOutOfRangeException(gameType, participants.size, allowed)
+        }
+
+        val seats = participants.sorted()
+        val key = participantSetOf(seats)
+
+        find(gameType, key)?.let { return it }
+
+        return try {
+            transaction(database) { insert(gameType, key, seats) }
+        } catch (e: Exception) {
+            if (!e.isUniqueViolation()) throw e
+            requireNotNull(find(gameType, key)) { "The table vanished after a conflict" }
+        }
+    }
+
+    /** How many participants a table of [gameType] seats, or `null` if it is not registered. */
+    fun participantRange(gameType: String): IntRange? =
+        transaction(database) {
+            GameTypesTable
+                .selectAll()
+                .where { GameTypesTable.id eq gameType }
+                .singleOrNull()
+                ?.let { it[GameTypesTable.minParticipants]..it[GameTypesTable.maxParticipants] }
+        }
+
+    /** The table with [id], or `null`. */
+    fun find(id: Uuid): StoredTable? =
+        transaction(database) {
+            TablesTable
+                .selectAll()
+                .where { TablesTable.id eq id }
+                .singleOrNull()
+                ?.let(::tableOf)
+        }
+
+    private fun find(
+        gameType: String,
+        key: String,
+    ): StoredTable? =
+        transaction(database) {
+            TablesTable
+                .selectAll()
+                .where { (TablesTable.gameType eq gameType) and (TablesTable.participantSet eq key) }
+                .singleOrNull()
+                ?.let(::tableOf)
+        }
+
+    private fun tableOf(row: ResultRow): StoredTable {
+        val id = row[TablesTable.id]
+        return StoredTable(
+            id = id,
+            gameType = row[TablesTable.gameType],
+            participants = participantsOfTables(listOf(id))[id].orEmpty(),
+        )
+    }
+
+    /**
+     * Inserts the table and its seats together, so a table whose rows disagree with its
+     * [TablesTable.participantSet] is never visible. Both of the rules the schema cannot
+     * check — the key matches the seats, and the size is in range — hold because this is
+     * the only writer.
+     */
+    private fun insert(
+        gameType: String,
+        key: String,
+        seats: List<Uuid>,
+    ): StoredTable {
+        val id = Uuid.random()
+
+        TablesTable.insert { row ->
+            row[TablesTable.id] = id
+            row[TablesTable.gameType] = gameType
+            row[TablesTable.participantSet] = key
+            row[TablesTable.createdAt] = Instant.now().atOffset(ZoneOffset.UTC)
+        }
+
+        seats.forEachIndexed { seat, userId ->
+            TableParticipantsTable.insert { row ->
+                row[TableParticipantsTable.tableId] = id
+                row[TableParticipantsTable.seatIndex] = seat
+                row[TableParticipantsTable.kind] = USER_PARTICIPANT
+                row[TableParticipantsTable.userId] = userId
+            }
+        }
+
+        return StoredTable(id = id, gameType = gameType, participants = seats)
+    }
+
+    companion object {
+        /**
+         * The canonical form of a participant set: each participant as `KIND:ref`, in id order,
+         * comma-joined.
+         *
+         * `V5__tables_and_participants.sql` computes the same string for the pairs it carries
+         * over, so a table made by the migration and one made here for the same people are the
+         * same table.
+         */
+        fun participantSetOf(participants: Collection<Uuid>): String = participants.sorted().joinToString(",") { "$USER_PARTICIPANT:$it" }
+    }
+}
+
+/**
+ * The participants of each of [tableIds], in seat order.
+ *
+ * One query however many tables are asked about. Must be called inside a transaction.
+ */
+fun participantsOfTables(tableIds: Collection<Uuid>): Map<Uuid, List<Uuid>> {
+    if (tableIds.isEmpty()) return emptyMap()
+
+    return TableParticipantsTable
+        .selectAll()
+        .where { TableParticipantsTable.tableId inList tableIds }
+        .orderBy(TableParticipantsTable.seatIndex to SortOrder.ASC)
+        .groupBy({ it[TableParticipantsTable.tableId] }) { row ->
+            requireNotNull(row[TableParticipantsTable.userId]) { "Every table participant is a user until M19.7" }
+        }
+}
+
+/** The ids of every table [userId] sits at, as a subquery. */
+fun tablesSeating(userId: Uuid): Query =
+    TableParticipantsTable
+        .select(TableParticipantsTable.tableId)
+        .where { TableParticipantsTable.userId eq userId }
+
+/**
+ * The participants of each of [gameIds], in seat order.
+ *
+ * One query however many games are asked about. Must be called inside a transaction.
+ */
+fun participantsOfGames(gameIds: Collection<Uuid>): Map<Uuid, List<Uuid>> {
+    if (gameIds.isEmpty()) return emptyMap()
+
+    return GameParticipantsTable
+        .selectAll()
+        .where { GameParticipantsTable.gameId inList gameIds }
+        .orderBy(GameParticipantsTable.seatIndex to SortOrder.ASC)
+        .groupBy({ it[GameParticipantsTable.gameId] }) { row ->
+            requireNotNull(row[GameParticipantsTable.userId]) { "Every game participant is a user until M19.7" }
+        }
+}

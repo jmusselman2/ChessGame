@@ -4752,7 +4752,7 @@ regressions, and `.\gradlew.bat build`.
 
 ## M19.3 — The table and the participants relation
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** — *revised 2026-09-16 (`D063`):* the dependency on `M19.1` was
 removed. This task is server and schema work in the existing `server` module.
@@ -4792,6 +4792,71 @@ the only game type registered.
 - Migration is forward-only and preserves all existing games, series, and
   history.
 
+### Completion Note — 2026-09-16
+
+`V5__tables_and_participants.sql`, `TableRepository`, and every read of the pair
+columns rewritten onto tables. The implementation choices are in
+[`D064`](DECISIONS.md#d064--a-table-is-keyed-by-its-canonical-participant-set-seats-are-turn-order-and-invite-eligibility-stays-out-of-table-creation).
+No `M19.1` decision is taken or implied: all of it is in `server` and the schema.
+
+**Schema.** `game_types` (per-type `min_participants`/`max_participants`; chess
+registered as `('CHESS', 2, 2)` and nothing else), `tables` (unique per game type
+and canonical participant set), `table_participants`, and `game_participants`
+(seat order is turn order). `game_series.user_a_id`/`user_b_id` became
+`game_series.table_id`; `games.white_user_id`/`black_user_id` became seats 0 and
+1; `games_distinct_players` became one seat per user per game. Nothing caps a
+table or a game at 2.
+
+**The size check reads the registration.** `TableRepository.findOrCreate` reads
+the game type's range on every call. `theSizeCheckReadsTheGameTypesRegisteredRange`
+registers a test-only 2–4 type in the disposable database, seats three and four,
+refuses five, refuses three for chess in the same database, then narrows the
+registered maximum and sees four refused with no code change. No deck-builder
+type is registered.
+
+**Exact-set identity** is the unique `(game_type, participant_set)` key: the same
+people in any order reach one table, and eight concurrent requests for a new
+table produce one row. `seriesIdentityIsAnExactSetMatch` shows that a
+three-person series and a two-person series of the same people are different
+series.
+
+**Chess is unchanged, and the existing tests say so.** All 511 existing server
+tests pass. What changed in them is fixtures and accessors: series are opened
+with `openOrCreate(GameTypes.CHESS, listOf(a, b))`, games are created with
+`listOf(white, black)`, and the pair accessors `userAId`/`userBId` became
+`participants[0]`/`[1]`. `StoredGame.whiteUserId`/`blackUserId` stay, derived from
+seats, so no colour assertion was touched. The first game's coin toss runs over
+the same two seats in the same order the pair used, so a scripted random still
+gives the same colours. No API shape changed.
+
+**Migration.** `TablesMigrationTest` migrates to `V4` and fills the pair model the
+way the old server did: a closed and an active series for one pair, a series for
+another, and a finished game with moves and audit events. It then migrates to the
+latest version. Series and game ids, versions, results, moves, and events are all
+preserved, and White is seat 0 whichever of the pair was stored first. The *new*
+code then opens the same pair and finds the migrated series instead of making a
+new table, and the dashboard and history read it correctly. Nothing is deployed.
+
+**Deliberately not wired: invite eligibility.** `M19.2` asked this task to call
+`InviteEligibility.canInvite` at table creation. `D046` rules out a server-side
+relationship check at series creation "now or going forward", and this task's own
+criteria require chess's `POST /series` to behave identically. `D064` records
+that `D046` governs; `canInvite` stays the rule for whatever offers invitees.
+
+**Queries stay constant-count.** The dashboard is four queries instead of two
+(series with games, table participants, game seats, opponents), and history is
+five instead of three, whatever the number of series.
+
+**For `M19.4`:** the one-active-series index now lives on `table_id` as
+`game_series_one_active_per_table`, and that is the index to drop. Its criteria
+still name the old pair index.
+
+Verified with `.\gradlew.bat :server:test` (the 511 existing tests), the new
+`TableRepositoryTest` (11) and `TablesMigrationTest` (2), `InitialSchemaTest`
+over the new tables, and `.\gradlew.bat build`.
+
+---
+
 ## M19.4 — Migration V3: drop the pair-model constraints
 
 **Status:** TODO
@@ -4806,7 +4871,8 @@ lifecycle.
 ### Acceptance Criteria
 
 - `V3` migration drops the partial unique index
-  `game_series_one_active_per_pair` and the column
+  `game_series_one_active_per_pair` (rebuilt on `table_id` as
+  `game_series_one_active_per_table` by `M19.3`, `D064`) and the column
   `game_series.close_after_current_game`.
 - `SeriesService.openWithGame` no longer silently reuses an existing active
   series: "Play" against a friend with one offers opening it or starting

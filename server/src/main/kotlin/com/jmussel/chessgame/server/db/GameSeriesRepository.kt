@@ -7,7 +7,7 @@ import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.or
+import org.jetbrains.exposed.v1.core.inSubQuery
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -21,11 +21,12 @@ import kotlin.uuid.Uuid
 /** The status a series has once it is over. */
 const val CLOSED_SERIES: String = "CLOSED"
 
-/** A series of games between one pair of friends. */
+/** A series of games at one table (`D048`). */
 data class StoredSeries(
     val id: Uuid,
-    val userAId: Uuid,
-    val userBId: Uuid,
+    val tableId: Uuid,
+    /** The table's participants, in its seat order. */
+    val participants: List<Uuid>,
     val status: String,
     val closeAfterCurrentGame: Boolean,
     val currentGameId: Uuid?,
@@ -35,8 +36,8 @@ data class StoredSeries(
     val isActive: Boolean
         get() = status == ACTIVE_SERIES
 
-    /** The other player, given one of them. */
-    fun opponentOf(userId: Uuid): Uuid = if (userId == userAId) userBId else userAId
+    /** The other player at a two-participant table, given one of them. */
+    fun opponentOf(userId: Uuid): Uuid = participants.single { it != userId }
 }
 
 /** Whether opening a series found one or made one. */
@@ -54,64 +55,59 @@ data class OpenedSeries(
 )
 
 /**
- * Series of games between friends.
+ * Series of games at a table.
  *
- * A pair has at most one `ACTIVE` series (`D011`), enforced by a partial unique index
- * rather than by hoping two requests do not arrive at once: "start a game with this
- * friend" opens the series that already exists instead of quietly creating a parallel one.
- * Closed series stay for history (`D012`).
+ * A series belongs to a table — the exact set of people playing it (`D048`) — so the same
+ * people always reach the same series, and a different set reaches a different one.
+ *
+ * A table has at most one `ACTIVE` series (`D011`, until `M19.4`), enforced by a partial
+ * unique index rather than by hoping two requests do not arrive at once: "start a game with
+ * this friend" opens the series that already exists instead of quietly creating a parallel
+ * one. Closed series stay for history (`D012`).
  */
 class GameSeriesRepository(
     private val database: Database,
+    private val tables: TableRepository = TableRepository(database),
 ) {
     /**
-     * The pair's active series, opening the existing one or creating the first.
+     * The active series of the [gameType] table seating exactly [participants], opening the
+     * existing one or creating the table and the series as needed.
      *
-     * If two requests race, the database refuses the second insert and this returns the
-     * series the other one created.
+     * The table checks the participant set against its game type before anything is written
+     * ([TableRepository.findOrCreate]). If two requests race, the database refuses the second
+     * insert and this returns the series the other one created.
      */
     fun openOrCreate(
-        first: Uuid,
-        second: Uuid,
+        gameType: String,
+        participants: Collection<Uuid>,
     ): OpenedSeries {
-        require(first != second) { "A series needs two different players" }
-        val (lower, higher) = order(first, second)
+        val table = tables.findOrCreate(gameType, participants)
 
-        findActive(lower, higher)?.let { return OpenedSeries(it, created = false) }
+        findActive(table.id)?.let { return OpenedSeries(it, created = false) }
 
         val created =
             try {
-                transaction(database) { insert(lower, higher) }
+                transaction(database) { insert(table) }
             } catch (e: Exception) {
                 if (!e.isUniqueViolation()) throw e
                 // Another request created it a moment ago; that one is the series.
                 val existing =
-                    requireNotNull(findActive(lower, higher)) { "The active series vanished after a conflict" }
+                    requireNotNull(findActive(table.id)) { "The active series vanished after a conflict" }
                 return OpenedSeries(existing, created = false)
             }
 
         return OpenedSeries(created, created = true)
     }
 
-    /** The pair's active series, or `null`. */
-    fun findActive(
-        first: Uuid,
-        second: Uuid,
-    ): StoredSeries? {
-        if (first == second) return null
-        val (lower, higher) = order(first, second)
-
-        return transaction(database) {
+    /** The active series at [tableId], or `null`. */
+    fun findActive(tableId: Uuid): StoredSeries? =
+        transaction(database) {
             GameSeriesTable
                 .selectAll()
-                .where {
-                    (GameSeriesTable.userAId eq lower) and
-                        (GameSeriesTable.userBId eq higher) and
-                        (GameSeriesTable.status eq ACTIVE_SERIES)
-                }.singleOrNull()
+                .where { (GameSeriesTable.tableId eq tableId) and (GameSeriesTable.status eq ACTIVE_SERIES) }
+                .singleOrNull()
                 ?.let(::toSeries)
         }
-    }
 
     /**
      * Marks [seriesId] to close once its current game finishes.
@@ -246,27 +242,18 @@ class GameSeriesRepository(
         transaction(database) {
             GameSeriesTable
                 .selectAll()
-                .where { (GameSeriesTable.userAId eq userId) or (GameSeriesTable.userBId eq userId) }
+                .where { GameSeriesTable.tableId inSubQuery tablesSeating(userId) }
                 .orderBy(GameSeriesTable.createdAt to SortOrder.DESC)
                 .map(::toSeries)
         }
 
-    private fun order(
-        first: Uuid,
-        second: Uuid,
-    ): Pair<Uuid, Uuid> = if (first < second) first to second else second to first
-
-    private fun insert(
-        lower: Uuid,
-        higher: Uuid,
-    ): StoredSeries {
+    private fun insert(table: StoredTable): StoredSeries {
         val id = Uuid.random()
         val now = Instant.now()
 
         GameSeriesTable.insert { row ->
             row[GameSeriesTable.id] = id
-            row[GameSeriesTable.userAId] = lower
-            row[GameSeriesTable.userBId] = higher
+            row[GameSeriesTable.tableId] = table.id
             row[GameSeriesTable.status] = ACTIVE_SERIES
             row[GameSeriesTable.closeAfterCurrentGame] = false
             row[GameSeriesTable.createdAt] = now.atOffset(ZoneOffset.UTC)
@@ -274,8 +261,8 @@ class GameSeriesRepository(
 
         return StoredSeries(
             id = id,
-            userAId = lower,
-            userBId = higher,
+            tableId = table.id,
+            participants = table.participants,
             status = ACTIVE_SERIES,
             closeAfterCurrentGame = false,
             currentGameId = null,
@@ -284,15 +271,19 @@ class GameSeriesRepository(
         )
     }
 
-    private fun toSeries(row: ResultRow): StoredSeries =
-        StoredSeries(
+    /** Must be called inside a transaction: the participants are read beside the row. */
+    private fun toSeries(row: ResultRow): StoredSeries {
+        val tableId = row[GameSeriesTable.tableId]
+
+        return StoredSeries(
             id = row[GameSeriesTable.id],
-            userAId = row[GameSeriesTable.userAId],
-            userBId = row[GameSeriesTable.userBId],
+            tableId = tableId,
+            participants = participantsOfTables(listOf(tableId))[tableId].orEmpty(),
             status = row[GameSeriesTable.status],
             closeAfterCurrentGame = row[GameSeriesTable.closeAfterCurrentGame],
             currentGameId = row[GameSeriesTable.currentGameId],
             createdAt = row[GameSeriesTable.createdAt].toInstant(),
             closedAt = row[GameSeriesTable.closedAt]?.toInstant(),
         )
+    }
 }

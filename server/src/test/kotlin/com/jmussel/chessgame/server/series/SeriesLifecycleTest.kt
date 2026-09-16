@@ -8,6 +8,7 @@ import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.GameSeriesRepository
+import com.jmussel.chessgame.server.db.GameTypes
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.user.Username
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -38,7 +39,7 @@ class SeriesLifecycleTest {
             val jordan = named("auth-1", "Jordan")
             val alex = named("auth-2", "Alex")
             friendships.add(jordan, alex)
-            return series.openOrCreate(jordan, alex).series.id
+            return series.openOrCreate(GameTypes.CHESS, listOf(jordan, alex)).series.id
         }
 
         fun named(
@@ -179,13 +180,14 @@ class SeriesLifecycleTest {
             val jordan = fixture.named("auth-1", "Jordan")
             val alex = fixture.named("auth-2", "Alex")
             fixture.friendships.add(jordan, alex)
-            val id =
+            val opened =
                 fixture.series
-                    .openOrCreate(jordan, alex)
-                    .series.id
+                    .openOrCreate(GameTypes.CHESS, listOf(jordan, alex))
+                    .series
+            val id = opened.id
             fixture.series.close(id)
 
-            assertNull(fixture.series.findActive(jordan, alex))
+            assertNull(fixture.series.findActive(opened.tableId))
             assertNotNull(fixture.series.find(id), "it stays available for history")
         }
     }
@@ -198,7 +200,7 @@ class SeriesLifecycleTest {
             fixture.friendships.add(jordan, alex)
             val id =
                 fixture.series
-                    .openOrCreate(jordan, alex)
+                    .openOrCreate(GameTypes.CHESS, listOf(jordan, alex))
                     .series.id
 
             fixture.friendships.remove(jordan, alex)

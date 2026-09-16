@@ -13,6 +13,7 @@ import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.GameSeriesRepository
+import com.jmussel.chessgame.server.db.GameTypes
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.db.UsersTable
 import com.jmussel.chessgame.server.game.CommandResult
@@ -297,13 +298,12 @@ class EngagementTimestampTest {
         users.claimUsername(black, Username.of("${prefix.take(6)}Black"))
         FriendshipRepository(database).add(white, black)
 
-        val series = GameSeriesRepository(database).openOrCreate(white, black).series
+        val series = GameSeriesRepository(database).openOrCreate(GameTypes.CHESS, listOf(white, black)).series
         val gameId =
             GameRepository(database).create(
                 seriesId = series.id,
                 sequenceNumber = 1,
-                whiteUserId = white,
-                blackUserId = black,
+                participants = listOf(white, black),
                 game = ChessGame.newGame(),
             )
 

@@ -9,7 +9,9 @@ import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.GameSeriesTable
+import com.jmussel.chessgame.server.db.GameTypes
 import com.jmussel.chessgame.server.db.RemoveFriendResult
+import com.jmussel.chessgame.server.db.TableRepository
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.testModule
 import com.jmussel.chessgame.server.user.Username
@@ -68,8 +70,7 @@ class RemoveFriendTest {
             transaction(database) {
                 GameSeriesTable.insert { row ->
                     row[GameSeriesTable.id] = id
-                    row[GameSeriesTable.userAId] = lower
-                    row[GameSeriesTable.userBId] = higher
+                    row[GameSeriesTable.tableId] = TableRepository(database).findOrCreate(GameTypes.CHESS, listOf(lower, higher)).id
                     row[GameSeriesTable.status] = "ACTIVE"
                     row[GameSeriesTable.closeAfterCurrentGame] = false
                     row[GameSeriesTable.createdAt] = Instant.now().atOffset(ZoneOffset.UTC)
@@ -185,7 +186,7 @@ class RemoveFriendTest {
             val alex = fixture.named("auth-2", "Alex")
             fixture.friendships.add(jordan, alex)
             val series = fixture.activeSeries(jordan, alex)
-            val gameId = fixture.games.create(series, 1, jordan, alex, ChessGame.newGame())
+            val gameId = fixture.games.create(series, 1, listOf(jordan, alex), ChessGame.newGame())
 
             fixture.friendships.remove(jordan, alex)
 

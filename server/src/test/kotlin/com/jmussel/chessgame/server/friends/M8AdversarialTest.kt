@@ -11,7 +11,9 @@ import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.FriendshipsTable
 import com.jmussel.chessgame.server.db.GameSeriesTable
+import com.jmussel.chessgame.server.db.GameTypes
 import com.jmussel.chessgame.server.db.RemoveFriendResult
+import com.jmussel.chessgame.server.db.TableRepository
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.testModule
 import com.jmussel.chessgame.server.user.Username
@@ -463,8 +465,7 @@ class M8AdversarialTest {
         transaction(database) {
             GameSeriesTable.insert { row ->
                 row[GameSeriesTable.id] = seriesId
-                row[GameSeriesTable.userAId] = lower
-                row[GameSeriesTable.userBId] = higher
+                row[GameSeriesTable.tableId] = TableRepository(database).findOrCreate(GameTypes.CHESS, listOf(lower, higher)).id
                 row[GameSeriesTable.status] = "ACTIVE"
                 row[GameSeriesTable.closeAfterCurrentGame] = false
                 row[GameSeriesTable.createdAt] = Instant.now().atOffset(java.time.ZoneOffset.UTC)
@@ -493,8 +494,7 @@ class M8AdversarialTest {
         GameSeriesTable
             .selectAll()
             .where {
-                (GameSeriesTable.userAId eq lower) and
-                    (GameSeriesTable.userBId eq higher) and
+                (GameSeriesTable.tableId eq TableRepository(database).findOrCreate(GameTypes.CHESS, listOf(lower, higher)).id) and
                     (GameSeriesTable.status eq "ACTIVE")
             }.toList()
     }

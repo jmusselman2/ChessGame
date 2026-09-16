@@ -27,7 +27,7 @@ class M6AdversarialTest {
     @Test
     fun twoWritesCompetingForOneVersionCommitExactlyOneWholeOutcome() {
         withRepository { fixture ->
-            val id = fixture.repository.create(fixture.series, 1, fixture.white, fixture.black, ChessGame.newGame())
+            val id = fixture.repository.create(fixture.series, 1, listOf(fixture.white, fixture.black), ChessGame.newGame())
             val candidates = listOf(played("e2e4"), played("d2d4"))
 
             // Keep the winning UPDATE open long enough for the competing transaction to
@@ -88,7 +88,7 @@ class M6AdversarialTest {
     fun aFailureDuringHistoryReplacementRollsBackStateVersionHistoryAndAudit() {
         withRepository { fixture ->
             val original = played("e2e4")
-            val id = fixture.repository.create(fixture.series, 1, fixture.white, fixture.black, original)
+            val id = fixture.repository.create(fixture.series, 1, listOf(fixture.white, fixture.black), original)
 
             // Fail only after save has updated the game row, deleted the old history, and
             // reinserted its first ply. This makes atomicity observable at the late edge.
@@ -165,8 +165,7 @@ class M6AdversarialTest {
                 val (userA, userB) = if (white < black) white to black else black to white
                 GameSeriesTable.insert { row ->
                     row[GameSeriesTable.id] = series
-                    row[GameSeriesTable.userAId] = userA
-                    row[GameSeriesTable.userBId] = userB
+                    row[GameSeriesTable.tableId] = TableRepository(database).findOrCreate(GameTypes.CHESS, listOf(userA, userB)).id
                     row[GameSeriesTable.status] = "ACTIVE"
                     row[GameSeriesTable.closeAfterCurrentGame] = false
                     row[GameSeriesTable.createdAt] = now

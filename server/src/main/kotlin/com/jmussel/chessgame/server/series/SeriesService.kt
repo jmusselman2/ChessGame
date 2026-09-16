@@ -6,6 +6,7 @@ import com.jmussel.chessgame.core.chess.ChessGame
 import com.jmussel.chessgame.server.db.CLOSED_SERIES
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.GameSeriesRepository
+import com.jmussel.chessgame.server.db.GameTypes
 import com.jmussel.chessgame.server.db.OpenedSeries
 import com.jmussel.chessgame.server.db.StoredGame
 import com.jmussel.chessgame.server.db.StoredSeries
@@ -53,7 +54,7 @@ class SeriesService(
         caller: Uuid,
         friend: Uuid,
     ): OpenedSeries {
-        val opened = series.openOrCreate(caller, friend)
+        val opened = series.openOrCreate(GameTypes.CHESS, listOf(caller, friend))
         if (opened.series.currentGameId != null) return opened
 
         val (withGame, startedGame) =
@@ -134,8 +135,7 @@ class SeriesService(
             games.create(
                 seriesId = series.id,
                 sequenceNumber = finished.sequenceNumber + 1,
-                whiteUserId = finished.blackUserId,
-                blackUserId = finished.whiteUserId,
+                participants = listOf(finished.blackUserId, finished.whiteUserId),
                 game = ChessGame.newGame(),
             )
 
@@ -161,8 +161,7 @@ class SeriesService(
             games.create(
                 seriesId = series.id,
                 sequenceNumber = FIRST_GAME,
-                whiteUserId = white,
-                blackUserId = black,
+                participants = listOf(white, black),
                 game = ChessGame.newGame(),
             )
 
@@ -171,13 +170,17 @@ class SeriesService(
         return series.copy(currentGameId = gameId)
     }
 
-    /** Who plays White in the series' first game — a coin toss (`D014`). */
-    private fun randomColours(series: StoredSeries): Pair<Uuid, Uuid> =
-        if (random.nextBoolean()) {
-            series.userAId to series.userBId
-        } else {
-            series.userBId to series.userAId
-        }
+    /**
+     * Who plays White in the series' first game — a coin toss (`D014`).
+     *
+     * A chess table seats exactly two, in id order, so this is the same toss over the same
+     * two seats that the pair columns gave before `M19.3`.
+     */
+    private fun randomColours(series: StoredSeries): Pair<Uuid, Uuid> {
+        val (first, second) = series.participants
+
+        return if (random.nextBoolean()) first to second else second to first
+    }
 
     companion object {
         /** The audit event an automatic rematch records (`ARCHITECTURE.md` §9). */

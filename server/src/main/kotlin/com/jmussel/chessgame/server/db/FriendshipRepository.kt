@@ -6,11 +6,13 @@ import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inSubQuery
 import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -192,11 +194,16 @@ class FriendshipRepository(
                 return@transaction RemoveFriendResult.NotFriends
             }
 
+            // The pair's table is the one whose exact participant set is these two (`D048`).
+            val pairTables =
+                TablesTable
+                    .select(TablesTable.id)
+                    .where { TablesTable.participantSet eq TableRepository.participantSetOf(listOf(lower, higher)) }
+
             val seriesClosing =
                 GameSeriesTable.update(
                     {
-                        (GameSeriesTable.userAId eq lower) and
-                            (GameSeriesTable.userBId eq higher) and
+                        (GameSeriesTable.tableId inSubQuery pairTables) and
                             (GameSeriesTable.status eq ACTIVE_SERIES)
                     },
                 ) { row ->
