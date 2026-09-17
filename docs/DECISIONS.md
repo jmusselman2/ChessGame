@@ -3254,7 +3254,8 @@ hidden-info game from inheriting a rule that was safe only here.
 - The `(gameId, version)`-identity consequence of per-viewer **state**
   projection is separate and unrecorded; it is carried as an `M19` task, not
   here. (That task is `M19.10`. Under `D062` it produces one focused game-state
-  visibility and security document, plus a decision for each binding conclusion.)
+  visibility and security document, plus a decision for each binding conclusion.
+  Done 2026-09-16: `docs/GAME-STATE-VISIBILITY.md`, `D069`, `D070`.)
 - "Replay-equivalent" above means equivalent to what an observer saw, derived
   from recorded events. It does not mean rerunning commands through rules, which
   `D061` forbids for canonical restoration.
@@ -4333,3 +4334,120 @@ game. A closed series never points at a game other than its newest.
 - Android: "Leave series" on the game screen, asked about first. The dashboard marks the
   last game, and the friends list offers Play for a friend whose series was left.
 - No migration. `game_series` already has `status` and `closed_at`.
+
+---
+
+## D069 — State Leaves the Server Only Through a Per-Viewer Projection, Built as an Allowlist
+
+**Date:** 2026-09-16
+
+**Status:** Accepted
+
+**Relates to:** `D004`, `D022`, `D051`, `D054`, `D056`, `D061`, `D062`, `M19.10`,
+[`docs/GAME-STATE-VISIBILITY.md`](GAME-STATE-VISIBILITY.md) (findings 1–3, 6, 7)
+
+**Scope:** Every ruleset's game-state payloads. Chess already satisfies it, and no code
+changes. Where a ruleset's projection code lives is `M20.1`.
+
+### Decision
+
+- **Every payload carrying game state is a per-viewer projection of canonical state.** That
+  includes the state attached to a refused command, which is projected exactly like a read.
+  `GameView.of` is chess's projection. It projects perspective only, which is correct for a
+  complete-information game. A hidden-information ruleset has its own projection that also
+  decides visibility.
+- **A projection is an allowlist.** Response types are built field by field from canonical
+  state. No route serializes a stored state document, with or without fields removed. A
+  field added to storage reaches no client until a projection is changed to carry it.
+- **Never projected, in any ruleset:** deck order (a deck is a count), the identity of any
+  card whose position the viewer does not know (absent or anonymous, never a flagged
+  identity), the seed and any counter, undo snapshots and `position_before` (`D061`; an
+  undo answers with the projection of the restored state), raw `game_events` rows (`D056`),
+  and `non_user_participants.state`. The seed and counter are also kept out of log lines.
+- **Realtime messages carry no state**, only identity and version (`D022`), so they never
+  need projecting.
+- **Visibility is decided by the viewer's role**, not by a seat index or a colour, and the
+  number of viewers is not capped. A spectator, when spectators exist, sees at most what no
+  seat hides.
+- **Validated by payload-shape tests.** Each game-state route has a test asserting the exact
+  key set of its JSON. Each hidden zone, when it exists, has a two-viewer test that searches
+  the other viewer's raw response text, and the attached refusal state, for any identity from
+  that zone.
+
+### Rationale
+
+Chess needs no visibility projection, so the risk is building the first hidden-information
+ruleset on habits that were only safe because nothing was secret. The allowlist is the
+existing property that makes the current code safe, stated so it survives: a denylist fails
+open when storage gains a field. The refusal path and undo are listed because they are the
+two places a second, unprojected copy of state is easiest to add.
+
+Deck order and the seed come first because they leak the rest of the game, not one turn.
+
+### Alternatives Considered
+
+- **Send full state and let the client hide what it should not show.** Rejected, as `D054`
+  already did: not a boundary against a decompiled client or inspected traffic.
+- **Project by removing hidden fields from the stored document.** Rejected: fails open.
+- **Give spectators an omniscient view.** Not decided for a future product, and rejected as
+  the default: it turns any spectator into a channel for a player.
+
+### Consequences
+
+- [`docs/GAME-STATE-VISIBILITY.md`](GAME-STATE-VISIBILITY.md) holds the audit and the projection checklist. `PLATFORM-REVIEW.md`'s
+  checklist points there.
+- No code changes for chess. The two-viewer and seed tests have nothing to exercise until a
+  hidden zone exists, and they are written with the first ruleset that has one.
+
+---
+
+## D070 — A Game Payload's Identity Is `(gameId, version, viewer)`, and Version Orders State Without Naming a Payload
+
+**Date:** 2026-09-16
+
+**Status:** Accepted
+
+**Relates to:** `D021`, `D022`, `D059`, `D069`, `M19.10`,
+[`docs/GAME-STATE-VISIBILITY.md`](GAME-STATE-VISIBILITY.md) (findings 4–5)
+
+**Scope:** Anything that identifies, caches, deduplicates, or marks as seen a game payload.
+No current code changes.
+
+### Decision
+
+- **`(gameId, version)` identifies a canonical state, not a payload.** Once projection is
+  per viewer, a payload is identified by `(gameId, version, viewer)`.
+- **`version` keeps its meaning:** the count of accepted mutations of one game, the command
+  guard (`D021`), and the order in which one viewer's payloads are installed.
+- **A client may order by version within one viewer's payloads.** `D059`'s forwards-only
+  rule stands. A client that could hold payloads for more than one viewer — a spectator
+  changing seats, or accounts sharing a device — puts the viewer in the comparison.
+- **Every cache, dedup, or "seen this update" record of a payload keys on the viewer.** That
+  covers any server-side view cache, any HTTP cache in front of the server (whose key must
+  vary by the authenticated viewer), and any client persistence. Unread markers and
+  notifications key on `(gameId, version, userId)`.
+- **Realtime messages stay `(gameId, version)`.** They carry no state (`D069`), and "this
+  game changed" is the same fact for every viewer. Deduplicating those messages by
+  `(gameId, version)` stays safe.
+
+### Rationale
+
+The version is shared by every viewer because it describes canonical state, and it is the
+right key for everything about canonical state. It stops being a sufficient key only for
+things that hold a *projection*. Nothing in the code caches or deduplicates a projection
+today, so the decision is cheap now and expensive to discover later — a cache keyed on
+`(gameId, version)` would serve one player's hand to another with no error anywhere.
+
+### Alternatives Considered
+
+- **A per-viewer version.** Rejected: it duplicates the canonical count and breaks the single
+  command guard.
+- **A content hash of the payload as its identity.** Rejected: a derived identity with no
+  ordering, when `(gameId, version, viewer)` already identifies and orders it.
+- **Leave it until caching is added.** Rejected: the rule belongs where it will be read
+  before the cache is written.
+
+### Consequences
+
+- No client or server change for chess: the app holds one viewer's payloads and caches none.
+- [`docs/GAME-STATE-VISIBILITY.md`](GAME-STATE-VISIBILITY.md) records where each existing use of the version stands.

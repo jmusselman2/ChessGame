@@ -5315,7 +5315,7 @@ Verified on 2026-09-10 with `.\gradlew.bat build` (BUILD SUCCESSFUL) and
 
 ## M19.10 — Per-viewer state projection and the `(gameId, version)` identity
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M19.3
 
@@ -5372,6 +5372,35 @@ analysis must answer, not what the answers are.
   stripped before state leaves the server.
 - The four required outputs above exist, with reciprocal links among the backlog
   entry, the document, and each decision.
+
+### Completion Note — 2026-09-16
+
+**Analysis:** [`docs/GAME-STATE-VISIBILITY.md`](GAME-STATE-VISIBILITY.md) — an audit of
+every surface that carries game state today, then findings on projection, hidden state,
+payload identity, caching, history, and spectators, with the validation for each and the
+projection checklist moved from `PLATFORM-REVIEW.md`. **Binding outcomes:**
+[`D069`](DECISIONS.md#d069--state-leaves-the-server-only-through-a-per-viewer-projection-built-as-an-allowlist)
+and
+[`D070`](DECISIONS.md#d070--a-game-payloads-identity-is-gameid-version-viewer-and-version-orders-state-without-naming-a-payload).
+No code changed.
+
+**Essential result.**
+
+- **`GameView.of` is the right seam, and projects perspective only.** It is also two-player
+  shaped and chess-typed, so a hidden-information ruleset gets its own projection rather than
+  a flag on this one. Every game payload, the refusal-attached state included, is a
+  per-viewer projection built as an **allowlist** (`D069`).
+- **Deck order, unknown-position card identity, and the seed are confirmed stripped** — none
+  exists yet, and no route can send stored state wholesale: every response is a `server/api`
+  type built field by field. When they are added, a deck is a count, an unknown card is
+  absent or anonymous, and the seed and counter stay out of payloads and logs. Undo answers
+  with a projection, never a snapshot (`D069`).
+- **A payload is identified by `(gameId, version, viewer)`**; `(gameId, version)` names a
+  canonical state. The command guard, `D059`'s forwards-only rule, and state-free realtime
+  messages are unaffected. Any cache, dedup, or "seen" record of a payload keys on the viewer
+  (`D070`).
+
+Verified with `.\gradlew.bat build` and `git diff --check`. Documentation only.
 
 ## M19.11 — `last_login_at` / `last_action_at` on `users`
 

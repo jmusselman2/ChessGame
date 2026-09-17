@@ -34,6 +34,14 @@ that records a shuffle (or an equivalent event that cannot be undone correctly;
 a reveal is not one), and never replaying commands through rules to restore
 canonical state.
 
+Also read `docs/GAME-STATE-VISIBILITY.md` before any work that designs or implements
+game-state payloads, per-viewer projection, hidden information, randomness exposure,
+caching or deduplication of game views, history views, or spectators. It holds `M19.10`'s
+audit and findings. Its binding outcomes are `D069` (state leaves the server only through a
+per-viewer allowlist projection, and deck order, unknown card identity, the seed, undo
+snapshots and raw events never do) and `D070` (a payload is identified by
+`(gameId, version, viewer)`).
+
 Standalone analysis documents follow `D062`. Important or cross-cutting ones are
 added to this list once they exist.
 
@@ -53,8 +61,9 @@ If documents appear to conflict, use this precedence order:
 descriptive — a review of what was built, plus design notes for a system that
 does not exist yet — and it defers to every document above it. Anything in it
 that needs to bind becomes a decision in `docs/DECISIONS.md` (see `D044`).
-`docs/UNDO-STORAGE.md` is absent for the same reason: it is nonbinding analysis,
-and `D061` is its binding outcome. Standalone analysis documents in general carry
+`docs/UNDO-STORAGE.md` and `docs/GAME-STATE-VISIBILITY.md` are absent for the same
+reason: they are nonbinding analysis, and `D061`, and `D069` and `D070`, are their binding
+outcomes. Standalone analysis documents in general carry
 no precedence of their own (`D062`).
 
 If a lower-precedence document conflicts with a higher-precedence document, do not silently reconcile them. Follow the higher-precedence document and update the stale lower-precedence document when appropriate.

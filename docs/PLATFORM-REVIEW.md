@@ -33,7 +33,8 @@ state:
   The design notes assume the planned deck-builder's shape as described by the
   project owner on 2026-09-08 and 2026-09-09, and that game does not exist yet.
 - **Relationship to binding decisions:** `D044` (what to extract, and when);
-  `D048`–`D056` and `D061` for the design notes they settled.
+  `D048`–`D056` and `D061` for the design notes they settled; `D069` and `D070`
+  for the projection checklist, now in `docs/GAME-STATE-VISIBILITY.md`.
 
 ## The measurement
 
@@ -699,21 +700,10 @@ for either; there is nothing in a chess position that both players may not see.
 This is the single most important thing on the projection checklist, because
 unlike a leaked hand it would hand over the entire future of the game.
 
-Projection checklist so far, for this ruleset. `M19.10` consolidates it into one
-focused game-state visibility and security document (`D062`), and this list will
-point there once that document exists:
-
-- **deck order** — never leaves the server;
-- **card identity where the viewer does not know the position** — stripped
-  before state leaves the server;
-- **the seed** — never leaves the server;
-- **the player-visible history view** (`D056`) — safe to expose here, because
-  this ruleset has no permanently hidden information and the view reports only
-  events that occurred; a ruleset *with* permanent secrets would need per-viewer
-  redaction of that view;
-- **undo snapshots** (`D061`) — contain the complete canonical state, hidden
-  zones included, so they stay server-side and are never projected (*Undo*,
-  above).
+The projection checklist that stood here — deck order, unknown-position card
+identity, the seed, the history view, and undo snapshots — moved to
+[`docs/GAME-STATE-VISIBILITY.md`](GAME-STATE-VISIBILITY.md) in `M19.10`, which
+extends it. Its binding outcomes are `D069` and `D070`.
 
 ### Seating, continuity, and participants (2026-09-09 — see `D048`–`D053`)
 
@@ -781,18 +771,16 @@ Named here so they are not lost; none is decided.
   (`docs/UNDO-STORAGE.md`). Its history-rewrite half is decided by `D061`
   (append/truncate). Writing the current `state` whole or in parts is left for
   measurement of the real implementation.
-- **`(gameId, version)` stops being a state identity** once per-viewer
-  projection means two viewers at the same version get different payloads.
-  Anything keyed on it — caching, dedup, "seen this update" — needs the viewer
-  in the key. A consequence of an already-settled decision; needs a recorded
-  decision, not another interview. Carried as `M19.10`, which produces one
-  focused game-state visibility and security document and a decision for each
-  binding conclusion (`D062`).
+- **`(gameId, version)` stops being a state identity** — decided in `M19.10`:
+  a payload is `(gameId, version, viewer)` (`D070`), and state leaves the server
+  only through a per-viewer allowlist projection (`D069`). See
+  [`docs/GAME-STATE-VISIBILITY.md`](GAME-STATE-VISIBILITY.md).
 - **Target concurrency / load** — deliberately not guessed; revisit with real
   usage data. New `users` columns `last_login_at` / `last_action_at` are a first
   step toward having something to look at.
-- **Spectators** — out of MVP scope, but the projection model should not assume a
-  fixed cap on who can observe a game.
+- **Spectators** — out of MVP scope. The projection model decides visibility by
+  role with no cap on viewers (`D069`); what a spectator product shows is not
+  decided.
 
 ## What changes now
 
