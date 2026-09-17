@@ -36,6 +36,7 @@ class OnlineGameTest {
         version: Long = 1,
         result: String? = null,
         terminationReason: String? = null,
+        seriesActive: Boolean = true,
     ) = GameViewDto(
         gameId = "game-1",
         seriesId = "series-1",
@@ -51,6 +52,7 @@ class OnlineGameTest {
         moveNumber = moveNumber,
         result = result,
         terminationReason = terminationReason,
+        seriesActive = seriesActive,
     )
 
     private fun refusal(status: Int) = ChessApiException(status = status, explanation = "no", message = "refused")
@@ -172,6 +174,39 @@ class OnlineGameTest {
     fun anythingElseIsWorthRetrying() {
         assertTrue(OnlineGame.canRetry(refusal(500)))
         assertTrue(OnlineGame.canRetry(refusal(503)))
+    }
+
+    @Test
+    fun leavingSaysTheGameInProgressIsNotAffected() {
+        val warning = OnlineGame.leaveWarningFor(game())
+
+        assertTrue(warning.contains("No more games with Alex"))
+        assertTrue(warning.contains("can still be finished"))
+    }
+
+    @Test
+    fun leavingAfterAFinishedGameDoesNotPromiseToFinishIt() {
+        val warning = OnlineGame.leaveWarningFor(game(result = "WHITE_WINS", terminationReason = "CHECKMATE"))
+
+        assertFalse(warning.contains("can still be finished"))
+    }
+
+    @Test
+    fun aGameInASeriesThatGoesOnHasNoLastGameNote() {
+        assertNull(OnlineGame.lastGameNoteFor(game()))
+    }
+
+    @Test
+    fun anUnfinishedGameInALeftSeriesIsTheLastOne() {
+        assertEquals(
+            "A player left the series. This is the last game with Alex.",
+            OnlineGame.lastGameNoteFor(game(seriesActive = false)),
+        )
+    }
+
+    @Test
+    fun aFinishedGameInALeftSeriesLeavesTheNoteToTheAfterGameLine() {
+        assertNull(OnlineGame.lastGameNoteFor(game(seriesActive = false, result = "DRAW")))
     }
 
     @Test

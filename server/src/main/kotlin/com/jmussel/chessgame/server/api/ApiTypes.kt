@@ -103,7 +103,13 @@ data class SeriesOffer(
     val existing: List<SeriesSummary>,
 )
 
-/** One dashboard line: an active series, the game it is at, and whose move it is. */
+/**
+ * One dashboard line: a series, the game it is at, and whose move it is.
+ *
+ * Usually an active series. A series a player has left stays here while its last game is
+ * unfinished, with [seriesActive] `false`, so that game can still be reached and played to its
+ * end (`D068`).
+ */
 @Serializable
 data class DashboardEntry(
     val seriesId: String,
@@ -114,6 +120,7 @@ data class DashboardEntry(
     val sideToMove: String? = null,
     val moveNumber: Int? = null,
     val yourTurn: Boolean = false,
+    val seriesActive: Boolean = true,
 ) {
     companion object {
         fun of(view: com.jmussel.chessgame.server.db.ActiveSeriesView): DashboardEntry? {
@@ -128,6 +135,7 @@ data class DashboardEntry(
                 sideToMove = view.sideToMove,
                 moveNumber = view.fullmoveNumber,
                 yourTurn = view.isYourTurn,
+                seriesActive = view.seriesActive,
             )
         }
     }
@@ -234,6 +242,11 @@ data class GameView(
     val availableDrawClaims: List<String> = emptyList(),
     /** Whether the viewer may take their latest move back right now (`D016`). */
     val canUndo: Boolean = false,
+    /**
+     * Whether this game's series is still active. `false` once a player has left it (`D052`):
+     * the game can still be finished, but it is the last one (`D068`).
+     */
+    val seriesActive: Boolean = true,
 ) {
     val isOver: Boolean
         get() = result != null
@@ -243,6 +256,7 @@ data class GameView(
             stored: com.jmussel.chessgame.server.db.StoredGame,
             viewer: kotlin.uuid.Uuid,
             opponent: StoredUser,
+            seriesActive: Boolean = true,
         ): GameView {
             require(viewer == stored.whiteUserId || viewer == stored.blackUserId) {
                 "That player is not in this game"
@@ -288,6 +302,7 @@ data class GameView(
                 canUndo =
                     com.jmussel.chessgame.core.chess.ChessRules
                         .canUndo(stored.game, yourSide),
+                seriesActive = seriesActive,
                 availableDrawClaims =
                     if (state.sideToMove == yourSide) {
                         com.jmussel.chessgame.core.chess.ChessRules

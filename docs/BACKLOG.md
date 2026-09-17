@@ -5173,7 +5173,7 @@ Verified with `.\gradlew.bat :server:test` (539 tests) and `.\gradlew.bat build`
 
 ## M19.8 — Explicit series exit, separate from resignation
 
-**Status:** TODO
+**Status:** DONE (chess-only; N ≥ 3 resignation is `M20.2`, still `TODO`)
 
 **Depends on:** M19.3, M19.7 — *revised 2026-09-16:* this task briefly depended
 on `M19.1` under `D063`'s trigger, because its N ≥ 3 resignation criterion needs
@@ -5202,6 +5202,56 @@ and add explicit series exit. The post-resignation "continue at this table?" /
 - Chess (N = 2) resignation and rematch behaviour is unchanged.
 - A participant can leave a series between games; it ends the series and does not
   disturb an in-progress game.
+
+### Completion Note — 2026-09-16
+
+`SeriesService.leave`, `POST /series/{seriesId}/leave`, and "Leave series" on the
+Android game screen. The rules are
+[`D068`](DECISIONS.md#d068--leaving-a-series-ends-it-at-once-and-leaves-its-current-game-to-be-finished).
+No migration and no `M20.1` decision. **This completes the chess-only part of `D052`
+only.** Nothing about N ≥ 3 resignation was built: the game continuing without the
+resigner, both prompts, and cancelling the table's auto-rematch are `M20.2`.
+
+**Leaving closes the series at once and touches no game.** The current game, whether under
+way or a rematch nobody has moved in yet, stays exactly as it was and can be played to its
+end. The existing rule that a closed series gets no rematch makes it the last game. "Between
+games" never exists as a state, because automatic rematches (`D015`) mean an active series
+always has a current game. So leaving is available at any time, and "does not disturb an
+in-progress game" is the clause that constrains it.
+
+**The last game stays on the dashboard.** Leaving would otherwise hide a game in progress
+from both players. The dashboard query now keeps a closed series while its current game is
+`IN_PROGRESS`, with `seriesActive: false`, and `GameView` carries the same flag.
+`DashboardTest.aClosedSeriesDropsOffTheDashboard` closed a series mid-game, which nothing
+but that test could do before, and asserted it vanished. That contradicts `D052`, so it
+became `aClosedSeriesStaysOnTheDashboardWhileItsLastGameIsUnfinished` plus
+`aClosedSeriesDropsOffTheDashboardOnceItsLastGameIsOver`, with the reason in the test.
+
+**Ordering with a game ending.** A leave and a finishing move take the same series row lock.
+Leave first: no rematch. Game first: the rematch it started is the last game.
+`SeriesExitTest.leavingAsTheLastGameEndsHappensInOneOrderOrTheOther` races the two five
+times and checks the series always points at its newest game.
+
+**Server tests.** `SeriesExitTest` (11): who left is audited, either player may leave, the
+game is untouched and finishes with no rematch, a rematch already started becomes the last
+game, leaving twice changes nothing, a stranger and an unknown id get nothing, resigning is
+not leaving, two simultaneous leaves end the series once, and the race above.
+`SeriesExitRouteTest` (8): the `200` answer, both players' game and dashboard marked as the
+last game, Play starting a new series once it is over, repeats, `404`/`400`, and the
+`game-updated` push (none on a repeat). `DashboardTest` gained three tests in place of one.
+
+**Android.** `ChessApiClient.leaveSeries`, `seriesActive` on both DTOs (defaulting to `true`
+for an older server), and a confirmation dialog saying no more games will start and this one
+is unaffected. After leaving, the app reads the game and the dashboard again rather than
+marking anything itself (`D004`). The dashboard labels the last game ("• Last game"), and
+the friends list offers Play, not Open, for a friend whose series was left. Tests:
+`ChessAppTest` (4), `DashboardSectionsTest` (3), `OnlineGameTest` (5),
+`ChessApiClientTest` (3).
+
+Verified with `.\gradlew.bat :server:test --tests "*SeriesExit*" --tests "*DashboardTest*"`,
+the Android `ChessAppTest`, `DashboardSectionsTest`, `OnlineGameTest` and
+`ChessApiClientTest`, and `.\gradlew.bat build` (server tests: 560, Android unit tests:
+442, none skipped).
 
 ## M19.9 — Undo storage sizing (spike, before undo is built)
 

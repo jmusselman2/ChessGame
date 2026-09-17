@@ -6,6 +6,7 @@ import com.jmussel.chessgame.server.api.SeriesOffer
 import com.jmussel.chessgame.server.api.SeriesSummary
 import com.jmussel.chessgame.server.auth.authenticatedUser
 import com.jmussel.chessgame.server.db.UserRepository
+import com.jmussel.chessgame.server.db.userIds
 import com.jmussel.chessgame.server.realtime.RealtimeHub
 import com.jmussel.chessgame.server.realtime.RealtimeMessage
 import com.jmussel.chessgame.server.user.Username
@@ -16,6 +17,7 @@ import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.post
 import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /**
  * Playing a friend.
@@ -30,6 +32,12 @@ import kotlin.uuid.ExperimentalUuidApi
  * people the player already knows, and that selection is the gate; re-deciding it here
  * bought nothing except a check that could be raced. This is the one place the client is
  * trusted for a state assertion, and it is deliberate and narrow.
+ *
+ * `POST /series/{seriesId}/leave` is a player leaving a series, which ends it (`D052`). It is
+ * a separate action from resigning a game, and it touches no game: the series' current game
+ * can still be finished, and no rematch follows it (`D068`). Leaving twice is not an error —
+ * the answer is the ended series either way. A series the caller is not in is reported as not
+ * found, like a group (`D049`).
  *
  * Routes must sit behind authentication.
  */
@@ -89,6 +97,40 @@ fun Route.seriesRoutes(
                     status = HttpStatusCode.Created,
                     message = SeriesSummary.of(outcome.series, opponent = friend, viewer = caller.userId),
                 )
+            }
+        }
+    }
+
+    post("/series/{seriesId}/leave") {
+        val caller = call.authenticatedUser()
+        val seriesId = runCatching { Uuid.parse(call.parameters["seriesId"].orEmpty()) }.getOrNull()
+
+        if (seriesId == null) {
+            call.respondText("Not a series id", status = HttpStatusCode.BadRequest)
+            return@post
+        }
+
+        when (val outcome = series.leave(caller.userId, seriesId)) {
+            LeaveOutcome.NoSuchSeries ->
+                call.respondText("No such series", status = HttpStatusCode.NotFound)
+
+            is LeaveOutcome.Left -> {
+                // The other player's dashboard is the one thing that changed for them: their
+                // game is still there, but it is now the last one. A push naming that game is
+                // what makes their app reload (`D022`); the leaver's other devices hear too.
+                // Only when this request ended the series — a repeat changed nothing.
+                val lastGame = outcome.currentGame
+                if (outcome.endedNow && lastGame != null) {
+                    realtime.publish(
+                        userIds = outcome.series.participants.userIds,
+                        message = RealtimeMessage.gameUpdated(lastGame.id, lastGame.version),
+                    )
+                }
+
+                val opponent =
+                    requireNotNull(users.find(outcome.series.opponentOf(caller.userId))) { "A series always has two players" }
+
+                call.respond(SeriesSummary.of(outcome.series, opponent = opponent, viewer = caller.userId))
             }
         }
     }

@@ -601,6 +601,68 @@ class ChessAppViewModel(
         }
     }
 
+    /** Asks whether the player really means to leave the series this game belongs to (`D052`). */
+    fun askToLeaveSeries() {
+        val ready = game as? OnlineGameState.Ready ?: return
+        if (!ready.game.seriesActive || ready.submitting) return
+
+        game = ready.copy(confirmingLeave = true, message = null)
+    }
+
+    /** Stays in the series. */
+    fun cancelLeaveSeries() {
+        val ready = game as? OnlineGameState.Ready ?: return
+
+        game = ready.copy(confirmingLeave = false)
+    }
+
+    /**
+     * Leaves the series, once the question has been answered (`D052`).
+     *
+     * Not a game command: it carries no version and changes no game, so the board is not
+     * replaced by the answer. The game is read again afterwards, because whether its series
+     * goes on is the server's to say (`D004`) — the app does not mark it over itself — and the
+     * dashboard too, where this game is now the last one (`D068`). Leaving twice is harmless,
+     * so a lost answer is simply reported.
+     */
+    fun leaveSeries() {
+        val ready = game as? OnlineGameState.Ready ?: return
+        if (!ready.game.seriesActive || ready.submitting || moveJob?.isActive == true) return
+
+        val decidedAt = ready.game
+        game = ready.copy(selected = null, pendingPromotion = null, confirmingLeave = false, submitting = true, message = null)
+
+        moveJob =
+            viewModelScope.launch {
+                val message =
+                    try {
+                        dependencies.chessApi.leaveSeries(decidedAt.seriesId)
+                        OnlineGame.leftSeriesMessage(decidedAt)
+                    } catch (refused: ChessApiException) {
+                        refused.explanation.ifBlank { OnlineGame.unreachableMessage() }
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (unreachable: Exception) {
+                        OnlineGame.unreachableMessage()
+                    }
+
+                val reloaded =
+                    try {
+                        waitingForServer { dependencies.chessApi.game(decidedAt.gameId) }
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (unreachable: Exception) {
+                        null
+                    }
+
+                val current = (game as? OnlineGameState.Ready)?.takeIf { it.game.gameId == decidedAt.gameId } ?: return@launch
+                val newer = reloaded?.takeIf { it.version >= current.game.version } ?: current.game
+                game = current.copy(game = newer, submitting = false, message = message)
+
+                loadDashboard()
+            }
+    }
+
     /**
      * Runs a **safe, repeatable** read, waiting through a service that is merely asleep.
      *

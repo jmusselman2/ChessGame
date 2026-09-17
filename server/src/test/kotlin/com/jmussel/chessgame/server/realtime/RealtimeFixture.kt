@@ -133,6 +133,19 @@ internal class PlayerClient(
             setBody("""{"expectedVersion":$version,"claim":"$claim"}""")
         }
 
+    suspend fun resign(
+        gameId: String,
+        version: Long,
+    ): HttpResponse =
+        builder.client.post("/games/$gameId/resignation") {
+            authorized()
+            contentType(ContentType.Application.Json)
+            setBody("""{"expectedVersion":$version}""")
+        }
+
+    /** Leaves [seriesId], which ends it (`D052`). */
+    suspend fun leaveSeries(seriesId: String): HttpResponse = builder.client.post("/series/$seriesId/leave") { authorized() }
+
     /** Opens the realtime connection and swallows the greeting. */
     suspend fun connect(): WebSocketSession =
         builder

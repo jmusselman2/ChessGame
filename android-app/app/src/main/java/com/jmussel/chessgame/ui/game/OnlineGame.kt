@@ -40,6 +40,8 @@ sealed interface OnlineGameState {
         val submitting: Boolean = false,
         /** Whether the player has been asked to confirm giving the game up (`D018`). */
         val confirmingResignation: Boolean = false,
+        /** Whether the player has been asked to confirm leaving the series (`D052`). */
+        val confirmingLeave: Boolean = false,
         /** What follows this game, once it has finished and the series has been asked. */
         val after: AfterGame? = null,
         val message: String? = null,
@@ -74,7 +76,7 @@ sealed interface AfterGame {
         val gameId: String,
     ) : AfterGame
 
-    /** There will be no next game: the series has closed (`D013`). */
+    /** There will be no next game: a player left the series (`D052`). */
     data object SeriesOver : AfterGame
 }
 
@@ -263,6 +265,22 @@ object OnlineGame {
 
         return listOfNotNull(verdict, reason).joinToString(separator = " by ")
     }
+
+    /** What the leave confirmation says leaving will do, and what it will not (`D052`, `D068`). */
+    fun leaveWarningFor(game: GameViewDto): String =
+        "No more games with ${game.opponent.username} will start in this series. " +
+            if (game.isOver) "Nothing that has been played changes." else "This game is not affected and can still be finished."
+
+    /** What a player reads once they have left, in the words of [leaveWarningFor]. */
+    fun leftSeriesMessage(game: GameViewDto): String = "You left the series. No more games with ${game.opponent.username} will start."
+
+    /**
+     * The note on a game whose series a player has left, or `null` while the series goes on.
+     *
+     * A finished game says nothing: [AfterGame.SeriesOver] already does.
+     */
+    fun lastGameNoteFor(game: GameViewDto): String? =
+        if (game.seriesActive || game.isOver) null else "A player left the series. This is the last game with ${game.opponent.username}."
 
     /** `"Move 18 • version 34"`, which is what a client has to send back with a command. */
     fun positionFor(game: GameViewDto): String = "Move ${game.moveNumber} $SEPARATOR version ${game.version}"

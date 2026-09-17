@@ -5,6 +5,7 @@ package com.jmussel.chessgame.server.dashboard
 import com.jmussel.chessgame.core.chess.ChessGame
 import com.jmussel.chessgame.core.chess.ChessRules
 import com.jmussel.chessgame.core.chess.Move
+import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.server.api.DashboardEntry
 import com.jmussel.chessgame.server.auth.TestTokens
 import com.jmussel.chessgame.server.db.DashboardQueries
@@ -211,8 +212,14 @@ class DashboardTest {
         }
     }
 
+    // Until `M19.8` this was `aClosedSeriesDropsOffTheDashboard`, and it closed a series whose
+    // game was still unfinished. Nothing could do that then except this test: `D013` closed a
+    // series only after its last game. Leaving a series (`D052`) closes it mid-game, and a
+    // game the dashboard stopped listing could not be reached to finish it, which `D052` rules
+    // out ("does not disturb a game in progress"). So a closed series stays while its last
+    // game is unfinished (`D068`), and drops off once that game is over.
     @Test
-    fun aClosedSeriesDropsOffTheDashboard() {
+    fun aClosedSeriesStaysOnTheDashboardWhileItsLastGameIsUnfinished() {
         withFixture { fixture ->
             val jordan = fixture.named("auth-1", "Jordan")
             val alex = fixture.named("auth-2", "Alex")
@@ -220,7 +227,52 @@ class DashboardTest {
 
             fixture.series.close(seriesId)
 
+            val entry = fixture.dashboard.activeSeriesFor(jordan).single()
+            assertEquals(seriesId, entry.seriesId)
+            assertEquals(fixture.currentGame(seriesId).id, entry.gameId)
+            assertFalse(entry.seriesActive, "it is shown as the last game")
+            assertFalse(
+                fixture.dashboard
+                    .activeSeriesFor(alex)
+                    .single()
+                    .seriesActive,
+            )
+        }
+    }
+
+    @Test
+    fun aClosedSeriesDropsOffTheDashboardOnceItsLastGameIsOver() {
+        withFixture { fixture ->
+            val jordan = fixture.named("auth-1", "Jordan")
+            val alex = fixture.named("auth-2", "Alex")
+            val seriesId = fixture.playing(jordan, alex)
+            val game = fixture.currentGame(seriesId)
+
+            fixture.series.close(seriesId)
+            fixture.games.save(
+                id = game.id,
+                expectedVersion = game.version,
+                game = ChessRules.resign(ChessGame.newGame(), Side.WHITE),
+            )
+
             assertTrue(fixture.dashboard.activeSeriesFor(jordan).isEmpty())
+            assertTrue(fixture.dashboard.activeSeriesFor(alex).isEmpty())
+        }
+    }
+
+    @Test
+    fun anActiveSeriesIsShownAsActive() {
+        withFixture { fixture ->
+            val jordan = fixture.named("auth-1", "Jordan")
+            val alex = fixture.named("auth-2", "Alex")
+            fixture.playing(jordan, alex)
+
+            assertTrue(
+                fixture.dashboard
+                    .activeSeriesFor(jordan)
+                    .single()
+                    .seriesActive,
+            )
         }
     }
 

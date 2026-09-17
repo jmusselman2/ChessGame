@@ -46,6 +46,9 @@ fun OnlineGameScreen(
     onAskToResign: () -> Unit = {},
     onResign: () -> Unit = {},
     onCancelResignation: () -> Unit = {},
+    onAskToLeaveSeries: () -> Unit = {},
+    onLeaveSeries: () -> Unit = {},
+    onCancelLeaveSeries: () -> Unit = {},
     onOpenNextGame: () -> Unit = {},
     onDone: () -> Unit = {},
 ) {
@@ -74,12 +77,25 @@ fun OnlineGameScreen(
                     onAskToResign = onAskToResign,
                     onResign = onResign,
                     onCancelResignation = onCancelResignation,
+                    series =
+                        SeriesExit(
+                            onAsk = onAskToLeaveSeries,
+                            onLeave = onLeaveSeries,
+                            onCancel = onCancelLeaveSeries,
+                        ),
                     onOpenNextGame = onOpenNextGame,
                     onDone = onDone,
                 )
         }
     }
 }
+
+/** Leaving the series, which is asked about first (`D052`). */
+private class SeriesExit(
+    val onAsk: () -> Unit,
+    val onLeave: () -> Unit,
+    val onCancel: () -> Unit,
+)
 
 /** The game itself, drawn from the server's answer. */
 @Composable
@@ -93,6 +109,7 @@ private fun Game(
     onAskToResign: () -> Unit,
     onResign: () -> Unit,
     onCancelResignation: () -> Unit,
+    series: SeriesExit,
     onOpenNextGame: () -> Unit,
     onDone: () -> Unit,
 ) {
@@ -155,6 +172,24 @@ private fun Game(
         null -> Unit
     }
 
+    // Leaving the series is not resigning: it ends the series and leaves this game alone
+    // (`D052`). Offered while the server says the series goes on; afterwards, the note says
+    // this is the last game (`D068`).
+    if (game.seriesActive) {
+        TextButton(onClick = series.onAsk, enabled = !state.submitting) { Text(text = LEAVE_SERIES) }
+    }
+    OnlineGame.lastGameNoteFor(game)?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium) }
+
+    if (state.confirmingLeave) {
+        AlertDialog(
+            onDismissRequest = series.onCancel,
+            title = { Text(text = LEAVE_TITLE) },
+            text = { Text(text = OnlineGame.leaveWarningFor(game)) },
+            confirmButton = { TextButton(onClick = series.onLeave) { Text(text = LEAVE_SERIES) } },
+            dismissButton = { TextButton(onClick = series.onCancel) { Text(text = STAY) } },
+        )
+    }
+
     if (state.confirmingResignation) {
         AlertDialog(
             onDismissRequest = onCancelResignation,
@@ -208,6 +243,9 @@ private const val RESIGN = "Resign"
 private const val RESIGN_TITLE = "Resign?"
 private const val RESIGN_WARNING = "You lose this game. This cannot be undone."
 private const val KEEP_PLAYING = "Keep playing"
+private const val LEAVE_SERIES = "Leave series"
+private const val LEAVE_TITLE = "Leave this series?"
+private const val STAY = "Stay"
 private const val LOOKING_FOR_NEXT = "Looking for the next game…"
 private const val NEXT_GAME = "Play the next game"
 private const val NO_MORE_GAMES = "That was the last game with"

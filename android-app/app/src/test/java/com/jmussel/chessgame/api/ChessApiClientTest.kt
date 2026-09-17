@@ -92,6 +92,38 @@ class ChessApiClientTest {
     }
 
     @Test
+    fun aDashboardFromBeforeSeriesExitReadsAsActive() {
+        val client = clientReplying("""[{"seriesId":"series-1","opponent":{"userId":"user-1","username":"Alex"}}]""")
+
+        assertTrue(runBlocking { client.dashboard() }.single().seriesActive)
+    }
+
+    @Test
+    fun theLastGameOfALeftSeriesIsReadAsSuch() {
+        val client =
+            clientReplying(
+                """[{"seriesId":"series-1","opponent":{"userId":"user-1","username":"Alex"},"gameId":"game-1","seriesActive":false}]""",
+            )
+
+        assertEquals(false, runBlocking { client.dashboard() }.single().seriesActive)
+    }
+
+    @Test
+    fun leavingASeriesPostsToItAndReadsTheEndedSeries() {
+        val client =
+            clientReplying(
+                """{"seriesId":"series-1","opponent":{"userId":"user-1","username":"Alex"},"status":"CLOSED","currentGameId":"game-1"}""",
+            )
+
+        val left = runBlocking { client.leaveSeries("series-1") }
+
+        assertEquals("CLOSED", left.status)
+        assertEquals("game-1", left.currentGameId)
+        assertEquals(HttpMethod.Post, requests.single().method)
+        assertEquals("/series/series-1/leave", requests.single().url.encodedPath)
+    }
+
+    @Test
     fun theRequestCarriesTheSessionToken() {
         val client = clientReplying("[]")
 

@@ -125,6 +125,8 @@ data class DashboardEntryDto(
     val sideToMove: String? = null,
     val moveNumber: Int? = null,
     val yourTurn: Boolean = false,
+    /** `false` once a player has left the series: this game is its last (`D052`, `D068`). */
+    val seriesActive: Boolean = true,
 )
 
 /** A series as the server describes it to one of its two players. */
@@ -215,6 +217,8 @@ data class GameViewDto(
     val terminationReason: String? = null,
     val availableDrawClaims: List<String> = emptyList(),
     val canUndo: Boolean = false,
+    /** `false` once a player has left the series: this game is its last (`D052`, `D068`). */
+    val seriesActive: Boolean = true,
 ) {
     /** Whether the game is over, which is the server's word and never worked out here. */
     val isOver: Boolean
@@ -431,6 +435,14 @@ class ChessApiClient(
             message = "Chess server refused $SERIES: ${response.status}",
         )
     }
+
+    /**
+     * Leaves [seriesId], which ends it for both players (`D052`), and returns it as it now is.
+     *
+     * Its own action, separate from resigning: no game is touched, the current one can still be
+     * finished, and no more follow it (`D068`). Leaving a series already ended is not refused.
+     */
+    suspend fun leaveSeries(seriesId: String): SeriesSummaryDto = post("$SERIES/$seriesId/leave", "")
 
     /** Starts another series with [username] after being offered the ones they already have. */
     suspend fun startAnotherSeries(username: String): SeriesSummaryDto = post("$SERIES?another=true", username)

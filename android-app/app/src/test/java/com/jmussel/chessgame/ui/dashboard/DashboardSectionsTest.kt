@@ -20,6 +20,7 @@ class DashboardSectionsTest {
         gameId: String? = "game-$opponent",
         yourSide: String? = "WHITE",
         moveNumber: Int? = 18,
+        seriesActive: Boolean = true,
     ) = DashboardEntryDto(
         seriesId = "series-$opponent",
         opponent = UserSummaryDto(userId = "user-$opponent", username = opponent),
@@ -29,6 +30,7 @@ class DashboardSectionsTest {
         sideToMove = if (yourTurn) yourSide else null,
         moveNumber = moveNumber,
         yourTurn = yourTurn,
+        seriesActive = seriesActive,
     )
 
     private fun person(username: String) = UserSummaryDto(userId = "user-$username", username = username)
@@ -263,6 +265,33 @@ class DashboardSectionsTest {
         // Exactly what -PchessVersionName put in the APK, so the answer to "which build?"
         // matches what was handed over rather than approximating it.
         assertEquals("Build 0.1.1-beta", DashboardSections.buildLabel("0.1.1-beta"))
+    }
+
+    @Test
+    fun theLastGameOfASeriesSomeoneLeftSaysSo() {
+        val row = DashboardSections.yourTurn(listOf(entry("Alex", yourTurn = true, seriesActive = false))).single()
+
+        assertEquals("White • Move 18 • Last game", row.detail)
+    }
+
+    @Test
+    fun theLastGameIsStillAGameToOpen() {
+        val entries = listOf(entry("Alex", yourTurn = false, seriesActive = false))
+
+        assertEquals(listOf("game-Alex"), DashboardSections.theirTurn(entries).map { it.gameId })
+    }
+
+    @Test
+    fun aFriendWhoseSeriesWasLeftIsSomeoneToPlayAgain() {
+        val row =
+            DashboardSections
+                .friends(
+                    friends = listOf(person("Alex")),
+                    entries = listOf(entry("Alex", yourTurn = true, seriesActive = false)),
+                ).single()
+
+        assertEquals("Play", row.action)
+        assertNull(row.gameId)
     }
 
     @Test

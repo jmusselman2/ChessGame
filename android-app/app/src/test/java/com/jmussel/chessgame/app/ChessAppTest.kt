@@ -165,6 +165,7 @@ class ChessAppTest {
     ): HttpClient {
         var refused = 0
         var gameReads = 0
+        var leftSeries = false
         val engine =
             MockEngine { request ->
                 requests += request
@@ -173,6 +174,7 @@ class ChessAppTest {
                 val refuse = refusable && refused < refusals
                 if (refusable) refused++
                 if (path.startsWith("/games/") && !path.removePrefix("/games/").contains("/")) gameReads++
+                if (!refuse && path.endsWith("/leave")) leftSeries = true
 
                 respond(
                     content =
@@ -196,6 +198,7 @@ class ChessAppTest {
                                     finished = finished || (finishOnSecondRead && gameReads > 1),
                                     finishedGames = finishedGames,
                                     seriesClosed = seriesClosed,
+                                    seriesLeft = leftSeries,
                                 ),
                             )
                         },
@@ -224,6 +227,7 @@ class ChessAppTest {
         val finished: Boolean = false,
         val finishedGames: List<String> = emptyList(),
         val seriesClosed: Boolean = false,
+        val seriesLeft: Boolean = false,
     )
 
     /** What the server would say to one request. */
@@ -244,6 +248,7 @@ class ChessAppTest {
             path.startsWith("/friends/") -> replies.removalOutcome
             path.startsWith("/users/") -> user(path.removePrefix("/users/"))
             path == "/series" -> series(sentText(request), replies.currentGameId)
+            path.endsWith("/leave") -> series("Alex", replies.currentGameId).replace("ACTIVE", "CLOSED")
             path.endsWith("/moves") -> playedGame(path.removePrefix("/games/").removeSuffix("/moves"))
             path.endsWith("/undo") -> gameView(path.removePrefix("/games/").removeSuffix("/undo"), canUndo = false)
             path.endsWith("/draw-claims") -> drawnGame(path.removePrefix("/games/").removeSuffix("/draw-claims"))
@@ -261,6 +266,7 @@ class ChessAppTest {
                             "WHITE"
                         },
                     finished = replies.finished,
+                    seriesActive = !replies.seriesLeft,
                 )
             else -> "[]"
         }
@@ -317,6 +323,7 @@ class ChessAppTest {
         yourTurn: Boolean = true,
         yourSide: String = "WHITE",
         finished: Boolean = false,
+        seriesActive: Boolean = true,
     ): String {
         val ending = if (finished) ""","result":"WHITE_WINS","terminationReason":"CHECKMATE"""" else ""
 
@@ -325,7 +332,7 @@ class ChessAppTest {
              "yourSide":"$yourSide","sideToMove":"WHITE","yourTurn":${yourTurn && !finished},"inCheck":false,
              "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
              "moves":[],"moveNumber":1,"halfmoveClock":0,"canUndo":${canUndo && !finished},
-             "availableDrawClaims":${claims.joinToString(",", "[", "]") { "\"$it\"" }}$ending}
+             "availableDrawClaims":${claims.joinToString(",", "[", "]") { "\"$it\"" }},"seriesActive":$seriesActive$ending}
             """.trimIndent()
     }
 
@@ -1887,6 +1894,94 @@ class ChessAppTest {
             viewModel.moveJob?.join()
 
             assertTrue((viewModel.game as OnlineGameState.Ready).message.orEmpty().contains("finished"))
+        }
+
+    @Test
+    fun leavingTheSeriesIsAskedAboutBeforeAnythingIsSent() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.askToLeaveSeries()
+
+            assertTrue((viewModel.game as OnlineGameState.Ready).confirmingLeave)
+            assertEquals("nothing is sent until it is confirmed", listOf("/games/game-7"), paths)
+
+            viewModel.cancelLeaveSeries()
+
+            assertFalse((viewModel.game as OnlineGameState.Ready).confirmingLeave)
+            assertEquals(listOf("/games/game-7"), paths)
+        }
+
+    @Test
+    fun aConfirmedLeaveEndsTheSeriesAndLeavesTheGameToFinish() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+            val before = (viewModel.game as OnlineGameState.Ready).game
+
+            viewModel.askToLeaveSeries()
+            viewModel.leaveSeries()
+            assertTrue((viewModel.game as OnlineGameState.Ready).submitting)
+            viewModel.moveJob?.join()
+            viewModel.dashboardJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals("/series/series-1/leave", paths[1])
+            assertTrue("the game is read again, not rewritten locally", paths.drop(2).contains("/games/game-7"))
+            assertTrue(paths.contains("/dashboard"))
+            assertFalse(paths.any { it.endsWith("/resignation") })
+            assertFalse("the server says the series has ended", ready.game.seriesActive)
+            assertEquals(before.copy(seriesActive = false), ready.game)
+            assertNull("the game itself is untouched", ready.game.result)
+            assertFalse(ready.submitting)
+            assertFalse(ready.confirmingLeave)
+            assertEquals("You left the series. No more games with Alex will start.", ready.message)
+        }
+
+    @Test
+    fun aLeaveTheServerRefusesIsExplained() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            refusals = 1,
+                            refusalPath = "/series/series-1/leave",
+                            refusalStatus = HttpStatusCode.NotFound,
+                            refusalBody = "No such series",
+                        ),
+                )
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.askToLeaveSeries()
+            viewModel.leaveSeries()
+            viewModel.moveJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals("No such series", ready.message)
+            assertTrue(ready.game.seriesActive)
+        }
+
+    @Test
+    fun aSeriesAlreadyLeftOffersNoLeave() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+            viewModel.askToLeaveSeries()
+            viewModel.leaveSeries()
+            viewModel.moveJob?.join()
+            val sent = paths.size
+
+            viewModel.askToLeaveSeries()
+            viewModel.leaveSeries()
+
+            assertFalse((viewModel.game as OnlineGameState.Ready).confirmingLeave)
+            assertEquals(sent, paths.size)
         }
 
     @Test

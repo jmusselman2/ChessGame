@@ -2932,7 +2932,7 @@ silent drop.
   exercise — resignation separate from series exit, and explicit series exit —
   are `M19.8`. The N ≥ 3 parts above (the game continuing after a resignation,
   both prompts, cancelling the table's auto-rematch) are `M20.2`, which depends
-  on `M20.1`.
+  on `M20.1`. How chess-only series exit works is `D068`.
 - Series exit is now an explicit player action, not a side effect of the friend
   graph — `D013`'s "removing a friend closes the series" is separately removed
   (`D053`).
@@ -4263,3 +4263,73 @@ that, and a game type can seat its own characters as one of them.
   `Participant` / `ParticipantKind`.
 - `SeriesService` seats scripted participants last and rotates the rest. Chess
   never seats one: its tables are two users.
+
+---
+
+## D068 — Leaving a Series Ends It at Once and Leaves Its Current Game to Be Finished
+
+**Date:** 2026-09-16
+
+**Status:** Accepted
+
+**Relates to:** `D004`, `D012`, `D015`, `D022`, `D049`, `D052`, `D053`, `M19.8`, `M20.2`,
+`ARCHITECTURE` §16, §17
+
+**Scope:** How `D052`'s explicit series exit works with chess as the only ruleset. N ≥ 3
+resignation and the continue prompts are `M20.2` and are not decided here.
+
+### Decision
+
+- **Leaving closes the series immediately, and touches no game.** `POST
+  /series/{seriesId}/leave` closes the series under its row lock and records a `SeriesLeft`
+  audit event naming who left. The series' current game — under way, or a rematch nobody has
+  moved in yet — is left exactly as it is and can be played to its end. It is the last game:
+  a game ending in a series that is no longer active gets no rematch (`D015`'s existing
+  rule).
+- **Leaving is available at any time, not only when no game is under way.** Automatic
+  rematches (`D015`) mean an active series always has a current game, so "between games"
+  (`D052`) never occurs as a state with no game. `D052`'s other clause, "does not disturb a
+  game already in progress", is what leaving honours instead.
+- **The last game stays reachable.** The dashboard lists a closed series while its current
+  game is unfinished, marked `seriesActive: false`, and drops it once that game ends. The
+  game view carries the same `seriesActive` flag. Without this, leaving would hide a game in
+  progress from both players, which disturbs it.
+- **Leaving is idempotent and participant-only.** Leaving a series that has already ended
+  answers `200` with the ended series and writes nothing. A series the caller is not in
+  answers `404`, as a group does (`D049`).
+- **The other player is told.** When a leave ends the series, both players' connections get
+  `game-updated` for the last game, so their dashboards reload (`D022`). A repeat announces
+  nothing.
+- **Resigning is unchanged and is not leaving.** At N = 2 a resignation ends the game, and an
+  active series carries on to its rematch.
+
+### Rationale
+
+Closing at once, rather than marking the series to close after its game (the removed `D013`
+mechanism), keeps one lifecycle: a series is `ACTIVE` or `CLOSED`, and the existing
+"no rematch for a closed series" rule already produces "this is the last game". A mark
+would have needed a third state and a second place where a series ends.
+
+A leave and a game-ending move take the same series row lock, so they happen in one order
+or the other. Either no rematch starts, or the rematch already started becomes the last
+game. A closed series never points at a game other than its newest.
+
+### Alternatives Considered
+
+- **Refuse to leave while a game is in progress.** Rejected: automatic rematches mean there
+  is always one, so nobody could ever leave.
+- **Abandon or delete an unstarted rematch on leaving.** Rejected: it adds a game outcome
+  that does not exist (`D012` keeps games), and the game is harmless to leave. Either
+  player can resign it.
+- **Keep the dashboard to active series only.** Rejected: the game in progress would vanish
+  from both dashboards.
+
+### Consequences
+
+- `server`: `SeriesService.leave`, `POST /series/{seriesId}/leave`, `seriesActive` on
+  `GameView` and `DashboardEntry`, and the dashboard query including a closed series with an
+  unfinished game. `DashboardTest.aClosedSeriesDropsOffTheDashboard` was corrected to this
+  rule, with the reason in the test.
+- Android: "Leave series" on the game screen, asked about first. The dashboard marks the
+  last game, and the friends list offers Play for a friend whose series was left.
+- No migration. `game_series` already has `status` and `closed_at`.

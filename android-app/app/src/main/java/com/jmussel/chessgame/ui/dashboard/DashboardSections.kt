@@ -67,19 +67,30 @@ object DashboardSections {
         friends: List<UserSummaryDto>,
         entries: List<DashboardEntryDto>,
     ): List<FriendRow> {
-        val gamesByOpponent = entries.mapNotNull { entry -> entry.gameId?.let { entry.opponent.userId to it } }.toMap()
+        // Only a series that goes on counts as "a game under way" with a friend. The last game of
+        // a series someone has left is still listed above, but Play for that friend is about
+        // what comes next (`D068`).
+        val gamesByOpponent =
+            entries
+                .filter { it.seriesActive }
+                .mapNotNull { entry -> entry.gameId?.let { entry.opponent.userId to it } }
+                .toMap()
 
         return friends
             .sortedBy { it.username.lowercase() }
             .map { friend -> FriendRow(username = friend.username, gameId = gamesByOpponent[friend.userId]) }
     }
 
-    /** `"White • Move 18"`, or just the colour before the first move is numbered. */
+    /**
+     * `"White • Move 18"`, or just the colour before the first move is numbered, and
+     * `"• Last game"` when a player has left the series (`D068`).
+     */
     fun detailFor(entry: DashboardEntryDto): String {
         val side = entry.yourSide?.let(::sideLabel)
         val move = entry.moveNumber?.let { "Move $it" }
+        val last = LAST_GAME.takeUnless { entry.seriesActive }
 
-        return listOfNotNull(side, move).joinToString(separator = SEPARATOR)
+        return listOfNotNull(side, move, last).joinToString(separator = SEPARATOR)
     }
 
     private fun rowsOf(entries: List<DashboardEntryDto>): List<DashboardRow> = entries.mapNotNull(::rowOf)
@@ -110,5 +121,6 @@ object DashboardSections {
     fun buildLabel(versionName: String): String = "$BUILD_PREFIX$versionName"
 
     private const val SEPARATOR = " • "
+    private const val LAST_GAME = "Last game"
     private const val BUILD_PREFIX = "Build "
 }

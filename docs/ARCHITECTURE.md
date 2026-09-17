@@ -594,6 +594,9 @@ For MVP:
   `POST /series?another=true` is the player choosing another (`D065`),
 - whether a table has a series is decided under the table row's lock, so two
   simultaneous first taps start one series, not two,
+- a participant leaves a series with `POST /series/{seriesId}/leave`, which closes it at
+  once and touches no game (`D052`, `D068`); the dashboard keeps a closed series while its
+  last game is unfinished, marked `seriesActive: false`,
 - closed series remain historical,
 - creation does not check that the pair are friends (`D046`), so a series may
   outlive — or never have had — a friendship between its two players.
@@ -607,10 +610,11 @@ Removing a friend affects the friends list only (`D053`, superseding `D013`):
 3. no game is touched, and automatic rematches carry on.
 
 A series persists independently of the friend graph. Friendship matters only when
-Play is first offered (`D046`, `D048`). A series ends only when it is closed, and
-closing becomes a participant's explicit action in `M19.8` (`D052`). A closed series
-lets its current game finish, gets no rematch, and stays readable as history
-(`D012`). Closing is idempotent.
+Play is first offered (`D046`, `D048`). A series ends only when a participant leaves
+it (`D052`, `M19.8`): `POST /series/{seriesId}/leave` closes it under its row lock and
+records `SeriesLeft`. Leaving is separate from resigning, which ends one game and lets the
+series carry on. A closed series lets its current game finish, gets no rematch, and stays
+readable as history (`D012`). Leaving is idempotent (`D068`).
 
 Until `M19.5`, removal marked the pair's active series to close after its current
 game (`game_series.close_after_current_game`). `V7` dropped that column along with

@@ -375,9 +375,15 @@ class GameRepository(
             ?.get(GamesTable.version)
             ?: -1L
 
-    private fun statusOf(game: ChessGame): String = if (game.isOver) "COMPLETE" else "IN_PROGRESS"
+    private fun statusOf(game: ChessGame): String = if (game.isOver) COMPLETE_GAME else IN_PROGRESS_GAME
 
     companion object {
+        /** The `games.status` of a game that has not finished. */
+        const val IN_PROGRESS_GAME: String = "IN_PROGRESS"
+
+        /** The `games.status` of a game that has finished, however it ended. */
+        const val COMPLETE_GAME: String = "COMPLETE"
+
         /**
          * The audit event a finalized game records, once, whatever ended it (`D020`).
          *

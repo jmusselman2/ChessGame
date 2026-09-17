@@ -3,6 +3,7 @@
 package com.jmussel.chessgame.server.series
 
 import com.jmussel.chessgame.core.chess.ChessGame
+import com.jmussel.chessgame.server.db.CLOSED_SERIES
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.db.GameTypes
@@ -10,10 +11,12 @@ import com.jmussel.chessgame.server.db.Participant
 import com.jmussel.chessgame.server.db.StoredGame
 import com.jmussel.chessgame.server.db.StoredSeries
 import com.jmussel.chessgame.server.db.TableRepository
+import com.jmussel.chessgame.server.db.userIds
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.time.Instant
 import kotlin.random.Random
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -34,8 +37,26 @@ sealed interface PlayOutcome {
     ) : PlayOutcome
 }
 
+/** What asking to leave a series came to (`D052`). */
+sealed interface LeaveOutcome {
+    /**
+     * The caller is out of the series, which is over. [endedNow] is `false` when it had already
+     * ended — a retry, or the other player leaving first — so nothing was written this time.
+     * [currentGame] is the series' last game, left exactly as it was.
+     */
+    data class Left(
+        val series: StoredSeries,
+        val currentGame: StoredGame?,
+        val endedNow: Boolean,
+    ) : LeaveOutcome
+
+    /** No series with that id has the caller in it. */
+    data object NoSuchSeries : LeaveOutcome
+}
+
 /**
- * Starting a series, and settling what a finished game leaves behind: the next game.
+ * Starting a series, leaving one, and settling what a finished game leaves behind: the next
+ * game.
  *
  * "Play with this friend" is meant to be one tap that lands the player in a game
  * (`docs/PRODUCT.md`), so starting a series starts its first game with it. The colours for
@@ -84,6 +105,60 @@ class SeriesService(
             }
         }
     }
+
+    /**
+     * [caller] leaves [seriesId], which ends it for everyone at the table (`D052`).
+     *
+     * Leaving a series is its own action, separate from resigning a game (`D052`): a
+     * resignation ends one game and the series carries on to its rematch, and leaving ends the
+     * series without touching any game. The series' current game — under way, or a rematch no
+     * one has moved in yet — is left exactly as it is and can still be played to its end; it is
+     * simply the last one, because [settleAfter] gives a series that is no longer active no
+     * rematch (`D068`).
+     *
+     * Idempotent: leaving a series that has already ended changes nothing, so a retry sees its
+     * own effect. The series row is locked while deciding, the same lock a finishing game's
+     * [settleAfter] takes, so a leave and a game ending at the same moment happen in one order
+     * or the other and never half of each: either no rematch is started, or the rematch
+     * already started becomes the last game.
+     *
+     * A series the caller is not in is reported as not existing, as a group is (`D049`).
+     */
+    fun leave(
+        caller: Uuid,
+        seriesId: Uuid,
+    ): LeaveOutcome =
+        transaction(database) {
+            val current = series.findForUpdate(seriesId)
+
+            if (current == null || caller !in current.participants.userIds) {
+                return@transaction LeaveOutcome.NoSuchSeries
+            }
+
+            val lastGame = current.currentGameId?.let(games::load)
+
+            if (!current.isActive) {
+                return@transaction LeaveOutcome.Left(current, lastGame, endedNow = false)
+            }
+
+            val closedAt = Instant.now()
+            series.close(seriesId, at = closedAt)
+            series.recordEvent(
+                seriesId = seriesId,
+                gameId = current.currentGameId,
+                type = SERIES_LEFT,
+                payload = buildJsonObject { put("userId", caller.toString()) },
+            )
+
+            LeaveOutcome.Left(
+                series = current.copy(status = CLOSED_SERIES, closedAt = closedAt),
+                currentGame = lastGame,
+                endedNow = true,
+            )
+        }
+
+    /** Whether [seriesId] is still active, for showing a game's player whether more will follow. */
+    fun isActive(seriesId: Uuid): Boolean = series.isActive(seriesId)
 
     /**
      * Settles what a finished game leaves its series: the next game.
@@ -173,6 +248,9 @@ class SeriesService(
     companion object {
         /** The audit event an automatic rematch records (`ARCHITECTURE.md` §9). */
         const val REMATCH_CREATED: String = "RematchCreated"
+
+        /** The audit event a participant leaving a series records (`D052`). */
+        const val SERIES_LEFT: String = "SeriesLeft"
 
         private const val FIRST_GAME = 1
     }
