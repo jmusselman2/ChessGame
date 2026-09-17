@@ -163,3 +163,37 @@ remediation moved the lines they name.
 
 Decisions recorded: `D057` (stable display read), `D058` (realtime fan-out),
 `D059` (client result ordering).
+
+---
+
+# Remediation of `M19-01` (2026-09-17)
+
+**Branch:** `claude-autopilot`
+**Finding:** `M19-01` — table identity dropped participant kind when UUIDs coincide
+(`evals/M19/re-evaluation-critic-report.md`)
+**Regression:** `M19ParticipantIdentityRegressionTest.participantKindIsPartOfExactSetIdentity`,
+passing **unmodified**
+
+**Where:** `server/.../db/TableRepository.kt`
+
+`Participant` is `(kind, ref)`, and `D067` made the kind part of identity, but
+`findOrCreate` compared `ref`s to refuse a duplicate and sorted seats by `ref`. A
+`USER` and a `SCRIPTED` participant with the same UUID were refused as one
+participant, and with only that guard fixed their order, and so the table key,
+would have followed input order.
+
+Both now use the whole participant. Duplicates are found by equality, and seats and
+`participantSetOf` sort by `TableRepository.canonicalOrder`: ref, then kind. A tie on
+ref is the only case the kind decides, so every set of distinct refs keeps its order
+and its key — including every stored table and `V5`'s migrated keys. No migration.
+
+New tests beside the regression, in `TableRepositoryTest`: the key for a shared-id
+user and scripted participant is the same in either order, and a set of users keeps
+the key `V5` wrote. `D064` carries a correction note.
+
+| Verification | Result |
+| --- | --- |
+| `M19ParticipantIdentityRegressionTest` | PASS (was the proof of M19-01) |
+| `TableRepositoryTest`, `TablesMigrationTest`, `NonUserParticipantTest`, `M19MigrationEvaluationTest` | PASS |
+| `.\gradlew.bat build` | BUILD SUCCESSFUL |
+| `git diff --check` | clean |

@@ -68,9 +68,11 @@ class TableSizeOutOfRangeException(
  * chess's 2 is a row in `game_types`, and a game type that seats 2–4 would be another row
  * (`D063`).
  *
- * A participant is a user or a non-user participant, by kind (`D051`). Seats are assigned in
- * ref order, which is the canonical order of the set and carries no meaning of its own — who
- * moves first is a property of each game ([GameParticipantsTable]), not of the table.
+ * A participant is a user or a non-user participant, by kind (`D051`), and it is identified by
+ * both: a user and a non-user participant that happen to share an id are two participants.
+ * Seats are assigned in [canonicalOrder] — ref, then kind — which is the canonical order of the
+ * set and carries no meaning of its own. Who moves first is a property of each game
+ * ([GameParticipantsTable]), not of the table.
  */
 class TableRepository(
     private val database: Database,
@@ -90,14 +92,16 @@ class TableRepository(
         gameType: String,
         participants: Collection<Participant>,
     ): StoredTable {
-        require(participants.map { it.ref }.toSet().size == participants.size) { "A table seats each participant once" }
+        // Kind and ref together are the identity (`D051`): comparing refs alone would refuse a
+        // valid table whose user and non-user participant share an id (`M19-01`).
+        require(participants.toSet().size == participants.size) { "A table seats each participant once" }
 
         val allowed = participantRange(gameType) ?: throw UnknownGameTypeException(gameType)
         if (participants.size !in allowed) {
             throw TableSizeOutOfRangeException(gameType, participants.size, allowed)
         }
 
-        val seats = participants.sortedBy { it.ref }
+        val seats = participants.sortedWith(canonicalOrder)
         val key = participantSetOf(seats)
 
         find(gameType, key)?.let { return it }
@@ -211,15 +215,25 @@ class TableRepository(
 
     companion object {
         /**
-         * The canonical form of a participant set: each participant as `KIND:ref`, in ref order,
-         * comma-joined.
+         * The canonical order of a participant set: by ref, then by kind.
+         *
+         * The kind breaks the tie a ref alone leaves when a user and a non-user participant share
+         * an id, so one set has one order whatever order it was named in (`M19-01`). Refs are
+         * distinct in every set without such a tie, so their order — and every key already
+         * stored, all of them sets of users — is unchanged.
+         */
+        val canonicalOrder: Comparator<Participant> = compareBy<Participant>({ it.ref }, { it.kind.name })
+
+        /**
+         * The canonical form of a participant set: each participant as `KIND:ref`, in
+         * [canonicalOrder], comma-joined.
          *
          * `V5__tables_and_participants.sql` computes the same string for the pairs it carries
          * over, so a table made by the migration and one made here for the same people are the
          * same table.
          */
         fun participantSetOf(participants: Collection<Participant>): String =
-            participants.sortedBy { it.ref }.joinToString(",") { it.toString() }
+            participants.sortedWith(canonicalOrder).joinToString(",") { it.toString() }
     }
 }
 

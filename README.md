@@ -76,10 +76,11 @@ the developer. The arc:
 - `M18` — a review of what the chess implementation proved about the platform
   underneath it, in `docs/PLATFORM-REVIEW.md`.
 - `M19` — the platform generalized to tables and typed participants, parallel
-  series, explicit series exit, persisted seat rotation, state projection,
-  engagement timestamps, and failure logging. The independent re-evaluation
-  has one narrow participant-identity defect open; see
-  `docs/CODEX_EVALUATION_STATE.md`.
+  series, explicit series exit, persisted seat rotation, engagement timestamps,
+  and failure logging, plus two analyses: undo storage
+  (`docs/UNDO-STORAGE.md`) and game-state visibility
+  (`docs/GAME-STATE-VISIBILITY.md`). The independent re-evaluation's one
+  finding, `M19-01`, has been remediated; see `docs/CODEX_EVALUATION_STATE.md`.
 
 Implemented foundations include:
 
@@ -97,10 +98,9 @@ Implemented foundations include:
 
 Independent evaluation (`evals/`) runs on its own track. It is current through
 the implemented M19 scope; `docs/CODEX_EVALUATION_STATE.md` is the source of
-truth for its evidence and open finding.
+truth for its evidence and findings.
 
-What happens next is targeted remediation of the evaluator finding, followed by
-the human-sign-off architecture decision in `M20.1`. The N >= 3 continuation
+What happens next is the human-sign-off architecture decision in `M20.1`. The N >= 3 continuation
 flow is separately deferred to `M20.2`; it is not part of M19's chess-only
 series-exit work.
 

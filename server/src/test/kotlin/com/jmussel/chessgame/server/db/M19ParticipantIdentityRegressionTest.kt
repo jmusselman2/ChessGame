@@ -6,7 +6,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.uuid.ExperimentalUuidApi
 
-/** Evaluator regression for M19-01; production code is intentionally unchanged. */
+/** Evaluator regression for M19-01, remediated 2026-09-17 (`evals/remediation-report.md`). */
 class M19ParticipantIdentityRegressionTest {
     @Test
     fun participantKindIsPartOfExactSetIdentity() {

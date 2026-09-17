@@ -3996,11 +3996,16 @@ left open. Decides no repository or module layout (`M20.1`).
 
 - **Exact-set identity is a unique key.** `tables.participant_set` is the
   canonical form of the set — each participant as `KIND:ref`, sorted by id,
-  comma-joined — and `(game_type, participant_set)` is unique. The same people
+  comma-joined — and `(game_type, participant_set)` is unique. *Corrected
+  2026-09-17 (`M19-01`):* sorted by id **and then kind**, and a participant is
+  its kind and id together (`D067`). A user and a non-user participant that share
+  an id are two participants, and ordering by id alone left their order to the
+  caller. Every set without such a tie, including every stored one, keeps its
+  key. The same people
   find the same table in any order; any other set is another table, and so
   another series. `V5__tables_and_participants.sql` computes the same string for
   the pairs it carries over, so a migrated pair and a newly requested one meet.
-- **A table's seats are in id order and mean nothing else.** Turn order belongs
+- **A table's seats are in id order (then kind) and mean nothing else.** Turn order belongs
   to each game: `game_participants.seat_index` is turn order. Chess maps White to
   seat 0 and Black to seat 1 in one place (`ChessSeats`), so the relation itself
   carries no colour. `D050`'s base orders will be per-cycle state, not table

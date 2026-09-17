@@ -6,7 +6,8 @@
   records.
 - **Current evaluated `main`:** `1f17312848a6d6c9499c0accbd7eb6401f44e657`.
 - **Current milestone:** M19 current-implementation re-evaluation complete.
-- **Status:** `DEFECT FOUND — M19.2–M19.12 EVALUATED; 1 FINDING OPEN`.
+- **Status:** `DEFECT FOUND — M19.2–M19.12 EVALUATED; 1 FINDING, REMEDIATED
+  2026-09-17 ON claude-autopilot, AWAITING RE-EVALUATION`.
 - **Scope boundary:** M19.1 moved to M20.1. The N >= 3 resignation and
   continuation flow formerly in M19.8 moved to M20.2. Neither is an M19 defect.
 - **Current reports:** `evals/M19/re-evaluation-critic-report.md` and
@@ -25,7 +26,10 @@ M19.3 and M19.7 share one defect:
   with the same UUID are valid, distinct identities in the schema but cannot be
   seated together through the repository. The evaluator-only
   `M19ParticipantIdentityRegressionTest` records the failure. Production code
-  was not changed.
+  was not changed by the evaluation. **Remediated 2026-09-17** by the
+  implementation track (`evals/remediation-report.md`, *M19-01*): duplicate
+  detection uses the whole participant and seats are ordered by ref then kind.
+  The regression passes unmodified.
 
 All six earlier evaluation findings remain closed by the 2026-09-10
 remediation: M10-01, M12-01, M14-01, M14-02, M14-03, and M18-01. Their retained
@@ -105,9 +109,8 @@ against disposable PostgreSQL.
 
 ## Exact next action
 
-Change `TableRepository` duplicate detection and canonical ordering to use the
-whole `Participant` identity (`kind` plus `ref`), then make
-`M19ParticipantIdentityRegressionTest` pass without weakening it. After that
-targeted remediation, **M20.1 remains the next human-sign-off boundary**: choose
+`M19-01` has been remediated on `claude-autopilot` (see
+`evals/remediation-report.md`); re-evaluate that remediation. After that,
+**M20.1 remains the next human-sign-off boundary**: choose
 the multi-game rules/module architecture with the project owner before starting
 M20.2. Do not choose that architecture automatically.

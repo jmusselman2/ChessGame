@@ -4620,10 +4620,13 @@ remediated on 2026-09-10 before this milestone was started, under `D057`,
 `M19.12` was evaluated on current `main`; the original reports under
 `evals/M19/` remain the historical pre-implementation record. The current
 reports are `evals/M19/re-evaluation-critic-report.md` and
-`evals/M19/re-evaluation-test-report.md`. They record one open defect shared by
+`evals/M19/re-evaluation-test-report.md`. They record one defect shared by
 `M19.3` and `M19.7`: table exact-set identity is defined as `(kind, ref)`, but
-`TableRepository.findOrCreate` rejects and orders participants by bare `ref`.
-No production code was changed by the evaluation. `M19.1` remains `M20.1`, and
+`TableRepository.findOrCreate` rejected and ordered participants by bare `ref`.
+No production code was changed by the evaluation. **Remediated 2026-09-17**
+(`evals/remediation-report.md`, *M19-01*): duplicates are compared and seats
+ordered by the whole participant, ref then kind, and the evaluator's
+`M19ParticipantIdentityRegressionTest` passes unmodified. `M19.1` remains `M20.1`, and
 the N >= 3 portion of `M19.8` remains `M20.2`.
 
 ## M19.2 — Groups: standing invite-eligibility pools
@@ -4833,6 +4836,15 @@ still name the old pair index.
 Verified with `.\gradlew.bat :server:test` (the 511 existing tests), the new
 `TableRepositoryTest` (11) and `TablesMigrationTest` (2), `InitialSchemaTest`
 over the new tables, and `.\gradlew.bat build`.
+
+**Remediation 2026-09-17 — `M19-01`.** The independent re-evaluation found that
+`findOrCreate` refused a duplicate and ordered seats by `ref` alone, although a
+participant is its kind and ref together (`M19.7`, `D067`). A user and a non-user
+participant sharing an id could not sit at one table, and their order would have
+depended on input order. Both now use the whole participant: duplicates by
+equality, order by `TableRepository.canonicalOrder` (ref, then kind). Keys for sets
+without such a tie — every stored table — are unchanged, which
+`TableRepositoryTest.aSetOfUsersKeepsTheKeyTheMigrationWrote` pins.
 
 ---
 
@@ -5178,6 +5190,10 @@ fixtures became `users =`. A `@JvmName` overload keeps the all-users form of
 now write `KIND:ref`, and a bare id still reads as a user.
 
 Verified with `.\gradlew.bat :server:test` (539 tests) and `.\gradlew.bat build`.
+
+**Remediation 2026-09-17 — `M19-01`.** Table identity compared participants by ref
+alone in `TableRepository.findOrCreate`, which dropped the kind this task made part
+of identity. Fixed there; see the note under `M19.3`.
 
 ---
 

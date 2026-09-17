@@ -171,6 +171,31 @@ class TableRepositoryTest {
     }
 
     @Test
+    fun participantsWhoShareAnIdButNotAKindHaveOneKeyInEitherOrder() {
+        // `M19-01`: the key ordered by ref alone, so a tie left it to input order.
+        val id = Uuid.parse("00000000-0000-0000-0000-000000000001")
+        val person = Participant.user(id)
+        val scripted = Participant(ParticipantKind.SCRIPTED, id)
+
+        val key = TableRepository.participantSetOf(listOf(person, scripted))
+
+        assertEquals(key, TableRepository.participantSetOf(listOf(scripted, person)))
+        assertEquals("SCRIPTED:$id,USER:$id", key)
+    }
+
+    @Test
+    fun aSetOfUsersKeepsTheKeyTheMigrationWrote() {
+        // V5 wrote 'USER:' || user_a_id || ',USER:' || user_b_id with user_a_id < user_b_id.
+        val lower = Uuid.parse("00000000-0000-0000-0000-00000000000a")
+        val higher = Uuid.parse("00000000-0000-0000-0000-00000000000b")
+
+        assertEquals(
+            "USER:$lower,USER:$higher",
+            TableRepository.participantSetOf(listOf(Participant.user(higher), Participant.user(lower))),
+        )
+    }
+
+    @Test
     fun theSameSetFindsTheSameTableWhateverOrderItIsNamedIn() {
         withTables { fixture ->
             val (jordan, alex) = listOf("Jordan", "Alex").map(fixture::named)
