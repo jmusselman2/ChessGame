@@ -4592,23 +4592,23 @@ into decisions **`D048`–`D056`**. This milestone is the work those decisions
 imply: generalising the two-player, pair-keyed platform into a multi-participant
 one, and changing the two chess product rules that the pair model had forced.
 
-**`M19.1` is deferred, and it does not block chess-only work (`D063`).** Where
-the deck-builder's code lives — same repo and module, same server, or a new
-project — is a human, difficult-to-reverse architecture decision. But no
-remaining task in this milestone writes deck-builder-specific code or needs to
-know where game-specific rules are implemented. The participants schema
-(`M19.3`) and everything built on it are server and schema work that chess
-exercises on its own, and it holds under any of the four layouts. So `M19.1` is
-`BLOCKED` until the first task that actually requires deck-builder-specific code,
-or a concrete decision about where game-specific rules live. That task lists
-`M19.1` as a dependency, and the loop stops there and asks. *2026-09-16:* `M19.8`
-turned out to be that task. `M19.3`–`M19.7` were built without `M19.1`.
+**Every task in this milestone can be completed with chess as the only
+implemented game (`D063`).** Where game-specific rules live, and how the server
+routes state and commands once a second ruleset exists, is a human,
+difficult-to-reverse architecture decision. No task here needs it. The
+participants schema (`M19.3`) and everything built on it are server and schema
+work that chess exercises on its own, and it holds under any of the four
+layouts. That decision was deferred here as `M19.1`. *2026-09-16:* it moved out
+of this milestone and is now **`M20.1`**. `M19.8` had been found to need it for
+N ≥ 3 resignation, so that part moved to `M20.2`, which depends on `M20.1`.
+`M19.8` kept only what chess alone can complete. `M19.2`–`M19.7` were built
+without the decision.
 
 Nothing here touches the chess implementation or the live beta until its own
 task runs. `D048`–`D056` changed documentation only. So did `D061`, the binding
 undo-storage policy that followed `M19.9`, and `D062`, the documentation policy
 for analysis and decision tasks. Both date from 2026-09-13, and neither bears on
-`M19.1`. `D063` (2026-09-16) records the deferral. It decides no layout either.
+`M20.1`. `D063` (2026-09-16) records the deferral. It decides no layout either.
 
 The carried evaluation findings were a separate track and blocked none of this.
 All six — `M10-01`, `M12-01`, `M14-01`/`02`/`03`, and `M18-01` — were
@@ -4616,49 +4616,15 @@ remediated on 2026-09-10 before this milestone was started, under `D057`,
 `D058` and `D059`; `evals/remediation-report.md` and
 `docs/CODEX_EVALUATION_STATE.md` record it.
 
-## M19.1 — Decide the deck-builder's repository and module structure
-
-**Status:** TODO — needs human sign-off. `M19.8` made it a dependency on
-2026-09-16 (`D063`'s trigger). The autonomous loop does not select or decide it.
-
-**Depends on:** — *Deferred until* the first task that requires
-deck-builder-specific code (rules, a `deck-core`-style module, a deck-builder
-game-type registration, client UI) or a concrete decision about where
-game-specific rules are implemented. When such a task is found, it lists `M19.1`
-under **Depends on**, and this task returns to `TODO` with human sign-off still
-required. That happened on 2026-09-16: `M19.8`'s N ≥ 3 resignation needs a game
-that continues after a resignation, which no chess-only change can provide (see
-`M19.8`). `M19.10` still does not depend on it.
-
-### Objective
-
-Resolve interview item `E1`: does the deck-builder live in this repository (same
-app binary? same server? a new Gradle module beside `game-core`?), or in a new
-project? Chess and the deck-builder must both ship and be supported (`E2`).
-
-### Acceptance Criteria
-
-- A decision recorded in `docs/DECISIONS.md` covering: repository, server
-  process, module boundaries, and how a shared "platform" layer (identity,
-  friends, tables, series, realtime, persistence) is factored out of
-  chess-specific code without violating `D044` (extract only with two
-  implementations in view).
-- The decision states which of `M19.2`–`M19.11` change scope as a result. Any of
-  these already `DONE` by then were built without an answer (`D063`). The
-  decision names what, if anything, they need changed. It does not assume they
-  anticipated a layout.
-- Human sign-off in the conversation, as a difficult-to-reverse architecture
-  change.
-
 ## M19.2 — Groups: standing invite-eligibility pools
 
 **Status:** DONE (one integration deferred to `M19.3`)
 
-**Depends on:** M19.1 — *revised:* the recorded dependency was an
-architecture-conservatism dependency, not a technical one. Groups are a
+**Depends on:** M20.1 (formerly `M19.1`) — *revised:* the recorded dependency
+was an architecture-conservatism dependency, not a technical one. Groups are a
 `users`-only social concept with no game-state role (`D049`), so nothing about
 them turns on where the deck-builder's rules module lives. Built in `server`
-beside `friendships`, extracting nothing and restructuring nothing, so `M19.1`
+beside `friendships`, extracting nothing and restructuring nothing, so `M20.1`
 stays entirely open.
 
 ### Objective
@@ -4681,7 +4647,7 @@ Groups have no game-state role.
 ### Completion Note — 2026-09-10
 
 `V3__groups.sql`, `GroupRepository`, `InviteEligibility`, and `groupRoutes`.
-Nothing was extracted or restructured, and no `M19.1` decision is implied or
+Nothing was extracted or restructured, and no `M20.1` decision is implied or
 required: groups reference `users` and nothing else, so this would be identical
 under any of the four repository layouts.
 
@@ -4757,10 +4723,10 @@ regressions, and `.\gradlew.bat build`.
 
 **Status:** DONE
 
-**Depends on:** — *revised 2026-09-16 (`D063`):* the dependency on `M19.1` was
-removed. This task is server and schema work in the existing `server` module.
-It needs no decision about where future deck-builder rules or modules live, and
-it takes none.
+**Depends on:** — *revised 2026-09-16 (`D063`):* the dependency on `M19.1` (now
+`M20.1`) was removed. This task is server and schema work in the existing
+`server` module. It needs no decision about where future deck-builder rules or
+modules live, and it takes none.
 
 ### Objective
 
@@ -4800,7 +4766,7 @@ the only game type registered.
 `V5__tables_and_participants.sql`, `TableRepository`, and every read of the pair
 columns rewritten onto tables. The implementation choices are in
 [`D064`](DECISIONS.md#d064--a-table-is-keyed-by-its-canonical-participant-set-seats-are-turn-order-and-invite-eligibility-stays-out-of-table-creation).
-No `M19.1` decision is taken or implied: all of it is in `server` and the schema.
+No `M20.1` decision is taken or implied: all of it is in `server` and the schema.
 
 **Schema.** `game_types` (per-type `min_participants`/`max_participants`; chess
 registered as `('CHESS', 2, 2)` and nothing else), `tables` (unique per game type
@@ -5154,8 +5120,8 @@ work.
 `NonUserParticipantRepository`, and every seat read and written as a kind plus a
 reference. The representation is recorded in
 [`D067`](DECISIONS.md#d067--participant-kinds-are-named-for-what-the-platform-does-with-them-user-computer-scripted).
-No game type, rules, or deck-builder vocabulary was added, so this was not
-`M19.1`'s trigger.
+No game type, rules, or deck-builder vocabulary was added, so this was not the
+trigger for `M20.1` (then `M19.1`).
 
 **The shape.** A seat (`table_participants`, `game_participants`) references
 `users.id` when its kind is `USER`, and `non_user_participants.id` otherwise.
@@ -5205,37 +5171,35 @@ Verified with `.\gradlew.bat :server:test` (539 tests) and `.\gradlew.bat build`
 
 ---
 
-## M19.8 — Resignation, series exit, and continue-among-remainder for N participants
+## M19.8 — Explicit series exit, separate from resignation
 
 **Status:** TODO
 
-**Depends on:** M19.3, M19.7, **M19.1** — *added 2026-09-16 under `D063`'s trigger.*
-The second criterion needs an N ≥ 3 game in which one participant resigns and
-the game **continues**. The server can store and run exactly one kind of game
-today: `games.state` is a chess `GameStateDocument`, and
-`GameCommandService.resign` applies `ChessRules.resign`, which always ends the
-game. A game that carries on after a resignation therefore needs either a second
-ruleset's state and rules, or a seam that dispatches state and commands by game
-type. Either one is "a concrete decision about where game-specific rules are
-implemented", which is `M19.1`, and `D044` forbids the generic seam before a
-second ruleset exists. Criteria 1 and 4 (chess resignation unchanged, series
-exit between games) and the new-table half of criterion 3 need no such decision.
-Splitting them out is the owner's call, not the loop's.
+**Depends on:** M19.3, M19.7 — *revised 2026-09-16:* this task briefly depended
+on `M19.1` under `D063`'s trigger, because its N ≥ 3 resignation criterion needs
+a game that **continues** after one participant resigns. The server can store and
+run exactly one kind of game today: `games.state` is a chess
+`GameStateDocument`, and `GameCommandService.resign` applies `ChessRules.resign`,
+which always ends the game. That criterion, and the resigner and remainder
+prompts that follow from it, moved to `M20.2`, which depends on `M20.1`. What is
+left here is completable with chess as the only implemented game.
+
+**Split 2026-09-16 — `M19.8` does not include N ≥ 3 resignation.** Marking this
+task `DONE` does not complete any multi-participant resignation behaviour:
+resignation ending only the resigner's participation, the game continuing, the
+"continue at this table?" prompt, cancelling the table's auto-rematch, and the
+"continue among yourselves?" new-table offer are all `M20.2`, and stay `TODO`
+until it is done.
 
 ### Objective
 
-`D052`: separate resigning a game from leaving a series; add the post-resignation
-"continue at this table?" / "continue among yourselves?" flow; add explicit
-series exit.
+`D052`, chess-completable part: separate resigning a game from leaving a series,
+and add explicit series exit. The post-resignation "continue at this table?" /
+"continue among yourselves?" flow for N ≥ 3 is `M20.2`.
 
 ### Acceptance Criteria
 
 - Chess (N = 2) resignation and rematch behaviour is unchanged.
-- In an N ≥ 3 game, resignation ends only that participation; the game continues;
-  the resigner is asked about continuing; declining cancels the table
-  auto-rematch and offers the remainder a new table + new series.
-- "Continue among the remainder" is implemented as ordinary new-table creation,
-  not a series mutation.
 - A participant can leave a series between games; it ends the series and does not
   disturb an in-progress game.
 
@@ -5243,9 +5207,9 @@ series exit.
 
 **Status:** DONE
 
-**Depends on:** M19.1 — *revised:* not a real dependency for this task. Every
-figure is about a state document and a write pattern, so the analysis holds
-under any of `M19.1`'s four layouts and assumes none of them.
+**Depends on:** M20.1 (formerly `M19.1`) — *revised:* not a real dependency for
+this task. Every figure is about a state document and a write pattern, so the
+analysis holds under any of `M20.1`'s four layouts and assumes none of them.
 
 ### Objective
 
@@ -5516,3 +5480,90 @@ failure that matters is detected.
 Verified with `.\gradlew.bat :server:test --tests FailureLoggingTest` (9 tests,
 run three times to confirm they are not timing-dependent), the `ServerLoggingTest`
 and realtime regressions, and `.\gradlew.bat build`.
+
+---
+
+# M20 — Multi-Game Rules Architecture
+
+`M19` generalised the platform with chess as the only implemented game. This
+milestone starts where that stops being enough: where game-specific rules live,
+how the server routes state and commands by game type once a second ruleset
+exists, and the behaviour that cannot be built until it does.
+
+`M20.1` is the decision deferred under `D063`, moved here from `M19` (where it was
+`M19.1`) on 2026-09-16. It needs human sign-off. The autonomous loop does not
+select or decide it, and stops and asks when it is the next task. Everything else
+in this milestone depends on it.
+
+## M20.1 — Decide and establish multi-game rules/module architecture
+
+**Status:** TODO — needs human sign-off. The autonomous loop does not select or
+decide it.
+
+**Depends on:** — *Deferred (`D063`)* until the first task that requires
+deck-builder-specific code (rules, a `deck-core`-style module, a deck-builder
+game-type registration, client UI) or a concrete decision about where
+game-specific rules are implemented. Such a task lists `M20.1` under
+**Depends on**, and human sign-off is still required. That happened on
+2026-09-16: N ≥ 3 resignation needs a game that continues after a resignation,
+which no chess-only change can provide. It was split out of `M19.8` into `M20.2`.
+`M19.8` and `M19.10` do not depend on this task.
+
+*Moved 2026-09-16:* formerly `M19.1`, "Decide the deck-builder's repository and
+module structure". The substance and the sign-off requirement are unchanged. The
+new title names what the trigger showed the decision has to answer: not only
+where the deck-builder's code lives, but where game-specific rules live and how
+the server routes state and commands once a second ruleset exists. A local draft
+branch still carries the old name, `M19.1`.
+
+### Objective
+
+Resolve interview item `E1`: does the deck-builder live in this repository (same
+app binary? same server? a new Gradle module beside `game-core`?), or in a new
+project? Chess and the deck-builder must both ship and be supported (`E2`).
+
+Part of that answer is where game-specific rules live and how the authoritative
+server stores, loads, and dispatches game state and commands once more than one
+ruleset exists. Today `games.state` is a chess `GameStateDocument` and every
+command applies `ChessRules`.
+
+### Acceptance Criteria
+
+- A decision recorded in `docs/DECISIONS.md` covering: repository, server
+  process, module boundaries, where game-specific rules live, how the server
+  routes state and commands by game type, and how a shared "platform" layer
+  (identity, friends, tables, series, realtime, persistence) is factored out of
+  chess-specific code without violating `D044` (extract only with two
+  implementations in view).
+- The decision states which `M19` and `M20` tasks change scope as a result. Any
+  already `DONE` by then were built without an answer (`D063`). The decision
+  names what, if anything, they need changed. It does not assume they
+  anticipated a layout.
+- Human sign-off in the conversation, as a difficult-to-reverse architecture
+  change.
+
+## M20.2 — N ≥ 3 resignation and continue-among-remainder
+
+**Status:** TODO
+
+**Depends on:** M20.1, M19.8
+
+Moved out of `M19.8` on 2026-09-16. It needs a game that continues after one
+participant resigns, which needs a second ruleset or a seam that dispatches state
+and commands by game type. Where that lives is `M20.1`, and `D044` forbids the
+generic seam before a second ruleset exists.
+
+### Objective
+
+`D052`, multi-participant part: the post-resignation "continue at this table?" /
+"continue among yourselves?" flow, on top of `M19.8`'s separation of resignation
+from series exit.
+
+### Acceptance Criteria
+
+- In an N ≥ 3 game, resignation ends only that participation; the game continues;
+  the resigner is asked about continuing; declining cancels the table
+  auto-rematch and offers the remainder a new table + new series.
+- "Continue among the remainder" is implemented as ordinary new-table creation,
+  not a series mutation.
+- Chess (N = 2) resignation and rematch behaviour stays as `M19.8` leaves it.

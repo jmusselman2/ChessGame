@@ -2603,9 +2603,10 @@ version needs a roster-mutation concept the platform is better off without.
 - A 2-participant table is behaviourally identical to today's pair, so chess is
   unaffected until `M19` acts on this.
 - New `groups` / `group_members` and `tables` / `table_participants` tables are
-  `M19` work; their shape depends on the module-structure decision (`M19.1`).
+  `M19` work; their shape depends on the module-structure decision (`M19.1`,
+  now `M20.1`).
   **Superseded in part 2026-09-16 by `D063`:** neither shape depends on
-  `M19.1`. Groups were built without it (`M19.2`). The tables and
+  that decision. Groups were built without it (`M19.2`). The tables and
   participants schema is built without it too, with player-count ranges stored
   per game type (`M19.3`).
 
@@ -2668,9 +2669,10 @@ different one for groups.
 
 ### Consequences
 
-- New `groups` / `group_members` tables (`M19`, shape gated on `M19.1`).
+- New `groups` / `group_members` tables (`M19`, shape gated on `M19.1`, now
+  `M20.1`).
   **Superseded in part by `D063`:** the shape was not gated. `M19.2` built them
-  in `server` with no `M19.1` answer.
+  in `server` with no answer to that decision.
 - Table-invite eligibility resolves to: the target is a friend of the creator,
   **or** shares a group with the creator.
 - Leaving a group revokes future invite-eligibility and touches no existing
@@ -2926,6 +2928,11 @@ silent drop.
   remainder.
 - "Continue among the remainder" is implemented as new-table + new-series, not a
   series mutation.
+- *Backlog split 2026-09-16 (`D063` amendment):* the parts chess alone can
+  exercise — resignation separate from series exit, and explicit series exit —
+  are `M19.8`. The N ≥ 3 parts above (the game continuing after a resignation,
+  both prompts, cancelling the table's auto-rematch) are `M20.2`, which depends
+  on `M20.1`.
 - Series exit is now an explicit player action, not a side effect of the friend
   graph — `D013`'s "removing a friend closes the series" is separately removed
   (`D053`).
@@ -3566,7 +3573,7 @@ later ruleset. Changes no current code. Chess already satisfies the restoration
 half — it restores a recorded prior position (`D029`) — and keeps its current
 `save(wholeGame)` write pattern, as `D044` and `docs/UNDO-STORAGE.md` leave it.
 This decision holds under any repository, module, or server layout and does not
-bear on `M19.1`, which remains open.
+bear on `M20.1` (formerly `M19.1`), which remains open.
 
 ### Decision
 
@@ -3769,10 +3776,10 @@ could fail or fall behind.
 *Required Reading* / *Document Precedence*, `docs/AUTONOMOUS-DEVELOPMENT.md`
 
 **Scope:** How analysis and decision work is documented. It decides no product or
-architecture question, and in particular does not bear on `M19.1`, which remains
-open. It applies from now on and to `M19.9` and `M19.10`. It does not restructure
-earlier completion notes retroactively, or the evaluation reports under `evals/`,
-which follow `docs/INDEPENDENT-EVALUATION.md`.
+architecture question, and in particular does not bear on `M20.1` (formerly
+`M19.1`), which remains open. It applies from now on and to `M19.9` and
+`M19.10`. It does not restructure earlier completion notes retroactively, or the
+evaluation reports under `evals/`, which follow `docs/INDEPENDENT-EVALUATION.md`.
 
 ### Decision
 
@@ -3893,25 +3900,37 @@ across several files.
 
 **Status:** Accepted
 
-**Relates to:** `D044`, `D048`, `D049`, `D051`, `M19.1`, `M19.2`, `M19.3`,
-`M19.9`, `docs/PLATFORM-REVIEW.md` *Still open*
+**Relates to:** `D044`, `D048`, `D049`, `D051`, `D052`, `M19.2`, `M19.3`,
+`M19.8`, `M19.9`, `M20.1` (formerly `M19.1`), `M20.2`,
+`docs/PLATFORM-REVIEW.md` *Still open*
 
 **Supersedes in part:** the `M19.1` gating sentences in the *Consequences* of
 `D048` and `D049`
 
 **Scope:** Backlog dependency and schema-design constraint only. It **does not
-decide** the deck-builder's repository, server process, or module structure.
-That remains `M19.1`, which still needs human sign-off.
+decide** the deck-builder's repository, server process, or module structure, or
+where game-specific rules live. That remains `M20.1`, which still needs human
+sign-off.
+
+**Amended 2026-09-16 — the deferred task moved to `M20`.** The task this decision
+defers was `M19.1`. It is now `M20.1`, "Decide and establish multi-game
+rules/module architecture", the first task of a new `M20` milestone, with its
+substance and sign-off requirement unchanged. The trigger below fired on `M19.8`,
+whose N ≥ 3 resignation needs a game that continues after a resignation. Rather
+than leave `M19.8` waiting, that part moved to `M20.2`, which depends on
+`M20.1`. `M19.8` keeps only what chess alone can complete, and no `M19` task
+depends on `M20.1` in a way that blocks it. References below read `M20.1`.
 
 ### Decision
 
-- **`M19.1` is deferred.** It stays open, is marked `BLOCKED`, and blocks no
-  chess-only work. It becomes a dependency of the first task that actually
+- **`M20.1` is deferred.** It stays open and needs human sign-off, and it blocks
+  no chess-only work. It becomes a dependency of the first task that actually
   requires deck-builder-specific code, or a concrete decision about where
-  game-specific rules are implemented. That task lists `M19.1` under
-  **Depends on**, and the autonomous loop stops there and asks.
-- **`M19.3` does not depend on `M19.1`.** It builds the participants schema in
-  `server` for chess alone. It neither assumes nor forecloses any of `M19.1`'s
+  game-specific rules are implemented. That task lists `M20.1` under
+  **Depends on**, and the autonomous loop stops there and asks. That task is
+  now `M20.2`.
+- **`M19.3` does not depend on `M20.1`.** It builds the participants schema in
+  `server` for chess alone. It neither assumes nor forecloses any of `M20.1`'s
   layouts.
 - **Player-count constraints are stored per game type.** Each game type carries
   a minimum and a maximum participant count, and table creation validates
@@ -3925,10 +3944,10 @@ That remains `M19.1`, which still needs human sign-off.
 
 ### Rationale
 
-`D048` said the tables schema's shape depends on `M19.1`, but no concrete part of
-it does. Every layout `M19.1` is choosing between keeps canonical state in a Ktor
+`D048` said the tables schema's shape depends on this decision (then `M19.1`),
+but no concrete part of it does. Every layout `M20.1` is choosing between keeps canonical state in a Ktor
 server that must replace today's pair keys with a participants relation (`D048`).
-Even "new project, own server" would need that same relation. `M19.2` and `M19.9` already had their `M19.1`
+Even "new project, own server" would need that same relation. `M19.2` and `M19.9` already had their `M20.1`
 dependencies revised on the same grounds. Holding `M19.3`–`M19.8` and `M19.10`
 behind a decision they don't use would stall all chess-side generalisation. It
 would also push the owner to settle a difficult-to-reverse layout before any
@@ -3940,7 +3959,7 @@ cheapest form that keeps 2–4 a registration rather than a migration.
 
 ### Alternatives Considered
 
-- **Decide `M19.1` now.** Rejected by the owner for now. It would be decided from
+- **Decide `M20.1` now.** Rejected by the owner for now. It would be decided from
   one implementation, the situation `D044` warns about.
 - **Keep `M19.3` blocked.** Rejected: nothing in its acceptance criteria turns on
   the layout.
@@ -3949,12 +3968,13 @@ cheapest form that keeps 2–4 a registration rather than a migration.
 
 ### Consequences
 
-- `docs/BACKLOG.md`: `M19.1` is `BLOCKED` (deferred). `M19.3` has no dependency
-  and its acceptance criteria follow the bullets above. `M19.4`–`M19.8` and
-  `M19.10` are unblocked through `M19.3`.
-- `docs/PLATFORM-REVIEW.md` *Still open* no longer says `M19.1` gates most `M19`
+- `docs/BACKLOG.md`: `M20.1` is deferred and needs human sign-off. `M19.3` has
+  no dependency and its acceptance criteria follow the bullets above.
+  `M19.4`–`M19.8` and `M19.10` are unblocked through `M19.3`. N ≥ 3 resignation
+  is `M20.2`, which depends on `M20.1`.
+- `docs/PLATFORM-REVIEW.md` *Still open* no longer says `M20.1` gates most `M19`
   work.
-- When `M19.1` is decided, its decision states what, if anything, the work
+- When `M20.1` is decided, its decision states what, if anything, the work
   already done without it needs changed.
 
 ---
@@ -3969,7 +3989,7 @@ cheapest form that keeps 2–4 a registration rather than a migration.
 `ARCHITECTURE` §16, §18, §27
 
 **Scope:** The implementation choices `M19.3` had to make that `D048` and `D063`
-left open. Decides no repository or module layout (`M19.1`).
+left open. Decides no repository or module layout (`M20.1`).
 
 ### Decision
 
@@ -4043,7 +4063,7 @@ chess.
 
 **Scope:** How `D053`'s "Play offers opening it or starting another" is carried by
 the API, and what keeps a double tap from starting two series once the index is
-gone. Chess only; no layout decision (`M19.1`).
+gone. Chess only; no layout decision (`M20.1`).
 
 ### Decision
 
@@ -4188,7 +4208,7 @@ At N = 2, carrying the rotation on is the only reading of "vacuous" under which
 §27
 
 **Scope:** How `D051`'s non-user participant is represented. Adds no game type and
-no rules, and takes no `M19.1` decision.
+no rules, and takes no `M20.1` decision.
 
 ### Decision
 
@@ -4225,7 +4245,7 @@ no rules, and takes no `M19.1` decision.
 `D051` names two characters from a game that does not exist yet. Naming kinds
 after them (`ENEMY_LORD`, `AI_PLAYER`) would put deck-builder vocabulary into the
 chess-level participant type, which `D051` itself forbids, and would amount to
-registering deck-builder concepts before `M19.1` (`D063`). What the platform
+registering deck-builder concepts before `M20.1` (`D063`). What the platform
 actually needs to tell apart is who is a person and who rotates. The names say
 that, and a game type can seat its own characters as one of them.
 

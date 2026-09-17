@@ -16,9 +16,9 @@ This document is deliberately below `docs/DECISIONS.md`, `PRODUCT.md`,
 and `D061` differ, `D061` governs.** The recommendation text below is kept as it
 was first made, and every passage `D061` changed is labelled where it appears.
 
-It also assumes **no** answer to `M19.1`. Every number below is about a state
-document and a write pattern, not about where code lives, so the analysis holds
-under any repository or module layout. Neither this document nor `D061` bears on
+It also assumes **no** answer to `M20.1` (formerly `M19.1`). Every number below
+is about a state document and a write pattern, not about where code lives, so the
+analysis holds under any repository or module layout. Neither this document nor `D061` bears on
 that open question.
 
 ## Outcome — `D061` (2026-09-13)
@@ -81,7 +81,7 @@ real.
 
 ## Assumptions
 
-- **No `M19.1` answer.** Nothing here depends on where the deck-builder's code
+- **No `M20.1` answer.** Nothing here depends on where the deck-builder's code
   lives.
 - **The modelled state shape** is the one `D048`/`D051` imply: per seat, a deck,
   hand, discard and play area plus counters; a shared ten-pile market; a trash;
