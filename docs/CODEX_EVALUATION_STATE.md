@@ -1,61 +1,113 @@
 # Codex Evaluation State
 
-- **Evaluated `main` baseline:** `38be421dfd64c269687c893300f11e661bfa9c90`
-- **Current milestone:** COMPLETE — M19 independently evaluated
-- **Status:** `EVALUATION COMPLETE — M19 INCOMPLETE (0/12 IMPLEMENTED)`
-- **Evaluated milestones:** M2, M3, M4, M5, M6, M7, M8, M9, M10, M11, M12,
-  M13, M14, M15, M16, M17, M18, M19
-- **Closed by re-evaluation:** all three M8 findings. M8-01 (a
-  nameless caller could create a friendship the other side cannot list) and
-  M8-02 (two concurrent re-adds both reported that they restored the same
-  removed friendship) are fixed, and their evaluator regressions pass
-  unmodified. `D045` records M8-01's route contract; M8-02 is closed by the
-  guarded reactivation update. M8-03 is resolved by `D046`, which removes the
-  friendship check at series creation rather than making it race-safe; its
-  regression is kept and re-pointed at the outcome that decision accepts, and
-  it passes. `evals/M8/remediation-report.md` records all three, and is
-  explicit about the two assertions that changed and why. M8 is now marked
-  `PASS`; `evals/M8/re-evaluation-critic-report.md` records the independent
-  disposition.
-- **Unresolved findings:** none.
-- **Closed by remediation (2026-09-10):** all six carried findings. **M10-01** —
-  `GameRepository.load` now re-reads the version after the history and retakes
-  the read when it moved, so a refresh returns one coherent state and, under a
-  concurrent commit, the newer one (`D057`). **M12-01** — `RealtimeHub.publish`
-  now sends per connection concurrently under a bounded deadline, rethrowing
-  genuine cancellation (`D058`). **M14-01/02/03** — the client now tracks the
-  game on screen through `Loading`/`Failed`, installs a same-game view forwards
-  only by canonical version, and orders overlapping dashboard reads by issue
-  number, with `followSeries` on the same loop as `loadDashboard` (`D059`).
-  **M18-01** — the two-physical-device claim was removed from
-  `docs/PLATFORM-REVIEW.md` and the `M18.1` completion note, because `M17.1`
-  records one physical device and no evidence of a second was found; the
-  correction and what was searched are recorded in both places. Every evaluator
-  regression passes unmodified: `M10AdversarialTest`, `M12AdversarialTest`, the
-  three `NetworkInterruptionTest` cases, and
-  `evals/M18/M18DocumentationRegressionTest.ps1`. New coverage was added beside
-  them, not in place of them: `RealtimeFanOutTest` and
-  `StaleResponseOrderingTest`.
-- **M19 disposition:** all twelve M19.1–M19.12 tasks remain explicitly `TODO`.
-  The repository has design decisions D048–D056 but no M19 implementation; the
-  pair-keyed schema and behavior remain intact. This is incomplete planned work,
-  not an external evaluation blocker or twelve new defect IDs.
-- **Latest artifacts:** `evals/M19/critic-report.md`,
-  `evals/M19/test-report.md`, and `evals/remediation-report.md` (the 2026-09-10
-  remediation of all six carried findings). The earlier milestone reports and all
-  retained evaluator regressions remain part of the evaluation record.
+- **Historical pre-M19 baseline:** `38be421dfd64c269687c893300f11e661bfa9c90`.
+  `evals/M19/critic-report.md` and `evals/M19/test-report.md` evaluated that
+  baseline before M19 was implemented; they remain unchanged as historical
+  records.
+- **Current evaluated `main`:** `1f17312848a6d6c9499c0accbd7eb6401f44e657`.
+- **Current milestone:** M19 current-implementation re-evaluation complete.
+- **Status:** `DEFECT FOUND — M19.2–M19.12 EVALUATED; 1 FINDING OPEN`.
+- **Scope boundary:** M19.1 moved to M20.1. The N >= 3 resignation and
+  continuation flow formerly in M19.8 moved to M20.2. Neither is an M19 defect.
+- **Current reports:** `evals/M19/re-evaluation-critic-report.md` and
+  `evals/M19/re-evaluation-test-report.md`.
 
-## Next action
+## Verdict
 
-No unevaluated milestone remains after M19 in `docs/BACKLOG.md`. The independent
-evaluation is complete through every currently defined milestone, and no finding
-it raised is open. M19.1 is the next implementation boundary and requires the
-human architecture sign-off its acceptance criteria name.
+M19.2, M19.4–M19.6, and M19.8–M19.12 satisfy their current acceptance criteria.
+M19.3 and M19.7 share one defect:
 
-A remediation re-evaluation should now expect all six regressions **green**, and
-should check the fixes rather than the symptoms: that `load`'s verification is
-against the same counter the guarded write moves and that its retry bound
-terminates (`D057`); that a publish drops only the connection that failed and
-that request cancellation is not mistaken for a dead socket (`D058`); that
-"forwards only" is keyed on the canonical version and that a discarded dashboard
-answer changes nothing at all, `loading` included (`D059`).
+- **M19-01 — participant exact-set identity is incorrectly collapsed by bare
+  UUID.** `Participant` and the V9 schema identify a participant by
+  `(kind, ref)`, and `tables.participant_set` serializes `KIND:ref`. However,
+  `TableRepository.findOrCreate` rejects duplicates using `ref` alone and sorts
+  its canonical seats using `ref` alone. A `USER` and `SCRIPTED` participant
+  with the same UUID are valid, distinct identities in the schema but cannot be
+  seated together through the repository. The evaluator-only
+  `M19ParticipantIdentityRegressionTest` records the failure. Production code
+  was not changed.
+
+All six earlier evaluation findings remain closed by the 2026-09-10
+remediation: M10-01, M12-01, M14-01, M14-02, M14-03, and M18-01. Their retained
+regressions still pass on the current baseline.
+
+## Migration evidence
+
+- V1–V9 migrate cleanly from an empty disposable PostgreSQL database.
+- The evaluator-only `M19MigrationEvaluationTest` starts at V2, writes existing
+  users, a friendship, series, game, move, and audit event, applies V3–V9, and
+  verifies every identity and row is preserved. It also verifies the new
+  participant rows, nullable engagement timestamps, and Flyway history through
+  version 9.
+- The retained `TablesMigrationTest` independently exercises the V4 pair schema
+  through the current participant schema, including closed and active series,
+  dashboard, history, moves, and events.
+
+## Beta result
+
+The existing Render beta is serving current `main`: a cold `GET /health`
+returned HTTP 200 after 54.329 seconds with `ChessGame server is healthy (build
+1f17312)`. The non-health-only response proves the database-backed application
+started; startup calls `connectAndMigrate` before installing authenticated
+routes, so the deployed build successfully applied its migration set through
+V9.
+
+`evals/M19/current-beta-smoke.ps1` passed against the deployed HTTPS/WSS
+endpoint with three throwaway accounts. It covered session reuse, username
+lookup, friendships, group creation and eligible additions, transitive group
+membership and leave, the existing-series offer and a parallel series, a legal
+move and realtime opponent notification, stale-version recovery, undo,
+resignation and automatic rematch, seat rotation, explicit series exit without
+changing the current game, unfriending without closing a series, dashboard, and
+history. D035 means those throwaway beta rows are retained.
+
+The following beta-only evidence remains externally blocked:
+
+- no `BETA_DATABASE_URL` or Supabase database credential is available, so
+  Flyway version 9 and pre-migration beta rows cannot be queried directly;
+- no Render API credential is available, so deployed log lines cannot be read
+  back; safe failure logging is covered by the local forced-failure tests;
+- no project beta signing keystore is available, so a distributable signed APK
+  cannot be produced. The endpoint-configured debug APK and the repository's
+  throwaway-signing verification are the locally available substitutes.
+
+The endpoint-configured debug APK installed and launched on `ChessPlayer1`.
+After its cold-start wake/retry path reached onboarding, a newly claimed beta
+session survived force-stop and a second cold launch directly to the dashboard
+(11.736 seconds). A session that predated this evaluation could not be exercised
+because the available AVDs started without the app installed.
+
+## Verification commands
+
+All database commands used
+`TEST_DATABASE_URL=postgresql://chessgame:chessgame@localhost:55432/chessgame_test`
+against disposable PostgreSQL.
+
+- focused M19 server and migration tests: PASS;
+- `./gradlew :server:test --rerun-tasks --continue`: PASS, 560 tests and none
+  skipped, before adding the expected-red evaluator regression;
+- `./gradlew :android-app:testDebugUnitTest --rerun-tasks`: PASS, 442 tests and
+  none skipped;
+- `./gradlew ktlintCheck`: PASS;
+- `./gradlew build --continue`: expected failure only at
+  `M19ParticipantIdentityRegressionTest` (562 server tests, 1 failure; Android
+  build, lint, and 442 tests completed successfully under `--continue`);
+- `./gradlew :server:test --tests M19MigrationEvaluationTest --rerun-tasks`:
+  PASS;
+- `./gradlew :server:test --tests M19ParticipantIdentityRegressionTest
+  --rerun-tasks`: EXPECTED FAIL;
+- `evals/M19/current-beta-smoke.ps1`: PASS;
+- `./gradlew :android-app:assembleDebug -PchessServerUrl=<beta HTTPS endpoint>
+  -PsupabaseAnonKey=<publishable key>`: PASS; clean emulator install and cold
+  relaunch/session restoration: PASS;
+- `scripts/verify-beta-apk.sh`: PASS, 6/6 with a disposable signing key;
+- `git diff --check`: PASS.
+
+## Exact next action
+
+Change `TableRepository` duplicate detection and canonical ordering to use the
+whole `Participant` identity (`kind` plus `ref`), then make
+`M19ParticipantIdentityRegressionTest` pass without weakening it. After that
+targeted remediation, **M20.1 remains the next human-sign-off boundary**: choose
+the multi-game rules/module architecture with the project owner before starting
+M20.2. Do not choose that architecture automatically.

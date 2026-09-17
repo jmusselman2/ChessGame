@@ -75,6 +75,11 @@ the developer. The arc:
   game to the end without developer intervention.
 - `M18` — a review of what the chess implementation proved about the platform
   underneath it, in `docs/PLATFORM-REVIEW.md`.
+- `M19` — the platform generalized to tables and typed participants, parallel
+  series, explicit series exit, persisted seat rotation, state projection,
+  engagement timestamps, and failure logging. The independent re-evaluation
+  has one narrow participant-identity defect open; see
+  `docs/CODEX_EVALUATION_STATE.md`.
 
 Implemented foundations include:
 
@@ -90,13 +95,14 @@ Implemented foundations include:
 - aggregate Gradle verification with ktlint, Android lint, JVM tests, Android
   unit tests, APK assembly, and server distributions.
 
-Independent evaluation (`evals/`) runs on its own track and lags implementation.
-`docs/CODEX_EVALUATION_STATE.md` is the source of truth for how far it has got
-and what it currently has open.
+Independent evaluation (`evals/`) runs on its own track. It is current through
+the implemented M19 scope; `docs/CODEX_EVALUATION_STATE.md` is the source of
+truth for its evidence and open finding.
 
-What happens next — integrating `claude-autopilot` into `main`, and designing the
-deck-building game the platform was built toward — is human-directed.
-`docs/PLATFORM-REVIEW.md` and `D044` are where that design work starts.
+What happens next is targeted remediation of the evaluator finding, followed by
+the human-sign-off architecture decision in `M20.1`. The N >= 3 continuation
+flow is separately deferred to `M20.2`; it is not part of M19's chess-only
+series-exit work.
 
 ## Getting Started
 
@@ -131,4 +137,5 @@ across milestone boundaries and stopping only for genuine blockers.
 Independent milestone evaluation on `codex-autopilot` follows
 `docs/INDEPENDENT-EVALUATION.md`: each milestone receives its own committed and
 pushed checkpoint, defects are carried forward without stopping the run, and
-evaluation continues through M14.
+evaluation continues through the milestone requested and recorded in
+`docs/CODEX_EVALUATION_STATE.md`.

@@ -4616,6 +4616,16 @@ remediated on 2026-09-10 before this milestone was started, under `D057`,
 `D058` and `D059`; `evals/remediation-report.md` and
 `docs/CODEX_EVALUATION_STATE.md` record it.
 
+**Independent re-evaluation, 2026-09-16.** The implemented scope `M19.2`–
+`M19.12` was evaluated on current `main`; the original reports under
+`evals/M19/` remain the historical pre-implementation record. The current
+reports are `evals/M19/re-evaluation-critic-report.md` and
+`evals/M19/re-evaluation-test-report.md`. They record one open defect shared by
+`M19.3` and `M19.7`: table exact-set identity is defined as `(kind, ref)`, but
+`TableRepository.findOrCreate` rejects and orders participants by bare `ref`.
+No production code was changed by the evaluation. `M19.1` remains `M20.1`, and
+the N >= 3 portion of `M19.8` remains `M20.2`.
+
 ## M19.2 — Groups: standing invite-eligibility pools
 
 **Status:** DONE (one integration deferred to `M19.3`)

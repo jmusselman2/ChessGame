@@ -2,7 +2,8 @@
 
 This runbook governs the independent evaluation performed on the
 `codex-autopilot` branch. The evaluator processes milestones sequentially from
-the milestone recorded in `docs/CODEX_EVALUATION_STATE.md` through M14.
+the milestone recorded in `docs/CODEX_EVALUATION_STATE.md` through the
+explicitly requested evaluation boundary.
 
 ## Milestone checkpoint loop
 
@@ -47,12 +48,12 @@ continue.
 ## Completion and stopping
 
 Do not pause for confirmation between milestones and do not treat an individual
-milestone checkpoint as completion. The run is complete only after M14 has been
-fully evaluated, its dedicated checkpoint commit has been pushed, and
+milestone checkpoint as completion when later milestones are in the requested
+scope. The run is complete only after the requested boundary has been fully
+evaluated, its dedicated checkpoint commit has been pushed, and
 `origin/codex-autopilot` has been verified at that exact commit.
 
 The only permitted early stop is a genuine external blocker that prevents safe
 or reliable progress, such as irreconcilable repository state, unavailable
 required credentials or infrastructure, or a repeated push failure. Report the
 exact blocker and the next resumable action.
-

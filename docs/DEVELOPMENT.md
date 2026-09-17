@@ -974,9 +974,9 @@ How beta deployment is performed:
                      DATABASE_URL and SUPABASE_URL come from the service's
                      environment. Nothing is deployed from a developer machine.
 How Android selects beta endpoint:
-                     Not yet — M15.4. Build configuration, not a literal in
-                     source; development builds keep the emulator-loopback
-                     default (D033, D034).
+                     Done — M15.4. Build configuration, not a literal in source;
+                     development builds keep the emulator-loopback default
+                     (D033, D034).
 How beta Supabase differs from local/test (`D035`: same project as development
 for auth and the beta database; local/test remain the Docker PostgreSQL):
                      Auth is the one ChessGame Dev project everywhere. The beta's
@@ -1048,6 +1048,22 @@ later superseded, **not** one that failed.
 `ChessGame server is healthy` with **no** `(health-only: ...)` suffix, so both
 `DATABASE_URL` and `SUPABASE_URL` are set on the service and it is serving the
 real API rather than the health-only fallback.
+
+**Current M19 re-evaluation (2026-09-16).** The existing service was already
+auto-deployed from current `main` at `1f17312848a6d6c9499c0accbd7eb6401f44e657`.
+A cold health request returned HTTP 200 after 54.329 seconds with
+`ChessGame server is healthy (build 1f17312)`. The evaluator's authenticated
+HTTPS/WSS smoke covered session reuse, usernames, friends, groups, parallel
+series, a legal move and opponent update, stale-state recovery, undo,
+resignation/rematch/rotation, explicit exit, unfriending, dashboard, and
+history. The group flow covered eligible additions and transitive membership;
+the direct `InviteEligibility` rule remains an automated local check because
+`D064` deliberately gives it no table-creation API caller. Direct Flyway-history
+and pre-upgrade-row inspection remains blocked without a beta database
+credential, and deployed-log inspection remains blocked without a Render API
+credential; local PostgreSQL migration and forced-failure tests supply the
+corresponding non-beta evidence. See
+`evals/M19/re-evaluation-test-report.md`.
 
 Free-plan behaviour, now measured rather than expected: the service spins down
 after about 15 idle minutes and the next request pays a significant cold start.
