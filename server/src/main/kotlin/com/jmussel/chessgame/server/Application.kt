@@ -27,6 +27,7 @@ import com.jmussel.chessgame.server.realtime.realtimeRoutes
 import com.jmussel.chessgame.server.series.SeriesService
 import com.jmussel.chessgame.server.series.seriesRoutes
 import com.jmussel.chessgame.server.user.LastSeenTracker
+import com.jmussel.chessgame.server.user.allUsersRoutes
 import com.jmussel.chessgame.server.user.identityRoutes
 import com.jmussel.chessgame.server.user.userLookupRoutes
 import com.jmussel.chessgame.server.user.usernameRoutes
@@ -144,6 +145,7 @@ fun Application.module(
             identityRoutes(users)
             usernameRoutes(users)
             userLookupRoutes(users)
+            allUsersRoutes(users, friendships)
             friendRoutes(users, friendships)
             groupRoutes(users, groups)
             seriesRoutes(users, series, realtime)

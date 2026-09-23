@@ -4549,6 +4549,107 @@ the dashboard's top row (`M17.3`). The position is decided. The content is not.
 
 ---
 
+## M17.5 — An "All users" page to add friends from (testing aid)
+
+**Status:** DONE
+
+**Depends on:** None
+
+### The gap
+
+Adding a friend needs their exact username (`D009`). While testing with a new
+anonymous account on each install, that means looking a name up somewhere else
+and typing it in, every time. The project owner wants to pick people from a list.
+The page is a testing aid, always on, and is to be removed or restricted to admins
+before the app has real users (`D071`).
+
+### Acceptance Criteria
+
+- `GET /users`, authenticated, in its own route file, returns only people the
+  caller can add: not the caller, not current friends, not accounts without a
+  username. Most recently active first (`last_seen_at`, `D010`), with the time
+  itself never sent. `UserSummary` entries only (`D069`), capped at 200, with no
+  paging.
+- The Friends screen has a "Browse all users" button directly under the
+  exact-username lookup. It opens a separate page (`Destination.AllUsers`,
+  `ui/allusers/`).
+- Each row is a username and Add. Add goes through the same server route and
+  view-model logic as adding by exact name. After it succeeds, the row shows
+  "Added ✓" and the page stays open. Reopening the page reloads it, and anyone
+  added is gone.
+- The page has loading, empty ("No one else to add.") and failure states. A
+  failure shows a plain message and Try again, which also covers the route being
+  removed while an old APK still has the button.
+- Back returns to Friends, which shows the new friends.
+- No on/off switch, no admin role, no "Add all", no search, no paging, no
+  last-seen times.
+- Everything for the page is kept together. The completion note lists every
+  place removing it would touch.
+- Tests: server (authentication, exclusions, order, cap, exact response keys) and
+  Android (what a row shows, load/empty/failure, Add through the existing path
+  flipping the row).
+
+### Completion Note — 2026-09-23
+
+**Server.** `AllUsersRoutes.kt` holds `GET /users`. It excludes the caller and
+`friendsOf(caller)`, and `UserRepository.namedUsersExcept` does the rest in one
+query: named accounts only, `last_seen_at DESC NULLS LAST`, then newest account,
+`LIMIT 200`. A removed friend is listed again, because they can be added again.
+`last_seen_at` was chosen over `last_action_at` because any request moves it, so
+a test account that has not played yet still counts as active (`D071`). The
+exact-name lookup's comment, which said there was no listing, now points here.
+
+**Android.** The existing add became one private `befriend` in
+`ChessAppViewModel`: the `POST /friends`, a callback with the stored name, then
+the friends list reloaded. The friends screen's `addFriend` and the page's
+`addFromAllUsers` both call it, so there is still one way to add a friend, and
+Back to Friends already shows the new friend. The page has its own state and job.
+Opening it cancels anything left from an earlier visit and starts empty, so
+people added last time are simply gone from the reloaded list. A refusal of the
+list with no explanation says "The list of users is not available.", which is
+what an older APK will see once the route is deleted. A refused add is repeated in
+the server's words, like the friends screen's.
+
+**Removing it touches:**
+
+- `server/.../user/AllUsersRoutes.kt` and `server/.../user/AllUsersTest.kt`:
+  delete.
+- `Application.kt`: the `allUsersRoutes(...)` line and its import.
+- `UserRepository.namedUsersExcept`, and the `SortOrder`, `isNotNull` and
+  `notInList` imports if nothing else uses them.
+- `UserLookupRoutes.kt`: the sentence pointing at the listing.
+- `android-app/.../ui/allusers/` (both files) and its tests `ui/allusers/AllUsersTest.kt`
+  and `app/AllUsersFlowTest.kt`: delete.
+- `Destination.AllUsers`. The compiler then flags the `ChessApp` branch.
+- `ChessApp`: the `allUsers` and `allUsersActions` parameters and the branch.
+- `ChessAppViewModel`: `allUsers`, `allUsersJob`, `openAllUsers`, `loadAllUsers`
+  and `addFromAllUsers`. `befriend` can stay, or be folded back into
+  `addFriend`.
+- `MainActivity`: `allUsersActions`, the two `ChessApp` arguments, and
+  `onBrowseAllUsers`.
+- `FriendsActions.onBrowseAllUsers`, and the button and its string in
+  `FriendsScreen`.
+- `ChessApiClient.allUsers`.
+- Docs: `D071` (supersede it rather than delete it), the paragraph in
+  `PRODUCT.md` Friends, and the paragraph in `ARCHITECTURE.md` §15.
+
+Restricting it to admins instead needs a permission check in the route and a
+field in `/me` that the Friends button reads (`D071`).
+
+Verified with `:server:test --tests AllUsersTest` (5 new: authentication,
+exclusions including unnamed accounts and a removed friend, order with a
+never-seen account last, the cap with 201 others, and the exact key set with no
+time) plus the `UserLookupTest` regression, `:android-app:testDebugUnitTest` for
+`AllUsersFlowTest` (7 new: open and load, empty, a bare 404 then retry, no
+connection, add through `POST /friends` then `GET /friends` with the row marked
+and Friends showing the friend after Back, a refused add, and a reopen that has
+forgotten the added person), `ui/allusers/AllUsersTest` (6 new), and the
+unchanged `ChessAppTest` (109) and `FriendsTest`. Then `.\gradlew.bat build`:
+569 server, 459 Android and 394 game-core tests, none failed or skipped. Not yet
+seen on a device.
+
+---
+
 ---
 
 # M18 — Post-Chess Architecture Review

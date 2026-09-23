@@ -50,6 +50,9 @@ fun FriendsScreen(
             onDismissFound = actions.onDismissFound,
         )
 
+        // The testing aid for adding without knowing the exact name (`D071`).
+        TextButton(onClick = actions.onBrowseAllUsers, enabled = !state.busy) { Text(text = BROWSE_ALL_USERS) }
+
         state.message?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium) }
 
         Text(text = FRIENDS, style = MaterialTheme.typography.titleSmall)
@@ -160,6 +163,7 @@ private fun RemovalConfirmation(
 }
 
 private const val ADD_HEADING = "Add a friend"
+private const val BROWSE_ALL_USERS = "Browse all users"
 private const val FRIENDS = "FRIENDS"
 private const val USERNAME = "Username"
 private const val FIND = "Find"

@@ -12,8 +12,9 @@ import io.ktor.server.routing.get
  * Looking a user up by username, which is how friends are added (`D009`).
  *
  * The match is exact on the normalized name, so `Jordan` and `jordan` find the same person
- * and nothing else does — there is no search, no listing, and no partial match, because
- * the product only needs "I know my friend's name" (`docs/PRODUCT.md`).
+ * and nothing else does — there is no search and no partial match, because the product
+ * only needs "I know my friend's name" (`docs/PRODUCT.md`). The one listing is the
+ * "All users" testing aid, which is separate and temporary ([allUsersRoutes], `D071`).
  */
 fun Route.userLookupRoutes(users: UserRepository) {
     get("/users/{username}") {

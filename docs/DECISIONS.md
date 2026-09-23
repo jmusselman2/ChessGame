@@ -4456,3 +4456,65 @@ today, so the decision is cheap now and expensive to discover later — a cache 
 
 - No client or server change for chess: the app holds one viewer's payloads and caches none.
 - [`docs/GAME-STATE-VISIBILITY.md`](GAME-STATE-VISIBILITY.md) records where each existing use of the version stands.
+
+---
+
+## D071 — An "All Users" Page Lists Everyone the Caller Could Add, as a Temporary Testing Aid
+
+**Date:** 2026-09-23
+
+**Status:** Accepted
+
+**Relates to:** `D008`, `D009`, `D010`, `D069`, `M17.5`
+
+### Decision
+
+- **`GET /users` lists everyone the caller could add as a friend**, to any signed-in
+  caller: not the caller, not a current friend, not an account without a username.
+  The Friends screen reaches it through a "Browse all users" button, on a page of its
+  own.
+- **It is a testing aid, decided by the project owner.** Nobody but testers uses the
+  app, and a fresh anonymous account on every install makes typing exact names the
+  slowest part of testing. Letting every signed-in user see every username is
+  acceptable on those terms. It is a product decision, not an open security question.
+- **Always on.** No on/off switch, no config flag, and no admin role.
+- **To be removed, or restricted to admins, before the app has real users.**
+  Restricting it means a permission check in the route and a field in `/me` that tells
+  the app whether to show the button. Both are added then, not now.
+- **Adding goes through the existing add.** The page calls the same `POST /friends`
+  and the same view-model logic as adding by exact name, so it adds no second way to
+  become friends. Exact-name lookup (`D009`) stays the product's way to find someone.
+- **As little as the page needs.** Each entry is a `UserSummary` and nothing more
+  (`D069`). The list is ordered by most recently seen (`last_seen_at`, `D010`) so that
+  accounts abandoned by a reinstall, whose names stay reserved (`D008`), sink. The time
+  itself is not sent. The list is capped at 200, with no paging.
+
+### Rationale
+
+The need is getting test accounts friended quickly from the phone. A page of its own,
+rather than a section inside Friends, keeps it removable by deleting it, without
+editing screens that stay. A switch would guard against nothing the project has yet,
+and deleting the route turns it off for every installed APK at once. An old APK then
+gets a "not available" message on that page, and nothing else changes.
+
+`last_seen_at` rather than `last_action_at` (`D060`): any request moves it, so a new
+test account that has not played yet still counts as active.
+
+### Alternatives Considered
+
+- **A section inside the Friends screen.** Rejected: removing it would mean editing
+  the Friends screen's state and layout, which are staying.
+- **A debug-build-only screen.** Rejected: the beta APK is a release build (`M17.1`),
+  so it would never reach the phones testing is done on, and the server route would
+  still need its own guard.
+- **Type-ahead search in the lookup box.** Rejected for this purpose: it changes a flow
+  that stays and does not show everyone at once. It is the likely successor if finding
+  friends needs help once the page is gone.
+- **A server switch, off by default.** Rejected for now: it solves problems the
+  project does not have, and it can be added in an hour if an APK reaches people
+  outside testing before this page's future is decided.
+
+### Consequences
+
+- `M17.5`'s completion note lists every place removing the page touches.
+- `PRODUCT.md`'s Friends section and `ARCHITECTURE.md` §15 describe it as temporary.

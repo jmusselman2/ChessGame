@@ -3,9 +3,12 @@
 package com.jmussel.chessgame.server.db
 
 import com.jmussel.chessgame.server.user.Username
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.notInList
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -73,6 +76,27 @@ class UserRepository(
                 .where { UsersTable.usernameNormalized eq username.lowercase() }
                 .singleOrNull()
                 ?.let(::toUser)
+        }
+
+    /**
+     * Everyone with a username except [excluded], most recently seen first, and at most
+     * [limit] of them.
+     *
+     * Only the "All users" testing aid asks this (`D071`). Ordered by [StoredUser.lastSeenAt]
+     * so that accounts abandoned by a reinstall, whose names stay reserved (`D008`), sink
+     * below the ones still in use. The newest account comes first among equals.
+     */
+    fun namedUsersExcept(
+        excluded: Set<Uuid>,
+        limit: Int,
+    ): List<StoredUser> =
+        transaction(database) {
+            UsersTable
+                .selectAll()
+                .where { UsersTable.username.isNotNull() and (UsersTable.id notInList excluded) }
+                .orderBy(UsersTable.lastSeenAt to SortOrder.DESC_NULLS_LAST, UsersTable.createdAt to SortOrder.DESC)
+                .limit(limit)
+                .map(::toUser)
         }
 
     /**

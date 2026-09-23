@@ -315,6 +315,12 @@ class ChessApiClient(
     suspend fun lookUpUser(username: String): UserSummaryDto = get("/users/$username")
 
     /**
+     * Everyone the caller could add as a friend, most recently seen first: the "All users"
+     * testing aid (`D071`). Not the caller, not a current friend, and at most 200 of them.
+     */
+    suspend fun allUsers(): List<UserSummaryDto> = get("/users")
+
+    /**
      * Becomes friends with [username], which is mutual immediately (`D009`).
      *
      * Returns the name as the server stored it. Adding yourself, adding someone who is

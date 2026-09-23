@@ -14,6 +14,7 @@ import androidx.compose.ui.Modifier
 import com.jmussel.chessgame.app.ChessApp
 import com.jmussel.chessgame.app.ChessAppDependencies
 import com.jmussel.chessgame.app.ChessAppViewModel
+import com.jmussel.chessgame.ui.allusers.AllUsersActions
 import com.jmussel.chessgame.ui.dashboard.DashboardActions
 import com.jmussel.chessgame.ui.friends.FriendsActions
 import com.jmussel.chessgame.ui.series.PlayOfferActions
@@ -64,7 +65,13 @@ class MainActivity : ComponentActivity() {
                             onCancelRemove = viewModel::cancelRemoveFriend,
                             onPlay = viewModel::playFriend,
                             onRetry = viewModel::loadFriends,
+                            onBrowseAllUsers = viewModel::openAllUsers,
                         )
+                    }
+
+                val allUsersActions =
+                    remember(viewModel) {
+                        AllUsersActions(onAdd = viewModel::addFromAllUsers, onRetry = viewModel::loadAllUsers)
                     }
 
                 val playOfferActions =
@@ -84,6 +91,7 @@ class MainActivity : ComponentActivity() {
                         username = viewModel.currentUser?.username,
                         usernameClaim = viewModel.usernameClaim,
                         friends = viewModel.friends,
+                        allUsers = viewModel.allUsers,
                         dashboard = viewModel.dashboard,
                         history = viewModel.history,
                         game = viewModel.game,
@@ -110,6 +118,7 @@ class MainActivity : ComponentActivity() {
                         onGameDone = viewModel::returnToDashboard,
                         onClaimUsername = viewModel::claimUsername,
                         friendsActions = friendsActions,
+                        allUsersActions = allUsersActions,
                         dashboardActions = dashboardActions,
                         playOffer = viewModel.playOffer,
                         playOfferActions = playOfferActions,

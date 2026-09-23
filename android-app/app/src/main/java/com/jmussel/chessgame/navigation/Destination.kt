@@ -20,6 +20,9 @@ sealed interface Destination {
     /** Adding and removing friends, who are the only people there is anything to do with. */
     data object Friends : Destination
 
+    /** Everyone the player could add as a friend: a testing aid, reached from Friends (`D071`). */
+    data object AllUsers : Destination
+
     /** Games that are over. */
     data object History : Destination
 

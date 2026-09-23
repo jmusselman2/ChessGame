@@ -488,6 +488,15 @@ Use normalized pair ordering or an equivalent database constraint.
 
 Friendship is mutual immediately.
 
+A friend is found by exact username, `GET /users/{username}`, and added with
+`POST /friends` (`D009`). As a temporary testing aid, `GET /users` lists
+everyone the caller could add: not the caller, not a current friend, not an
+unnamed account. It is ordered by `last_seen_at`, newest first, without sending
+the time, and returns `UserSummary` entries only, capped at 200. The app's
+"All users" page adds from it through the same `POST /friends`. It is always on
+and is to be removed or restricted to admins before the app has real users
+(`D071`).
+
 ## 15.1 Groups
 
 A **group** is a named, standing pool of people whose only function is

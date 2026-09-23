@@ -20,6 +20,9 @@ import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
+import com.jmussel.chessgame.ui.allusers.AllUsersActions
+import com.jmussel.chessgame.ui.allusers.AllUsersScreen
+import com.jmussel.chessgame.ui.allusers.AllUsersUiState
 import com.jmussel.chessgame.ui.board.LocalGameScreen
 import com.jmussel.chessgame.ui.dashboard.DashboardActions
 import com.jmussel.chessgame.ui.dashboard.DashboardScreen
@@ -54,6 +57,7 @@ fun ChessApp(
     username: String? = null,
     usernameClaim: UsernameClaim = UsernameClaim.Idle,
     friends: FriendsUiState = FriendsUiState(),
+    allUsers: AllUsersUiState = AllUsersUiState(),
     dashboard: DashboardUiState = DashboardUiState(),
     history: HistoryUiState = HistoryUiState(),
     game: OnlineGameState? = null,
@@ -80,6 +84,7 @@ fun ChessApp(
     onGameDone: () -> Unit = {},
     onClaimUsername: (String) -> Unit = {},
     friendsActions: FriendsActions = FriendsActions(),
+    allUsersActions: AllUsersActions = AllUsersActions(),
     dashboardActions: DashboardActions = DashboardActions(),
     playOffer: PlayOffer? = null,
     playOfferActions: PlayOfferActions = PlayOfferActions(),
@@ -110,6 +115,7 @@ fun ChessApp(
                     onRetry = dashboardActions.onRetry,
                 )
             Destination.Friends -> FriendsScreen(state = friends, actions = friendsActions)
+            Destination.AllUsers -> AllUsersScreen(state = allUsers, actions = allUsersActions)
             Destination.History ->
                 HistoryScreen(
                     series = history.series,

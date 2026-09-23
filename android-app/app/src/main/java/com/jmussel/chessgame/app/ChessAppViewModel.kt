@@ -20,6 +20,8 @@ import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
+import com.jmussel.chessgame.ui.allusers.AllUsers
+import com.jmussel.chessgame.ui.allusers.AllUsersUiState
 import com.jmussel.chessgame.ui.dashboard.DashboardMessages
 import com.jmussel.chessgame.ui.dashboard.DashboardRow
 import com.jmussel.chessgame.ui.dashboard.DashboardUiState
@@ -84,6 +86,10 @@ class ChessAppViewModel(
     var friends: FriendsUiState by mutableStateOf(FriendsUiState())
         private set
 
+    /** The "All users" page, a testing aid (`D071`): who could be added, and what happened. */
+    var allUsers: AllUsersUiState by mutableStateOf(AllUsersUiState())
+        private set
+
     /** The history screen: what has been played, and what is happening to the list of it. */
     var history: HistoryUiState by mutableStateOf(HistoryUiState())
         private set
@@ -120,6 +126,10 @@ class ChessAppViewModel(
 
     /** Whatever the friends screen has asked for, if anything. Internal for the same reason. */
     internal var friendsJob: Job? = null
+        private set
+
+    /** Whatever the "All users" page has asked for, if anything. Internal for the same reason. */
+    internal var allUsersJob: Job? = null
         private set
 
     /** Whatever the dashboard has asked for, if anything. Internal for the same reason. */
@@ -1008,10 +1018,83 @@ class ChessAppViewModel(
         if (!Friends.isSendable(username)) return
 
         runOnFriends { api ->
-            val added = api.addFriend(Friends.cleaned(username))
-            friends = friends.copy(found = null, message = "Added $added.")
-            fetchFriends()
+            befriend(api, username) { added -> friends = friends.copy(found = null, message = "Added $added.") }
         }
+    }
+
+    /**
+     * The one way a friend is added, from the friends screen or the "All users" page: the
+     * add itself, [onAdded] with the name as the server stored it, then the friends list
+     * reloaded rather than guessed at.
+     */
+    private suspend fun befriend(
+        api: ChessApiClient,
+        username: String,
+        onAdded: (String) -> Unit,
+    ) {
+        onAdded(api.addFriend(Friends.cleaned(username)))
+        fetchFriends()
+    }
+
+    /**
+     * Opens the "All users" page, a testing aid (`D071`), and loads it.
+     *
+     * Starts from nothing each time, so anyone added on an earlier visit has gone from the
+     * list rather than still showing as added.
+     */
+    fun openAllUsers() {
+        allUsersJob?.cancel()
+        allUsers = AllUsersUiState()
+        open(Destination.AllUsers)
+        loadAllUsers()
+    }
+
+    /** Fetches everyone the player could add. */
+    fun loadAllUsers() {
+        if (allUsersJob?.isActive == true) return
+
+        allUsersJob =
+            viewModelScope.launch {
+                allUsers = allUsers.copy(loading = true, message = null)
+
+                allUsers =
+                    try {
+                        AllUsersUiState(users = dependencies.chessApi.allUsers(), loaded = true)
+                    } catch (refused: ChessApiException) {
+                        allUsers.copy(loading = false, message = AllUsers.messageFor(refused))
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (unreachable: Exception) {
+                        allUsers.copy(loading = false, message = AllUsers.unreachableMessage())
+                    }
+            }
+    }
+
+    /**
+     * Adds [user] from the "All users" page, through the same add as the friends screen.
+     *
+     * The page stays open and their row says they were added, so several people can be added
+     * in a row. A refusal is the server's, in its own words, like the friends screen's.
+     */
+    fun addFromAllUsers(user: UserSummaryDto) {
+        if (allUsersJob?.isActive == true) return
+
+        allUsersJob =
+            viewModelScope.launch {
+                allUsers = allUsers.copy(adding = user.userId, message = null)
+
+                try {
+                    befriend(dependencies.chessApi, user.username) { allUsers = allUsers.copy(added = allUsers.added + user.userId) }
+                } catch (refused: ChessApiException) {
+                    allUsers = allUsers.copy(message = Friends.messageFor(refused))
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (unreachable: Exception) {
+                    allUsers = allUsers.copy(message = Friends.unreachableMessage())
+                } finally {
+                    allUsers = allUsers.copy(adding = null)
+                }
+            }
     }
 
     /** Asks whether [friend] really should be removed, and what that will do. */
