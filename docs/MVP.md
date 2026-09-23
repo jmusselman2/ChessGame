@@ -97,6 +97,9 @@ for task-level status.
 - Removing a friend affects the friends list only: the series and its automatic
   rematches carry on (`D053`, superseding `D013`'s "disables the next rematch and
   closes the series after the current game").
+- An "All users" page lists every user so testers can add friends without typing
+  exact names (`D071`, `M17.5`, `M17.6`). It is a testing aid and part of the
+  MVP. Removing it, or restricting it to admins, is post-MVP work (`F10`).
 
 ### Multiplayer
 
@@ -119,7 +122,9 @@ for task-level status.
 - Final move immediately finalizes game.
 - Completed result is persisted.
 - Exactly one next game is created when the series remains active.
-- No next game is created when the series is closing.
+- A participant can leave a series. Leaving closes it at once; its current game
+  can still be finished, and no next game is created (`D053`, `D068`, `M19.8`;
+  this replaced `D013`'s "closing after the current game" state).
 - Rematch colors alternate.
 - Series points to the new current game when rematch is created.
 - No rematch confirmation is required.
@@ -148,17 +153,61 @@ for task-level status.
 
 ## Explicitly Not Required for MVP
 
-- AI opponent
-- matchmaking
-- ratings
-- chat
-- push notifications
-- clocks
-- draw offers by agreement
-- public games
-- tournaments
-- username changes
-- account recovery UI
-- multiple simultaneous active series per friend pair
-- detailed statistics
-- deck-building systems
+This is the binding and complete list of what is not in the MVP. What is known
+about each item, and what is still to decide, is in `docs/FUTURE.md` under the
+same `F` number (`D072`). The two lists hold the same items; changing one means
+changing both.
+
+### Chess Play
+
+- `F2` draw offers by agreement (`D019`)
+- `F3` drag-and-drop moves (`PRODUCT.md`)
+- `F8` AI opponent
+- `F9` clocks
+- `F11` dead-position detection by search (`D038`)
+
+### Identity and Accounts
+
+- `F5` username changes
+- `F7` account recovery UI (`PRODUCT.md`)
+- `F10` removing the "All users" page, or restricting it to admins (`D071`)
+- `F12` approval setting for friend requests and game invites (`D047`, `D049`)
+
+### Social
+
+- `F6` detailed profiles (`PRODUCT.md`)
+- `F13` blocking (`PRODUCT.md`)
+- `F14` chat
+- `F15` followers (`PRODUCT.md`)
+- `F16` social feeds (`PRODUCT.md`)
+- `F17` contact syncing (`PRODUCT.md`)
+- `F23` push notifications
+- `F25` "suggest friends" for table co-participants (`D049`)
+
+### Series and Statistics
+
+- `F1` win/loss/draw record per friend
+- `F4` turning automatic rematches off by hand (`PRODUCT.md`)
+- `F20` ratings
+- `F28` detailed statistics, including per-table statistics (`D048`)
+- `F29` series revival (`D048`)
+
+### Public Play
+
+- `F18` spectators (`docs/GAME-STATE-VISIBILITY.md`)
+- `F19` matchmaking
+- `F21` public games
+- `F22` tournaments
+
+### Other Clients
+
+- `F30` iOS or web clients (`D002`)
+
+### Deck-Builder Platform
+
+- `F24` deck-building systems
+- `F26` deck-builder solo mode (`D048`)
+- `F27` AI players in the deck-builder's normal modes (`D051`)
+
+Several active series per friend pair was on this list until `D053` made it MVP
+behaviour.

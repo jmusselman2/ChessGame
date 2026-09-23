@@ -42,6 +42,12 @@ per-viewer allowlist projection, and deck order, unknown card identity, the seed
 snapshots and raw events never do) and `D070` (a payload is identified by
 `(gameId, version, viewer)`).
 
+Also read `docs/FUTURE.md` before triaging or scheduling work that is not in the
+MVP. It holds every non-MVP item under a stable `F` number, with its source, open
+decisions, dependencies, value to players and rough effort. It is nonbinding: `docs/MVP.md` stays
+the binding list of what is non-MVP, and the backlog holds only scheduled work
+(`D072`). The autonomous loop never selects work from it.
+
 Standalone analysis documents follow `D062`. Important or cross-cutting ones are
 added to this list once they exist.
 
@@ -63,8 +69,9 @@ does not exist yet — and it defers to every document above it. Anything in it
 that needs to bind becomes a decision in `docs/DECISIONS.md` (see `D044`).
 `docs/UNDO-STORAGE.md` and `docs/GAME-STATE-VISIBILITY.md` are absent for the same
 reason: they are nonbinding analysis, and `D061`, and `D069` and `D070`, are their binding
-outcomes. Standalone analysis documents in general carry
-no precedence of their own (`D062`).
+outcomes. `docs/FUTURE.md` is absent because it is nonbinding detail for items
+whose scope `docs/MVP.md` already binds (`D072`). Standalone analysis documents
+in general carry no precedence of their own (`D062`).
 
 If a lower-precedence document conflicts with a higher-precedence document, do not silently reconcile them. Follow the higher-precedence document and update the stale lower-precedence document when appropriate.
 

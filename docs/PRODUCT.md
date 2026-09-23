@@ -97,8 +97,9 @@ For testing, the Friends screen also has "Browse all users": a page listing
 every user. People you could add come first, each with Add, then your friends,
 marked as friends. Each group is most recently active first. Add uses the same
 add as the exact-username box, and the page stays open so several people can be
-added in a row. It is temporary. It is to be removed, or restricted to admins,
-before the app has real users (`D071`, `M17.5`, `M17.6`).
+added in a row. It is a testing aid and part of the MVP. Removing it, or
+restricting it to admins, is post-MVP work with no deadline (`D071`, `M17.5`,
+`M17.6`; `F10` in `docs/FUTURE.md`).
 
 Friendships are mutual immediately.
 
@@ -261,7 +262,10 @@ Once accepted by the server:
 - resignation cannot be undone,
 - result is saved,
 - an automatic rematch is created if the series remains active,
-- otherwise the series closes after the game.
+- if a participant has already left the series, no rematch follows: that game
+  was its last (`D068`),
+- resigning a game never leaves or closes the series; leaving is a separate
+  action (`M19.8`).
 
 ## Chess Rules
 

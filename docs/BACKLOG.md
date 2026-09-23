@@ -4561,7 +4561,8 @@ Adding a friend needs their exact username (`D009`). While testing with a new
 anonymous account on each install, that means looking a name up somewhere else
 and typing it in, every time. The project owner wants to pick people from a list.
 The page is a testing aid, always on, and is to be removed or restricted to admins
-before the app has real users (`D071`).
+before the app has real users (`D071`). *Amended 2026-09-23:* the page is part of
+the MVP, and its removal is parked post-MVP work with no deadline (`F10` in `docs/FUTURE.md`, `D072`).
 
 ### Acceptance Criteria
 

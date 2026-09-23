@@ -494,8 +494,8 @@ every named user except the caller: people the caller could add first, then
 friends, each group ordered by `last_seen_at`, newest first, without sending
 the time. Each entry is `userId`, `username` and `friend`, capped at 200 with
 people to add first. The app's "All users" page adds from it through the same
-`POST /friends`. It is always on and is to be removed or restricted to admins
-before the app has real users (`D071`).
+`POST /friends`. It is always on and part of the MVP. Removing it or
+restricting it to admins is parked post-MVP work (`D071`; `F10` in `docs/FUTURE.md`).
 
 ## 15.1 Groups
 

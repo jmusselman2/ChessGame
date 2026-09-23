@@ -4464,7 +4464,10 @@ today, so the decision is cheap now and expensive to discover later — a cache 
 **Date:** 2026-09-23
 
 **Status:** Accepted. Amended the same day by `M17.6`: the page first listed only people
-the caller could add, and now lists friends too, below everyone else.
+the caller could add, and now lists friends too, below everyone else. Amended again the
+same day by the project owner: the page is part of the MVP, and removing or restricting
+it is parked post-MVP work (`F10` in `docs/FUTURE.md`, `D072`) with no deadline. It
+was "before the app has real users".
 
 **Relates to:** `D008`, `D009`, `D010`, `D069`, `M17.5`, `M17.6`
 
@@ -4480,9 +4483,11 @@ the caller could add, and now lists friends too, below everyone else.
   slowest part of testing. Letting every signed-in user see every username is
   acceptable on those terms. It is a product decision, not an open security question.
 - **Always on.** No on/off switch, no config flag, and no admin role.
-- **To be removed, or restricted to admins, before the app has real users.**
-  Restricting it means a permission check in the route and a field in `/me` that tells
-  the app whether to show the button. Both are added then, not now.
+- **Part of the MVP. Removing it, or restricting it to admins, is post-MVP.** It is
+  parked as `F10` in `docs/FUTURE.md` with no deadline, and the choice between
+  removing and restricting is the project owner's. Restricting it means a
+  permission check in the route and a field in `/me` that tells the app whether to
+  show the button. Both are added then, not now.
 - **Adding goes through the existing add.** The page calls the same `POST /friends`
   and the same view-model logic as adding by exact name, so it adds no second way to
   become friends. Exact-name lookup (`D009`) stays the product's way to find someone.
@@ -4520,4 +4525,64 @@ test account that has not played yet still counts as active.
 ### Consequences
 
 - `M17.5`'s completion note lists every place removing the page touches.
-- `PRODUCT.md`'s Friends section and `ARCHITECTURE.md` §15 describe it as temporary.
+- `PRODUCT.md`'s Friends section and `ARCHITECTURE.md` §15 describe it as part of
+  the MVP, with removing or restricting it parked as `F10` in `docs/FUTURE.md`.
+
+---
+
+## D072 — Non-MVP Work Lives in `docs/FUTURE.md`, and the Backlog Holds Only Scheduled Work
+
+**Date:** 2026-09-23
+
+**Status:** Accepted
+
+**Relates to:** `D062`, `D071`, `docs/MVP.md`, `docs/FUTURE.md`, `docs/BACKLOG.md`
+
+**Scope:** Where work outside the MVP is recorded. It moves no item into or out of
+the MVP.
+
+### Decision
+
+- **`docs/BACKLOG.md` holds only scheduled work.** No parked, post-MVP or
+  "someday" task is kept there, not even as `BLOCKED`.
+- **Non-MVP work lives in `docs/FUTURE.md`.** Each item has a stable `F` number
+  that is never reused, its source, the decisions still open for the project
+  owner, its dependencies, its value to players, and a rough effort.
+- **An item enters the backlog only when the project owner schedules it.** It then
+  becomes an ordinary backlog task and is removed from `FUTURE.md`. The autonomous
+  loop never selects work from `FUTURE.md`.
+- **`docs/MVP.md` stays the binding list of what is non-MVP.** `FUTURE.md` is
+  nonbinding and carries no precedence (`D062`). The two hold exactly the same
+  items, under the same `F` numbers, and a change to one is made to the other in
+  the same change. Where they differ, `MVP.md` governs.
+- `D071`'s parked task, which briefly sat in a parked section at the end of the
+  backlog, is `F10`.
+
+### Rationale
+
+The project owner does not want post-MVP items in the backlog. The backlog is what
+the autonomous loop reads, so anything in it is one status change away from being
+built. A separate document keeps "not now" visibly apart from "next", while still
+recording what is known about each item so it is not rediscovered when it is
+scheduled.
+
+Keeping `MVP.md` binding keeps scope where the precedence order already puts it.
+`FUTURE.md` only adds detail, so it can be edited freely without changing scope.
+
+### Alternatives Considered
+
+- **A backlog section of `BLOCKED` tasks.** Tried first, for `F10`. Rejected by the
+  project owner: parked work does not belong in the list of scheduled work, and
+  `BLOCKED` already means "scheduled but waiting".
+- **GitHub Issues with a `post-mvp` label.** Rejected: it would sit apart from the
+  decisions it cites, and a session would need extra tools to read it.
+- **Notion.** Rejected for the same reasons.
+
+### Consequences
+
+- `docs/FUTURE.md` exists and is listed in `CLAUDE.md` as nonbinding reading for
+  triaging or scheduling non-MVP work.
+- `MVP.md`'s *Explicitly Not Required for MVP* is a list of names with their `F`
+  numbers.
+- The parked section is removed from `docs/BACKLOG.md`. `D071`, `PRODUCT.md`,
+  `ARCHITECTURE.md` §15, `M17.5` and `MVP.md` now refer to `F10`.
