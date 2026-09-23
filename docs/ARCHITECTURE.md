@@ -490,12 +490,12 @@ Friendship is mutual immediately.
 
 A friend is found by exact username, `GET /users/{username}`, and added with
 `POST /friends` (`D009`). As a temporary testing aid, `GET /users` lists
-everyone the caller could add: not the caller, not a current friend, not an
-unnamed account. It is ordered by `last_seen_at`, newest first, without sending
-the time, and returns `UserSummary` entries only, capped at 200. The app's
-"All users" page adds from it through the same `POST /friends`. It is always on
-and is to be removed or restricted to admins before the app has real users
-(`D071`).
+every named user except the caller: people the caller could add first, then
+friends, each group ordered by `last_seen_at`, newest first, without sending
+the time. Each entry is `userId`, `username` and `friend`, capped at 200 with
+people to add first. The app's "All users" page adds from it through the same
+`POST /friends`. It is always on and is to be removed or restricted to admins
+before the app has real users (`D071`).
 
 ## 15.1 Groups
 

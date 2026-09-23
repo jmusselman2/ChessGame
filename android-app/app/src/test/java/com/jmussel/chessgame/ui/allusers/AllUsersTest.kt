@@ -1,39 +1,50 @@
 package com.jmussel.chessgame.ui.allusers
 
 import com.jmussel.chessgame.api.ChessApiException
-import com.jmussel.chessgame.api.UserSummaryDto
+import com.jmussel.chessgame.api.ListedUserDto
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** What each row of the "All users" page offers, and what the page says when the list fails (`D071`). */
+/** How the "All users" page groups and marks everyone, and what it says when the list fails (`D071`). */
 class AllUsersTest {
-    private val alex = UserSummaryDto(userId = "user-1", username = "Alex")
-    private val sam = UserSummaryDto(userId = "user-2", username = "Sam")
+    private val alex = ListedUserDto(userId = "user-1", username = "Alex", friend = false)
+    private val sam = ListedUserDto(userId = "user-2", username = "Sam", friend = false)
+    private val robin = ListedUserDto(userId = "user-3", username = "Robin", friend = true)
 
     private fun refusal(explanation: String) = ChessApiException(status = 404, explanation = explanation, message = "refused")
 
     @Test
-    fun everyoneNotYetAddedOffersAdd() {
-        val rows = AllUsers.rows(AllUsersUiState(users = listOf(alex, sam), loaded = true))
+    fun friendsGoUnderneathEveryoneElseInTheServersOrder() {
+        val sections = AllUsers.sections(AllUsersUiState(users = listOf(robin, sam, alex), loaded = true))
 
-        assertEquals(listOf("Alex", "Sam"), rows.map { it.user.username })
-        assertTrue(rows.all { !it.added && it.canAdd })
+        assertEquals(listOf("Sam", "Alex"), sections.toAdd.map { it.user.username })
+        assertEquals(listOf("Robin"), sections.friends.map { it.user.username })
     }
 
     @Test
-    fun someoneAddedSaysSoInsteadOfOfferingAddAgain() {
-        val rows = AllUsers.rows(AllUsersUiState(users = listOf(alex, sam), added = setOf("user-1"), loaded = true))
+    fun everyoneNotYetAFriendOffersAddAndFriendsDoNot() {
+        val sections = AllUsers.sections(AllUsersUiState(users = listOf(alex, robin), loaded = true))
 
-        assertEquals(listOf(true, false), rows.map { it.added })
-        assertEquals(listOf(false, true), rows.map { it.canAdd })
+        assertTrue(sections.toAdd.single().canAdd)
+        assertTrue(!sections.friends.single().canAdd)
+    }
+
+    @Test
+    fun someoneAddedStaysWhereTheyWereAndSaysSo() {
+        val sections =
+            AllUsers.sections(AllUsersUiState(users = listOf(alex, sam), added = setOf("user-1"), loaded = true))
+
+        assertEquals(listOf("Alex", "Sam"), sections.toAdd.map { it.user.username })
+        assertEquals(listOf(true, false), sections.toAdd.map { it.added })
+        assertEquals(listOf(false, true), sections.toAdd.map { it.canAdd })
     }
 
     @Test
     fun nobodyCanBeAddedWhileAnAddIsInFlight() {
-        val rows = AllUsers.rows(AllUsersUiState(users = listOf(alex, sam), adding = "user-1", loaded = true))
+        val sections = AllUsers.sections(AllUsersUiState(users = listOf(alex, sam), adding = "user-1", loaded = true))
 
-        assertTrue(rows.none { it.canAdd })
+        assertTrue(sections.toAdd.none { it.canAdd })
     }
 
     @Test

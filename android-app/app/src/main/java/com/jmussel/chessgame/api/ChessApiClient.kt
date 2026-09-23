@@ -90,6 +90,14 @@ class ChessApiException(
     override val message: String,
 ) : RuntimeException(message)
 
+/** One person on the "All users" page, and whether the caller is already their friend (`D071`). */
+@Serializable
+data class ListedUserDto(
+    val userId: String,
+    val username: String,
+    val friend: Boolean,
+)
+
 /** A player as the server describes them. */
 @Serializable
 data class UserSummaryDto(
@@ -315,10 +323,10 @@ class ChessApiClient(
     suspend fun lookUpUser(username: String): UserSummaryDto = get("/users/$username")
 
     /**
-     * Everyone the caller could add as a friend, most recently seen first: the "All users"
-     * testing aid (`D071`). Not the caller, not a current friend, and at most 200 of them.
+     * Every user but the caller, for the "All users" testing aid (`D071`): people the caller
+     * could add first, then their friends, each most recently seen first. At most 200.
      */
-    suspend fun allUsers(): List<UserSummaryDto> = get("/users")
+    suspend fun allUsers(): List<ListedUserDto> = get("/users")
 
     /**
      * Becomes friends with [username], which is mutual immediately (`D009`).

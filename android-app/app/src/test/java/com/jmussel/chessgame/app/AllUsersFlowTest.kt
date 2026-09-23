@@ -66,7 +66,8 @@ class AllUsersFlowTest {
     /**
      * A server that knows [everyone] and whom the caller is friends with.
      *
-     * `GET /users` lists everyone who is not yet a friend, and `POST /friends` makes one.
+     * `GET /users` lists everyone who is not yet a friend, then the friends, and
+     * `POST /friends` makes one.
      * The first [refusals] requests to [refusalCall] are refused with [refusalStatus] and
      * [refusalBody] instead.
      */
@@ -92,7 +93,7 @@ class AllUsersFlowTest {
 
                 val body =
                     when {
-                        call == "GET /users" -> users(everyone - friends.toSet())
+                        call == "GET /users" -> listed(everyone - friends.toSet(), friends)
                         call == "GET /friends" -> users(friends)
                         request.method == HttpMethod.Post && request.url.encodedPath == "/friends" ->
                             (request.body as TextContent).text.also { friends += it }
@@ -106,6 +107,18 @@ class AllUsersFlowTest {
     }
 
     private fun users(names: List<String>): String = names.joinToString(",", "[", "]") { """{"userId":"user-$it","username":"$it"}""" }
+
+    private fun listed(
+        others: List<String>,
+        friends: List<String>,
+    ): String {
+        fun entry(
+            name: String,
+            friend: Boolean,
+        ) = """{"userId":"user-$name","username":"$name","friend":$friend}"""
+
+        return (others.map { entry(it, friend = false) } + friends.map { entry(it, friend = true) }).joinToString(",", "[", "]")
+    }
 
     private fun viewModel(httpClient: HttpClient = server()): ChessAppViewModel {
         val dependencies =
@@ -247,7 +260,7 @@ class AllUsersFlowTest {
         }
 
     @Test
-    fun reopeningThePageReloadsItAndWhoeverWasAddedHasGone() =
+    fun reopeningThePageReloadsItAndWhoeverWasAddedIsListedWithTheFriends() =
         runTest(dispatcher) {
             val viewModel = viewModel()
             viewModel.openAllUsers()
@@ -259,7 +272,8 @@ class AllUsersFlowTest {
             viewModel.openAllUsers()
             viewModel.allUsersJob?.join()
 
-            assertEquals(listOf("Sam"), viewModel.allUsers.users.map { it.username })
+            assertEquals(listOf("Sam", "Alex"), viewModel.allUsers.users.map { it.username })
+            assertEquals(listOf(false, true), viewModel.allUsers.users.map { it.friend })
             assertTrue("nothing is marked on a fresh visit", viewModel.allUsers.added.isEmpty())
         }
 }

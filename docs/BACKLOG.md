@@ -4615,8 +4615,9 @@ the server's words, like the friends screen's.
 - `server/.../user/AllUsersRoutes.kt` and `server/.../user/AllUsersTest.kt`:
   delete.
 - `Application.kt`: the `allUsersRoutes(...)` line and its import.
-- `UserRepository.namedUsersExcept`, and the `SortOrder`, `isNotNull` and
-  `notInList` imports if nothing else uses them.
+- `UserRepository.namedUsers` (named `namedUsersExcept` until `M17.6`), and the
+  `SortOrder`, `isNotNull`, `inList` and `notInList` imports if nothing else uses
+  them.
 - `UserLookupRoutes.kt`: the sentence pointing at the listing.
 - `android-app/.../ui/allusers/` (both files) and its tests `ui/allusers/AllUsersTest.kt`
   and `app/AllUsersFlowTest.kt`: delete.
@@ -4629,7 +4630,8 @@ the server's words, like the friends screen's.
   `onBrowseAllUsers`.
 - `FriendsActions.onBrowseAllUsers`, and the button and its string in
   `FriendsScreen`.
-- `ChessApiClient.allUsers`.
+- `ChessApiClient.allUsers` and `ListedUserDto` (the server's `ListedUser` is in
+  `AllUsersRoutes.kt`, `M17.6`).
 - Docs: `D071` (supersede it rather than delete it), the paragraph in
   `PRODUCT.md` Friends, and the paragraph in `ARCHITECTURE.md` §15.
 
@@ -4647,6 +4649,66 @@ forgotten the added person), `ui/allusers/AllUsersTest` (6 new), and the
 unchanged `ChessAppTest` (109) and `FriendsTest`. Then `.\gradlew.bat build`:
 569 server, 459 Android and 394 game-core tests, none failed or skipped. Not yet
 seen on a device.
+
+---
+
+## M17.6 — "All users" lists friends too, below everyone else
+
+**Status:** DONE
+
+**Depends on:** M17.5
+
+### The gap
+
+`M17.5` listed only people the caller could add. The project owner wants the page
+to show every user: after trying it, a list called "All users" that leaves friends
+out reads as incomplete.
+
+### Acceptance Criteria
+
+- `GET /users` returns every named user except the caller: everyone not yet a
+  friend first, then current friends, each group most recently seen first. Each
+  entry is `userId`, `username` and `friend`, and nothing more (`D069`). The cap
+  of 200 stays, and fills with non-friends first.
+- The page shows the non-friends with Add, as before, then a "FRIENDS" heading and
+  the friends, each marked "Friend" with no Add.
+- Someone added on the page shows "Added ✓" where they are. Reopening the page
+  lists them under friends.
+- The failure state is unchanged. When everyone is already a friend, the page
+  says "No one else to add." above the friends. With no other users at all, it
+  says "No other users yet."
+- `D071`, `PRODUCT.md` and `ARCHITECTURE.md` §15 say friends are listed.
+- Tests updated for the new order, flag and key set.
+
+### Completion Note — 2026-09-23
+
+The route makes two queries through one repository function, `namedUsers(within,
+excluded, limit)` (renamed from `namedUsersExcept`): people to add first, then
+friends filling whatever the cap leaves. A single query ordered by friendship
+would have needed a `CASE` over the friend ids for the same result. Each entry is
+now a `ListedUser`, defined beside the route because nothing else uses it: the
+`UserSummary` fields plus `friend`, built field by field (`D069`).
+
+On Android, `AllUsers.rows` became `AllUsers.sections`, which splits the list into
+people to add and friends and keeps the server's order within each. A friend's row
+says "Friend" and has no Add. Someone added on this visit keeps their place, marked
+"Added ✓", until the page is opened again and the server lists them with the
+friends. `D071` was amended in place, since it was made the same day, and says so
+in its status line. `M17.5`'s removal list now names `namedUsers`, `ListedUser` and
+`ListedUserDto`.
+
+Verified with `:server:test --tests AllUsersTest` (6: authentication, everyone but
+the caller with friends last, recency within each group, the cap filling with
+people to add first, friends filling the rest, and the exact key set with no time),
+`UserLookupTest`, `:android-app:testDebugUnitTest` for `AllUsersFlowTest` (7) and
+`ui/allusers/AllUsersTest` (7), and the unchanged `ChessAppTest` (109). Then
+`.\gradlew.bat build`: 570 server, 460 Android and 394 game-core tests, none failed
+or skipped.
+
+The first server run failed because another checkout on this machine was running
+its server tests against the same local test database. They clear each other's
+schema. Rerun once that run had finished, everything passed. Two checkouts testing
+at the same time need separate `TEST_DATABASE_URL` databases.
 
 ---
 

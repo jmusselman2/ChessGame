@@ -94,10 +94,11 @@ Supported:
 - start/open a game series with a friend.
 
 For testing, the Friends screen also has "Browse all users": a page listing
-everyone you could add, most recently active first, each with Add. It uses the
-same add as the exact-username box, and stays open so several people can be
+every user. People you could add come first, each with Add, then your friends,
+marked as friends. Each group is most recently active first. Add uses the same
+add as the exact-username box, and the page stays open so several people can be
 added in a row. It is temporary. It is to be removed, or restricted to admins,
-before the app has real users (`D071`, `M17.5`).
+before the app has real users (`D071`, `M17.5`, `M17.6`).
 
 Friendships are mutual immediately.
 

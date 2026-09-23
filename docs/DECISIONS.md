@@ -4459,20 +4459,22 @@ today, so the decision is cheap now and expensive to discover later — a cache 
 
 ---
 
-## D071 — An "All Users" Page Lists Everyone the Caller Could Add, as a Temporary Testing Aid
+## D071 — An "All Users" Page Lists Every User, as a Temporary Testing Aid
 
 **Date:** 2026-09-23
 
-**Status:** Accepted
+**Status:** Accepted. Amended the same day by `M17.6`: the page first listed only people
+the caller could add, and now lists friends too, below everyone else.
 
-**Relates to:** `D008`, `D009`, `D010`, `D069`, `M17.5`
+**Relates to:** `D008`, `D009`, `D010`, `D069`, `M17.5`, `M17.6`
 
 ### Decision
 
-- **`GET /users` lists everyone the caller could add as a friend**, to any signed-in
-  caller: not the caller, not a current friend, not an account without a username.
-  The Friends screen reaches it through a "Browse all users" button, on a page of its
-  own.
+- **`GET /users` lists every user**, to any signed-in caller: everyone with a username
+  except the caller. People the caller could add come first, then the caller's
+  friends, marked as friends and with nothing to tap. The Friends screen reaches it
+  through a "Browse all users" button, on a page of its own. It lists friends because
+  a page called "All users" that leaves them out reads as incomplete (`M17.6`).
 - **It is a testing aid, decided by the project owner.** Nobody but testers uses the
   app, and a fresh anonymous account on every install makes typing exact names the
   slowest part of testing. Letting every signed-in user see every username is
@@ -4484,10 +4486,11 @@ today, so the decision is cheap now and expensive to discover later — a cache 
 - **Adding goes through the existing add.** The page calls the same `POST /friends`
   and the same view-model logic as adding by exact name, so it adds no second way to
   become friends. Exact-name lookup (`D009`) stays the product's way to find someone.
-- **As little as the page needs.** Each entry is a `UserSummary` and nothing more
-  (`D069`). The list is ordered by most recently seen (`last_seen_at`, `D010`) so that
-  accounts abandoned by a reinstall, whose names stay reserved (`D008`), sink. The time
-  itself is not sent. The list is capped at 200, with no paging.
+- **As little as the page needs.** Each entry is a user id, a username, and whether
+  they are a friend, and nothing more (`D069`). Each group is ordered by most recently
+  seen (`last_seen_at`, `D010`) so that accounts abandoned by a reinstall, whose names
+  stay reserved (`D008`), sink. The time itself is not sent. The list is capped at 200,
+  filled with people to add before friends, with no paging.
 
 ### Rationale
 

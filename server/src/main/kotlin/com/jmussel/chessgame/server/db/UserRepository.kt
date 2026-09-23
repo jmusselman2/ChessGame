@@ -6,6 +6,7 @@ import com.jmussel.chessgame.server.user.Username
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.isNotNull
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.notInList
@@ -79,25 +80,31 @@ class UserRepository(
         }
 
     /**
-     * Everyone with a username except [excluded], most recently seen first, and at most
-     * [limit] of them.
+     * Everyone with a username who is in [within] (or anyone, when it is `null`) and not in
+     * [excluded], most recently seen first, and at most [limit] of them.
      *
      * Only the "All users" testing aid asks this (`D071`). Ordered by [StoredUser.lastSeenAt]
      * so that accounts abandoned by a reinstall, whose names stay reserved (`D008`), sink
      * below the ones still in use. The newest account comes first among equals.
      */
-    fun namedUsersExcept(
+    fun namedUsers(
+        within: Set<Uuid>?,
         excluded: Set<Uuid>,
         limit: Int,
-    ): List<StoredUser> =
-        transaction(database) {
+    ): List<StoredUser> {
+        if (limit <= 0 || within?.isEmpty() == true) return emptyList()
+
+        return transaction(database) {
             UsersTable
                 .selectAll()
-                .where { UsersTable.username.isNotNull() and (UsersTable.id notInList excluded) }
-                .orderBy(UsersTable.lastSeenAt to SortOrder.DESC_NULLS_LAST, UsersTable.createdAt to SortOrder.DESC)
+                .where {
+                    val named = UsersTable.username.isNotNull() and (UsersTable.id notInList excluded)
+                    if (within == null) named else named and (UsersTable.id inList within)
+                }.orderBy(UsersTable.lastSeenAt to SortOrder.DESC_NULLS_LAST, UsersTable.createdAt to SortOrder.DESC)
                 .limit(limit)
                 .map(::toUser)
         }
+    }
 
     /**
      * Claims [username] for [userId].

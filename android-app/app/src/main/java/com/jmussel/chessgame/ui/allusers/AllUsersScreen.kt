@@ -15,11 +15,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.jmussel.chessgame.api.UserSummaryDto
+import com.jmussel.chessgame.api.ListedUserDto
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
 /**
- * Everyone the player could add as a friend, each one tap away (`D071`).
+ * Every user, each one tap from being a friend (`D071`): people to add first, then friends.
  *
  * A way round typing an exact username while testing. Adding someone keeps the page open
  * and marks their row, so several can be added in a row.
@@ -48,14 +48,22 @@ fun AllUsersScreen(
             return@Column
         }
 
-        val rows = AllUsers.rows(state)
+        val sections = AllUsers.sections(state)
 
-        if (rows.isEmpty()) {
-            Text(text = NOBODY_TO_ADD, style = MaterialTheme.typography.bodyMedium)
+        if (sections.toAdd.isEmpty() && sections.friends.isEmpty()) {
+            Text(text = NOBODY_ELSE, style = MaterialTheme.typography.bodyMedium)
             return@Column
         }
 
-        rows.forEach { row -> UserRow(row = row, onAdd = { actions.onAdd(row.user) }) }
+        if (sections.toAdd.isEmpty()) {
+            Text(text = NOBODY_TO_ADD, style = MaterialTheme.typography.bodyMedium)
+        }
+        sections.toAdd.forEach { row -> UserRow(row = row, onAdd = { actions.onAdd(row.user) }) }
+
+        if (sections.friends.isNotEmpty()) {
+            Text(text = FRIENDS, style = MaterialTheme.typography.titleSmall)
+            sections.friends.forEach { row -> UserRow(row = row, onAdd = {}) }
+        }
     }
 }
 
@@ -72,12 +80,18 @@ private fun UserRow(
     ) {
         Text(text = row.user.username, style = MaterialTheme.typography.bodyLarge)
 
-        if (row.added) {
-            Text(text = ADDED, modifier = Modifier.padding(horizontal = 12.dp), style = MaterialTheme.typography.bodyMedium)
-        } else {
-            TextButton(onClick = onAdd, enabled = row.canAdd) { Text(text = ADD) }
+        when {
+            row.user.friend -> Mark(text = FRIEND)
+            row.added -> Mark(text = ADDED)
+            else -> TextButton(onClick = onAdd, enabled = row.canAdd) { Text(text = ADD) }
         }
     }
+}
+
+/** What a row says in place of Add. */
+@Composable
+private fun Mark(text: String) {
+    Text(text = text, modifier = Modifier.padding(horizontal = 12.dp), style = MaterialTheme.typography.bodyMedium)
 }
 
 private const val HEADING = "ALL USERS"
@@ -85,7 +99,10 @@ private const val ADD = "Add"
 private const val ADDED = "Added ✓"
 private const val LOADING = "Loading…"
 private const val RETRY = "Try again"
+private const val FRIEND = "Friend"
+private const val FRIENDS = "FRIENDS"
 private const val NOBODY_TO_ADD = "No one else to add."
+private const val NOBODY_ELSE = "No other users yet."
 
 @Preview(showBackground = true)
 @Composable
@@ -96,9 +113,9 @@ private fun AllUsersScreenPreview() {
                 AllUsersUiState(
                     users =
                         listOf(
-                            UserSummaryDto(userId = "user-1", username = "Alex"),
-                            UserSummaryDto(userId = "user-2", username = "Sam"),
-                            UserSummaryDto(userId = "user-3", username = "Robin"),
+                            ListedUserDto(userId = "user-1", username = "Alex", friend = false),
+                            ListedUserDto(userId = "user-2", username = "Sam", friend = false),
+                            ListedUserDto(userId = "user-3", username = "Robin", friend = true),
                         ),
                     added = setOf("user-2"),
                     loaded = true,

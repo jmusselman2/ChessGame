@@ -2,7 +2,6 @@
 
 package com.jmussel.chessgame.server.user
 
-import com.jmussel.chessgame.server.api.UserSummary
 import com.jmussel.chessgame.server.auth.TestTokens
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
@@ -26,7 +25,7 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 /**
- * The "All users" testing aid: everyone the caller could add as a friend (`D071`).
+ * The "All users" testing aid: every user, friends listed after everyone else (`D071`).
  *
  * Skipped when this machine has no test database (see [DatabaseTestSupport]).
  */
@@ -66,7 +65,10 @@ class AllUsersTest {
         return response.bodyAsText()
     }
 
-    private suspend fun ApplicationTestBuilder.allUsers(subject: String): List<UserSummary> = json.decodeFromString(allUsersText(subject))
+    private suspend fun ApplicationTestBuilder.allUsers(subject: String): List<ListedUser> = json.decodeFromString(allUsersText(subject))
+
+    /** Each name, with "(friend)" after a friend's. */
+    private fun List<ListedUser>.shown(): List<String> = map { if (it.friend) "${it.username} (friend)" else it.username }
 
     @Test
     fun theListNeedsASignedInCaller() {
@@ -76,59 +78,85 @@ class AllUsersTest {
     }
 
     @Test
-    fun onlyPeopleTheCallerCouldAddAreListed() {
+    fun everyoneButTheCallerIsListedWithFriendsLast() {
         withServer { fixture ->
+            val now = Instant.parse("2026-09-23T12:00:00Z")
             val caller = fixture.named("auth-caller", "Jordan")
-            val friend = fixture.named("auth-friend", "Alex")
-            val former = fixture.named("auth-former", "Robin")
-            fixture.named("auth-stranger", "Sam")
+            val friend = fixture.named("auth-friend", "Alex", lastSeenAt = now)
+            val former = fixture.named("auth-former", "Robin", lastSeenAt = now.minusSeconds(60))
+            fixture.named("auth-stranger", "Sam", lastSeenAt = now.minusSeconds(120))
             fixture.users.resolveBySubject("auth-unnamed")
             fixture.friendships.add(caller, friend)
             fixture.friendships.add(caller, former)
             fixture.friendships.remove(caller, former)
 
-            val listed = allUsers("auth-caller").map { it.username }.toSet()
-
-            // Not the caller, not a current friend, not an account with no name. A removed
-            // friend can be added again, so they are back on the list.
-            assertEquals(setOf("Sam", "Robin"), listed)
+            // Alex was seen most recently but is a friend, so comes after everyone else. A
+            // removed friend is not a friend. Nobody without a name, and not the caller.
+            assertEquals(listOf("Robin", "Sam", "Alex (friend)"), allUsers("auth-caller").shown())
         }
     }
 
     @Test
-    fun theMostRecentlySeenComeFirst() {
+    fun eachGroupIsMostRecentlySeenFirst() {
         withServer { fixture ->
             val now = Instant.parse("2026-09-23T12:00:00Z")
-            fixture.named("auth-caller", "Jordan")
+            val caller = fixture.named("auth-caller", "Jordan")
             fixture.named("auth-old", "Old", lastSeenAt = now.minusSeconds(86_400))
             fixture.named("auth-never", "Never")
             fixture.named("auth-recent", "Recent", lastSeenAt = now)
+            val oldFriend = fixture.named("auth-old-friend", "OldFriend", lastSeenAt = now.minusSeconds(86_400))
+            val newFriend = fixture.named("auth-new-friend", "NewFriend", lastSeenAt = now)
+            fixture.friendships.add(caller, oldFriend)
+            fixture.friendships.add(caller, newFriend)
 
-            // Someone never seen at all goes last, below someone seen a day ago.
-            assertEquals(listOf("Recent", "Old", "Never"), allUsers("auth-caller").map { it.username })
+            // Someone never seen at all goes last in their group.
+            assertEquals(
+                listOf("Recent", "Old", "Never", "NewFriend (friend)", "OldFriend (friend)"),
+                allUsers("auth-caller").shown(),
+            )
         }
     }
 
     @Test
-    fun theListIsCapped() {
+    fun theListIsCappedAndFillsWithPeopleToAddFirst() {
         withServer { fixture ->
-            fixture.named("auth-caller", "Jordan")
-            repeat(ALL_USERS_CAP + 1) { index -> fixture.named("auth-$index", "Tester$index") }
+            val caller = fixture.named("auth-caller", "Jordan")
+            fixture.friendships.add(caller, fixture.named("auth-friend", "Alex", lastSeenAt = Instant.now()))
+            repeat(ALL_USERS_CAP) { index -> fixture.named("auth-$index", "Tester$index") }
 
-            assertEquals(ALL_USERS_CAP, allUsers("auth-caller").size)
+            val listed = allUsers("auth-caller")
+
+            assertEquals(ALL_USERS_CAP, listed.size)
+            assertTrue(listed.none { it.friend }, "the friend is the one left out")
         }
     }
 
     @Test
-    fun eachEntryIsAUserSummaryAndNothingMore() {
+    fun friendsFillWhatPeopleToAddLeave() {
         withServer { fixture ->
-            fixture.named("auth-caller", "Jordan")
-            fixture.named("auth-seen", "Alex", lastSeenAt = Instant.parse("2026-09-23T12:00:00Z"))
+            val caller = fixture.named("auth-caller", "Jordan")
+            fixture.friendships.add(caller, fixture.named("auth-friend", "Alex"))
+            repeat(ALL_USERS_CAP - 1) { index -> fixture.named("auth-$index", "Tester$index") }
+
+            val listed = allUsers("auth-caller")
+
+            assertEquals(ALL_USERS_CAP, listed.size)
+            assertEquals(listOf("Alex"), listed.filter { it.friend }.map { it.username })
+        }
+    }
+
+    @Test
+    fun eachEntryIsANameAndWhetherTheyAreAFriendAndNothingMore() {
+        withServer { fixture ->
+            val seen = Instant.parse("2026-09-23T12:00:00Z")
+            val caller = fixture.named("auth-caller", "Jordan")
+            fixture.named("auth-seen", "Alex", lastSeenAt = seen)
+            fixture.friendships.add(caller, fixture.named("auth-friend", "Sam", lastSeenAt = seen))
 
             val entries = json.parseToJsonElement(allUsersText("auth-caller")) as JsonArray
 
-            assertEquals(1, entries.size)
-            entries.forEach { entry -> assertEquals(setOf("userId", "username"), entry.jsonObject.keys) }
+            assertEquals(2, entries.size)
+            entries.forEach { entry -> assertEquals(setOf("userId", "username", "friend"), entry.jsonObject.keys) }
             // The colons cannot occur in an id, so this finds the time in any format.
             assertTrue("12:00:00" !in allUsersText("auth-caller"), "no activity time is sent")
         }

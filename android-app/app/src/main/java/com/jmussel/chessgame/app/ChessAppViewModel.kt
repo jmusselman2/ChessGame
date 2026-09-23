@@ -11,6 +11,7 @@ import com.jmussel.chessgame.api.ChessApiException
 import com.jmussel.chessgame.api.ChessCommandRefusedException
 import com.jmussel.chessgame.api.CurrentUserDto
 import com.jmussel.chessgame.api.GameViewDto
+import com.jmussel.chessgame.api.ListedUserDto
 import com.jmussel.chessgame.api.RealtimeMessageDto
 import com.jmussel.chessgame.api.SeriesOpening
 import com.jmussel.chessgame.api.ServerWakePolicy
@@ -1076,7 +1077,7 @@ class ChessAppViewModel(
      * The page stays open and their row says they were added, so several people can be added
      * in a row. A refusal is the server's, in its own words, like the friends screen's.
      */
-    fun addFromAllUsers(user: UserSummaryDto) {
+    fun addFromAllUsers(user: ListedUserDto) {
         if (allUsersJob?.isActive == true) return
 
         allUsersJob =
