@@ -81,6 +81,7 @@ class MainActivity : ComponentActivity() {
                         navigation = viewModel.navigation,
                         modifier = Modifier.padding(innerPadding),
                         startup = viewModel.startup,
+                        username = viewModel.currentUser?.username,
                         usernameClaim = viewModel.usernameClaim,
                         friends = viewModel.friends,
                         dashboard = viewModel.dashboard,

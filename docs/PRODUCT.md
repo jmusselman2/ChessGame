@@ -336,6 +336,11 @@ Sam        [Play/Open]
 
 Completed games belong in history rather than dominating the home screen.
 
+The dashboard's top row shows the player's own username at its right-hand end, so
+a player can always see the name a friend needs to add them. Screens with Back do
+not show it. Tapping it will open user settings; until user settings exist, it is
+plain text (`M17.3`, `M17.4`).
+
 ## Game Screen
 
 Display:

@@ -4488,6 +4488,67 @@ then `.\gradlew.bat build`.
 
 ---
 
+## M17.3 — The home screen names its player
+
+**Status:** DONE
+
+**Depends on:** None
+
+### The gap
+
+Nothing in the app said which username the player had. The name was claimed once,
+during onboarding, and not shown again. A player who wanted to tell a friend what
+to add had nowhere to read it.
+
+### Acceptance Criteria
+
+- The dashboard's top row shows the player's own username at its right-hand end,
+  opposite Friends, History and Local game.
+- It is shown only on that row: not during startup or onboarding, and not on any
+  screen whose top row is Back.
+- A long name is kept to one line and shortened, so it cannot push the navigation
+  buttons off a narrow phone.
+- It is plain text. It does not look tappable until `M17.4` gives it somewhere to
+  go.
+- Tests cover when the name is shown and when it is not.
+
+### Completion Note — 2026-09-22
+
+The name goes at the right-hand end, not the left, because the left of the top row
+is Back on every other screen. Android puts the account on the right, and that is
+where it will need to be once it opens settings (`M17.4`). `ShellChrome` takes the
+username from `ChessAppViewModel.currentUser`, and a weighted spacer pushes it to
+the end. It is one line with an ellipsis, so it takes only the width the three
+buttons leave. No server change: the app already had the name.
+
+Whether to show it is decided by `ShellChromeContent.ownUsername`, which is pure
+so it can be tested without a screen (`D041`). The existing "no chrome during
+startup or onboarding" check moved there as `hasChrome`, unchanged. Verified with
+`:android-app:testDebugUnitTest --tests ShellChromeContentTest` (4 new tests:
+dashboard, every screen with Back, startup and onboarding, and a missing or blank
+name), `ktlintCheck`, and `.\gradlew.bat build`. Not yet seen on a device.
+
+---
+
+## M17.4 — User settings, opened from the username
+
+**Status:** BLOCKED — the project owner has not yet decided what user settings
+holds. The autonomous loop does not select it.
+
+**Depends on:** M17.3
+
+### Objective
+
+A user settings screen, opened by tapping the username at the right-hand end of
+the dashboard's top row (`M17.3`). The position is decided. The content is not.
+
+### Acceptance Criteria
+
+- Decided with the project owner when this is unblocked. At minimum: tapping the
+  username opens the screen, and Back returns to the dashboard.
+
+---
+
 ---
 
 # M18 — Post-Chess Architecture Review

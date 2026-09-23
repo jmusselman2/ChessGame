@@ -3,6 +3,7 @@ package com.jmussel.chessgame.app
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -10,7 +11,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.jmussel.chessgame.core.chess.PieceType
@@ -47,6 +50,8 @@ fun ChessApp(
     navigation: AppNavigation,
     modifier: Modifier = Modifier,
     startup: StartupState = StartupState.Loading,
+    /** The player's own username, once the account has one. */
+    username: String? = null,
     usernameClaim: UsernameClaim = UsernameClaim.Idle,
     friends: FriendsUiState = FriendsUiState(),
     dashboard: DashboardUiState = DashboardUiState(),
@@ -85,6 +90,7 @@ fun ChessApp(
     Column(modifier = modifier.fillMaxSize()) {
         ShellChrome(
             navigation = navigation,
+            username = username,
             onOpen = onOpen,
             onOpenFriends = onOpenFriends,
             onOpenHistory = onOpenHistory,
@@ -143,16 +149,18 @@ fun ChessApp(
 @Composable
 private fun ShellChrome(
     navigation: AppNavigation,
+    username: String?,
     onOpen: (Destination) -> Unit,
     onOpenFriends: () -> Unit,
     onOpenHistory: () -> Unit,
     onBack: () -> Unit,
 ) {
-    if (navigation.current == Destination.Startup || navigation.current == Destination.UsernameOnboarding) return
+    if (!ShellChromeContent.hasChrome(navigation)) return
 
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         if (navigation.canGoBack) {
             TextButton(onClick = onBack) { Text(text = BACK) }
@@ -162,7 +170,41 @@ private fun ShellChrome(
         TextButton(onClick = onOpenFriends) { Text(text = FRIENDS) }
         TextButton(onClick = onOpenHistory) { Text(text = HISTORY) }
         TextButton(onClick = { onOpen(Destination.LocalGame) }) { Text(text = LOCAL_GAME) }
+
+        // At the far end, where an account conventionally sits. Plain text for now: it
+        // becomes the way into user settings (`M17.4`), and until then it must not look
+        // like something to tap.
+        ShellChromeContent.ownUsername(navigation, username)?.let { name ->
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                text = name,
+                modifier = Modifier.padding(horizontal = 8.dp),
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
+}
+
+/**
+ * What the top row holds, decided without a screen so it can be tested (`M17.3`).
+ */
+internal object ShellChromeContent {
+    /** Whether there is a top row at all. */
+    fun hasChrome(navigation: AppNavigation): Boolean =
+        navigation.current != Destination.Startup && navigation.current != Destination.UsernameOnboarding
+
+    /**
+     * The player's own name, on the home row only, or `null` when none is shown.
+     *
+     * A screen with Back has only Back: the name belongs to the dashboard, where it will
+     * also be the way into user settings.
+     */
+    fun ownUsername(
+        navigation: AppNavigation,
+        username: String?,
+    ): String? = username?.takeIf { hasChrome(navigation) && !navigation.canGoBack && it.isNotBlank() }
 }
 
 /**
@@ -224,6 +266,6 @@ private const val RETRY = "Try again"
 @Composable
 private fun ChessAppPreview() {
     ChessGameTheme {
-        ChessApp(navigation = AppNavigation(listOf(Destination.Dashboard)))
+        ChessApp(navigation = AppNavigation(listOf(Destination.Dashboard)), username = "Taylor")
     }
 }
