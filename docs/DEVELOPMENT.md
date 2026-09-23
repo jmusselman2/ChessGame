@@ -672,7 +672,7 @@ task `UP-TO-DATE` and the live tests never run.
 
 Each live run leaves one throwaway anonymous user in the development project.
 
-### What is not configured yet
+### The application schema on the Supabase database
 
 - The schema in `database/migrations/` has been applied to the Supabase database
   since `M15.3` (2026-08-31). Under `D035` that is this same project rather than
@@ -1085,12 +1085,12 @@ to design against: `M15.4`'s startup deadline needs comfortable headroom above
 
 Do not put production or beta secrets directly in Git.
 
-### What the live deployment still needs
+### What the live deployment needed
 
 Steps 1–3 below were done by a human — the integration and the environment
 variables between 2026-09-01 and 2026-09-02, the deploy automatically from the
-commit — and step 4 was measured from here. They are kept for the record; what
-remains is under **Still outstanding**. The autonomous loop prepares and verifies
+commit — and step 4 was measured from here. They are kept for the record, and
+nothing remains outstanding. The autonomous loop prepares and verifies
 artifacts and may read service state, but does not deploy, set environment
 variables, or handle credentials (`D032` acceptance, `M15` milestone note).
 

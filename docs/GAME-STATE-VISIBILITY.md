@@ -39,7 +39,7 @@ stay in their own documents.
   to pre-validate.
 - **No answer to `M20.1`.** Nothing here depends on where rules code lives; every conclusion
   is about what the authoritative server sends.
-- **Spectators are out of MVP scope**, but the model must not assume a fixed cap on
+- **Spectators are out of MVP scope** (`F20` in `FUTURE.md`), but the model must not assume a fixed cap on
   observers (`PLATFORM-REVIEW.md` *Still open*).
 
 ## What leaves the server today

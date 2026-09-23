@@ -298,7 +298,9 @@ The MVP does not need to prominently display it.
 ## D011 — One Active Game Series per Friend Pair
 
 **Date:** 2026-08-21  
-**Status:** Accepted for MVP
+**Status:** Superseded by `D048` and `D053` (2026-09-09). A pair may now have several
+active series, and Play offers an existing one rather than opening it silently
+(`D065`).
 
 ### Decision
 
@@ -345,7 +347,8 @@ Closed series remain available for history.
 ## D013 — Removing a Friend Finishes Current Game Then Closes Series
 
 **Date:** 2026-08-21  
-**Status:** Accepted
+**Status:** Superseded by `D053` (2026-09-09). Removing a friend now affects the
+friends list only; a series ends only when a participant leaves it (`D068`).
 
 ### Decision
 
@@ -471,6 +474,10 @@ After the server accepts it, resignation cannot be undone.
 ### Consequences
 
 If the series remains active, the automatic rematch is created. If the series is closing, no next game is created.
+
+**Superseded in part by `D053` and `D068`:** a series no longer closes after its
+current game. It closes the moment a participant leaves it, and a game that ends
+in a closed series gets no rematch. Resigning never leaves a series.
 
 ---
 
@@ -602,7 +609,7 @@ A post-chess architecture review is required before generalizing further.
 ## D024 — Server Hosting Provider Deferred
 
 **Date:** 2026-08-21  
-**Status:** Accepted
+**Status:** Accepted. Resolved by `D032` (2026-08-28): the beta server runs on Render Free.
 
 ### Decision
 
@@ -617,7 +624,7 @@ Hosting choice is operational and should not constrain application architecture 
 ## D025 — PostgreSQL Library Deferred Until Bootstrap
 
 **Date:** 2026-08-21  
-**Status:** Accepted
+**Status:** Accepted. Resolved by `D030` (2026-08-26): JetBrains Exposed over HikariCP.
 
 ### Decision
 
@@ -647,8 +654,7 @@ Library quality changes faster than the architecture itself.
 ### Decision
 
 After M1.1-M1.6 were reconciled and locally verified, autonomous development
-switched from a "stop at every milestone boundary" checkpoint to a continuous
-loop:
+switched from a "stop at every milestone boundary" checkpoint to a continuous loop:
 
 - select the highest-priority unblocked `TODO` from `docs/BACKLOG.md` (using its
   Task Selection Order),
@@ -2438,6 +2444,9 @@ becoming a precedent.
 - Because of the above, `RemoveFriendResult.seriesMarkedToClose` — and the
   sentence the endpoint builds from it — describes the series that existed when
   the removal ran, not any that commit alongside it.
+- **Superseded in part by `D053` (`M19.5`):** removing a friend no longer marks or
+  closes any series, so the two bullets above no longer apply. What stands is that
+  a series may exist between users who are not friends.
 - The `M8-03` regression is kept and re-pointed: it still drives the same
   deterministic interleaving, and now asserts the outcome this decision accepts,
   so reintroducing a gate here fails a test that names this decision.
@@ -4466,7 +4475,7 @@ today, so the decision is cheap now and expensive to discover later — a cache 
 **Status:** Accepted. Amended the same day by `M17.6`: the page first listed only people
 the caller could add, and now lists friends too, below everyone else. Amended again the
 same day by the project owner: the page is part of the MVP, and removing or restricting
-it is parked post-MVP work (`F10` in `docs/FUTURE.md`, `D072`) with no deadline. It
+it is parked post-MVP work (`F12` in `docs/FUTURE.md`, `D072`) with no deadline. It
 was "before the app has real users".
 
 **Relates to:** `D008`, `D009`, `D010`, `D069`, `M17.5`, `M17.6`
@@ -4484,7 +4493,7 @@ was "before the app has real users".
   acceptable on those terms. It is a product decision, not an open security question.
 - **Always on.** No on/off switch, no config flag, and no admin role.
 - **Part of the MVP. Removing it, or restricting it to admins, is post-MVP.** It is
-  parked as `F10` in `docs/FUTURE.md` with no deadline, and the choice between
+  parked as `F12` in `docs/FUTURE.md` with no deadline, and the choice between
   removing and restricting is the project owner's. Restricting it means a
   permission check in the route and a field in `/me` that tells the app whether to
   show the button. Both are added then, not now.
@@ -4526,7 +4535,7 @@ test account that has not played yet still counts as active.
 
 - `M17.5`'s completion note lists every place removing the page touches.
 - `PRODUCT.md`'s Friends section and `ARCHITECTURE.md` §15 describe it as part of
-  the MVP, with removing or restricting it parked as `F10` in `docs/FUTURE.md`.
+  the MVP, with removing or restricting it parked as `F12` in `docs/FUTURE.md`.
 
 ---
 
@@ -4556,7 +4565,7 @@ the MVP.
   items, under the same `F` numbers, and a change to one is made to the other in
   the same change. Where they differ, `MVP.md` governs.
 - `D071`'s parked task, which briefly sat in a parked section at the end of the
-  backlog, is `F10`.
+  backlog, is `F12`.
 
 ### Rationale
 
@@ -4571,7 +4580,7 @@ Keeping `MVP.md` binding keeps scope where the precedence order already puts it.
 
 ### Alternatives Considered
 
-- **A backlog section of `BLOCKED` tasks.** Tried first, for `F10`. Rejected by the
+- **A backlog section of `BLOCKED` tasks.** Tried first, for `F12`. Rejected by the
   project owner: parked work does not belong in the list of scheduled work, and
   `BLOCKED` already means "scheduled but waiting".
 - **GitHub Issues with a `post-mvp` label.** Rejected: it would sit apart from the
@@ -4585,4 +4594,4 @@ Keeping `MVP.md` binding keeps scope where the precedence order already puts it.
 - `MVP.md`'s *Explicitly Not Required for MVP* is a list of names with their `F`
   numbers.
 - The parked section is removed from `docs/BACKLOG.md`. `D071`, `PRODUCT.md`,
-  `ARCHITECTURE.md` §15, `M17.5` and `MVP.md` now refer to `F10`.
+  `ARCHITECTURE.md` §15, `M17.5` and `MVP.md` now refer to `F12`.

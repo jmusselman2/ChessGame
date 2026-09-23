@@ -99,7 +99,7 @@ marked as friends. Each group is most recently active first. Add uses the same
 add as the exact-username box, and the page stays open so several people can be
 added in a row. It is a testing aid and part of the MVP. Removing it, or
 restricting it to admins, is post-MVP work with no deadline (`D071`, `M17.5`,
-`M17.6`; `F10` in `docs/FUTURE.md`).
+`M17.6`; `F12` in `docs/FUTURE.md`).
 
 Friendships are mutual immediately.
 
@@ -385,7 +385,9 @@ Drag-and-drop is not required for MVP.
 
 ## Deferred Features
 
-Do not initially build:
+Do not initially build the features below. The complete list of what is not in the
+MVP is `docs/MVP.md`'s *Explicitly Not Required for MVP*, and `docs/FUTURE.md`
+holds what is known about each item (`D072`).
 
 - AI opponent,
 - ratings,
@@ -402,6 +404,5 @@ Do not initially build:
 - spectators,
 - account recovery UI,
 - username changes,
-- multiple simultaneous active series against one friend,
 - detailed statistics,
 - deck-building mechanics.

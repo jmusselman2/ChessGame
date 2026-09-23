@@ -27,17 +27,23 @@ The long-term goal is not to remain a chess application. Chess is being used to 
 ├── server/
 ├── database/
 │   ├── README.md
+│   ├── init/
 │   └── migrations/
+├── evals/                  -- independent milestone evaluation reports
 └── docs/
     ├── PRODUCT.md
     ├── MVP.md
+    ├── FUTURE.md               -- non-MVP work, not scheduled (D072)
     ├── ARCHITECTURE.md
     ├── PLATFORM-REVIEW.md
     ├── UNDO-STORAGE.md
+    ├── GAME-STATE-VISIBILITY.md
     ├── DECISIONS.md
     ├── BACKLOG.md
     ├── DEVELOPMENT.md
-    └── AUTONOMOUS-DEVELOPMENT.md
+    ├── AUTONOMOUS-DEVELOPMENT.md
+    ├── INDEPENDENT-EVALUATION.md
+    └── CODEX_EVALUATION_STATE.md
 ```
 
 ## Source of Truth
@@ -72,7 +78,10 @@ the developer. The arc:
 - `M16` — client and network hardening.
 - `M17` — a signed beta APK handed to a real tester, who installed it on their own
   physical Android device, got through onboarding unaided, and played an online
-  game to the end without developer intervention.
+  game to the end without developer intervention. Since then the home screen
+  names its player, and an "All users" page lets testers add friends without
+  typing exact names (`M17.3`, `M17.5`, `M17.6`). User settings (`M17.4`) wait on
+  the project owner deciding what they hold.
 - `M18` — a review of what the chess implementation proved about the platform
   underneath it, in `docs/PLATFORM-REVIEW.md`.
 - `M19` — the platform generalized to tables and typed participants, parallel
@@ -96,13 +105,16 @@ Implemented foundations include:
 - aggregate Gradle verification with ktlint, Android lint, JVM tests, Android
   unit tests, APK assembly, and server distributions.
 
-Independent evaluation (`evals/`) runs on its own track. It is current through
-the implemented M19 scope; `docs/CODEX_EVALUATION_STATE.md` is the source of
-truth for its evidence and findings.
+Independent evaluation (`evals/`) runs on its own track. It has evaluated M19;
+the `M19-01` remediation and `M17.3`, `M17.5` and `M17.6` are still to be
+evaluated.
+`docs/CODEX_EVALUATION_STATE.md` is the source of truth for its evidence and
+findings.
 
-What happens next is the human-sign-off architecture decision in `M20.1`. The N >= 3 continuation
-flow is separately deferred to `M20.2`; it is not part of M19's chess-only
-series-exit work.
+What happens next is the human-sign-off architecture decision in `M20.1`. The
+N >= 3 continuation flow is separately deferred to `M20.2`; it is not part of
+M19's chess-only series-exit work. Work outside the MVP is listed, unscheduled,
+in `docs/FUTURE.md`; the backlog holds only scheduled work (`D072`).
 
 ## Getting Started
 

@@ -75,12 +75,12 @@ Do not introduce Kotlin Multiplatform until a concrete non-JVM consumer exists.
                        │
                        ▼
 ┌──────────────────── POSTGRESQL ─────────────────────────────┐
-│ users                                                       │
-│ friendships                                                 │
-│ game_series                                                 │
-│ games                                                       │
-│ moves                                                       │
-│ game_events                                                 │
+│ users, friendships                                          │
+│ groups, group_members                                       │
+│ game_types, tables, table_participants                      │
+│ game_series, games, game_participants                       │
+│ non_user_participants                                       │
+│ moves, game_events                                          │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -255,6 +255,10 @@ CreateUserProfile
 AddFriend
 RemoveFriend
 StartSeries
+LeaveSeries
+CreateGroup
+AddGroupMember
+LeaveGroup
 ```
 
 The implementation does not need one universal generic command hierarchy if concrete command types are simpler.
@@ -263,7 +267,7 @@ The implementation does not need one universal generic command hierarchy if conc
 
 Persist an append-only audit history for meaningful changes.
 
-Examples:
+Recorded in `game_events`:
 
 ```text
 MoveMade
@@ -272,10 +276,13 @@ DrawClaimed
 PlayerResigned
 GameEnded
 RematchCreated
-SeriesClosed
-FriendAdded
-FriendRemoved
+SeriesLeft
 ```
+
+`SeriesClosed` was recorded until `M19.5` removed the path that closed a series
+after its current game; leaving a series records `SeriesLeft` (`D068`). Friendship
+and group changes are not events: their rows are kept rather than deleted, with
+`removed_at` and `left_at` saying what changed (§15, §15.1, §17).
 
 Do not use full event sourcing.
 
@@ -472,11 +479,12 @@ Friendship
 - userBId
 - status
 - createdAt
+- removedAt
 ```
 
 `status` is `ACTIVE` for every friendship the MVP creates; `PENDING` and
 `DECLINED` are reserved for a later approval flow and are never written
-(`D047`).
+(`D047`). Removing a friend sets `removedAt`; the row is kept (§17).
 
 Prevent:
 
@@ -489,13 +497,13 @@ Use normalized pair ordering or an equivalent database constraint.
 Friendship is mutual immediately.
 
 A friend is found by exact username, `GET /users/{username}`, and added with
-`POST /friends` (`D009`). As a temporary testing aid, `GET /users` lists
+`POST /friends` (`D009`). As a testing aid, `GET /users` lists
 every named user except the caller: people the caller could add first, then
 friends, each group ordered by `last_seen_at`, newest first, without sending
 the time. Each entry is `userId`, `username` and `friend`, capped at 200 with
 people to add first. The app's "All users" page adds from it through the same
 `POST /friends`. It is always on and part of the MVP. Removing it or
-restricting it to admins is parked post-MVP work (`D071`; `F10` in `docs/FUTURE.md`).
+restricting it to admins is parked post-MVP work (`D071`; `F12` in `docs/FUTURE.md`).
 
 ## 15.1 Groups
 
@@ -780,15 +788,19 @@ persist final action/move
 → set series.currentGameId
 ```
 
-If the series is marked to close:
+If the series is already closed, because a participant left it while this game
+was under way (`D068`):
 
 ```text
 persist final action/move
 → finalize game
 → persist result
 → do not create next game
-→ set series.status = CLOSED
+→ leave the series CLOSED and untouched
 ```
+
+A series is never closed by a game ending. It closes only when a participant
+leaves it, at once, under its row lock (§17).
 
 The operation must be safe under retries and concurrent observation.
 

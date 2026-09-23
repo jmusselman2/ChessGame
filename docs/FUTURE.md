@@ -36,45 +36,49 @@ These are the four things `D062` asks every standalone document to state:
 leaves keeps its ID in the git history, and the number is never given out again.
 
 **Order.** The project owner's triage on 2026-09-23: value to players against
-cost, with every item after the items it depends on. The value ratings in
-*At a Glance* come from the same triage. `F` numbers were assigned in
-this order that day. They are stable from then on, so a later reordering moves
-entries and leaves their numbers alone. `MVP.md` lists the same items by topic.
+cost, with every item after the items it depends on. The value ratings in *At a
+Glance* come from the same triage. `F1`–`F32` were numbered in this order that
+day. Numbers are stable from then on: an item added later takes the next free
+number and is placed by the same rule, and a later reordering moves entries and
+leaves their numbers alone. After either, *At a Glance* and the tiers follow
+this order, not the numbers. `MVP.md` lists the same items by topic.
 
 ## At a Glance
 
-| ID | Item | Topic (`MVP.md`) | Effort | Value to players |
-|---|---|---|---|---|
-| `F1` | Win/loss/draw record per friend | Series and Statistics | M | High |
-| `F2` | Draw offers by agreement | Chess Play | M | High |
-| `F3` | Drag-and-drop moves | Chess Play | S–M | Medium |
-| `F4` | Turning automatic rematches off by hand | Series and Statistics | S | Medium |
-| `F5` | Username changes | Identity and Accounts | M | Medium |
-| `F6` | Detailed profiles | Social | M | Medium |
-| `F7` | Account recovery UI | Identity and Accounts | L | High |
-| `F8` | AI opponent | Chess Play | L | Medium–high |
-| `F9` | Clocks | Chess Play | L | Low–medium |
-| `F10` | Remove the "All users" page, or restrict it to admins | Identity and Accounts | S–M | None (testing aid) |
-| `F11` | Dead-position detection by search | Chess Play | M | Low |
-| `F12` | Approval setting for friend requests and game invites | Identity and Accounts | M | Low |
-| `F13` | Blocking | Social | M | Low now |
-| `F14` | Chat | Social | L | Medium |
-| `F15` | Followers | Social | L | Low |
-| `F16` | Social feeds | Social | L | Low |
-| `F17` | Contact syncing | Social | L | Low |
-| `F18` | Spectators | Public Play | L | Low |
-| `F19` | Matchmaking | Public Play | L | Medium |
-| `F20` | Ratings | Series and Statistics | M | Low |
-| `F21` | Public games | Public Play | L | Low–medium |
-| `F22` | Tournaments | Public Play | XL | Low |
-| `F23` | Push notifications | Social | L | Very low (owner's call) |
-| `F24` | Deck-building systems | Deck-Builder Platform | not estimated | The long-term goal |
-| `F25` | "Suggest friends" for table co-participants | Social | not estimated | Medium |
-| `F26` | Deck-builder solo mode | Deck-Builder Platform | not estimated | Medium |
-| `F27` | AI players in the deck-builder's normal modes | Deck-Builder Platform | not estimated | Medium |
-| `F28` | Detailed and per-table statistics | Series and Statistics | not estimated | Low–medium |
-| `F29` | Series revival | Series and Statistics | not estimated | Low |
-| `F30` | iOS or web clients | Other Clients | not estimated | Not needed yet |
+| ID    | Item                                        | Topic (`MVP.md`)      | Effort        | Value to players   |
+| ----- | ------------------------------------------- | --------------------- | ------------- | ------------------ |
+| `F1`  | Win/loss/draw record per friend             | Series and Statistics | M             | High               |
+| `F2`  | Draw offers by agreement                    | Chess Play            | M             | High               |
+| `F3`  | Drag-and-drop moves                         | Chess Play            | S–M           | Medium             |
+| `F4`  | Turning automatic rematches off by hand     | Series and Statistics | S             | Medium             |
+| `F5`  | Username changes                            | Identity and Accounts | M             | Medium             |
+| `F6`  | Detailed profiles                           | Social                | M             | Medium             |
+| `F7`  | AI opponent                                 | Chess Play            | L             | Medium–high        |
+| `F8`  | Custom themes                               | Presentation          | S–M           | Low                |
+| `F9`  | Elaborate animations                        | Presentation          | M             | Low                |
+| `F10` | Clocks                                      | Chess Play            | L             | Low–medium         |
+| `F11` | Dead-position detection by search           | Chess Play            | M             | Low                |
+| `F12` | Remove the "All users" page                 | Identity and Accounts | S–M           | None (testing aid) |
+| `F13` | Account recovery UI                         | Identity and Accounts | L             | High               |
+| `F14` | Approval for friend requests, game invites  | Identity and Accounts | M             | Low                |
+| `F15` | Blocking                                    | Social                | M             | Low now            |
+| `F16` | Chat                                        | Social                | L             | Medium             |
+| `F17` | Followers                                   | Social                | L             | Low                |
+| `F18` | Social feeds                                | Social                | L             | Low                |
+| `F19` | Contact syncing                             | Social                | L             | Low                |
+| `F20` | Spectators                                  | Public Play           | L             | Low                |
+| `F21` | Matchmaking                                 | Public Play           | L             | Medium             |
+| `F22` | Ratings                                     | Series and Statistics | M             | Low                |
+| `F23` | Public games                                | Public Play           | L             | Low–medium         |
+| `F24` | Tournaments                                 | Public Play           | XL            | Low                |
+| `F25` | Push notifications                          | Social                | L             | High               |
+| `F26` | Deck-building systems                       | Deck-Builder Platform | not estimated | The long-term goal |
+| `F27` | "Suggest friends" for table co-participants | Social                | not estimated | Medium             |
+| `F28` | Deck-builder solo mode                      | Deck-Builder Platform | not estimated | Medium             |
+| `F29` | AI players in the deck-builder modes        | Deck-Builder Platform | not estimated | Medium             |
+| `F30` | Detailed and per-table statistics           | Series and Statistics | not estimated | Low–medium         |
+| `F31` | Series revival                              | Series and Statistics | not estimated | Low                |
+| `F32` | iOS or web clients                          | Other Clients         | not estimated | Not needed yet     |
 
 ---
 
@@ -84,7 +88,7 @@ No dependency outside this tier. The most value to players for the cost.
 
 ### F1 — Win/loss/draw record per friend
 
-- **Source:** `MVP.md`. Split from `F28` (detailed statistics) on 2026-09-23.
+- **Source:** `MVP.md`. Split from `F30` (detailed statistics) on 2026-09-23.
 - **Value:** High
 - **Effort:** Medium. Results are already stored; this is a query and a screen.
 - **Depends on:** nothing.
@@ -139,17 +143,7 @@ No dependency outside this tier. The most value to players for the cost.
 No unfinished dependency. Worth doing, but each costs more or does less for
 players than tier 1.
 
-### F7 — Account recovery UI
-
-- **Source:** `MVP.md`, `PRODUCT.md` (the architecture must still let an
-  anonymous identity be upgraded later)
-- **Value:** High
-- **Effort:** Large. Linking a Supabase anonymous user to a recoverable
-  identity.
-- **Depends on:** nothing new.
-- **Open decisions:** which recovery methods. A security decision.
-
-### F8 — AI opponent
+### F7 — AI opponent
 
 - **Source:** `MVP.md`
 - **Value:** Medium–high
@@ -158,7 +152,25 @@ players than tier 1.
 - **Open decisions:** which engine, and where it runs. A server-side engine is a
   hosting cost.
 
-### F9 — Clocks
+### F8 — Custom themes
+
+- **Source:** `PRODUCT.md` (*Deferred Features*)
+- **Value:** Low
+- **Effort:** Small–medium. Compose theming; no server work.
+- **Depends on:** nothing.
+- **Open decisions:** what can be themed: the board, the pieces, or the whole
+  app.
+
+### F9 — Elaborate animations
+
+- **Source:** `PRODUCT.md` (*Deferred Features*)
+- **Value:** Low
+- **Effort:** Medium. Compose only; no server work.
+- **Depends on:** nothing.
+- **Open decisions:** which moments animate: moves, captures, check, or the end
+  of a game.
+
+### F10 — Clocks
 
 - **Source:** `MVP.md`
 - **Value:** Low–medium
@@ -167,7 +179,16 @@ players than tier 1.
 - **Open decisions:** what a clock means in asynchronous play (days per move,
   not minutes), and what happens when it runs out. A product decision.
 
-### F10 — Remove the "All users" page, or restrict it to admins
+### F11 — Dead-position detection by search
+
+- **Source:** `D038`
+- **Value:** Low
+- **Effort:** Medium
+- **Depends on:** nothing.
+- **Open decisions:** none. Low value: the colour-complex rule is exact for the
+  material left once pawns, rooks and queens are gone.
+
+### F12 — Remove the "All users" page, or restrict it to admins
 
 - **Source:** `D071`, `M17.5`, `M17.6`
 - **Value:** None (testing aid)
@@ -194,21 +215,22 @@ The task's acceptance criteria:
 - Tests: server and Android tests for whichever path is chosen, and
   `.\gradlew.bat build` passes.
 
-### F11 — Dead-position detection by search
+### F13 — Account recovery UI
 
-- **Source:** `D038`
-- **Value:** Low
-- **Effort:** Medium
-- **Depends on:** nothing.
-- **Open decisions:** none. Low value: the colour-complex rule is exact for the
-  material left once pawns, rooks and queens are gone.
+- **Source:** `MVP.md`, `PRODUCT.md` (the architecture must still let an
+  anonymous identity be upgraded later)
+- **Value:** High
+- **Effort:** Large. Linking a Supabase anonymous user to a recoverable
+  identity.
+- **Depends on:** nothing new.
+- **Open decisions:** which recovery methods. A security decision.
 
 ## 3. Social
 
-Lower priority while every player is a friend of a tester. `F13` (blocking)
+Lower priority while every player is a friend of a tester. `F15` (blocking)
 gates the public play in tier 4.
 
-### F12 — Approval setting for friend requests and game invites
+### F14 — Approval setting for friend requests and game invites
 
 - **Source:** `D047`, `D049`, `PRODUCT.md`
 - **Value:** Low
@@ -217,16 +239,16 @@ gates the public play in tier 4.
   membership (`D049`).
 - **Open decisions:** whether it covers friend requests, game invites, or both.
 
-### F13 — Blocking
+### F15 — Blocking
 
 - **Source:** `PRODUCT.md`
 - **Value:** Low now
 - **Effort:** Medium
 - **Depends on:** nothing.
 - **Open decisions:** what a block hides and prevents. A safety decision. It is
-  a prerequisite for any public play (`F18`–`F22`).
+  a prerequisite for any public play (`F20`–`F24`).
 
-### F14 — Chat
+### F16 — Chat
 
 - **Source:** `MVP.md`, `PRODUCT.md`
 - **Value:** Medium
@@ -234,83 +256,83 @@ gates the public play in tier 4.
 - **Depends on:** nothing in the code.
 - **Open decisions:** moderation and reporting.
 
-### F15 — Followers
+### F17 — Followers
 
 - **Source:** `PRODUCT.md`
 - **Value:** Low
 - **Effort:** Large
-- **Depends on:** `F13`, `F6`.
+- **Depends on:** `F15`, `F6`.
 - **Open decisions:** whether following needs consent.
 
-### F16 — Social feeds
+### F18 — Social feeds
 
 - **Source:** `PRODUCT.md`
 - **Value:** Low
 - **Effort:** Large
-- **Depends on:** `F13`, `F15`.
+- **Depends on:** `F15`, `F17`.
 - **Open decisions:** what a feed shows, and to whom.
 
-### F17 — Contact syncing
+### F19 — Contact syncing
 
 - **Source:** `PRODUCT.md`
 - **Value:** Low
 - **Effort:** Large
-- **Depends on:** `F13`.
+- **Depends on:** `F15`.
 - **Open decisions:** what leaves the phone. A privacy decision.
 
 ## 4. Public play, after blocking
 
-Large to extra large. Each needs `F13`. Listed after what it depends on.
+Large to extra large. Each needs `F15`. Listed after what it depends on.
 
-### F18 — Spectators
+### F20 — Spectators
 
 - **Source:** `docs/GAME-STATE-VISIBILITY.md`, `docs/PLATFORM-REVIEW.md`
 - **Value:** Low
 - **Effort:** Large. Per-viewer projection already decides visibility by role
   with no cap on viewers (`D069`).
-- **Depends on:** `F13`.
+- **Depends on:** `F15`.
 - **Open decisions:** what a spectator sees, and who may watch.
 
-### F19 — Matchmaking
+### F21 — Matchmaking
 
 - **Source:** `MVP.md`
 - **Value:** Medium
 - **Effort:** Large
-- **Depends on:** `F13`.
+- **Depends on:** `F15`.
 - **Open decisions:** who is matched with whom.
 
-### F20 — Ratings
+### F22 — Ratings
 
 - **Source:** `MVP.md`
 - **Value:** Low
 - **Effort:** Medium
-- **Depends on:** `F19` or `F21`. Ratings mean little among friends only.
+- **Depends on:** `F21` or `F23`. Ratings mean little among friends only.
 - **Open decisions:** the rating system.
 
-### F21 — Public games
+### F23 — Public games
 
 - **Source:** `MVP.md`
 - **Value:** Low–medium
 - **Effort:** Large
-- **Depends on:** `F13`, `F18`.
+- **Depends on:** `F15`, `F20`.
 - **Open decisions:** what "public" exposes.
 
-### F22 — Tournaments
+### F24 — Tournaments
 
 - **Source:** `MVP.md`
 - **Value:** Low
 - **Effort:** Extra large
-- **Depends on:** `F19`, `F9`.
+- **Depends on:** `F21`, `F10`.
 - **Open decisions:** format.
 
 ## 5. Push notifications
 
-Very low priority, by the project owner's call.
+High value, but intentionally deferred for now due to the additional infrastructure and platform work required.
 
-### F23 — Push notifications
+### F25 — Push notifications
 
 - **Source:** `MVP.md`
-- **Value:** Very low (owner's call)
+- **Value:** High
 - **Effort:** Large. No FCM or Firebase code exists: it needs a Firebase
   account, device-token storage and server-side sends.
 - **Depends on:** nothing in the code.
@@ -318,10 +340,10 @@ Very low priority, by the project owner's call.
 
 ## 6. Deck-builder, after `M20.1`
 
-Waiting on `M20.1`'s sign-off. `F25` is marked higher priority than most non-MVP
-work (`D049`), so it comes right after `F24`, which it needs.
+Waiting on `M20.1`'s sign-off. `F27` is marked higher priority than most non-MVP
+work (`D049`), so it comes right after `F26`, which it needs.
 
-### F24 — Deck-building systems
+### F26 — Deck-building systems
 
 - **Source:** `MVP.md`. The long-term product goal; its platform groundwork is
   `M19` and `M20` in the backlog.
@@ -330,46 +352,46 @@ work (`D049`), so it comes right after `F24`, which it needs.
 - **Depends on:** `M20.1`.
 - **Open decisions:** `M20.1`.
 
-### F25 — "Suggest friends" for table co-participants
+### F27 — "Suggest friends" for table co-participants
 
 - **Source:** `D049`, which marks it higher priority than most non-MVP work.
 - **Value:** Medium
 - **Effort:** not estimated. It matters only once tables of three or more exist.
-- **Depends on:** `F24`.
+- **Depends on:** `F26`.
 - **Open decisions:** when the prompt appears.
 
-### F26 — Deck-builder solo mode
+### F28 — Deck-builder solo mode
 
 - **Source:** `D048`. 1–4 humans against the enemy.
 - **Value:** Medium
 - **Effort:** not estimated.
-- **Depends on:** `F24`.
+- **Depends on:** `F26`.
 - **Open decisions:** none recorded yet.
 
-### F27 — AI players in the deck-builder's normal modes
+### F29 — AI players in the deck-builder modes
 
 - **Source:** `D051`
 - **Value:** Medium
 - **Effort:** not estimated.
-- **Depends on:** `F24`.
+- **Depends on:** `F26`.
 - **Open decisions:** none recorded yet.
 
-### F28 — Detailed and per-table statistics
+### F30 — Detailed and per-table statistics
 
 - **Source:** `MVP.md`, `D048`. Split from `F1` on 2026-09-23.
 - **Value:** Low–medium
 - **Effort:** not estimated. Per-table statistics need tables of three or more.
-- **Depends on:** `F1`, so both share one statistics model; `F24` for per-table
+- **Depends on:** `F1`, so both share one statistics model; `F26` for per-table
   statistics.
 - **Open decisions:** which statistics.
 
-### F29 — Series revival
+### F31 — Series revival
 
 - **Source:** `D048`. The identical participant set resuming a prior series's
   identity for statistics.
 - **Value:** Low
 - **Effort:** not estimated.
-- **Depends on:** `F1` and `F28`, so all three share one statistics model; the
+- **Depends on:** `F1` and `F30`, so all three share one statistics model; the
   deck-builder, after `M20.1`.
 - **Open decisions:** when a new series counts as a revival.
 
@@ -377,7 +399,7 @@ work (`D049`), so it comes right after `F24`, which it needs.
 
 Waiting on a concrete non-JVM client requirement.
 
-### F30 — iOS or web clients
+### F32 — iOS or web clients
 
 - **Source:** `D002`
 - **Value:** Not needed yet

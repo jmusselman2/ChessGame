@@ -180,9 +180,10 @@ into constraints instead of application logic, and none of them mentions a game.
 **The series as the unit of continuity.** A pair of players, a current game, a
 status, and `close_after_current_game`. Everything the product promises about
 continuity — automatic rematch, colour alternation, friend removal that lets the
-current game finish and then closes the series (`D013`) — is expressed in those
-four columns, and `SeriesService` implements all of it while knowing one thing
-about chess: how to construct a new game. **This is the most valuable structural
+current game finish and then closes the series (`D013`, since superseded by
+`D053`; `V7` dropped the column in `M19.5`) — is expressed in those four
+columns, and `SeriesService` implements all of it while knowing one thing about
+chess: how to construct a new game. **This is the most valuable structural
 result in the review**: the lifecycle survived first contact with a real ruleset
 almost completely uncontaminated by it.
 
@@ -753,7 +754,8 @@ and unfriending **no longer closes a series** (drop
 
 ### Still open
 
-Named here so they are not lost; none is decided.
+Named here so they are not lost. Each is undecided unless it says otherwise:
+`(gameId, version)` was decided in `M19.10`, and is kept here with its outcome.
 
 - **Repository / module structure for the deck-builder** (`M20.1`, formerly
   `M19.1`): where game-specific rules live and how the server routes state and
@@ -778,9 +780,9 @@ Named here so they are not lost; none is decided.
 - **Target concurrency / load** — deliberately not guessed; revisit with real
   usage data. New `users` columns `last_login_at` / `last_action_at` are a first
   step toward having something to look at.
-- **Spectators** — out of MVP scope. The projection model decides visibility by
-  role with no cap on viewers (`D069`); what a spectator product shows is not
-  decided.
+- **Spectators** — out of MVP scope (`F20` in `docs/FUTURE.md`). The projection
+  model decides visibility by role with no cap on viewers (`D069`); what a
+  spectator product shows is not decided.
 
 ## What changes now
 

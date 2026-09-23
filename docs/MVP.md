@@ -162,52 +162,57 @@ changing both.
 
 - `F2` draw offers by agreement (`D019`)
 - `F3` drag-and-drop moves (`PRODUCT.md`)
-- `F8` AI opponent
-- `F9` clocks
+- `F7` AI opponent
+- `F10` clocks
 - `F11` dead-position detection by search (`D038`)
+
+### Presentation
+
+- `F8` custom themes (`PRODUCT.md`)
+- `F9` elaborate animations (`PRODUCT.md`)
 
 ### Identity and Accounts
 
 - `F5` username changes
-- `F7` account recovery UI (`PRODUCT.md`)
-- `F10` removing the "All users" page, or restricting it to admins (`D071`)
-- `F12` approval setting for friend requests and game invites (`D047`, `D049`)
+- `F12` removing the "All users" page, or restricting it to admins (`D071`)
+- `F13` account recovery UI (`PRODUCT.md`)
+- `F14` approval setting for friend requests and game invites (`D047`, `D049`)
 
 ### Social
 
 - `F6` detailed profiles (`PRODUCT.md`)
-- `F13` blocking (`PRODUCT.md`)
-- `F14` chat
-- `F15` followers (`PRODUCT.md`)
-- `F16` social feeds (`PRODUCT.md`)
-- `F17` contact syncing (`PRODUCT.md`)
-- `F23` push notifications
-- `F25` "suggest friends" for table co-participants (`D049`)
+- `F15` blocking (`PRODUCT.md`)
+- `F16` chat
+- `F17` followers (`PRODUCT.md`)
+- `F18` social feeds (`PRODUCT.md`)
+- `F19` contact syncing (`PRODUCT.md`)
+- `F25` push notifications
+- `F27` "suggest friends" for table co-participants (`D049`)
 
 ### Series and Statistics
 
 - `F1` win/loss/draw record per friend
 - `F4` turning automatic rematches off by hand (`PRODUCT.md`)
-- `F20` ratings
-- `F28` detailed statistics, including per-table statistics (`D048`)
-- `F29` series revival (`D048`)
+- `F22` ratings
+- `F30` detailed statistics, including per-table statistics (`D048`)
+- `F31` series revival (`D048`)
 
 ### Public Play
 
-- `F18` spectators (`docs/GAME-STATE-VISIBILITY.md`)
-- `F19` matchmaking
-- `F21` public games
-- `F22` tournaments
+- `F20` spectators (`docs/GAME-STATE-VISIBILITY.md`)
+- `F21` matchmaking
+- `F23` public games
+- `F24` tournaments
 
 ### Other Clients
 
-- `F30` iOS or web clients (`D002`)
+- `F32` iOS or web clients (`D002`)
 
 ### Deck-Builder Platform
 
-- `F24` deck-building systems
-- `F26` deck-builder solo mode (`D048`)
-- `F27` AI players in the deck-builder's normal modes (`D051`)
+- `F26` deck-building systems
+- `F28` deck-builder solo mode (`D048`)
+- `F29` AI players in the deck-builder's normal modes (`D051`)
 
 Several active series per friend pair was on this list until `D053` made it MVP
 behaviour.

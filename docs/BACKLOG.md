@@ -1204,6 +1204,12 @@ tracked. Delete it in the same change that adds the first real migration file
 
 **Status:** DONE
 
+*Later schema changes (note added 2026-09-23):* `V2`–`V9` changed this schema;
+see `database/README.md` and `ARCHITECTURE.md` §27. `V5` replaced the pair
+columns with tables and participants, `V6` dropped the one-active-series index
+(`D053`), and `V7` dropped `close_after_current_game`. The text below is kept as
+built.
+
 **Depends on:** M6.3
 
 **Completed:** 2026-08-26 — `database/migrations/V1__initial_schema.sql`
@@ -1537,6 +1543,10 @@ tests).
 
 **Status:** DONE
 
+*Superseded in part (note added 2026-09-23):* removing a friend no longer marks
+or closes any series; it affects the friends list only (`D053`, `M19.5`). The
+text below is kept as built.
+
 **Depends on:** M8.2
 
 **Completed:** 2026-08-26 — `FriendshipRepository.remove` deactivates the
@@ -1570,6 +1580,10 @@ and another pair's series left alone) and `.\gradlew.bat build`
 ## M9.1 — Start/open active series
 
 **Status:** DONE
+
+*Superseded in part (note added 2026-09-23):* a pair may now have several active
+series, and Play offers an existing one instead of opening it silently
+(`D053`, `D065`, `M19.4`). The text below is kept as built.
 
 **Depends on:** M8.2
 
@@ -1633,6 +1647,10 @@ Initial colors randomized and current game attached to series.
 
 **Status:** DONE
 
+*Superseded (note added 2026-09-23):* this lifecycle was removed and `V7`
+dropped its column (`D053`, `M19.5`). A series now closes at once when a
+participant leaves it (`D068`, `M19.8`). The text below is kept as built.
+
 **Depends on:** M9.1, M8.4
 
 **Completed:** 2026-08-26 — `GameSeriesRepository` gained
@@ -1657,6 +1675,11 @@ Series can be marked to close after its current game and transitions idempotentl
 ## M9.4 — Dashboard discovery
 
 **Status:** DONE
+
+*Superseded in part (note added 2026-09-23):* "marked to close after its current
+game" no longer exists (`D053`, `M19.5`). A series closes at once when a
+participant leaves it, and a game that ends in a closed series gets no rematch
+(`D068`, `M19.8`). The text below is kept as built.
 
 **Depends on:** M9.1, M9.2
 
@@ -2018,6 +2041,11 @@ Terminal result persists exactly once.
 
 **Status:** DONE
 
+*Superseded in part (note added 2026-09-23):* "marked to close after its current
+game" no longer exists (`D053`, `M19.5`). A series closes at once when a
+participant leaves it, and a game that ends in a closed series gets no rematch
+(`D068`, `M19.8`). The text below is kept as built.
+
 **Depends on:** M13.1, M9.2
 
 **Completed:** 2026-08-26 — finishing a game in an active series starts the next
@@ -2081,6 +2109,11 @@ Rematch colors reverse from prior game.
 
 **Status:** DONE
 
+*Superseded in part (note added 2026-09-23):* "marked to close after its current
+game" no longer exists (`D053`, `M19.5`). A series closes at once when a
+participant leaves it, and a game that ends in a closed series gets no rematch
+(`D068`, `M19.8`). The text below is kept as built.
+
 **Depends on:** M13.1, M9.3
 
 **Completed:** 2026-08-26 — a series marked to close finishes its current game
@@ -2117,6 +2150,11 @@ If series is marked to close:
 
 **Status:** DONE
 
+*Superseded in part (note added 2026-09-23):* "marked to close after its current
+game" no longer exists (`D053`, `M19.5`). A series closes at once when a
+participant leaves it, and a game that ends in a closed series gets no rematch
+(`D068`, `M19.8`). The text below is kept as built.
+
 **Depends on:** M13.2, M13.4
 
 **Completed:** 2026-08-26 — a player can give up, and the series treats that
@@ -2147,16 +2185,19 @@ Resignation follows the same active-vs-closing series lifecycle.
 
 # M14 — Android Multiplayer Client, Dashboard, and History
 
-**Milestone status:** INCOMPLETE. `M14.1`–`M14.17` are `DONE`: the server
+**Milestone status:** COMPLETE. `M14.1`–`M14.18` are `DONE`; `M14.18`, the
+two-client play-through, ran on two emulators on 2026-08-31.
+
+*Until then (kept for the record):* `M14.1`–`M14.17` were `DONE`: the server
 queries and presentation components, then the application shell, startup,
 username onboarding, friends, the live dashboard, the online game screen, moves,
 realtime reloads, undo, draw claims, resignation, the completion/rematch flow,
 and reachable history. `M14.18` — the two-client play-through on a real
-emulator or device — is the only task left in the milestone, and it cannot be
-run on this machine: there is no AVD (`emulator -list-avds` is empty), no system
+emulator or device — was the only task left in the milestone, and it could not be
+run on this machine: there was no AVD (`emulator -list-avds` was empty), no system
 image installed, no `cmdline-tools`/`sdkmanager` to install one, and no device
-attached (`adb devices` lists none). That is the **missing prerequisite** stop
-condition, and it is the same blocker recorded against `M5.7`.
+attached (`adb devices` listed none). That was the **missing prerequisite** stop
+condition, and the same blocker recorded against `M5.7`.
 
 ## M14.1 — Your Turn data and presentation component
 
@@ -2216,6 +2257,10 @@ game-less series is in neither, and the server's order is kept) and
 ## M14.3 — Friends dashboard component
 
 **Status:** DONE
+
+*Superseded in part (note added 2026-09-23):* a pair may now have several active
+series, and Play offers an existing one instead of opening it silently
+(`D053`, `D065`, `M19.4`). The text below is kept as built.
 
 **Depends on:** M8
 
@@ -2485,6 +2530,10 @@ invalid input, duplicate username, and retry.
 
 **Status:** DONE
 
+*Superseded in part (note added 2026-09-23):* a pair may now have several active
+series, and Play offers an existing one instead of opening it silently
+(`D053`, `D065`, `M19.4`). The text below is kept as built.
+
 **Depends on:** M14.7, M8
 
 **Completed:** 2026-08-28 — friends are reachable from the app at last. The
@@ -2545,6 +2594,10 @@ remove, refresh, and Play/Open behavior.
 ## M14.9 — Authenticated dashboard landing flow
 
 **Status:** DONE
+
+*Superseded in part (note added 2026-09-23):* a pair may now have several active
+series, and Play offers an existing one instead of opening it silently
+(`D053`, `D065`, `M19.4`). The text below is kept as built.
 
 **Depends on:** M14.6, M14.7, M14.8, M14.1, M14.2, M14.3
 
@@ -2937,6 +2990,11 @@ both player colors, server refusals, and accepted resignation.
 ## M14.16 — Game completion and automatic rematch flow on Android
 
 **Status:** DONE
+
+*Superseded in part (note added 2026-09-23):* "marked to close after its current
+game" no longer exists (`D053`, `M19.5`). A series closes at once when a
+participant leaves it, and a game that ends in a closed series gets no rematch
+(`D068`, `M19.8`). The text below is kept as built.
 
 **Depends on:** M14.12, M14.14, M14.15, M13
 
@@ -3971,6 +4029,10 @@ against the local test database (BUILD SUCCESSFUL, 350 server tests, 0 skipped).
 
 **Status:** DONE
 
+*Superseded in part (note added 2026-09-23):* a pair may now have several active
+series, and Play offers an existing one instead of opening it silently
+(`D053`, `D065`, `M19.4`). The text below is kept as built.
+
 **Depends on:** M13
 
 **Completed:** 2026-08-26 — "Play with this friend" held to one series and one
@@ -4562,7 +4624,7 @@ anonymous account on each install, that means looking a name up somewhere else
 and typing it in, every time. The project owner wants to pick people from a list.
 The page is a testing aid, always on, and is to be removed or restricted to admins
 before the app has real users (`D071`). *Amended 2026-09-23:* the page is part of
-the MVP, and its removal is parked post-MVP work with no deadline (`F10` in `docs/FUTURE.md`, `D072`).
+the MVP, and its removal is parked post-MVP work with no deadline (`F12` in `docs/FUTURE.md`, `D072`).
 
 ### Acceptance Criteria
 

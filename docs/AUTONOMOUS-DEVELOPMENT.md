@@ -253,7 +253,9 @@ Stop autonomous work and report when — and only when — one of these is true:
 - **Architecture-level verification failure:** repeated verification failure
   (per the escalation ladder) that indicates the documented architecture itself
   is wrong rather than the implementation.
-- **Backlog exhausted:** no unblocked `TODO` task remains.
+- **Backlog exhausted:** no unblocked `TODO` task remains. `docs/FUTURE.md` is
+  not a source of tasks: its items reach the backlog only when the project owner
+  schedules them (`D072`).
 
 A stop report must include what was completed and verified so far, the exact
 blocker, and the options or decision needed to proceed.
@@ -309,7 +311,7 @@ Do not mark failing tests as ignored without explicit written justification.
 ## Scope Discipline
 
 - Do not opportunistically add deferred features (`docs/PRODUCT.md` "Deferred
-  Features", `docs/MVP.md` "Explicitly Not Required").
+  Features", `docs/MVP.md` "Explicitly Not Required", `docs/FUTURE.md`).
 - Do not create deck-building abstractions during the chess MVP unless a
   current concrete task requires them.
 - Do not perform broad refactors unrelated to the active task unless required

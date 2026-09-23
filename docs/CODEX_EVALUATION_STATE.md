@@ -5,9 +5,12 @@
   baseline before M19 was implemented; they remain unchanged as historical
   records.
 - **Current evaluated `main`:** `1f17312848a6d6c9499c0accbd7eb6401f44e657`.
+- **Current `main`:** `c7a6fe1`, which is not yet evaluated. See *Not yet
+  evaluated* below.
 - **Current milestone:** M19 current-implementation re-evaluation complete.
 - **Status:** `DEFECT FOUND — M19.2–M19.12 EVALUATED; 1 FINDING, REMEDIATED
-  2026-09-17 ON claude-autopilot, AWAITING RE-EVALUATION`.
+  2026-09-17 ON claude-autopilot, AWAITING INDEPENDENT RE-EVALUATION`. M17.3,
+  M17.5 and M17.6 landed after this evaluation and are not yet evaluated.
 - **Scope boundary:** M19.1 moved to M20.1. The N >= 3 resignation and
   continuation flow formerly in M19.8 moved to M20.2. Neither is an M19 defect.
 - **Current reports:** `evals/M19/re-evaluation-critic-report.md` and
@@ -29,7 +32,11 @@ M19.3 and M19.7 share one defect:
   was not changed by the evaluation. **Remediated 2026-09-17** by the
   implementation track (`evals/remediation-report.md`, *M19-01*): duplicate
   detection uses the whole participant and seats are ordered by ref then kind.
-  The regression passes unmodified.
+  The regression passes unmodified. The implementation track re-ran it on
+  2026-09-23 against disposable PostgreSQL, on the same code as `main`
+  `c7a6fe1`: `M19ParticipantIdentityRegressionTest` 1/1 and
+  `TableRepositoryTest` 13/13, none skipped. That is the implementation track's
+  evidence, not an independent re-evaluation.
 
 All six earlier evaluation findings remain closed by the 2026-09-10
 remediation: M10-01, M12-01, M14-01, M14-02, M14-03, and M18-01. Their retained
@@ -47,9 +54,24 @@ regressions still pass on the current baseline.
   through the current participant schema, including closed and active series,
   dashboard, history, moves, and events.
 
+## Not yet evaluated
+
+Commits on `main` after the evaluated `1f17312`:
+
+- `7f0846e` — the `M19-01` remediation (`TableRepository` identity).
+- `48adebb` — `M17.3`: the home screen names its player.
+- `11bc23c` — `M17.5`: an "All users" page to add friends from, a testing aid
+  that is part of the MVP (`D071`).
+- `c7a6fe1` — `M17.6`: the "All users" page lists friends too.
+
+`M17.4` (user settings) is `BLOCKED` on the project owner and has no code to
+evaluate. Documentation-only commits after `c7a6fe1` (`D072`, `docs/FUTURE.md`)
+change no behaviour.
+
 ## Beta result
 
-The existing Render beta is serving current `main`: a cold `GET /health`
+At the time of the M19 evaluation, the existing Render beta was serving the
+evaluated `main`: a cold `GET /health`
 returned HTTP 200 after 54.329 seconds with `ChessGame server is healthy (build
 1f17312)`. The non-health-only response proves the database-backed application
 started; startup calls `connectAndMigrate` before installing authenticated
@@ -109,8 +131,10 @@ against disposable PostgreSQL.
 
 ## Exact next action
 
-`M19-01` has been remediated on `claude-autopilot` (see
-`evals/remediation-report.md`); re-evaluate that remediation. After that,
-**M20.1 remains the next human-sign-off boundary**: choose
+1. Re-evaluate the `M19-01` remediation (`7f0846e`, `evals/remediation-report.md`).
+2. Evaluate `M17.3`, `M17.5` and `M17.6` against their acceptance criteria in
+   `docs/BACKLOG.md` and `D071`.
+
+After that, **M20.1 remains the next human-sign-off boundary**: choose
 the multi-game rules/module architecture with the project owner before starting
 M20.2. Do not choose that architecture automatically.
