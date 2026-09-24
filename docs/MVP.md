@@ -225,5 +225,11 @@ changing both.
 - `F28` deck-builder solo mode (`D048`)
 - `F29` AI players in the deck-builder's normal modes (`D051`)
 
+### Operations
+
+- `F33` database backups
+- `F34` locking down direct database access: row-level security and the `anon`
+  grants
+
 Several active series per friend pair was on this list until `D053` made it MVP
 behaviour.

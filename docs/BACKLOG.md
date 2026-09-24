@@ -5225,6 +5225,64 @@ phone, so Robin's side of the group screen was not seen on a device.
 
 ---
 
+## M17.12 — Database: the friends index, connection timeouts, two redundant indexes
+
+**Status:** TODO
+
+**Depends on:** None
+
+**Found by:** the database review on 2026-09-24, against the beta database (13 MB,
+14 tables). Scheduled by the project owner the same day.
+
+### The gap
+
+- **The friends list has no index for half its lookup.** `FriendshipRepository.friendsOf`
+  matches `user_a_id = ? OR user_b_id = ?`. The primary key `(user_a_id, user_b_id)`
+  covers the first half only, so the second is a sequential scan of `friendships`
+  once the table grows. The Supabase advisor also lists `friendships_user_b_id_fkey`
+  as a foreign key without an index.
+- **A stuck transaction can hold its locks forever.** The server's connections
+  (Hikari, `isAutoCommit = false`, as `postgres`) have no statement timeout, no
+  idle-in-transaction timeout and no lock timeout. A request that hangs inside a
+  transaction keeps whatever it locked, including a game row taken `FOR UPDATE`,
+  until the connection dies. The longest query the server ran averaged under 1 ms
+  (`pg_stat_statements`, 2026-09-24).
+- **Two indexes are redundant.** `moves_game_id (game_id)` repeats the leading
+  column of the unique `moves_game_ply (game_id, ply)`, and `games_series_id
+  (series_id)` repeats the leading column of the unique `games_series_sequence
+  (series_id, sequence_number)`. Each costs a write on every insert and nothing on
+  reads.
+
+### Acceptance Criteria
+
+- A forward-only migration, the next free Flyway version, adds an index on
+  `friendships (user_b_id)` and drops `moves_game_id` and `games_series_id`. It
+  preserves every row. `InitialSchemaTest` or a new schema test shows the index
+  present and the two absent, and that `moves` and `games` still have their unique
+  indexes.
+- The server's request connections have a statement timeout (30 s), an
+  idle-in-transaction timeout (60 s) and a lock timeout (10 s). The values live in
+  one place in `DatabaseConfig`. How they are applied is decided by the task and
+  recorded as a decision: whatever is chosen must work through Supabase's session
+  pooler (`aws-0-us-east-2.pooler.supabase.com:5432`), and must not cap Flyway
+  migrations, or the decision says why a cap is acceptable. No `ALTER ROLE postgres`:
+  that role is also the Supabase dashboard's.
+- Tests against the disposable database show each timeout in effect on a pooled
+  connection. A transaction left idle past the limit is ended by the server, and a
+  statement waiting on a lock past its limit fails rather than waiting.
+- A command that hits a timeout fails as an ordinary server error, is logged, and
+  leaves the game unchanged. Commands are version-guarded (`D021`), so the player's
+  retry is safe. A test shows it.
+- After deploying, the check is repeated on the beta: the advisor no longer lists
+  `friendships_user_b_id_fkey`, and `pg_stat_user_indexes` has no `moves_game_id` or
+  `games_series_id`. Deploying stays the project owner's step.
+- Out of scope: the other five foreign keys without indexes (they matter only when
+  a user, game or computer player is deleted, which nothing does yet), the move
+  history rewrite (`D061` leaves chess as it is), row-level security and the `anon`
+  grants (`F34`), and backups (`F33`).
+
+---
+
 ---
 
 # M18 — Post-Chess Architecture Review

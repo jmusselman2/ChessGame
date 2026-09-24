@@ -79,6 +79,8 @@ this order, not the numbers. `MVP.md` lists the same items by topic.
 | `F30` | Detailed and per-table statistics           | Series and Statistics | not estimated | Low–medium         |
 | `F31` | Series revival                              | Series and Statistics | not estimated | Low                |
 | `F32` | iOS or web clients                          | Other Clients         | not estimated | Not needed yet     |
+| `F33` | Database backups                            | Operations            | S             | High (protection)  |
+| `F34` | Lock down direct database access            | Operations            | S–M           | High (protection)  |
 
 ---
 
@@ -407,3 +409,40 @@ Waiting on a concrete non-JVM client requirement.
 - **Depends on:** a concrete non-JVM client requirement (`CLAUDE.md`: no Kotlin
   Multiplatform without one).
 - **Open decisions:** the client strategy.
+
+## 8. Operations
+
+Added by the project owner on 2026-09-24 from the database review of that day,
+at the bottom of the list. Neither changes what a player sees; both protect the
+data players already have.
+
+### F33 — Database backups
+
+- **Source:** the 2026-09-24 database review. Supabase's free plan keeps no
+  backups (`D035`, `docs/DEVELOPMENT.md`).
+- **Value:** High (protection). Losing or corrupting the data would be permanent.
+- **Effort:** Small. A nightly export, for example `pg_dump` from a scheduled
+  GitHub Actions workflow.
+- **Depends on:** nothing.
+- **Open decisions:** storing a database secret in GitHub (a security decision),
+  where the exports are kept and for how long, and whether a paid plan's backups
+  are preferred instead.
+
+### F34 — Lock down direct database access
+
+- **Source:** the 2026-09-24 database review. Checked that day: row-level security
+  is off on all 14 public tables, and the `anon` and `authenticated` roles hold
+  `SELECT`, `INSERT`, `UPDATE`, `DELETE`, `TRUNCATE`, `REFERENCES` and `TRIGGER` on
+  every one, `flyway_schema_history` included.
+- **Value:** High (protection). The anon key ships inside the APK, so anyone who
+  extracts it could read and change every table through Supabase's REST API. That
+  API was answering `503` on 2026-09-24, which hides the problem but does not fix
+  it. The app never uses it: Android goes through Ktor (`CLAUDE.md`).
+- **Effort:** Small–medium. Revoke the `anon` and `authenticated` grants, change
+  the default privileges so new tables do not get them, and enable row-level
+  security. Optionally, give the server its own least-privilege database role
+  instead of `postgres`.
+- **Depends on:** nothing. The server connects as `postgres`, which neither change
+  affects.
+- **Open decisions:** it is a security change to the live database, so it needs a
+  decision in `DECISIONS.md`; and whether the server gets its own role.
