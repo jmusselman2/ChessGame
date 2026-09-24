@@ -2,10 +2,10 @@ package com.jmussel.chessgame.ui.game
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -22,6 +22,8 @@ import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.ui.board.BoardRendering
 import com.jmussel.chessgame.ui.board.ChessBoard
+import com.jmussel.chessgame.ui.board.GameBackButton
+import com.jmussel.chessgame.ui.board.GameLayout
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
 /**
@@ -32,11 +34,16 @@ import com.jmussel.chessgame.ui.theme.ChessGameTheme
  * Nothing here can change any of it — playing a move is `M14.11` — so a finished game and a
  * game in progress are drawn the same way, and a game from history is read-only by
  * construction rather than by a flag.
+ *
+ * The board and the rest are arranged by `GameLayout` (`D073`). Back is part of this
+ * screen rather than of the app's top row, and is drawn when [onBack] is given, in every
+ * state, so a game that failed to load can still be left.
  */
 @Composable
 fun OnlineGameScreen(
     state: OnlineGameState,
     modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
     onRetry: () -> Unit = {},
     onSquareTapped: (Square) -> Unit = {},
     onChoosePromotion: (PieceType) -> Unit = {},
@@ -52,41 +59,42 @@ fun OnlineGameScreen(
     onOpenNextGame: () -> Unit = {},
     onDone: () -> Unit = {},
 ) {
-    Column(
-        modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        when (state) {
-            is OnlineGameState.Loading -> Text(text = LOADING, style = MaterialTheme.typography.bodyMedium)
+    when (state) {
+        is OnlineGameState.Loading ->
+            NoGameYet(onBack = onBack, modifier = modifier) {
+                Text(text = LOADING, style = MaterialTheme.typography.bodyMedium)
+            }
 
-            is OnlineGameState.Failed -> {
+        is OnlineGameState.Failed ->
+            NoGameYet(onBack = onBack, modifier = modifier) {
                 Text(text = state.message, style = MaterialTheme.typography.bodyMedium)
                 if (state.canRetry) {
                     TextButton(onClick = onRetry) { Text(text = RETRY) }
                 }
             }
 
-            is OnlineGameState.Ready ->
-                Game(
-                    state = state,
-                    onSquareTapped = onSquareTapped,
-                    onChoosePromotion = onChoosePromotion,
-                    onCancelPromotion = onCancelPromotion,
-                    onUndo = onUndo,
-                    onClaimDraw = onClaimDraw,
-                    onAskToResign = onAskToResign,
-                    onResign = onResign,
-                    onCancelResignation = onCancelResignation,
-                    series =
-                        SeriesExit(
-                            onAsk = onAskToLeaveSeries,
-                            onLeave = onLeaveSeries,
-                            onCancel = onCancelLeaveSeries,
-                        ),
-                    onOpenNextGame = onOpenNextGame,
-                    onDone = onDone,
-                )
-        }
+        is OnlineGameState.Ready ->
+            Game(
+                state = state,
+                modifier = modifier,
+                onBack = onBack,
+                onSquareTapped = onSquareTapped,
+                onChoosePromotion = onChoosePromotion,
+                onCancelPromotion = onCancelPromotion,
+                onUndo = onUndo,
+                onClaimDraw = onClaimDraw,
+                onAskToResign = onAskToResign,
+                onResign = onResign,
+                onCancelResignation = onCancelResignation,
+                series =
+                    SeriesExit(
+                        onAsk = onAskToLeaveSeries,
+                        onLeave = onLeaveSeries,
+                        onCancel = onCancelLeaveSeries,
+                    ),
+                onOpenNextGame = onOpenNextGame,
+                onDone = onDone,
+            )
     }
 }
 
@@ -97,10 +105,28 @@ private class SeriesExit(
     val onCancel: () -> Unit,
 )
 
+/** A game still loading, or one that could not be loaded: Back, and what is happening. */
+@Composable
+private fun NoGameYet(
+    onBack: (() -> Unit)?,
+    modifier: Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        onBack?.let { GameBackButton(onClick = it) }
+        content()
+    }
+}
+
 /** The game itself, drawn from the server's answer. */
 @Composable
 private fun Game(
     state: OnlineGameState.Ready,
+    modifier: Modifier,
+    onBack: (() -> Unit)?,
     onSquareTapped: (Square) -> Unit,
     onChoosePromotion: (PieceType) -> Unit,
     onCancelPromotion: () -> Unit,
@@ -115,70 +141,89 @@ private fun Game(
 ) {
     val game = state.game
 
-    Text(text = OnlineGame.headingFor(game), style = MaterialTheme.typography.titleSmall)
+    GameLayout(
+        onBack = onBack,
+        modifier = modifier,
+        board = { side ->
+            ChessBoard(
+                board = OnlineGame.boardFrom(game.board),
+                side = side,
+                selectedSquare = state.selected,
+                legalDestinations = OnlineGame.legalDestinations(state),
+                lastMove = OnlineGame.lastMoveSquares(game),
+                orientation = OnlineGame.sideOf(game),
+                onSquareClick = onSquareTapped,
+            )
+        },
+        controls = {
+            Text(text = OnlineGame.headingFor(game), style = MaterialTheme.typography.titleSmall)
 
-    ChessBoard(
-        board = OnlineGame.boardFrom(game.board),
-        selectedSquare = state.selected,
-        legalDestinations = OnlineGame.legalDestinations(state),
-        lastMove = OnlineGame.lastMoveSquares(game),
-        orientation = OnlineGame.sideOf(game),
-        onSquareClick = onSquareTapped,
+            Text(text = OnlineGame.statusFor(game), style = MaterialTheme.typography.bodyLarge)
+
+            state.pendingPromotion?.let { pending ->
+                PromotionPrompt(
+                    choices = pending.choices,
+                    onChoose = onChoosePromotion,
+                    onCancel = onCancelPromotion,
+                )
+            }
+
+            // Offered only while the server's own answer says this player may take a move back
+            // (`D016`); the server decides again when the command arrives.
+            if (game.canUndo) {
+                Button(onClick = onUndo, enabled = !state.submitting) { Text(text = UNDO) }
+            }
+
+            // Only the claims the server said are available, each labelled by its own rule
+            // (`D019`); an automatic draw needs no claim and never appears here.
+            game.availableDrawClaims.forEach { claim ->
+                Button(onClick = { onClaimDraw(claim) }, enabled = !state.submitting) {
+                    Text(text = OnlineGame.claimLabel(claim))
+                }
+            }
+
+            // A player may give up on their opponent's move as readily as on their own
+            // (`docs/PRODUCT.md`), and is asked first because it is final (`D018`).
+            if (!game.isOver) {
+                Button(onClick = onAskToResign, enabled = !state.submitting) { Text(text = RESIGN) }
+            }
+
+            // What the series did next, which the server decided when it finalized this game
+            // (`D014`); nothing here creates or confirms a rematch.
+            when (state.after) {
+                AfterGame.Looking -> Text(text = LOOKING_FOR_NEXT, style = MaterialTheme.typography.bodyMedium)
+
+                is AfterGame.NextGame ->
+                    Button(onClick = onOpenNextGame) { Text(text = NEXT_GAME) }
+
+                AfterGame.SeriesOver -> {
+                    Text(text = "$NO_MORE_GAMES ${game.opponent.username}.", style = MaterialTheme.typography.bodyMedium)
+                    Button(onClick = onDone) { Text(text = BACK_TO_DASHBOARD) }
+                }
+
+                null -> Unit
+            }
+
+            // Leaving the series is not resigning: it ends the series and leaves this game alone
+            // (`D052`). Offered while the server says the series goes on; afterwards, the note says
+            // this is the last game (`D068`).
+            if (game.seriesActive) {
+                TextButton(onClick = series.onAsk, enabled = !state.submitting) { Text(text = LEAVE_SERIES) }
+            }
+            OnlineGame.lastGameNoteFor(game)?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium) }
+
+            // What the server was last asked, and what it said about it.
+            if (state.submitting) Text(text = SUBMITTING, style = MaterialTheme.typography.bodyMedium)
+            state.message?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium) }
+
+            Text(text = OnlineGame.positionFor(game), style = MaterialTheme.typography.bodySmall)
+        },
+        moveList = {
+            OnlineGame.moveListLines(game).forEach { line ->
+                Text(text = line, style = MaterialTheme.typography.bodySmall)
+            }
+        },
     )
-
-    state.pendingPromotion?.let { pending ->
-        PromotionPrompt(
-            choices = pending.choices,
-            onChoose = onChoosePromotion,
-            onCancel = onCancelPromotion,
-        )
-    }
-
-    Text(text = OnlineGame.statusFor(game), style = MaterialTheme.typography.bodyLarge)
-
-    // Offered only while the server's own answer says this player may take a move back
-    // (`D016`); the server decides again when the command arrives.
-    if (game.canUndo) {
-        Button(onClick = onUndo, enabled = !state.submitting) { Text(text = UNDO) }
-    }
-
-    // Only the claims the server said are available, each labelled by its own rule
-    // (`D019`); an automatic draw needs no claim and never appears here.
-    game.availableDrawClaims.forEach { claim ->
-        Button(onClick = { onClaimDraw(claim) }, enabled = !state.submitting) {
-            Text(text = OnlineGame.claimLabel(claim))
-        }
-    }
-
-    // A player may give up on their opponent's move as readily as on their own
-    // (`docs/PRODUCT.md`), and is asked first because it is final (`D018`).
-    if (!game.isOver) {
-        Button(onClick = onAskToResign, enabled = !state.submitting) { Text(text = RESIGN) }
-    }
-
-    // What the series did next, which the server decided when it finalized this game
-    // (`D014`); nothing here creates or confirms a rematch.
-    when (state.after) {
-        AfterGame.Looking -> Text(text = LOOKING_FOR_NEXT, style = MaterialTheme.typography.bodyMedium)
-
-        is AfterGame.NextGame ->
-            Button(onClick = onOpenNextGame) { Text(text = NEXT_GAME) }
-
-        AfterGame.SeriesOver -> {
-            Text(text = "$NO_MORE_GAMES ${game.opponent.username}.", style = MaterialTheme.typography.bodyMedium)
-            Button(onClick = onDone) { Text(text = BACK_TO_DASHBOARD) }
-        }
-
-        null -> Unit
-    }
-
-    // Leaving the series is not resigning: it ends the series and leaves this game alone
-    // (`D052`). Offered while the server says the series goes on; afterwards, the note says
-    // this is the last game (`D068`).
-    if (game.seriesActive) {
-        TextButton(onClick = series.onAsk, enabled = !state.submitting) { Text(text = LEAVE_SERIES) }
-    }
-    OnlineGame.lastGameNoteFor(game)?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium) }
 
     if (state.confirmingLeave) {
         AlertDialog(
@@ -199,16 +244,6 @@ private fun Game(
             dismissButton = { TextButton(onClick = onCancelResignation) { Text(text = KEEP_PLAYING) } },
         )
     }
-
-    // What the server was last asked, and what it said about it.
-    if (state.submitting) Text(text = SUBMITTING, style = MaterialTheme.typography.bodyMedium)
-    state.message?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium) }
-
-    Text(text = OnlineGame.positionFor(game), style = MaterialTheme.typography.bodySmall)
-
-    OnlineGame.moveListLines(game).forEach { line ->
-        Text(text = line, style = MaterialTheme.typography.bodySmall)
-    }
 }
 
 /** The four pieces a pawn may become, and the way out of the question. */
@@ -221,7 +256,7 @@ private fun PromotionPrompt(
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(text = PROMOTE_TO, style = MaterialTheme.typography.bodyMedium)
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             choices.forEach { choice ->
                 Button(onClick = { onChoose(choice) }) {
                     Text(text = BoardRendering.glyphFor(choice).toString())

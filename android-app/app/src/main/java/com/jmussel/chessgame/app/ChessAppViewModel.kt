@@ -23,6 +23,7 @@ import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
 import com.jmussel.chessgame.ui.allusers.AllUsers
 import com.jmussel.chessgame.ui.allusers.AllUsersUiState
+import com.jmussel.chessgame.ui.board.LocalGameUiState
 import com.jmussel.chessgame.ui.dashboard.DashboardMessages
 import com.jmussel.chessgame.ui.dashboard.DashboardRow
 import com.jmussel.chessgame.ui.dashboard.DashboardUiState
@@ -97,6 +98,16 @@ class ChessAppViewModel(
 
     /** The game screen: the canonical state as far as it has been read, or `null` before any game has been opened. */
     var game: OnlineGameState? by mutableStateOf(null)
+        private set
+
+    /**
+     * The local pass-and-play game in progress.
+     *
+     * Held here so a rotation keeps it, and for no other reason (`D073`): it is not saved,
+     * so it does not survive the process. Opening the local game starts a new one, and
+     * leaving it with Back throws it away.
+     */
+    var localGame: LocalGameUiState by mutableStateOf(LocalGameUiState())
         private set
 
     /**
@@ -1238,9 +1249,22 @@ class ChessAppViewModel(
             }
     }
 
-    /** Shows [destination] in front of the current screen. */
+    /**
+     * Shows [destination] in front of the current screen.
+     *
+     * The local game starts afresh each time it is opened; opening it while it is already
+     * showing changes nothing, the game included.
+     */
     fun open(destination: Destination) {
+        if (destination == Destination.LocalGame && navigation.current != Destination.LocalGame) {
+            localGame = LocalGameUiState()
+        }
         navigation = navigation.open(destination)
+    }
+
+    /** Replaces the local game with [state], which the local game screen worked out. */
+    fun updateLocalGame(state: LocalGameUiState) {
+        localGame = state
     }
 
     /**
@@ -1260,6 +1284,8 @@ class ChessAppViewModel(
      */
     fun back(): Boolean {
         val previous = navigation.back() ?: return false
+        // Leaving the local game is the end of it, as it was before the game was held here.
+        if (navigation.current == Destination.LocalGame) localGame = LocalGameUiState()
         navigation = previous
         return true
     }

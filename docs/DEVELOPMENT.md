@@ -166,6 +166,80 @@ Status: VERIFIED (2026-08-25)
 Host-side JVM unit tests for the Android module. Do not rely on Android manual
 testing for chess-rule correctness — that belongs in `game-core` tests.
 
+### Android Device Tests (instrumented)
+
+The Compose UI tests under `android-app/app/src/androidTest` run on a device or
+emulator. Neither `build` nor CI runs them (`D073`). `build` does not even compile
+them, so compile them after changing them or anything they use:
+
+    .\gradlew.bat :android-app:assembleDebugAndroidTest
+
+Run them on one device. `ANDROID_SERIAL` picks it when more than one is attached:
+
+    $env:ANDROID_SERIAL = "28311FDH200L1Z"
+    $env:SUPABASE_ANON_KEY = "<publishable key>"
+    .\gradlew.bat :android-app:connectedDebugAndroidTest `
+      "-PchessServerUrl=https://chessgame-hit7.onrender.com" `
+      "-PchessVersionCode=<higher than the installed build>" `
+      "-PchessVersionName=<anything>"
+
+Status: VERIFIED (2026-09-23, `M17.7`, Pixel 7).
+
+What the properties are for:
+
+- **The server URL and the key.** `LocalGameRotationTest` starts the real app, signs
+  in, and wakes the beta server, which can take a minute. Without both it is skipped;
+  the other tests need neither.
+- **The version code.** The tests install the debug build over whatever is on the
+  device, and Android refuses a lower `versionCode` than the installed one. Read the
+  installed one with `adb shell dumpsys package com.jmussel.chessgame | grep versionCode`.
+
+The run **uninstalls the app afterwards**, which throws away the device's anonymous
+account. That is acceptable: ChessGame data on test devices and the beta server is
+disposable. A later run of `LocalGameRotationTest` claims a throwaway username.
+
+To run one class, add
+`"-Pandroid.testInstrumentationRunnerArguments.class=com.jmussel.chessgame.ui.board.GameLayoutUiTest"`.
+
+Keep the device unlocked. The layout tests keep the screen on while they run, but they
+cannot unlock it. On Android 16 the tests need Espresso 3.6.1 or later: 3.5.1 calls
+`InputManager.getInstance`, which Android 16 removed, and every Compose UI test then
+fails with `NoSuchMethodException`. The catalog has Espresso 3.7.0 and
+`androidx.test.ext:junit` 1.3.0 since `M17.7`.
+
+What they cover:
+
+- `GameLayoutUiTest` and `OnlineGameLayoutUiTest` force every window in
+  `GameLayoutSpecTest` with `DeviceConfigurationOverride`, at font scales 1.0, 1.3 and
+  2.0. They check that the board is square, inside the window and at least the square
+  floor; that every square's centre taps that square with either side at the bottom;
+  that the controls are in view without scrolling with two panes; that a long history
+  scrolls without moving the board; and that a short window scrolls to every square and
+  control.
+- `LocalGameRotationTest` recreates `MainActivity` with a local game in progress.
+- `LocalDrawClaimUiTest` and the `M5*` tests are the earlier local-game screen tests.
+
+**Checking rotation by hand.** Install a debug build as above with
+`:android-app:installDebug` instead of `connectedDebugAndroidTest`, which keeps the
+app installed. Turn auto-rotate on. Rotate the phone by hand, not through `adb`, then
+check:
+
+1. The dashboard in both orientations: the top row and the list fit.
+2. A local game with a few moves played: rotate both ways. The moves are kept, the whole
+   board is visible, and every square can be tapped.
+3. In landscape: Back, the status, Undo and both Resign buttons are in view in the right
+   panel without scrolling, and the board fills the height.
+4. In portrait: Back, the board, the status and the controls are in view, and the move
+   list scrolls on its own.
+5. An online game, and a finished one from History, in both orientations.
+6. Back from the local game, then open it again: a new game.
+
+Screenshots and layout dumps for the record:
+
+    adb exec-out screencap -p > screen.png
+    adb shell uiautomator dump /sdcard/window.xml
+    adb pull /sdcard/window.xml
+
 ### Android Debug Build
 
 Windows:

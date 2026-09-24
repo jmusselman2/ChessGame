@@ -4595,3 +4595,110 @@ Keeping `MVP.md` binding keeps scope where the precedence order already puts it.
   numbers.
 - The parked section is removed from `docs/BACKLOG.md`. `D071`, `PRODUCT.md`,
   `ARCHITECTURE.md` §15, `M17.5` and `MVP.md` now refer to `F12`.
+
+---
+
+## D073 — The Game Screen Fits the Window It Is Given: Two Panes When It Is Wide, a Board Sized to Fit
+
+**Date:** 2026-09-23
+
+**Status:** Accepted
+
+**Relates to:** `D041`, `M17.7`, `docs/PRODUCT.md` *Game Screen*, `docs/DEVELOPMENT.md`
+
+### Decision
+
+- **Landscape is supported.** The game screens (the local game and the online game,
+  including a finished game opened from history) fit whatever window they are given. The
+  layout is decided from that window's size after system insets, never from the device's
+  orientation. One pure function decides it, `GameLayoutSpec.forWindow(width, height)`,
+  and `GameLayout` draws it for both screens.
+- **Two panes** when the window is at least as wide as it is tall, a board of at least
+  352 dp fits its height, and a 280 dp panel fits beside it. The board is on the left:
+  `min(height, width − 280 dp, 640 dp)`, with no vertical padding. The panel is on the
+  right and scrolls on its own. It holds Back, then the status and controls, then the
+  move list. The board never moves.
+- **One column** otherwise: Back as a compact row, the board, the status and controls,
+  then the move list, which scrolls on its own. The board is `min(width − 2 × 16 dp,
+  height − 160 dp)`: 160 dp is kept for Back, the status line and one row of buttons at
+  font scale 1.0. The board and the controls stay put however long the history grows.
+  Controls that do not fit their space scroll within it rather than being cut off.
+- **The square floor is 48 dp in one column and 44 dp in two panes.** A 48 dp square is
+  the touch-target standard, so a one-column board is at least 384 dp. Two panes accept
+  44 dp squares (a 352 dp board) because a phone in landscape is not tall enough for
+  48: a stock Pixel 7 has 411.4 dp, less the 28 dp landscape status bar, which leaves at
+  most 383.4 dp with 3-button navigation. Gesture navigation's bottom bar leaves less.
+  The project owner chose smaller squares over scrolling the board. Where two panes
+  would give squares under 48 dp but one column fits a 384 dp board without scrolling,
+  one column is used.
+- **Two exceptions to the floor, both in one column:**
+  - **Narrow:** when the width cannot hold 384 dp plus margins, the margins go. When it
+    cannot hold 384 dp at all, the board is as wide as the window and its squares are
+    smaller. Nothing scrolls sideways.
+  - **Short:** when neither mode fits a full-size board, the board stays at 384 dp (or
+    the width, if narrower) and the whole game screen scrolls. This is the only case in
+    which the board may be taller than the visible window. Every square and every
+    control can be scrolled to.
+- **The game screens have no shared top row.** Each draws its own Back with a 48 dp
+  touch target: first in the panel with two panes, a compact row above the board in one
+  column, and in the loading and failed states too. The dashboard, friends, history and
+  "All users" keep the top row.
+- **The board is sized by its caller and clipped to that size.** Piece glyphs are sized
+  in dp, so the system font scale does not change them. The rest of the text still
+  follows the font scale.
+- **A local game in progress survives rotation, and only rotation.** It is held in
+  `ChessAppViewModel`, not saved: a new process starts without it. Opening the local
+  game starts a new one, and leaving it with Back ends it, as before.
+- **The layout's UI tests are instrumented, run on a device, and not run by CI.**
+  `GameLayoutSpec` is tested on the JVM by `./gradlew build`. `docs/DEVELOPMENT.md`
+  says how to run the device tests.
+
+### Rationale
+
+The board sized itself from the width alone, so in landscape it could never fit the
+height. On a Pixel 7 the local game drew a 2085×2085 px board in a 2086×839 px slot,
+with three ranks off-screen. The online game scrolled the whole page, so a player
+scrolled to see the board and again to reach the controls.
+
+Deciding from the window rather than the orientation covers split screen, foldables and
+tablets with the same rule, and it is a pure function that can be tested on the JVM.
+Two panes use a landscape window's width for what a phone's height cannot hold.
+
+Measured on the project owner's Pixel 7 (density 356, 3-button navigation): in landscape
+the display cutout takes 136 px on the left, the navigation bar 107 px (48 dp) on the
+right, and the status bar 62 px (28 dp) at the top, which leaves 969×457 dp. That gets
+two panes with a 457 dp board (57 dp squares). The framework's
+`status_bar_height_landscape` is 28 dp, which gives the 383.4 dp figure above for a
+stock Pixel 7 at density 420.
+
+Holding the local game in the view model is the smallest change that survives a
+rotation. Saving it for process death was not asked for: a pass-and-play game is played
+with the phone in hand.
+
+Instrumented tests because the layout needs real measurement: Robolectric was ruled out,
+and CI has no device. Forcing each window with `DeviceConfigurationOverride` lets one
+device cover every size and font scale.
+
+### Alternatives Considered
+
+- **Lock the app to portrait.** Rejected: Android 16 ignores an orientation lock on
+  displays at least 600 dp wide for apps targeting API 36 or later, so tablets and
+  foldables would still rotate. It would also not help split screen.
+- **One column with the board capped at the window's height.** Rejected: in landscape
+  that leaves a small board with a wide empty margin and the controls below the fold.
+- **Keep 48 dp squares in two panes.** Rejected by the project owner: a stock Pixel 7
+  and most phones in landscape would then get the scrolling fallback.
+- **Hide the status bar in landscape.** Rejected: a product change for a gain of 28 dp,
+  and phones about 360 dp wide would still scroll.
+
+### Consequences
+
+- `ChessBoard` takes a `side`. `GameLayout.kt` holds `GameLayoutSpec`, `GameLayout` and
+  `GameBackButton`.
+- `ShellChromeContent.hasChrome` is false for the local and online game screens.
+- `LocalGameScreen` has a stateless form, used by the app with `ChessAppViewModel`'s
+  `localGame`. A stateful form keeps the old signature for previews and screen tests.
+- `docs/PRODUCT.md` *Game Screen* describes both layouts. `docs/DEVELOPMENT.md` says how
+  to run the device tests and check rotation by hand.
+- The instrumented tests need Espresso 3.6.1 or later on Android 16. The catalog has
+  Espresso 3.7.0 and `androidx.test.ext:junit` 1.3.0.

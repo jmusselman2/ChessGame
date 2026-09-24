@@ -4775,6 +4775,133 @@ at the same time need separate `TEST_DATABASE_URL` databases.
 
 ---
 
+## M17.7 — The game screen fits any window: landscape two-pane board, rotation-safe local game
+
+**Status:** DONE
+
+**Depends on:** None
+
+Requested explicitly by the project owner, ahead of the normal selection order.
+
+### The gap
+
+The board sized itself from the width alone (`fillMaxWidth().aspectRatio(1f)`), so it
+could never fit a window's height. In landscape on a Pixel 7 the local game drew a
+2085×2085 px board in a 2086×839 px slot, from y = −418 to y = 1667 on a 1080 px
+screen: ranks 8, 2 and 1 were off-screen, and the board painted over the status bar
+and the Back row. The online game scrolled the whole page, so a player scrolled to
+see every rank and again to reach the controls. Rotating restarted a local game,
+because it lived in plain `remember`. Piece glyphs were sized in `sp` and grew with
+the system font size.
+
+### Acceptance Criteria
+
+- A pure `GameLayoutSpec.forWindow(width, height)` decides the mode, the board side,
+  and whether the whole screen scrolls, from the space the game screen has after
+  insets, never from device orientation (`D073`):
+  - two panes (board left, panel right) when the window is at least as wide as it is
+    tall, fits a 384 dp board in its height, and fits a 280 dp panel beside it. The
+    board is `min(height, width − 280 dp, 640 dp)` with no vertical padding. The panel
+    scrolls on its own and the board never moves.
+  - one column otherwise. The board is `min(width − margins, height − the height
+    reserved for the controls)`. The status and controls sit below it, and the move
+    list scrolls on its own.
+  - the 48 dp floor holds except in two documented cases: a window too narrow for
+    384 dp (margins dropped, largest square that fits the width) and a window too
+    short (the board stays 384 dp and the whole screen scrolls).
+- The game screens have no shared top row. Each draws its own Back: first in the
+  panel with two panes, a compact row above the board in one column. The loading and
+  failed states have it too. Other screens keep the top row.
+- `ChessBoard` takes its side from the caller, clips to it, and sizes glyphs in `dp`
+  so the font scale does not change them.
+- The local game in progress lives in `ChessAppViewModel`, so rotation keeps it.
+  Opening the local game starts a new one, and leaving it with Back discards it. No
+  saved-state persistence.
+- No game-core, server, navigation-stack or persistence change, and no new
+  dependency.
+- Tests:
+  - JVM: `GameLayoutSpecTest` over the listed viewports, the view model's
+    local-game lifetime, and `ShellChromeContent` showing no row on game screens.
+  - Instrumented (run on a device, not in CI): board geometry and 48 dp squares,
+    tap alignment in both orientations, controls visible without scrolling in two
+    panes at font scale 1.0, a long history scrolling apart from the board,
+    short-window reachability, a local game surviving `recreate()`, and a finished
+    online game read-only in both modes.
+- Device evidence from the Pixel 7 in both orientations: screenshots, uiautomator
+  dumps, and the board and viewport sizes.
+
+### Completion Note — 2026-09-23
+
+**The 48 dp floor, measured.** A stock Pixel 7 in landscape cannot fit eight 48 dp
+squares. The framework's `status_bar_height_landscape` is 28 dp, and the screen is
+411.4 dp tall at density 420, which leaves at most 383.4 dp (with 3-button navigation,
+which sits at the side). Gesture navigation's bottom bar leaves less. The task stopped
+there, as asked, and the project owner chose a 44 dp floor in two panes (a 352 dp
+board) over scrolling the board. One column keeps 48 dp. Both are in `D073`.
+
+**What changed.** `GameLayout.kt` holds `GameLayoutSpec` (pure) and `GameLayout`,
+which both game screens use. `ChessBoard` takes its side, clips to it, and sizes glyphs
+with `Density.toSp`. The game screens draw their own Back, including while loading or
+after a failure, and `ShellChromeContent.hasChrome` is false for them. The online screen
+no longer scrolls the whole page. `LocalGameScreen` is stateless, with a stateful
+overload of the old signature for previews and the existing screen tests.
+`ChessAppViewModel.localGame` holds the local game: a new one when it is opened, thrown
+away by Back. The resign buttons and the promotion choices use `FlowRow`, so they wrap
+in a 280 dp panel instead of squeezing. No game-core, server, navigation or persistence
+change.
+
+**A test dependency changed.** Espresso 3.5.1 cannot run on Android 16: it calls
+`InputManager.getInstance`, which is gone, so every Compose UI test failed on the
+Pixel 7, the three existing ones included. The catalog now has Espresso 3.7.0 and
+`androidx.test.ext:junit` 1.3.0. Both were already dependencies; only their versions
+changed.
+
+**Verified.**
+
+- JVM: `GameLayoutSpecTest` (12, over 19 windows), `ChessAppTest` (111, 2 new: the local
+  game is held and read back, and Back discards it), `ShellChromeContentTest` (6, 2 new).
+  Then `ktlintCheck`, `:android-app:assembleDebugAndroidTest`, and `.\gradlew.bat build`:
+  570 server and 476 Android tests, none failed or skipped.
+- Pixel 7 (Android 16), `connectedDebugAndroidTest`: 21 tests, all passed.
+  - `GameLayoutUiTest` (9): geometry over 13 windows at font scales 1.0, 1.3 and 2.0;
+    all 64 squares tapped with each side at the bottom; the board turning after a move;
+    controls and the promotion prompt in view with two panes; an 85-line history;
+    short windows; large fonts; glyph size.
+  - `OnlineGameLayoutUiTest` (4) and `LocalGameRotationTest` (1, `recreate()` against
+    the beta server).
+  - The existing `LocalDrawClaimUiTest` (3), `M5*` (3) and `ExampleInstrumentedTest`
+    (1), unchanged.
+- In scrolling windows, the tap tests tap each square at the centre of its own bounds
+  after scrolling it into view. Taps placed from the board's position there missed
+  whichever rank a scroll had just left flush with the window's edge. At 616×332 and
+  480×332 that was one rank in each orientation, while 485×400 hit every square. The
+  cause was not found. Every window that does not scroll is tapped from the board's
+  position.
+
+**Device evidence.** Pixel 7 at the owner's settings (density 356, font scale 0.85,
+3-button navigation), rotated by hand.
+
+- Portrait: the game screen has 485×969 dp. The board is 1009 px (453 dp, with 16 dp
+  margins, 57 dp squares), under a compact Back and above the status and controls.
+- Landscape (rotation 270): two panes, and the board is 1017 px (457 dp, 57 dp squares)
+  down the full height. Back, the status, Undo and both Resign buttons are in view in
+  the panel.
+- A local game (`1. e2e4 e7e5 2. g1f3`, played by coordinate taps) survived the
+  rotation. Black's reply was tapped in landscape. Back, then Local game again, started
+  a new game.
+- An online game against a throwaway account was started and moved in landscape, then
+  rotated to portrait with its move and Undo intact. After resigning, the game opened
+  from History read-only in portrait.
+- The dashboard fits in both orientations.
+
+Screenshots and dumps were taken at each step.
+
+The first launch after the fresh install stayed on "Waking the server…" for over three
+minutes after the server was up, until Try again was tapped. That is outside this task
+and was raised separately.
+
+---
+
 ---
 
 # M18 — Post-Chess Architecture Review

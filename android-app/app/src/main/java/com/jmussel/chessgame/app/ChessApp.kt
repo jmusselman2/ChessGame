@@ -24,6 +24,7 @@ import com.jmussel.chessgame.ui.allusers.AllUsersActions
 import com.jmussel.chessgame.ui.allusers.AllUsersScreen
 import com.jmussel.chessgame.ui.allusers.AllUsersUiState
 import com.jmussel.chessgame.ui.board.LocalGameScreen
+import com.jmussel.chessgame.ui.board.LocalGameUiState
 import com.jmussel.chessgame.ui.dashboard.DashboardActions
 import com.jmussel.chessgame.ui.dashboard.DashboardScreen
 import com.jmussel.chessgame.ui.dashboard.DashboardUiState
@@ -61,6 +62,9 @@ fun ChessApp(
     dashboard: DashboardUiState = DashboardUiState(),
     history: HistoryUiState = HistoryUiState(),
     game: OnlineGameState? = null,
+    /** The local game in progress, held by the view model so a rotation keeps it (`D073`). */
+    localGame: LocalGameUiState = LocalGameUiState(),
+    onLocalGameChange: (LocalGameUiState) -> Unit = {},
     onOpen: (Destination) -> Unit = {},
     onOpenFriends: () -> Unit = {},
     onOpenHistory: () -> Unit = {},
@@ -123,10 +127,11 @@ fun ChessApp(
                     onOpenGame = { row -> onOpenGame(row.gameId) },
                     onRetry = onRetryHistory,
                 )
-            Destination.LocalGame -> LocalGameScreen()
+            Destination.LocalGame -> LocalGameScreen(state = localGame, onStateChange = onLocalGameChange, onBack = onBack)
             is Destination.OnlineGame ->
                 OnlineGameScreen(
                     state = game ?: OnlineGameState.Loading(destination.gameId),
+                    onBack = onBack,
                     onRetry = onRetryGame,
                     onSquareTapped = onSquareTapped,
                     onChoosePromotion = onChoosePromotion,
@@ -150,7 +155,8 @@ fun ChessApp(
  * The way out of the current screen, and the way to the others.
  *
  * Startup and onboarding have no chrome: there is nowhere to go from either until the
- * player has an account with a username.
+ * player has an account with a username. The game screens have none either: they draw
+ * their own Back, so the board can have the whole height (`D073`).
  */
 @Composable
 private fun ShellChrome(
@@ -197,9 +203,17 @@ private fun ShellChrome(
  * What the top row holds, decided without a screen so it can be tested (`M17.3`).
  */
 internal object ShellChromeContent {
-    /** Whether there is a top row at all. */
+    /**
+     * Whether there is a top row at all.
+     *
+     * Not on startup or onboarding, and not on a game screen, which has its own Back
+     * (`D073`).
+     */
     fun hasChrome(navigation: AppNavigation): Boolean =
-        navigation.current != Destination.Startup && navigation.current != Destination.UsernameOnboarding
+        when (navigation.current) {
+            Destination.Startup, Destination.UsernameOnboarding, Destination.LocalGame, is Destination.OnlineGame -> false
+            else -> true
+        }
 
     /**
      * The player's own name, on the home row only, or `null` when none is shown.

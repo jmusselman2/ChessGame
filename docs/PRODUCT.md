@@ -372,6 +372,19 @@ Board orientation:
 
 - own side at the bottom.
 
+Layout (`D073`), decided by the window's size, not the device's orientation:
+
+- **Wide windows (landscape):** the board on the left, as tall as the window allows,
+  and a panel on the right with Back, the status, the controls and the move list. The
+  panel scrolls on its own and the board never moves. Squares are at least 44 dp.
+- **Tall windows (portrait):** Back, the board, then the status and controls, then the
+  move list, which scrolls on its own. Squares are at least 48 dp, except on a window
+  too narrow for that, where the board is as wide as the window.
+- **A window too short for either** keeps a full-size board and scrolls the whole
+  screen.
+- The game screens have their own Back instead of the app's top row.
+- Rotating keeps a local game in progress. Closing the app does not.
+
 Interaction:
 
 ```text

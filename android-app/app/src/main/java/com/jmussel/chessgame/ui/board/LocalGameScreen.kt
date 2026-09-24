@@ -2,10 +2,7 @@ package com.jmussel.chessgame.ui.board
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
@@ -24,88 +21,121 @@ import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
 /**
- * Pass-and-play on one device: the board and whose turn it is, both read straight from
- * `game-core`.
+ * Everything a local game screen shows: the game, and the resignation being asked about.
  *
- * Nothing here is canonical and nothing here is sent anywhere — this is the local game,
- * kept separate from server-owned state (`docs/ARCHITECTURE.md`). Tapping a square goes
- * through [BoardInteraction], which owns what a tap means; this composable only holds the
- * resulting state.
+ * Held by `ChessAppViewModel` in the app, so a rotation keeps a game in progress (`D073`).
+ * It is never persisted: a local game does not survive the process.
+ */
+data class LocalGameUiState(
+    val boardState: BoardUiState = BoardUiState.newGame(),
+    /** The side whose resignation is being confirmed, or `null` when none is. */
+    val resigning: Side? = null,
+)
+
+/**
+ * A local game that holds its own state, starting from [initialState].
+ *
+ * For previews and screen tests, which have no view model; the app holds the state itself
+ * and uses the other overload.
  */
 @Composable
 fun LocalGameScreen(
     modifier: Modifier = Modifier,
     initialState: BoardUiState = BoardUiState.newGame(),
 ) {
-    var state by remember { mutableStateOf(initialState) }
-    var resigning by remember { mutableStateOf<Side?>(null) }
+    var state by remember { mutableStateOf(LocalGameUiState(boardState = initialState)) }
 
-    Column(
-        modifier = modifier.padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        ChessBoard(
-            board = state.board,
-            selectedSquare = state.selectedSquare,
-            legalDestinations = BoardInteraction.legalDestinations(state),
-            orientation = state.orientation,
-            onSquareClick = { square -> state = BoardInteraction.onSquareTapped(state, square) },
-        )
+    LocalGameScreen(state = state, onStateChange = { state = it }, modifier = modifier)
+}
 
-        state.pendingPromotion?.let { pending ->
-            PromotionPrompt(
-                choices = pending.choices,
-                onChoose = { choice -> state = BoardInteraction.choosePromotion(state, choice) },
+/**
+ * Pass-and-play on one device: the board and whose turn it is, both read straight from
+ * `game-core`.
+ *
+ * Nothing here is canonical and nothing here is sent anywhere — this is the local game,
+ * kept separate from server-owned state (`docs/ARCHITECTURE.md`). Tapping a square goes
+ * through [BoardInteraction], which owns what a tap means; this composable only shows
+ * [state] and hands every change to [onStateChange].
+ */
+@Composable
+fun LocalGameScreen(
+    state: LocalGameUiState,
+    onStateChange: (LocalGameUiState) -> Unit,
+    modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = null,
+) {
+    val game = state.boardState
+
+    fun play(next: BoardUiState) = onStateChange(state.copy(boardState = next))
+
+    GameLayout(
+        onBack = onBack,
+        modifier = modifier,
+        board = { side ->
+            ChessBoard(
+                board = game.board,
+                side = side,
+                selectedSquare = game.selectedSquare,
+                legalDestinations = BoardInteraction.legalDestinations(game),
+                orientation = game.orientation,
+                onSquareClick = { square -> play(BoardInteraction.onSquareTapped(game, square)) },
             )
-        }
+        },
+        controls = {
+            Text(text = GameControls.statusFor(game.game))
 
-        state.declaredMove?.let { declared ->
-            DeclaredMovePrompt(
-                declared = declared,
-                onClaim = { claim -> state = GameControls.claimDeclaredDraw(state, claim) },
-                onPlay = { state = BoardInteraction.playDeclaredMove(state) },
-                onCancel = { state = BoardInteraction.cancelDeclaredMove(state) },
-            )
-        }
+            game.pendingPromotion?.let { pending ->
+                PromotionPrompt(
+                    choices = pending.choices,
+                    onChoose = { choice -> play(BoardInteraction.choosePromotion(game, choice)) },
+                )
+            }
 
-        Text(text = GameControls.statusFor(state.game))
+            game.declaredMove?.let { declared ->
+                DeclaredMovePrompt(
+                    declared = declared,
+                    onClaim = { claim -> play(GameControls.claimDeclaredDraw(game, claim)) },
+                    onPlay = { play(BoardInteraction.playDeclaredMove(game)) },
+                    onCancel = { play(BoardInteraction.cancelDeclaredMove(game)) },
+                )
+            }
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            if (GameControls.canUndo(state)) {
-                Button(onClick = { state = GameControls.undo(state) }) {
+            if (GameControls.canUndo(game)) {
+                Button(onClick = { play(GameControls.undo(game)) }) {
                     Text(text = "Undo")
                 }
             }
-        }
 
-        GameControls.availableDrawClaims(state).forEach { claim ->
-            Button(onClick = { state = GameControls.claimDraw(state, claim) }) {
-                Text(text = GameControls.labelFor(claim))
-            }
-        }
-
-        // Either player may give up, on their own move or the other's, and is asked first
-        // because it cannot be taken back (`D018`).
-        if (GameControls.canResign(state)) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Side.entries.forEach { side ->
-                    Button(onClick = { resigning = side }) { Text(text = GameControls.resignLabelFor(side)) }
+            GameControls.availableDrawClaims(game).forEach { claim ->
+                Button(onClick = { play(GameControls.claimDraw(game, claim)) }) {
+                    Text(text = GameControls.labelFor(claim))
                 }
             }
-        }
 
-        resigning?.let { side ->
-            ResignConfirmation(
-                side = side,
-                onConfirm = {
-                    state = GameControls.resign(state, side)
-                    resigning = null
-                },
-                onCancel = { resigning = null },
-            )
-        }
+            // Either player may give up, on their own move or the other's, and is asked first
+            // because it cannot be taken back (`D018`).
+            if (GameControls.canResign(game)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Side.entries.forEach { side ->
+                        Button(onClick = { onStateChange(state.copy(resigning = side)) }) {
+                            Text(text = GameControls.resignLabelFor(side))
+                        }
+                    }
+                }
+            }
+        },
+        moveList = {
+            // The moves played so far, newest last.
+            GameControls.moveListLines(game.game).forEach { line -> Text(text = line) }
+        },
+    )
 
-        MoveList(lines = GameControls.moveListLines(state.game))
+    state.resigning?.let { side ->
+        ResignConfirmation(
+            side = side,
+            onConfirm = { onStateChange(LocalGameUiState(boardState = GameControls.resign(game, side))) },
+            onCancel = { onStateChange(state.copy(resigning = null)) },
+        )
     }
 }
 
@@ -123,19 +153,6 @@ private fun ResignConfirmation(
         confirmButton = { TextButton(onClick = onConfirm) { Text(text = "Resign") } },
         dismissButton = { TextButton(onClick = onCancel) { Text(text = "Keep playing") } },
     )
-}
-
-/** The moves played so far, newest last. */
-@Composable
-private fun MoveList(lines: List<String>) {
-    if (lines.isEmpty()) return
-
-    Column(
-        modifier = Modifier.verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        lines.forEach { line -> Text(text = line) }
-    }
 }
 
 /**
@@ -159,7 +176,7 @@ private fun DeclaredMovePrompt(
         declared.claims.forEach { claim ->
             Button(onClick = { onClaim(claim) }) { Text(text = GameControls.labelFor(claim)) }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = onPlay) { Text(text = "Play ${declared.move}") }
             TextButton(onClick = onCancel) { Text(text = "Cancel") }
         }
@@ -174,7 +191,7 @@ private fun PromotionPrompt(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(text = "Promote to")
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             choices.forEach { choice ->
                 Button(onClick = { onChoose(choice) }) {
                     Text(text = BoardRendering.glyphFor(choice).toString())

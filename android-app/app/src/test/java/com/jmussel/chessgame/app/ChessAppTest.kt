@@ -14,6 +14,10 @@ import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
+import com.jmussel.chessgame.ui.board.BoardInteraction
+import com.jmussel.chessgame.ui.board.BoardUiState
+import com.jmussel.chessgame.ui.board.GameControls
+import com.jmussel.chessgame.ui.board.LocalGameUiState
 import com.jmussel.chessgame.ui.dashboard.DashboardSections
 import com.jmussel.chessgame.ui.game.AfterGame
 import com.jmussel.chessgame.ui.game.OnlineGame
@@ -378,6 +382,10 @@ class ChessAppTest {
 
     private fun sentText(request: HttpRequestData): String = (request.body as TextContent).text
 
+    /** A new local game with [squares] tapped in turn. */
+    private fun localMoves(vararg squares: String): BoardUiState =
+        squares.fold(BoardUiState.newGame()) { state, square -> BoardInteraction.onSquareTapped(state, Square.parse(square)) }
+
     /** What `/me` says about a player with, or without, a name. */
     private fun identity(username: String?): String =
         if (username == null) """{"userId":"server-1"}""" else """{"userId":"server-1","username":"$username"}"""
@@ -488,6 +496,38 @@ class ChessAppTest {
 
         assertFalse(viewModel.back())
         assertEquals(Destination.Dashboard, viewModel.navigation.current)
+    }
+
+    @Test
+    fun aLocalGameInProgressIsHeldByTheModelSoARecreatedScreenFindsIt() {
+        val viewModel = viewModel()
+        viewModel.restartAt(Destination.Dashboard)
+        viewModel.open(Destination.LocalGame)
+
+        val played = LocalGameUiState(boardState = localMoves("e2", "e4", "e7", "e5"))
+        viewModel.updateLocalGame(played)
+
+        // A rotation recreates the screen, which reads the game back from the model; opening
+        // the local game while it is already showing changes nothing either.
+        assertEquals(played, viewModel.localGame)
+        viewModel.open(Destination.LocalGame)
+        assertEquals(played, viewModel.localGame)
+        assertEquals(listOf("1. e2e4 e7e5"), GameControls.moveListLines(viewModel.localGame.boardState.game))
+    }
+
+    @Test
+    fun leavingTheLocalGameWithBackDiscardsItAndReopeningStartsAfresh() {
+        val viewModel = viewModel()
+        viewModel.restartAt(Destination.Dashboard)
+        viewModel.open(Destination.LocalGame)
+        viewModel.updateLocalGame(LocalGameUiState(boardState = localMoves("e2", "e4"), resigning = Side.BLACK))
+
+        assertTrue(viewModel.back())
+        assertEquals(Destination.Dashboard, viewModel.navigation.current)
+        assertEquals(LocalGameUiState(), viewModel.localGame)
+
+        viewModel.open(Destination.LocalGame)
+        assertEquals(LocalGameUiState(), viewModel.localGame)
     }
 
     @Test
