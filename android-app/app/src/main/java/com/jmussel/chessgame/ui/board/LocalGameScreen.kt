@@ -193,9 +193,7 @@ private fun PromotionPrompt(
         Text(text = "Promote to")
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             choices.forEach { choice ->
-                Button(onClick = { onChoose(choice) }) {
-                    Text(text = BoardRendering.glyphFor(choice).toString())
-                }
+                PromotionChoice(type = choice, onClick = { onChoose(choice) })
             }
         }
     }

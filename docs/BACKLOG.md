@@ -4964,6 +4964,44 @@ from the gap above.
 
 ---
 
+## M17.9 — Promotion choices show the piece at a readable size
+
+**Status:** DONE
+
+**Depends on:** M17.7
+
+Requested by the project owner after checking `M17.7` in landscape.
+
+### The gap
+
+The four promotion buttons drew each piece as ordinary button text, about 14 sp.
+Beside a board of 57 dp squares the symbols were hard to tell apart.
+
+### Acceptance Criteria
+
+- The local and online promotion prompts use one shared button, which draws the
+  piece at 32 dp. Like the board's glyphs, it does not follow the font scale.
+- All four choices fit on one row in the narrowest two-pane panel (280 dp).
+- Each button keeps a touch target of at least 48 dp.
+
+### Completion Note — 2026-09-24
+
+`PromotionChoice` in `ChessBoard.kt` is a Material `Button` fixed at 52 dp, with no
+content padding, showing the glyph at 32 dp through `Density.toSp`. Its line height
+equals its font size, so the button's label style cannot clip the glyph. The size is
+fixed, not a minimum, because a Material button enforces its own 58 dp minimum width.
+Four of those need 256 dp and wrapped in the 248 dp a 280 dp panel leaves. 56 dp
+buttons fill that width exactly and still wrapped by a pixel, so they are 52 dp.
+
+Verified on the Pixel 7 with `connectedDebugAndroidTest`, the app left installed:
+`GameLayoutUiTest` (9), `LocalDrawClaimUiTest` (3) and both `M5*` classes (3), all
+passed. `thePromotionPromptIsWhollyInViewWithTwoPanes` now also checks, in every
+two-pane window, that each symbol is at least 28 dp tall and that the four buttons
+share one row. A local game played to a promotion in landscape by hand shows four
+round buttons with the pieces clearly drawn. Then `.\gradlew.bat build`.
+
+---
+
 ---
 
 # M18 — Post-Chess Architecture Review

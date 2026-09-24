@@ -163,12 +163,25 @@ class GameLayoutUiTest {
         TWO_PANE_VIEWPORTS.forEach { window ->
             show(window, 1f)
             composeRule.onNodeWithText("Promote to").assertIsDisplayed().assertInsideViewport(composeRule, "$window: prompt")
-            listOf(PieceType.QUEEN, PieceType.ROOK, PieceType.BISHOP, PieceType.KNIGHT).forEach { type ->
-                composeRule
-                    .onNode(hasText(BoardRendering.glyphFor(type).toString()) and hasClickAction() and isNotASquare)
-                    .assertIsDisplayed()
-                    .assertInsideViewport(composeRule, "$window: $type")
-            }
+            val tops =
+                listOf(PieceType.QUEEN, PieceType.ROOK, PieceType.BISHOP, PieceType.KNIGHT).map { type ->
+                    val glyph = BoardRendering.glyphFor(type).toString()
+                    val button =
+                        composeRule
+                            .onNode(hasText(glyph) and hasClickAction() and isNotASquare)
+                            .assertIsDisplayed()
+                            .assertInsideViewport(composeRule, "$window: $type")
+
+                    // The piece is drawn large enough to read at a glance (`M17.9`).
+                    val symbol = composeRule.onNode(hasText(glyph) and hasParent(hasClickAction() and isNotASquare), useUnmergedTree = true)
+                    val symbolDp = symbol.fetchSemanticsNode().size.height / composeRule.pixelsPerDp(window)
+                    assertTrue("$window: $type symbol is $symbolDp dp", symbolDp >= 28f)
+
+                    button.fetchSemanticsNode().boundsInRoot.top
+                }
+
+            // All four side by side, even in the narrowest panel.
+            tops.forEach { top -> assertEquals("$window: one row of choices", tops.first(), top, 1f) }
         }
     }
 

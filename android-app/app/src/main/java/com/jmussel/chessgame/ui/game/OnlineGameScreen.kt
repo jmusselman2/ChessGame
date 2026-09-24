@@ -20,10 +20,10 @@ import com.jmussel.chessgame.api.MoveDto
 import com.jmussel.chessgame.api.UserSummaryDto
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Square
-import com.jmussel.chessgame.ui.board.BoardRendering
 import com.jmussel.chessgame.ui.board.ChessBoard
 import com.jmussel.chessgame.ui.board.GameBackButton
 import com.jmussel.chessgame.ui.board.GameLayout
+import com.jmussel.chessgame.ui.board.PromotionChoice
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
 /**
@@ -258,9 +258,7 @@ private fun PromotionPrompt(
 
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             choices.forEach { choice ->
-                Button(onClick = { onChoose(choice) }) {
-                    Text(text = BoardRendering.glyphFor(choice).toString())
-                }
+                PromotionChoice(type = choice, onClick = { onChoose(choice) })
             }
 
             TextButton(onClick = onCancel) { Text(text = CANCEL) }

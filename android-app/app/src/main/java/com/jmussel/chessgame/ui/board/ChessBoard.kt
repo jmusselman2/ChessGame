@@ -5,11 +5,13 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -26,6 +28,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import com.jmussel.chessgame.core.chess.Board
+import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.core.chess.StandardPosition
@@ -167,6 +170,35 @@ private fun SquareCell(
         }
     }
 }
+
+/**
+ * One piece a pawn may become, as a button showing that piece.
+ *
+ * The piece is drawn as large as the button allows and, like a piece on the board, in dp,
+ * so it is recognisable at a glance and the font scale does not change it. Four of these
+ * fit side by side in the narrowest two-pane panel (`D073`). The size is fixed rather than a
+ * minimum because a Material button's own minimum is 58 dp, and four of those do not fit.
+ */
+@Composable
+fun PromotionChoice(
+    type: PieceType,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val glyphSize = with(LocalDensity.current) { PROMOTION_GLYPH.toSp() }
+
+    Button(
+        onClick = onClick,
+        modifier = modifier.size(PROMOTION_BUTTON),
+        contentPadding = PaddingValues(0.dp),
+    ) {
+        Text(text = BoardRendering.glyphFor(type).toString(), fontSize = glyphSize, lineHeight = glyphSize)
+    }
+}
+
+/** A promotion button's side, and the piece drawn on it. */
+private val PROMOTION_BUTTON = 52.dp
+private val PROMOTION_GLYPH = 32.dp
 
 @Preview(showBackground = true)
 @Composable
