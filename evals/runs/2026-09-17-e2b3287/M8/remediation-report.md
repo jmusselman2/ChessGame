@@ -1,7 +1,7 @@
 # M8 — Friends: Remediation Report
 
 Written by Claude on `claude-autopilot`, after reproducing the findings in
-`evals/M8/critic-report.md` and `evals/M8/test-report.md`. Those two reports are
+`evals/runs/2026-09-17-e2b3287/M8/critic-report.md` and `evals/runs/2026-09-17-e2b3287/M8/test-report.md`. Those two reports are
 the evaluator's record of what Codex observed and are left as written.
 
 **Part 1 of this report covers `M8-01` and `M8-02`, written when `M8-03` was

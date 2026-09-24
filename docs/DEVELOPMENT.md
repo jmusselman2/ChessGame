@@ -1142,7 +1142,7 @@ and pre-upgrade-row inspection remains blocked without a beta database
 credential, and deployed-log inspection remains blocked without a Render API
 credential; local PostgreSQL migration and forced-failure tests supply the
 corresponding non-beta evidence. See
-`evals/M19/re-evaluation-test-report.md`.
+`evals/runs/2026-09-17-e2b3287/M19/re-evaluation-test-report.md`.
 
 Free-plan behaviour, now measured rather than expected: the service spins down
 after about 15 idle minutes and the next request pays a significant cold start.

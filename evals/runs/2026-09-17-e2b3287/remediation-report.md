@@ -121,7 +121,7 @@ and was rejected as a server change to fix a client ordering bug.
 ## M18-01 — the review claimed a second physical device M17 never recorded
 
 **Where:** `docs/PLATFORM-REVIEW.md`, `docs/BACKLOG.md` (`M18.1` completion note)
-**Regression:** `evals/M18/M18DocumentationRegressionTest.ps1`
+**Regression:** `evals/tools/M18DocumentationRegressionTest.ps1`
 
 Resolved on the evidence, in the direction the evidence pointed. Searched for a
 record of the project owner's device: the `M17.1` and `M17.2` sections,
@@ -153,7 +153,7 @@ remediation moved the lines they name.
 | `M10AdversarialTest`                                    | PASS (was the proof of M10-01)        |
 | `M12AdversarialTest`                                    | PASS (was the proof of M12-01)        |
 | `NetworkInterruptionTest` — the three M14 cases         | PASS (were the proof of M14-01/02/03) |
-| `evals/M18/M18DocumentationRegressionTest.ps1`          | PASS                                  |
+| `evals/tools/M18DocumentationRegressionTest.ps1`        | PASS                                  |
 | `RealtimeFanOutTest`, `StaleResponseOrderingTest` (new) | PASS                                  |
 | Server suite                                            | PASS                                  |
 | Android JVM suite                                       | PASS                                  |
@@ -170,7 +170,7 @@ Decisions recorded: `D057` (stable display read), `D058` (realtime fan-out),
 
 **Branch:** `claude-autopilot`
 **Finding:** `M19-01` — table identity dropped participant kind when UUIDs coincide
-(`evals/M19/re-evaluation-critic-report.md`)
+(`evals/runs/2026-09-17-e2b3287/M19/re-evaluation-critic-report.md`)
 **Regression:** `M19ParticipantIdentityRegressionTest.participantKindIsPartOfExactSetIdentity`,
 passing **unmodified**
 

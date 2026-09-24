@@ -1,7 +1,7 @@
 # Post-remediation cleanup
 
 Three independent, low-risk fixes on `claude-autopilot`, building on `a13cde5`.
-Kept out of `evals/M8/remediation-report.md` deliberately: none of these change
+Kept out of `evals/runs/2026-09-17-e2b3287/M8/remediation-report.md` deliberately: none of these change
 what M8's findings were or how they were fixed, and folding them in would make
 that report harder to re-evaluate against.
 

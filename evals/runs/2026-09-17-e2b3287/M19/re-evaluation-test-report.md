@@ -59,7 +59,7 @@ failure is therefore expected evidence for M19-01, not an infrastructure error.
 
 ## Beta smoke
 
-`evals/M19/current-beta-smoke.ps1` creates three throwaway Supabase sessions and
+`evals/tools/current-beta-smoke.ps1` creates three throwaway Supabase sessions and
 prints no token or key. It passed:
 
 - same-token account/session reuse and private timestamp projection;

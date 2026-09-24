@@ -1,7 +1,7 @@
 # Codex Evaluation State
 
 - **Historical pre-M19 baseline:** `38be421dfd64c269687c893300f11e661bfa9c90`.
-  `evals/M19/critic-report.md` and `evals/M19/test-report.md` evaluated that
+  `evals/runs/2026-09-17-e2b3287/M19/critic-report.md` and `evals/runs/2026-09-17-e2b3287/M19/test-report.md` evaluated that
   baseline before M19 was implemented; they remain unchanged as historical
   records.
 - **Current evaluated `main`:** `83de79ceed51577b9b8cffa38ca1b937e029537a`
@@ -14,13 +14,13 @@
   intentionally blocked on an owner decision.
 - **Scope boundary:** M19.1 moved to M20.1. The N >= 3 resignation and
   continuation flow formerly in M19.8 moved to M20.2. Neither is an M19 defect.
-- **Current reports:** `evals/M19/post-remediation-re-evaluation-critic-report.md`
-  and `evals/M19/post-remediation-re-evaluation-test-report.md`. The earlier
+- **Current reports:** `evals/runs/2026-09-17-e2b3287/M19/post-remediation-re-evaluation-critic-report.md`
+  and `evals/runs/2026-09-17-e2b3287/M19/post-remediation-re-evaluation-test-report.md`. The earlier
   `re-evaluation-*` reports remain the finding record. Current M17 reports are
-  `evals/M17/current-re-evaluation-critic-report.md` and
-  `evals/M17/current-re-evaluation-test-report.md`; compatibility reports are
-  `evals/M17/android-5.1-compatibility-critic-report.md` and
-  `evals/M17/android-5.1-compatibility-test-report.md`.
+  `evals/runs/2026-09-17-e2b3287/M17/current-re-evaluation-critic-report.md` and
+  `evals/runs/2026-09-17-e2b3287/M17/current-re-evaluation-test-report.md`; compatibility reports are
+  `evals/runs/2026-09-17-e2b3287/M17/android-5.1-compatibility-critic-report.md` and
+  `evals/runs/2026-09-17-e2b3287/M17/android-5.1-compatibility-test-report.md`.
 
 ## Verdict
 
@@ -36,7 +36,7 @@ by M19.3 and M19.7 is closed:
   seated together through the repository. The evaluator-only
   `M19ParticipantIdentityRegressionTest` records the failure. Production code
   was not changed by the evaluation. **Remediated 2026-09-17** by the
-  implementation track (`evals/remediation-report.md`, *M19-01*): duplicate
+  implementation track (`evals/runs/2026-09-17-e2b3287/remediation-report.md`, *M19-01*): duplicate
   detection uses the whole participant and seats are ordered by ref then kind.
   The independent post-remediation re-evaluation ran the original regression
   unchanged on `83de79c`; it passed together with table, participant, and
@@ -107,7 +107,7 @@ started; startup calls `connectAndMigrate` before installing authenticated
 routes, so the deployed build successfully applied its migration set through
 V9.
 
-`evals/M19/current-beta-smoke.ps1` passed against the deployed HTTPS/WSS
+`evals/tools/current-beta-smoke.ps1` passed against the deployed HTTPS/WSS
 endpoint with three throwaway accounts. It covered session reuse, username
 lookup, friendships, group creation and eligible additions, transitive group
 membership and leave, the existing-series offer and a parallel series, a legal

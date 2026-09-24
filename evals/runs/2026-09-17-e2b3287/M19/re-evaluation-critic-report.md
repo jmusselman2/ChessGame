@@ -4,7 +4,7 @@ Evaluated `main`: `1f17312848a6d6c9499c0accbd7eb6401f44e657`
 
 ## Historical boundary
 
-The original `evals/M19/critic-report.md` evaluated
+The original `evals/runs/2026-09-17-e2b3287/M19/critic-report.md` evaluated
 `38be421dfd64c269687c893300f11e661bfa9c90`, before M19 implementation began.
 Its `0 of 12` verdict remains true of that baseline and has not been rewritten.
 This report evaluates the later implementation independently.

@@ -5465,18 +5465,19 @@ for analysis and decision tasks. Both date from 2026-09-13, and neither bears on
 The carried evaluation findings were a separate track and blocked none of this.
 All six — `M10-01`, `M12-01`, `M14-01`/`02`/`03`, and `M18-01` — were
 remediated on 2026-09-10 before this milestone was started, under `D057`,
-`D058` and `D059`; `evals/remediation-report.md` and
+`D058` and `D059`; `evals/runs/2026-09-17-e2b3287/remediation-report.md` and
 `docs/CODEX_EVALUATION_STATE.md` record it.
 
 **Independent re-evaluation, 2026-09-16.** The implemented scope `M19.2`–
 `M19.12` was evaluated on current `main`; the original reports under
-`evals/M19/` remain the historical pre-implementation record. The current
-reports are `evals/M19/re-evaluation-critic-report.md` and
-`evals/M19/re-evaluation-test-report.md`. They record one defect shared by
+`evals/runs/2026-09-17-e2b3287/M19/` retains the historical
+pre-implementation record. The current
+reports are `evals/runs/2026-09-17-e2b3287/M19/re-evaluation-critic-report.md` and
+`evals/runs/2026-09-17-e2b3287/M19/re-evaluation-test-report.md`. They record one defect shared by
 `M19.3` and `M19.7`: table exact-set identity is defined as `(kind, ref)`, but
 `TableRepository.findOrCreate` rejected and ordered participants by bare `ref`.
 No production code was changed by the evaluation. **Remediated 2026-09-17**
-(`evals/remediation-report.md`, *M19-01*): duplicates are compared and seats
+(`evals/runs/2026-09-17-e2b3287/remediation-report.md`, *M19-01*): duplicates are compared and seats
 ordered by the whole participant, ref then kind, and the evaluator's
 `M19ParticipantIdentityRegressionTest` passes unmodified. `M19.1` remains `M20.1`, and
 the N >= 3 portion of `M19.8` remains `M20.2`.

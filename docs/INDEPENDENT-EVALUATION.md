@@ -19,8 +19,12 @@ For each milestone:
    finding batch.
 4. Add the smallest reliable evaluator regression for each legitimate defect
    and run all retained and new milestone verification.
-5. Write `evals/M<n>/critic-report.md` and `evals/M<n>/test-report.md`, then
-   update `docs/CODEX_EVALUATION_STATE.md`.
+5. Choose a stable run id, write
+   `evals/runs/<run-id>/M<n>/critic-report.md`,
+   `evals/runs/<run-id>/M<n>/test-report.md`, and
+   `evals/runs/<run-id>/M<n>/kindle-checklist.md` when device evidence is in
+   scope, then update `docs/CODEX_EVALUATION_STATE.md`. Never overwrite a
+   report in a completed run.
 6. Run `git diff --check`, inspect the complete diff, and create exactly one
    milestone-specific evaluator checkpoint commit.
 7. Push `codex-autopilot` with an ordinary push and verify that

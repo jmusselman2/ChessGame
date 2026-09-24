@@ -1892,7 +1892,7 @@ says so a day later.
 **Relates to:** `D038` (declared-move draw claims), `D019`, `M5.4`, `M5.6`,
 `M5.7`, `PRODUCT` *Game Screen* and *Draw Semantics*, `ARCHITECTURE` §23,
 independent M5 evaluation findings `M5-01` and `M5-02`
-(`evals/M5/critic-report.md`)
+(`evals/runs/2026-09-17-e2b3287/M5/critic-report.md`)
 
 ### Decision
 
@@ -2294,7 +2294,7 @@ break something.
 **Status:** Accepted
 
 **Relates to:** `D006`, `D009`, `M8.2`, `M8.3`, `PRODUCT.md`,
-`evals/M8/critic-report.md` (`M8-01`)
+`evals/runs/2026-09-17-e2b3287/M8/critic-report.md` (`M8-01`)
 
 ### Decision
 
@@ -2366,7 +2366,7 @@ entitled to what they asked for.
 series-creation window only. Removal's own behaviour is unchanged.
 
 **Relates to:** `D009`, `D011`, `ARCHITECTURE` §7, §15, §16, §17, `M9.1`,
-`evals/M8/critic-report.md` (`M8-03`)
+`evals/runs/2026-09-17-e2b3287/M8/critic-report.md` (`M8-03`)
 
 ### Decision
 

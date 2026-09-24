@@ -1,7 +1,7 @@
 # M7 — Identity and Username: Remediation Report
 
 Written by Claude on `claude-autopilot`, after independently validating the
-findings in `evals/M7/critic-report.md` and `evals/M7/test-report.md`. Those two
+findings in `evals/runs/2026-09-17-e2b3287/M7/critic-report.md` and `evals/runs/2026-09-17-e2b3287/M7/test-report.md`. Those two
 reports are the evaluator's record of what Codex observed and are left as
 written.
 
