@@ -4,22 +4,25 @@
   `evals/M19/critic-report.md` and `evals/M19/test-report.md` evaluated that
   baseline before M19 was implemented; they remain unchanged as historical
   records.
-- **Current evaluated `main`:** `1f17312848a6d6c9499c0accbd7eb6401f44e657`.
-- **Current `main`:** `c7a6fe1`, which is not yet evaluated. See *Not yet
-  evaluated* below.
-- **Current milestone:** M19 current-implementation re-evaluation complete.
-- **Status:** `DEFECT FOUND — M19.2–M19.12 EVALUATED; 1 FINDING, REMEDIATED
-  2026-09-17 ON claude-autopilot, AWAITING INDEPENDENT RE-EVALUATION`. M17.3,
-  M17.5 and M17.6 landed after this evaluation and are not yet evaluated.
+- **Current evaluated `main`:** `83de79ceed51577b9b8cffa38ca1b937e029537a`
+  for the M19-01 post-remediation re-evaluation only. Later M17 work on this
+  baseline remains under evaluation; see *Not yet evaluated*.
+- **Current `main`:** `83de79ceed51577b9b8cffa38ca1b937e029537a`.
+- **Current milestone:** M19 post-remediation re-evaluation complete; current
+  M17 re-evaluation next.
+- **Status:** `M19 PASS — M19-01 INDEPENDENTLY CLOSED`. M17.3 and M17.5–M17.10
+  landed after the original M17 evaluation and are not yet independently
+  evaluated.
 - **Scope boundary:** M19.1 moved to M20.1. The N >= 3 resignation and
   continuation flow formerly in M19.8 moved to M20.2. Neither is an M19 defect.
-- **Current reports:** `evals/M19/re-evaluation-critic-report.md` and
-  `evals/M19/re-evaluation-test-report.md`.
+- **Current reports:** `evals/M19/post-remediation-re-evaluation-critic-report.md`
+  and `evals/M19/post-remediation-re-evaluation-test-report.md`. The earlier
+  `re-evaluation-*` reports remain the finding record.
 
 ## Verdict
 
-M19.2, M19.4–M19.6, and M19.8–M19.12 satisfy their current acceptance criteria.
-M19.3 and M19.7 share one defect:
+M19.2–M19.12 satisfy their current acceptance criteria. The prior defect shared
+by M19.3 and M19.7 is closed:
 
 - **M19-01 — participant exact-set identity is incorrectly collapsed by bare
   UUID.** `Participant` and the V9 schema identify a participant by
@@ -32,11 +35,10 @@ M19.3 and M19.7 share one defect:
   was not changed by the evaluation. **Remediated 2026-09-17** by the
   implementation track (`evals/remediation-report.md`, *M19-01*): duplicate
   detection uses the whole participant and seats are ordered by ref then kind.
-  The regression passes unmodified. The implementation track re-ran it on
-  2026-09-23 against disposable PostgreSQL, on the same code as `main`
-  `c7a6fe1`: `M19ParticipantIdentityRegressionTest` 1/1 and
-  `TableRepositoryTest` 13/13, none skipped. That is the implementation track's
-  evidence, not an independent re-evaluation.
+  The independent post-remediation re-evaluation ran the original regression
+  unchanged on `83de79c`; it passed together with table, participant, and
+  migration coverage. Duplicate detection uses the complete participant, the
+  canonical order is ref then kind, and V5's all-user keys remain unchanged.
 
 All six earlier evaluation findings remain closed by the 2026-09-10
 remediation: M10-01, M12-01, M14-01, M14-02, M14-03, and M18-01. Their retained
@@ -56,13 +58,18 @@ regressions still pass on the current baseline.
 
 ## Not yet evaluated
 
-Commits on `main` after the evaluated `1f17312`:
+Current-baseline work not yet covered by an independent M17 report:
 
-- `7f0846e` — the `M19-01` remediation (`TableRepository` identity).
 - `48adebb` — `M17.3`: the home screen names its player.
 - `11bc23c` — `M17.5`: an "All users" page to add friends from, a testing aid
   that is part of the MVP (`D071`).
 - `c7a6fe1` — `M17.6`: the "All users" page lists friends too.
+- `9407a2d` — `M17.7`: responsive game layouts and rotation-safe local play.
+- `b69b705` — `M17.8`: an overall HTTP request deadline; its backlog device
+  acceptance remains incomplete.
+- `ca5468d` — `M17.9`: readable promotion choices.
+- `8538db3` — Android 5.1/API 22 compatibility.
+- `83de79c` — `M17.10`: foreground resume refresh.
 
 `M17.4` (user settings) is `BLOCKED` on the project owner and has no code to
 evaluate. Documentation-only commits after `c7a6fe1` (`D072`, `docs/FUTURE.md`)
@@ -131,9 +138,8 @@ against disposable PostgreSQL.
 
 ## Exact next action
 
-1. Re-evaluate the `M19-01` remediation (`7f0846e`, `evals/remediation-report.md`).
-2. Evaluate `M17.3`, `M17.5` and `M17.6` against their acceptance criteria in
-   `docs/BACKLOG.md` and `D071`.
+Evaluate M17.3 and M17.5–M17.10 on the pinned `83de79c` baseline, including the
+remaining M17.8 device evidence and Android 5.1/API 22 compatibility.
 
 After that, **M20.1 remains the next human-sign-off boundary**: choose
 the multi-game rules/module architecture with the project owner before starting
