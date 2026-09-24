@@ -167,6 +167,9 @@ class ChessAppViewModel(
     internal var updatesJob: Job? = null
         private set
 
+    /** Whether the app has left the screen since it was last in front of the player (`M17.10`). */
+    private var leftTheScreen = false
+
     /** Which game [gameJob] is fetching, so a second request for the same one can be recognised. */
     private var loadingGameId: String? = null
 
@@ -431,6 +434,47 @@ class ChessAppViewModel(
                     delay(reconnectPauseAfter(failures))
                 }
             }
+    }
+
+    /**
+     * Notes that the player has left the app: Home, another app, or the screen turning off.
+     *
+     * `MainActivity` does not call this for the stop a rotation causes, which is not the
+     * player going anywhere.
+     */
+    fun onBackground() {
+        leftTheScreen = true
+    }
+
+    /**
+     * Brings the app up to date when the player comes back to it (`M17.10`, `D075`).
+     *
+     * A socket that looks open when the app returns may have died while it was away. On
+     * the Pixel 7 (Android 16) it did, with no close and no process death: an app in the
+     * background can lose its network without the socket being told. The ping would notice,
+     * but only when the next one falls due (`D042`), and until then the screen shows the
+     * position the player left, with "Undo" still offered for a move that has been
+     * answered. `M17.10`'s device check measured 35 s of that.
+     *
+     * So what is on screen is reloaded at once, and the socket is replaced rather than
+     * trusted. The reload does not wait for the new socket's greeting, which a sleeping
+     * server would delay. It waits through the wake itself (`D037`). The greeting then
+     * reloads again, and that costs only a read (`D022`).
+     *
+     * Nothing happens unless the app really did leave the screen, so a rotation, which
+     * starts the activity again, costs nothing. Nothing happens before startup has finished
+     * either: startup loads the screen and opens the socket itself.
+     */
+    fun onForeground() {
+        if (!leftTheScreen) return
+        leftTheScreen = false
+
+        if (startup !is StartupState.Ready) return
+
+        refreshWhatIsOnScreen()
+
+        updatesJob?.cancel()
+        watchUpdates()
     }
 
     /**

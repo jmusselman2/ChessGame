@@ -129,4 +129,15 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    override fun onStart() {
+        super.onStart()
+        viewModel.onForeground()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // A rotation stops this activity only to start the next one; the player has not left.
+        if (!isChangingConfigurations) viewModel.onBackground()
+    }
 }

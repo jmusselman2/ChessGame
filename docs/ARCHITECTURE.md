@@ -378,6 +378,10 @@ WebSocket delivery is a convenience layer, not the source of truth.
 
 On reconnect, Android must be able to reload canonical state over HTTPS.
 
+Coming back to the app counts as a reconnect. The app reloads what is on screen
+and replaces the socket rather than trusting it, because a socket can die
+silently while the app is in the background (`D075`).
+
 Nothing is replayed to a client that was away. The server registers the
 connection before it sends the `connected` greeting, so a client that reloads on
 receiving that greeting cannot fall into a gap: every change committed from then

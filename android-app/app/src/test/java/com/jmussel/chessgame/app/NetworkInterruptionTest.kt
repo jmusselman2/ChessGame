@@ -523,6 +523,115 @@ class NetworkInterruptionTest {
             assertEquals("and stays at the cap however long the server is away", 60_000L, waits.last())
         }
 
+    // --- Coming back to the app (`M17.10`) ----------------------------------------------
+
+    @Test
+    fun aMovePlayedWhileTheAppWasAwayIsShownAsSoonAsThePlayerComesBack() =
+        runTest(dispatcher) {
+            // The socket stays open and says nothing, which is how one that died while the
+            // app was in the background looks from inside it.
+            val viewModel = viewModel()
+            viewModel.start()
+            viewModel.startupJob?.join()
+            viewModel.openOnlineGame(GAME)
+            viewModel.gameJob?.join()
+
+            viewModel.onBackground()
+            played += "e7e5"
+            runCurrent()
+            assertEquals(
+                "nothing told the app about the move while it was away",
+                1L,
+                (viewModel.game as OnlineGameState.Ready).game.version,
+            )
+
+            viewModel.onForeground()
+            viewModel.gameJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals("coming back shows the move without waiting for the socket", 2L, ready.game.version)
+            assertEquals(listOf("e7e5"), ready.game.moves)
+        }
+
+    @Test
+    fun comingBackReplacesTheSocketRatherThanTrustingIt() =
+        runTest(dispatcher) {
+            var opened = 0
+            var closed = 0
+            val source =
+                RealtimeSource {
+                    flow {
+                        opened++
+                        try {
+                            emit(RealtimeMessageDto(type = RealtimeMessageDto.CONNECTED))
+                            awaitCancellation()
+                        } finally {
+                            closed++
+                        }
+                    }
+                }
+            val viewModel = viewModel(realtime = source)
+            viewModel.start()
+            viewModel.startupJob?.join()
+            runCurrent()
+            assertEquals("startup opens one socket", 1, opened)
+
+            viewModel.onBackground()
+            viewModel.onForeground()
+            runCurrent()
+
+            assertEquals("the old socket is closed", 1, closed)
+            assertEquals("and a new one opened", 2, opened)
+        }
+
+    @Test
+    fun startingTheActivityWithoutLeavingTheAppRefreshesNothing() =
+        runTest(dispatcher) {
+            var opened = 0
+            val source =
+                RealtimeSource {
+                    flow<RealtimeMessageDto> {
+                        opened++
+                        awaitCancellation()
+                    }
+                }
+            val viewModel = viewModel(realtime = source)
+            viewModel.start()
+            viewModel.startupJob?.join()
+            viewModel.openOnlineGame(GAME)
+            viewModel.gameJob?.join()
+            runCurrent()
+            val requests = paths.size
+
+            // The first start, and the one after a rotation, come without a stop before them.
+            viewModel.onForeground()
+            runCurrent()
+
+            assertEquals("nothing is reloaded", requests, paths.size)
+            assertEquals("and the socket is left alone", 1, opened)
+        }
+
+    @Test
+    fun comingBackBeforeStartupHasFinishedLeavesStartupToIt() =
+        runTest(dispatcher) {
+            var opened = 0
+            val source =
+                RealtimeSource {
+                    flow<RealtimeMessageDto> {
+                        opened++
+                        awaitCancellation()
+                    }
+                }
+            val viewModel = viewModel(realtime = source)
+
+            viewModel.onBackground()
+            viewModel.onForeground()
+            runCurrent()
+
+            assertTrue("no request is made for a player who is not signed in yet", paths.isEmpty())
+            assertEquals("and no socket is opened ahead of startup", 0, opened)
+        }
+
     // --- Waking, retryable, and terminal stay apart ------------------------------------
 
     @Test

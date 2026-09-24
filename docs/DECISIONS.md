@@ -4778,3 +4778,65 @@ progress finishes well inside it, so it catches only stalls.
   could. For a sign-up that leaves an orphaned anonymous user the device never
   saw. For a refresh it leaves a rotated token the device never received. The
   limit adds one more way to lose a reply, and only after 30 s.
+
+---
+
+## D075 — Coming Back to the App Reloads the Screen and Replaces the Socket
+
+**Date:** 2026-09-23
+
+**Status:** Accepted
+
+**Relates to:** `D022`, `D037`, `D042`, `M16.1`, `M16.6`, `M17.10`
+
+### Decision
+
+- **When the player comes back to the app, what is on screen is reloaded over
+  HTTPS at once.** "Coming back" means the activity starts after a stop that was
+  not a configuration change: Home, another app, or the screen turning off. The
+  reload is the same one a `connected` greeting triggers (`M16.1`), so it waits
+  through a sleeping server (`D037`).
+- **The realtime socket is replaced, not trusted.** The loop is cancelled, which
+  closes the old connection, and started again. The new socket's greeting then
+  reloads once more, which costs one read (`D022`).
+- **A start that is not a return does nothing.** The activity's first start and
+  the start after a rotation have no stop before them that the model hears about,
+  so they reload nothing and keep the socket.
+- **Nothing happens before startup is `Ready`.** Startup loads the screen and
+  opens the socket itself.
+- **The ping stays as it is (`D042`).** It still bounds staleness for an app that
+  stays in front of the player. This decision covers only the return.
+
+### Rationale
+
+`M17.10`'s two-device check found the Pixel 7 (Android 16) showing the position
+it left for about 35 s after coming back from Home, with "Undo" offered for a
+move the opponent had already answered. There was no close frame, no process
+death, and no freezer event. The socket looked open and carried nothing. Only
+the next ping noticed, after up to one ping period, and then the 3 s reconnect
+pause ran. The Kindle Fire (Android 5.1) kept its socket and caught up at once.
+
+The stale window was safe: tapping the stale Undo was refused on its version
+(`D021`) and the screen corrected itself. But a player who comes back to check
+whether it is their move is exactly the player the stale screen misleads.
+
+Reloading does not depend on the new socket connecting. A sleeping server would
+hold the greeting back for as long as the wake takes, and the reload already
+knows how to wait through a wake.
+
+### Alternatives Considered
+
+- **A shorter ping interval.** It would shorten the window everywhere, at the
+  cost of waking the radio more often for every open app. It still would not
+  make a return immediate.
+- **Reloading without replacing the socket.** The screen would be right, but
+  the next move would still be missed until the ping noticed the dead socket.
+- **`ProcessLifecycleOwner`.** It needs the `lifecycle-process` dependency, and
+  its stop is delayed 700 ms. There is one activity, so the activity's own
+  `onStart` and `onStop` say the same thing.
+
+### Consequences
+
+- Every return to the app costs one or two game or dashboard reads and a new
+  socket. A socket that was still alive is replaced anyway.
+- Turning the screen off and on counts as a return.

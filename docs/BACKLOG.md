@@ -5002,6 +5002,68 @@ round buttons with the pieces clearly drawn. Then `.\gradlew.bat build`.
 
 ---
 
+## M17.10 — Coming back to the app shows the game as it is now
+
+**Status:** DONE
+
+**Depends on:** M16.6
+
+**Found by:** the two-device online check on 2026-09-23 (Pixel 7 on Android 16 in
+portrait, Kindle Fire KFDOWI on Android 5.1 in landscape, build
+`kindle-online-fix` against the beta server at `8538db3`).
+
+### The gap
+
+Reproduce: open an online game on the Pixel and press Home. Make a move from the
+other device, wait about 15 s, then reopen the Pixel. The Pixel kept the position
+it left for 34–37 s ("kindle923beta to move", the old version), then caught up.
+During that window it offered "Undo" for a move the opponent had already
+answered. Tapping it was refused on its version (`D021`): the screen said "The
+game moved on. This is where it is now." and corrected itself. So the window was
+safe, but it misled the player. The Kindle caught up at once.
+
+The logs showed no close, no process death and no freezer event. The socket
+looked open and carried nothing. Nothing reloads when the app comes back, so
+recovery waited for the ping to notice the dead socket (`D042`), then for the
+3 s reconnect pause, then for the `connected` reload.
+
+### Acceptance Criteria
+
+- Coming back to the app (after Home, another app, or the screen turning off)
+  reloads what is on screen at once, without waiting for the socket.
+- The socket is replaced when the app comes back, so the next update is not
+  missed either.
+- The first start and a rotation reload nothing and keep the socket.
+- A return before startup has finished does nothing. Startup does its own
+  loading.
+- Model tests cover each of these. The first two fail without the change.
+- On the Pixel, the device check above shows the opponent's move within a few
+  seconds of reopening.
+
+### Completion Note — 2026-09-23
+
+`ChessAppViewModel` has `onBackground` and `onForeground` (`D075`).
+`MainActivity.onStop` calls the first, except for a stop caused by a
+configuration change. `onStart` calls the second. It acts only after a real
+stop, once startup is `Ready`. It reloads the screen through
+`refreshWhatIsOnScreen`, cancels the realtime loop, and starts it again.
+
+Four new `NetworkInterruptionTest` cases cover the criteria. With `onForeground`
+made a no-op, `aMovePlayedWhileTheAppWasAwayIsShownAsSoonAsThePlayerComesBack` and
+`comingBackReplacesTheSocketRatherThanTrustingIt` fail. With both guards removed,
+`startingTheActivityWithoutLeavingTheAppRefreshesNothing` and
+`comingBackBeforeStartupHasFinishedLeavesStartupToIt` fail.
+
+Verified with `.\gradlew.bat build`, then on both devices. A debug build
+(`versionName` `resume-refresh-fix`, `versionCode` 3, the beta URL) was installed
+over the existing one with `adb install -r`. The Pixel was on Home for 67 s while
+the Kindle moved. After reopening, the first read of the screen, 2.9 s later, already
+showed the move and "Your move". It was 34–37 s before. Moves then kept arriving live
+in both directions over the replaced socket. The Kindle's return still caught up
+at once. Neither device logged a crash or ANR.
+
+---
+
 ---
 
 # M18 — Post-Chess Architecture Review
