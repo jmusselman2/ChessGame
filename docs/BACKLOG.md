@@ -5283,6 +5283,63 @@ phone, so Robin's side of the group screen was not seen on a device.
 
 ---
 
+## M17.13 — Audit events record who acted, and which series they belong to
+
+**Status:** TODO
+
+**Depends on:** M17.12
+
+**Found by:** the database review on 2026-09-24. Scheduled by the project owner the
+same day.
+
+### The gap
+
+`game_events.actor_id` was created in `V1` and has never been written. Before the
+2026-09-24 wipe, all 94 audit events had it empty. Two related inconsistencies:
+
+- `SeriesLeft` puts the leaving player in its payload (`{"userId": …}`) and leaves
+  `actor_id` empty.
+- The game-level events `GameRepository` writes (`MoveMade`, `MoveUndone`,
+  `DrawClaimed`, `PlayerResigned`, `GameEnded`) leave `series_id` empty. So
+  `GameSeriesRepository.auditEvents(seriesId)` returns only the series events
+  (`RematchCreated`, `SeriesLeft`), not the moves of the series' games.
+
+Chess has not needed the actor, because who acted can be worked out from the seats,
+the version and the result. `D056`'s player-facing history view for the
+deck-builder is derived from this log ("Turn 3: Alice played Ironclad"), and with
+three or more players who acted cannot be worked out afterwards. The wipe emptied
+`game_events`, so nothing needs backfilling.
+
+### Acceptance Criteria
+
+- Every audit event records in `actor_id` the player whose request caused it:
+  - `MoveMade`, `MoveUndone`, `DrawClaimed` and `PlayerResigned`: the caller of the
+    command.
+  - `GameEnded`: the player whose command ended the game (the final move, the
+    claim, or the resignation). An automatic draw is ended by the move that
+    caused it.
+  - `RematchCreated`: the player whose command ended the previous game, since the
+    rematch is created in the same request.
+  - `SeriesLeft`: the leaving player.
+- `SeriesLeft` keeps its payload as it is, for any reader that relies on it. The
+  decision records whether `userId` in the payload is kept or retired.
+- Every event about a game in a series also records its `series_id`.
+  `auditEvents(seriesId)` then returns the whole series in order: its games'
+  moves, undos, claims, resignations and endings, and its rematches and leave.
+- No schema change: the columns exist. If the actor turns out to need a column that
+  can also name a non-user participant (`D051`, `D067`), that is recorded as a
+  decision and left to `M20`. Chess has only users.
+- An event that no player caused, if there is one, keeps `actor_id` empty, and the
+  completion note lists which events those are.
+- Tests: each event type is written with its actor and its series, including a
+  game ended by a move, by a claim and by a resignation, a rematch, and a leave.
+  Existing audit tests pass. `ARCHITECTURE.md` §9 says what `actor_id` and
+  `series_id` hold.
+- Out of scope: showing the log to players (`D056`), and indexes on `actor_id`
+  (see `M17.12`).
+
+---
+
 ---
 
 # M18 — Post-Chess Architecture Review
