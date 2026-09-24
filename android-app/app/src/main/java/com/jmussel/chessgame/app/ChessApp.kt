@@ -33,6 +33,12 @@ import com.jmussel.chessgame.ui.friends.FriendsScreen
 import com.jmussel.chessgame.ui.friends.FriendsUiState
 import com.jmussel.chessgame.ui.game.OnlineGameScreen
 import com.jmussel.chessgame.ui.game.OnlineGameState
+import com.jmussel.chessgame.ui.groups.GroupActions
+import com.jmussel.chessgame.ui.groups.GroupScreen
+import com.jmussel.chessgame.ui.groups.GroupUiState
+import com.jmussel.chessgame.ui.groups.GroupsActions
+import com.jmussel.chessgame.ui.groups.GroupsScreen
+import com.jmussel.chessgame.ui.groups.GroupsUiState
 import com.jmussel.chessgame.ui.history.HistoryScreen
 import com.jmussel.chessgame.ui.history.HistoryUiState
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
@@ -56,9 +62,13 @@ fun ChessApp(
     startup: StartupState = StartupState.Loading,
     /** The player's own username, once the account has one. */
     username: String? = null,
+    /** The player's own user id, which marks them in a group's members. */
+    userId: String? = null,
     usernameClaim: UsernameClaim = UsernameClaim.Idle,
     friends: FriendsUiState = FriendsUiState(),
     allUsers: AllUsersUiState = AllUsersUiState(),
+    groups: GroupsUiState = GroupsUiState(),
+    group: GroupUiState = GroupUiState(),
     dashboard: DashboardUiState = DashboardUiState(),
     history: HistoryUiState = HistoryUiState(),
     game: OnlineGameState? = null,
@@ -89,11 +99,13 @@ fun ChessApp(
     onClaimUsername: (String) -> Unit = {},
     friendsActions: FriendsActions = FriendsActions(),
     allUsersActions: AllUsersActions = AllUsersActions(),
+    groupsActions: GroupsActions = GroupsActions(),
+    groupActions: GroupActions = GroupActions(),
     dashboardActions: DashboardActions = DashboardActions(),
     playOffer: PlayOffer? = null,
     playOfferActions: PlayOfferActions = PlayOfferActions(),
 ) {
-    // Play is on two screens and raises the same choice from either (`D053`).
+    // Play is on several screens and raises the same choice from each (`D053`).
     playOffer?.let { PlayOfferDialog(offer = it, actions = playOfferActions) }
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -120,6 +132,8 @@ fun ChessApp(
                 )
             Destination.Friends -> FriendsScreen(state = friends, actions = friendsActions)
             Destination.AllUsers -> AllUsersScreen(state = allUsers, actions = allUsersActions)
+            Destination.Groups -> GroupsScreen(state = groups, actions = groupsActions)
+            is Destination.Group -> GroupScreen(state = group, ownUserId = userId, actions = groupActions)
             Destination.History ->
                 HistoryScreen(
                     series = history.series,

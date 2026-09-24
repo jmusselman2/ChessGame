@@ -5080,7 +5080,7 @@ at once. Neither device logged a crash or ANR.
 
 ## M17.11 — Groups screen: create, add friends, play members, leave
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M19.2
 
@@ -5166,6 +5166,62 @@ player cannot create a group, add anyone, or play a member who is not a friend.
   group by the third. Each opens the group, taps Play on the other, and they play
   a move each. The game appears on both dashboards. One leaves the group, and the
   game carries on.
+
+### Completion Note — 2026-09-23
+
+**App.** `ui/groups/` holds `Groups.kt` (the two screens' state and actions, and the
+pure `Groups` object: name rules, member-count wording, "You", who can be added,
+what a gone group is, messages) and `GroupsScreen.kt` (`GroupsScreen`, `GroupScreen`).
+`ChessApiClient` has `GroupSummaryDto` and the five group calls. `Destination` has
+`Groups` and `Group(groupId)`. Friends has a "Groups" button beside "Browse all users".
+`ChessApp` and `MainActivity` wire the screens, and `ChessApp` takes the player's
+`userId` to mark "You".
+
+**One Play.** `ChessAppViewModel.play` is the friends screen's Play, moved out
+unchanged: open the series, raise the offer on `409` (`D053`), say "No game with … to
+open yet." or open the game. `playFriend` and `playGroupMember` both call it, so a
+group member is played exactly like a friend. The dashboard's Play is untouched.
+
+**Choices the criteria left open.** A group's page loads its members and the player's
+friends together, because who can be added is the difference between them. A `404`
+counts as a gone group only when its text is "No such group" or empty, so "No such
+user" is still shown in the server's words. Leaving a group that is already gone goes
+back to the list, the same as leaving it. With no friends at all, "Add a friend" says
+"You have no friends to add yet." rather than that they are all in the group. The
+group's page is a separate job from the list's, so adding someone also reloads the
+list, whose count has changed.
+
+**A bug the device found.** On the Pixel, leaving showed no message. The list's read
+took its copy of the state before leaving wrote the message, and its answer put back
+that copy. The unit tests missed it: the test dispatcher queues a launch that the
+app's main dispatcher starts at once. `fetchGroups` now reads the list before
+copying the state. `whatLeavingSaidSurvivesAListReadAlreadyInFlight` starts the read
+first and holds it until after the leave. It fails without the fix. `fetchFriends` has
+the same shape, but nothing writes the friends screen's message during its read, so
+it was left alone.
+
+**Tests.** `GroupsTest` (8), `GroupsFlowTest` (16: the list, empty, refused and retried,
+offline, create and open, names not sent, open, add, refused add, Play a non-friend,
+the offer, leave, the in-flight read, a gone group, and reloading the group and the
+list on return), and 7 new `ChessApiClientTest` cases. The two return tests fail with
+the reload removed from `refreshWhatIsOnScreen`. On the server,
+`GroupRouteTest.twoMembersWhoAreNotFriendsCanPlayEachOther` pins `D046` for `D076`.
+No server route, schema or API shape changed.
+Then `.\gradlew.bat build`: 571 server, 515 Android and 394 game-core tests, none
+failed or skipped.
+
+**On a device.** Pixel 7, debug build against the beta. The phone's account
+`grpAlex0923` was a fresh install. Two accounts made through the API, `grpHost0923`
+and `grpRobin0923`, stood in for the other two players. The host befriended both and
+put them in "Tuesday Club". Alex and Robin were never friends. On the phone the group
+listed the host and Robin with Play and Alex as "You". Play on Robin opened a new game
+with Alex as Black. Robin played e4 through the API, and the phone showed it live.
+Alex played e5 on the board. Robin's dashboard listed the game against Alex. Alex left
+the group, and the list said "Left the group; your games are unaffected" once the fix
+was in. The phone's dashboard still showed the game under THEIR TURN, and Robin was
+not under FRIENDS. Creating "PixelGroup" opened it, adding the host said "Added
+grpHost0923.", and Back showed "2 members". Robin used the API rather than a second
+phone, so Robin's side of the group screen was not seen on a device.
 
 ---
 

@@ -137,6 +137,15 @@ data class DashboardEntryDto(
     val seriesActive: Boolean = true,
 )
 
+/** A group the caller is in, as the server lists it (`D049`, `D076`). */
+@Serializable
+data class GroupSummaryDto(
+    val groupId: String,
+    val name: String,
+    val createdBy: String,
+    val memberCount: Int,
+)
+
 /** A series as the server describes it to one of its two players. */
 @Serializable
 data class SeriesSummaryDto(
@@ -344,6 +353,36 @@ class ChessApiClient(
      */
     suspend fun removeFriend(username: String): String = delete("/friends/$username")
 
+    /** The groups the caller is in, oldest first (`D076`). */
+    suspend fun groups(): List<GroupSummaryDto> = get(GROUPS)
+
+    /**
+     * Creates a group called [name] with the caller as its one member, and returns it.
+     *
+     * A name the server will not take is a refusal carrying its explanation.
+     */
+    suspend fun createGroup(name: String): GroupSummaryDto = post(GROUPS, name)
+
+    /**
+     * Everyone in [groupId] now, the caller included, oldest member first.
+     *
+     * A group the caller is not in answers as though it did not exist (`M19.2`).
+     */
+    suspend fun groupMembers(groupId: String): List<UserSummaryDto> = get("$GROUPS/$groupId/members")
+
+    /**
+     * Adds [username], one of the caller's own friends, to [groupId], and returns the name
+     * as the server stored it. Membership is immediate (`D049`). Someone who is not a friend
+     * is a refusal that says so.
+     */
+    suspend fun addGroupMember(
+        groupId: String,
+        username: String,
+    ): String = post("$GROUPS/$groupId/members", username)
+
+    /** Leaves [groupId], and returns the server's sentence about it. No game is touched (`D049`). */
+    suspend fun leaveGroup(groupId: String): String = delete("$GROUPS/$groupId/members/me")
+
     /**
      * Takes back the caller's latest move, and returns the game as it stands after it.
      *
@@ -535,6 +574,7 @@ class ChessApiClient(
 
     companion object {
         private const val SERIES = "/series"
+        private const val GROUPS = "/groups"
 
         /** Lenient so a newer server can add fields without breaking an older app. */
         val Json: Json =

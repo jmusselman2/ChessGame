@@ -43,6 +43,7 @@ data class FriendsActions(
     val onPlay: (UserSummaryDto) -> Unit = {},
     val onRetry: () -> Unit = {},
     val onBrowseAllUsers: () -> Unit = {},
+    val onOpenGroups: () -> Unit = {},
 )
 
 /**

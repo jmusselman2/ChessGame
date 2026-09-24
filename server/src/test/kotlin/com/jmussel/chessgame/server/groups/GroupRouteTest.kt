@@ -244,6 +244,32 @@ class GroupRouteTest {
         }
 
     @Test
+    fun twoMembersWhoAreNotFriendsCanPlayEachOther() =
+        withServer { fixture ->
+            // Host added both; the two have no friendship of their own (`D049`'s transitive case).
+            val host = fixture.named("route-host-11", "Host")
+            val alex = fixture.named("route-alex-11", "Alex")
+            val robin = fixture.named("route-robin-11", "Robin")
+            fixture.befriend(host, alex)
+            fixture.befriend(host, robin)
+            val group = fixture.groups.create(host, "Regulars")
+            fixture.groups.addMember(group.id, host, alex)
+            fixture.groups.addMember(group.id, host, robin)
+            assertFalse(fixture.friendships.areFriends(alex, robin))
+
+            // The group screen's Play is the friends screen's Play (`D076`), and series
+            // creation checks no relationship (`D046`), so this is all it needs.
+            val response =
+                client.post("/series") {
+                    header("Authorization", "Bearer ${tokens.tokenFor("route-alex-11")}")
+                    setBody("Robin")
+                }
+
+            assertEquals(HttpStatusCode.Created, response.status)
+            assertTrue(response.bodyAsText().contains("\"Robin\""), "the series is with Robin")
+        }
+
+    @Test
     fun aGroupIdThatIsNotAnIdIsABadRequest() =
         withServer { fixture ->
             fixture.named("route-host-10", "Host")

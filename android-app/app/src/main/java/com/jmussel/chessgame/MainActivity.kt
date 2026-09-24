@@ -17,6 +17,8 @@ import com.jmussel.chessgame.app.ChessAppViewModel
 import com.jmussel.chessgame.ui.allusers.AllUsersActions
 import com.jmussel.chessgame.ui.dashboard.DashboardActions
 import com.jmussel.chessgame.ui.friends.FriendsActions
+import com.jmussel.chessgame.ui.groups.GroupActions
+import com.jmussel.chessgame.ui.groups.GroupsActions
 import com.jmussel.chessgame.ui.series.PlayOfferActions
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
@@ -66,12 +68,30 @@ class MainActivity : ComponentActivity() {
                             onPlay = viewModel::playFriend,
                             onRetry = viewModel::loadFriends,
                             onBrowseAllUsers = viewModel::openAllUsers,
+                            onOpenGroups = viewModel::openGroups,
                         )
                     }
 
                 val allUsersActions =
                     remember(viewModel) {
                         AllUsersActions(onAdd = viewModel::addFromAllUsers, onRetry = viewModel::loadAllUsers)
+                    }
+
+                val groupsActions =
+                    remember(viewModel) {
+                        GroupsActions(onOpen = viewModel::openGroup, onCreate = viewModel::createGroup, onRetry = viewModel::loadGroups)
+                    }
+
+                val groupActions =
+                    remember(viewModel) {
+                        GroupActions(
+                            onPlay = viewModel::playGroupMember,
+                            onAdd = viewModel::addToGroup,
+                            onAskToLeave = viewModel::askToLeaveGroup,
+                            onConfirmLeave = viewModel::leaveGroup,
+                            onCancelLeave = viewModel::cancelLeaveGroup,
+                            onRetry = viewModel::loadGroup,
+                        )
                     }
 
                 val playOfferActions =
@@ -89,9 +109,12 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.padding(innerPadding),
                         startup = viewModel.startup,
                         username = viewModel.currentUser?.username,
+                        userId = viewModel.currentUser?.userId,
                         usernameClaim = viewModel.usernameClaim,
                         friends = viewModel.friends,
                         allUsers = viewModel.allUsers,
+                        groups = viewModel.groups,
+                        group = viewModel.group,
                         dashboard = viewModel.dashboard,
                         history = viewModel.history,
                         game = viewModel.game,
@@ -121,6 +144,8 @@ class MainActivity : ComponentActivity() {
                         onClaimUsername = viewModel::claimUsername,
                         friendsActions = friendsActions,
                         allUsersActions = allUsersActions,
+                        groupsActions = groupsActions,
+                        groupActions = groupActions,
                         dashboardActions = dashboardActions,
                         playOffer = viewModel.playOffer,
                         playOfferActions = playOfferActions,

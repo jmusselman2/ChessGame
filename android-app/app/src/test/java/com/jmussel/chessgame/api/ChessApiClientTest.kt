@@ -517,6 +517,90 @@ class ChessApiClientTest {
     }
 
     @Test
+    fun theGroupsAreRead() {
+        val client = clientReplying("""[{"groupId":"group-1","name":"Tuesday","createdBy":"user-1","memberCount":3}]""")
+
+        val groups = runBlocking { client.groups() }
+
+        assertEquals("/groups", requests.single().url.encodedPath)
+        assertEquals(HttpMethod.Get, requests.single().method)
+        assertEquals(GroupSummaryDto(groupId = "group-1", name = "Tuesday", createdBy = "user-1", memberCount = 3), groups.single())
+    }
+
+    @Test
+    fun aGroupIsCreatedByPostingItsName() {
+        val client =
+            clientReplying(
+                """{"groupId":"group-2","name":"Family","createdBy":"user-1","memberCount":1}""",
+                status = HttpStatusCode.Created,
+            )
+
+        val created = runBlocking { client.createGroup("Family") }
+
+        val request = requests.single()
+        assertEquals("/groups", request.url.encodedPath)
+        assertEquals(HttpMethod.Post, request.method)
+        assertEquals("Family", (request.body as TextContent).text)
+        assertEquals("group-2", created.groupId)
+        assertEquals(1, created.memberCount)
+    }
+
+    @Test
+    fun aGroupsMembersAreRead() {
+        val client = clientReplying("""[{"userId":"user-1","username":"Taylor"},{"userId":"user-2","username":"Robin"}]""")
+
+        val members = runBlocking { client.groupMembers("group-1") }
+
+        assertEquals("/groups/group-1/members", requests.single().url.encodedPath)
+        assertEquals(listOf("Taylor", "Robin"), members.map { it.username })
+    }
+
+    @Test
+    fun aGroupThatIsNotTheCallersIsARefusalLikeOneThatDoesNotExist() {
+        val client = clientReplying("No such group", status = HttpStatusCode.NotFound)
+
+        val failure = assertThrows(ChessApiException::class.java) { runBlocking { client.groupMembers("group-9") } }
+
+        assertEquals(404, failure.status)
+        assertEquals("No such group", failure.explanation)
+    }
+
+    @Test
+    fun aFriendIsAddedToAGroupByPostingTheirUsername() {
+        val client = clientReplying("Sam")
+
+        val added = runBlocking { client.addGroupMember("group-1", "Sam") }
+
+        val request = requests.single()
+        assertEquals("Sam", added)
+        assertEquals("/groups/group-1/members", request.url.encodedPath)
+        assertEquals(HttpMethod.Post, request.method)
+        assertEquals("Sam", (request.body as TextContent).text)
+    }
+
+    @Test
+    fun addingSomeoneWhoIsNotAFriendToAGroupComesBackWithTheServersExplanation() {
+        val client = clientReplying("Add Kim as a friend first", status = HttpStatusCode.Forbidden)
+
+        val failure = assertThrows(ChessApiException::class.java) { runBlocking { client.addGroupMember("group-1", "Kim") } }
+
+        assertEquals(403, failure.status)
+        assertEquals("Add Kim as a friend first", failure.explanation)
+    }
+
+    @Test
+    fun leavingAGroupDeletesTheCallersOwnMembership() {
+        val client = clientReplying("Left the group; your games are unaffected")
+
+        val said = runBlocking { client.leaveGroup("group-1") }
+
+        val request = requests.single()
+        assertEquals("Left the group; your games are unaffected", said)
+        assertEquals("/groups/group-1/members/me", request.url.encodedPath)
+        assertEquals(HttpMethod.Delete, request.method)
+    }
+
+    @Test
     fun aMoveIsPostedWithTheVersionItWasDecidedAt() {
         val client = clientReplying(gameBody)
 

@@ -17,11 +17,23 @@ sealed interface Destination {
     /** The home screen a returning player lands on (`docs/PRODUCT.md`). */
     data object Dashboard : Destination
 
-    /** Adding and removing friends, who are the only people there is anything to do with. */
+    /** Adding and removing friends, and the way to groups. */
     data object Friends : Destination
 
     /** Everyone the player could add as a friend: a testing aid, reached from Friends (`D071`). */
     data object AllUsers : Destination
+
+    /** The groups the player is in, reached from Friends (`D076`). */
+    data object Groups : Destination
+
+    /** One group: its members, who can all be played, and friends who could join it. */
+    data class Group(
+        val groupId: String,
+    ) : Destination {
+        init {
+            require(groupId.isNotBlank()) { "A group needs an id" }
+        }
+    }
 
     /** Games that are over. */
     data object History : Destination

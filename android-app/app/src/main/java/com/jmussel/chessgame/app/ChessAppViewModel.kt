@@ -11,6 +11,7 @@ import com.jmussel.chessgame.api.ChessApiException
 import com.jmussel.chessgame.api.ChessCommandRefusedException
 import com.jmussel.chessgame.api.CurrentUserDto
 import com.jmussel.chessgame.api.GameViewDto
+import com.jmussel.chessgame.api.GroupSummaryDto
 import com.jmussel.chessgame.api.ListedUserDto
 import com.jmussel.chessgame.api.RealtimeMessageDto
 import com.jmussel.chessgame.api.SeriesOpening
@@ -34,6 +35,9 @@ import com.jmussel.chessgame.ui.game.AfterGame
 import com.jmussel.chessgame.ui.game.BoardTap
 import com.jmussel.chessgame.ui.game.OnlineGame
 import com.jmussel.chessgame.ui.game.OnlineGameState
+import com.jmussel.chessgame.ui.groups.GroupUiState
+import com.jmussel.chessgame.ui.groups.Groups
+import com.jmussel.chessgame.ui.groups.GroupsUiState
 import com.jmussel.chessgame.ui.history.HistoryMessages
 import com.jmussel.chessgame.ui.history.HistoryUiState
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
@@ -92,6 +96,14 @@ class ChessAppViewModel(
     var allUsers: AllUsersUiState by mutableStateOf(AllUsersUiState())
         private set
 
+    /** The groups screen: the groups the player is in, and what is happening on it (`D076`). */
+    var groups: GroupsUiState by mutableStateOf(GroupsUiState())
+        private set
+
+    /** The group open now: its members and the player's friends, and what is happening on it. */
+    var group: GroupUiState by mutableStateOf(GroupUiState())
+        private set
+
     /** The history screen: what has been played, and what is happening to the list of it. */
     var history: HistoryUiState by mutableStateOf(HistoryUiState())
         private set
@@ -142,6 +154,14 @@ class ChessAppViewModel(
 
     /** Whatever the "All users" page has asked for, if anything. Internal for the same reason. */
     internal var allUsersJob: Job? = null
+        private set
+
+    /** Whatever the groups screen has asked for, if anything. Internal for the same reason. */
+    internal var groupsJob: Job? = null
+        private set
+
+    /** Whatever the open group's screen has asked for, if anything. Internal for the same reason. */
+    internal var groupJob: Job? = null
         private set
 
     /** Whatever the dashboard has asked for, if anything. Internal for the same reason. */
@@ -536,6 +556,13 @@ class ChessAppViewModel(
         if (currentUser?.username != null) loadDashboard()
 
         reloadGame()
+
+        // Group changes are not realtime events, so this is how a group screen catches up (`D076`).
+        when (navigation.current) {
+            Destination.Groups -> loadGroups()
+            is Destination.Group -> loadGroup()
+            else -> Unit
+        }
     }
 
     /**
@@ -1186,23 +1213,259 @@ class ChessAppViewModel(
      * has nothing to open yet, and says so.
      */
     fun playFriend(friend: UserSummaryDto) {
-        runOnFriends { api ->
-            val gameId =
-                when (val opening = api.openSeries(friend.username)) {
-                    is SeriesOpening.Offered -> {
-                        playOffer = PlayOffer(username = friend.username, existing = opening.existing)
-                        return@runOnFriends
-                    }
-                    is SeriesOpening.Started -> opening.series.currentGameId
+        runOnFriends { api -> play(api, friend.username) { friends = friends.copy(message = it) } }
+    }
+
+    /**
+     * Plays [username] from the friends screen or a group: one way to start a game, whoever
+     * it is with (`D076`).
+     *
+     * A new series opens its game, and [report] is told there is nothing to say. When the pair
+     * already has one, the server offers it rather than reusing it (`D053`), and the player
+     * chooses ([playOffer]); [report] is not called. A series between games has nothing to
+     * open yet, and [report] is told so.
+     */
+    private suspend fun play(
+        api: ChessApiClient,
+        username: String,
+        report: (String?) -> Unit,
+    ) {
+        val gameId =
+            when (val opening = api.openSeries(username)) {
+                is SeriesOpening.Offered -> {
+                    playOffer = PlayOffer(username = username, existing = opening.existing)
+                    return
+                }
+                is SeriesOpening.Started -> opening.series.currentGameId
+            }
+
+        if (gameId == null) {
+            report("No game with $username to open yet.")
+        } else {
+            report(null)
+            openOnlineGame(gameId)
+        }
+    }
+
+    /**
+     * Opens the groups screen and loads it (`D076`).
+     *
+     * Fetched every time it is opened: another member can add the player to a group while the
+     * app is elsewhere, and nothing is pushed about it.
+     */
+    fun openGroups() {
+        open(Destination.Groups)
+        loadGroups()
+    }
+
+    /**
+     * Fetches the groups the player is in, keeping whatever is on screen until they arrive.
+     *
+     * What the player was last told is cleared, so a Try again that works stops saying what
+     * failed.
+     */
+    fun loadGroups() {
+        if (groupsJob?.isActive == true) return
+
+        groups = groups.copy(message = null)
+        groupsJob = viewModelScope.launch { fetchGroups() }
+    }
+
+    /**
+     * Creates a group called [requested], then opens it.
+     *
+     * A name the server would refuse is not sent. The list is reloaded as well, so Back finds
+     * the new group on it.
+     */
+    fun createGroup(requested: String) {
+        if (!Groups.isCreatable(requested)) return
+        if (groupsJob?.isActive == true) return
+
+        groupsJob =
+            viewModelScope.launch {
+                groups = groups.copy(busy = true, message = null)
+
+                try {
+                    val created = dependencies.chessApi.createGroup(Groups.cleanedName(requested))
+                    openGroup(created)
+                    fetchGroups()
+                } catch (refused: ChessApiException) {
+                    groups = groups.copy(message = Groups.messageFor(refused))
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (unreachable: Exception) {
+                    groups = groups.copy(message = Groups.unreachableMessage())
+                } finally {
+                    groups = groups.copy(busy = false)
+                }
+            }
+    }
+
+    /**
+     * Opens [summary]'s group and loads it.
+     *
+     * Starts from nothing but the summary, so a group opened after another never shows the
+     * other's members.
+     */
+    fun openGroup(summary: GroupSummaryDto) {
+        groupJob?.cancel()
+        group = GroupUiState(group = summary)
+        open(Destination.Group(summary.groupId))
+        loadGroup()
+    }
+
+    /** Fetches the open group's members and the player's friends, which is what Try again does. */
+    fun loadGroup() {
+        val groupId = group.group?.groupId ?: return
+        if (groupJob?.isActive == true) return
+
+        groupJob =
+            viewModelScope.launch {
+                try {
+                    fetchGroup(groupId)
+                } catch (refused: ChessApiException) {
+                    group = group.copy(loading = false, message = Groups.messageFor(refused))
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (unreachable: Exception) {
+                    group = group.copy(loading = false, message = Groups.unreachableMessage())
+                }
+            }
+    }
+
+    /**
+     * Adds [friend] to the open group, which takes effect at once (`D049`).
+     *
+     * Only the player's own friends are offered; the server decides again. The group is
+     * reloaded rather than guessed at, and so is the list, whose count has changed.
+     */
+    fun addToGroup(friend: UserSummaryDto) {
+        runOnGroup { api, groupId ->
+            val added = api.addGroupMember(groupId, friend.username)
+            fetchGroup(groupId)
+            group = group.copy(message = "Added $added.")
+            loadGroups()
+        }
+    }
+
+    /** Plays [member] of the open group, friend or not, exactly as Play from Friends (`D076`). */
+    fun playGroupMember(member: UserSummaryDto) {
+        runOnGroup { api, _ -> play(api, member.username) { group = group.copy(message = it) } }
+    }
+
+    /** Asks whether the player really means to leave the open group, and what that will do. */
+    fun askToLeaveGroup() {
+        group = group.copy(confirmingLeave = true, message = null)
+    }
+
+    /** Stays in the group. */
+    fun cancelLeaveGroup() {
+        group = group.copy(confirmingLeave = false)
+    }
+
+    /**
+     * Leaves the open group, once the question has been answered, and goes back to the list.
+     *
+     * Games with its members carry on (`D049`), and the server's sentence saying so is what the
+     * list shows. A group the server no longer has the player in has already been left, so it
+     * goes back to the list too.
+     */
+    fun leaveGroup() {
+        group = group.copy(confirmingLeave = false)
+
+        runOnGroup { api, groupId ->
+            val said =
+                try {
+                    api.leaveGroup(groupId)
+                } catch (refused: ChessApiException) {
+                    if (!Groups.isGone(refused)) throw refused
+                    null
                 }
 
-            if (gameId == null) {
-                friends = friends.copy(message = "No game with ${friend.username} to open yet.")
-            } else {
-                friends = friends.copy(message = null)
-                openOnlineGame(gameId)
-            }
+            if (navigation.current == Destination.Group(groupId)) back()
+            loadGroups()
+            groups = groups.copy(message = said)
         }
+    }
+
+    /**
+     * The groups list as the server has it now.
+     *
+     * The list is read before the state is copied, so whatever was said while the read was
+     * in flight is kept: leaving a group says so while the list it goes back to is loading.
+     */
+    private suspend fun fetchGroups() {
+        groups = groups.copy(loading = true)
+
+        groups =
+            try {
+                val listed = dependencies.chessApi.groups()
+                groups.copy(groups = listed, loading = false, loaded = true)
+            } catch (refused: ChessApiException) {
+                groups.copy(loading = false, message = Groups.messageFor(refused))
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (unreachable: Exception) {
+                groups.copy(loading = false, message = Groups.unreachableMessage())
+            }
+    }
+
+    /**
+     * [groupId]'s members and the player's friends as the server has them now.
+     *
+     * The two arrive together, because who can be added is the difference between them. A
+     * group the server no longer has the player in is marked unavailable rather than failed:
+     * trying again will not bring it back. Any other failure is the caller's to report.
+     */
+    private suspend fun fetchGroup(groupId: String) {
+        group = group.copy(loading = true)
+
+        try {
+            val (members, friendList) =
+                coroutineScope {
+                    val members = async { dependencies.chessApi.groupMembers(groupId) }
+                    val friendList = async { dependencies.chessApi.friends() }
+                    members.await() to friendList.await()
+                }
+
+            group = group.copy(members = members, friends = friendList, loading = false, loaded = true, unavailable = false)
+        } catch (refused: ChessApiException) {
+            if (!Groups.isGone(refused)) throw refused
+            group = group.copy(loading = false, unavailable = true)
+        }
+    }
+
+    /**
+     * Runs one thing the open group's screen asked for, with nothing else running at the time.
+     *
+     * The same shape as [runOnFriends]. A group that has gone from under the player says so
+     * instead of repeating the server.
+     */
+    private fun runOnGroup(action: suspend (ChessApiClient, String) -> Unit) {
+        val groupId = group.group?.groupId ?: return
+        if (groupJob?.isActive == true) return
+
+        groupJob =
+            viewModelScope.launch {
+                group = group.copy(busy = true, message = null)
+
+                try {
+                    action(dependencies.chessApi, groupId)
+                } catch (refused: ChessApiException) {
+                    group =
+                        if (Groups.isGone(refused)) {
+                            group.copy(unavailable = true)
+                        } else {
+                            group.copy(message = Groups.messageFor(refused))
+                        }
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (unreachable: Exception) {
+                    group = group.copy(message = Groups.unreachableMessage())
+                } finally {
+                    group = group.copy(busy = false, loading = false)
+                }
+            }
     }
 
     /** Takes the offer's "Open": the newest offered series' game. */
