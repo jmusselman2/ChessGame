@@ -5,11 +5,10 @@
   baseline before M19 was implemented; they remain unchanged as historical
   records.
 - **Current evaluated `main`:** `83de79ceed51577b9b8cffa38ca1b937e029537a`
-  for M19-01 and M17.3/M17.5–M17.10. Android 5.1 compatibility remains the
-  next evaluation stage.
+  for M19-01, M17.3/M17.5–M17.10, and Android 5.1/API 22 compatibility.
 - **Current `main`:** `83de79ceed51577b9b8cffa38ca1b937e029537a`.
-- **Current milestone:** current M17 behavior re-evaluation complete; Android
-  5.1/API 22 compatibility next.
+- **Current milestone:** current M17 behavior and Android 5.1/API 22
+  compatibility re-evaluations complete; consolidated state refresh next.
 - **Status:** `M19 PASS — M19-01 INDEPENDENTLY CLOSED; M17.3 AND
   M17.5–M17.10 PASS`. M17.4 remains intentionally blocked on an owner decision.
 - **Scope boundary:** M19.1 moved to M20.1. The N >= 3 resignation and
@@ -18,7 +17,9 @@
   and `evals/M19/post-remediation-re-evaluation-test-report.md`. The earlier
   `re-evaluation-*` reports remain the finding record. Current M17 reports are
   `evals/M17/current-re-evaluation-critic-report.md` and
-  `evals/M17/current-re-evaluation-test-report.md`.
+  `evals/M17/current-re-evaluation-test-report.md`; compatibility reports are
+  `evals/M17/android-5.1-compatibility-critic-report.md` and
+  `evals/M17/android-5.1-compatibility-test-report.md`.
 
 ## Verdict
 
@@ -71,8 +72,9 @@ regressions still pass on the current baseline.
   regressions passed; the implementation track's two-device timing was reviewed
   but the complete scenario was not independently repeated.
 
-No new M17 finding was opened. Android 5.1/API 22 compatibility in `8538db3` is
-the only current-baseline stage not yet independently evaluated.
+No new M17 finding was opened. Android 5.1/API 22 compatibility in `8538db3`
+passes static, build, package, Pixel regression, and physical Kindle API 22
+runtime verification.
 
 ## Beta result
 
@@ -137,8 +139,8 @@ against disposable PostgreSQL.
 
 ## Exact next action
 
-Evaluate Android 5.1/API 22 compatibility in `8538db3` and its integrated form
-on the attached Kindle KFDOWI, then refresh the consolidated verification record.
+Refresh the consolidated verification record, run final aggregate checks, and
+then keep M20.1 as the next human-sign-off boundary.
 
 After that, **M20.1 remains the next human-sign-off boundary**: choose
 the multi-game rules/module architecture with the project owner before starting
