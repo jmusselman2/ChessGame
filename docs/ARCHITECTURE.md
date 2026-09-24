@@ -555,8 +555,14 @@ eligible to anybody.
 `D048` routes table invites **through the host only**: each invited participant
 needs a relationship to whoever is assembling the table and none to each other.
 `InviteEligibility.canInvite(host, target)` is that one question — a friendship,
-or a group in common — and it is where `M19.3`'s table creation will get its
-gate instead of reimplementing the rule.
+or a group in common. Table and series creation do not call it (`D046`, `D064`):
+the invite UI is the gate, and it follows the same rule.
+
+In chess, that invite UI is the app's Groups screen (`D076`, `M17.11`). It offers
+Play for every other current member of a group the player is in, through the same
+`POST /series` as Play from Friends. The server needs nothing new for it. Group
+changes are not realtime events; the screen reloads when opened and when the app
+comes back (`D075`).
 
 Eligibility through a group is **transitive**, which is the point of groups: a
 four-person table needs one relationship to the host, not six pairwise

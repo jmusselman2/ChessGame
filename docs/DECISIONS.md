@@ -2631,7 +2631,9 @@ version needs a roster-mutation concept the platform is better off without.
 future-work notes: "suggest friends" prompt, per-user approval setting
 
 **Scope:** Governs deck-builder / multi-participant platform design. Changes no
-current code or schema.
+current code or schema. **Superseded in part by `D076`:** groups are part of the
+chess MVP too, and in chess a group member can be played like a friend. The rules
+below are unchanged.
 
 ### Decision
 
@@ -4840,3 +4842,78 @@ knows how to wait through a wake.
 - Every return to the app costs one or two game or dashboard reads and a new
   socket. A socket that was still alive is replaced anyway.
 - Turning the screen off and on counts as a return.
+
+---
+
+## D076 — Groups Are Part of the Chess MVP, and a Group Member Can Be Played Like a Friend
+
+**Date:** 2026-09-23
+
+**Status:** Accepted
+
+**Supersedes in part:** `D049`'s scope ("Governs deck-builder / multi-participant
+platform design") and `PRODUCT.md`'s statement that groups are "not part of chess".
+`D049`'s rules for membership and eligibility are unchanged.
+
+**Relates to:** `D009`, `D046`, `D049`, `D053`, `D064`, `D075`, `M19.2`, `M17.11`
+
+### Decision
+
+- **Groups are part of the MVP**, decided by the project owner. The app gets a
+  Groups screen (`M17.11`). The server routes `M19.2` built are used as they are.
+- **In chess, a group does what `D049` says a group does: it makes people
+  playable.** A player can Play any other current member of a group they are in,
+  whether or not the two are friends. Eligibility is transitive, as `D049` says:
+  one friendship with whoever added them is enough.
+- **Play from a group is the same Play as from Friends.** The same `POST /series`
+  with a username, the same offer when the pair already has a series (`D053`), and
+  the same game screen. The server does not check the relationship at series
+  creation (`D046`, `D064`), so no server change is needed. The Groups screen is
+  the invite UI that `D046` makes the gate.
+- **Membership is `D049`'s, unchanged.** Any member creates a group, any member
+  adds one of their own friends, membership is immediate, and anyone may leave.
+  There is no owner, no rename, no delete, and no removing anyone else.
+- **Groups are reached from the Friends screen**, through a "Groups" button, not
+  from the dashboard's top row. The top row already holds Friends, History and the
+  player's name, and a group is built from friends.
+- **Groups stay out of the dashboard and the friends list.** A group member who is
+  not a friend is not listed under Friends. A game with them appears on the
+  dashboard like any other, under the opponent's name.
+- **Leaving a group removes the Play button, not the games.** Series with its
+  members carry on until a participant leaves the series (`D053`).
+- **Group changes are not pushed.** A group screen reloads when it is opened and
+  when the player comes back to the app (`D075`). Being added to a group is seen
+  the next time Groups is opened.
+
+### Rationale
+
+The project owner wants groups in the MVP, not saved for the deck-builder. A group
+whose members could not play each other would be an address book with no use in a
+two-player game. Playing is the only thing chess has for a group to make possible,
+and it is exactly the invite eligibility `D049` defined.
+
+Reusing Play keeps one way to start a game. `D046` already accepts that the API
+lets anyone open a series with anyone, so letting the app do it for group members
+concedes nothing new.
+
+### Alternatives Considered
+
+- **Groups as named lists of friends only, with Play limited to friends.**
+  Rejected: it contradicts `D049`'s transitive eligibility, which is the reason
+  groups exist.
+- **A dashboard section per group.** Rejected: `D049` keeps groups out of the
+  dashboard, and the dashboard's job is whose turn it is.
+- **A server-side eligibility check at series creation.** Rejected under `D046`
+  and `D064`. `InviteEligibility.canInvite` stays the rule the invite UI follows.
+- **A Groups button in the dashboard's top row.** Rejected for now: there is
+  little room left on a narrow phone. It is easy to move later.
+
+### Consequences
+
+- `PRODUCT.md` has a *Groups* section. *Starting a Game* and *Removing a Friend*
+  mention group members.
+- `MVP.md` lists groups under *Required Capabilities*.
+- `ARCHITECTURE.md` §15.1 describes the Groups screen as the invite UI and no
+  longer says table creation will check eligibility.
+- `D049`'s scope line points here.
+- `M17.11` builds the screen.

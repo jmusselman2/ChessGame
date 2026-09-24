@@ -5064,6 +5064,97 @@ at once. Neither device logged a crash or ANR.
 
 ---
 
+## M17.11 — Groups screen: create, add friends, play members, leave
+
+**Status:** TODO
+
+**Depends on:** M19.2
+
+### The gap
+
+Groups are MVP (`D076`, superseding `D049`'s "deck-builder only"). The server has
+had them since `M19.2`: `GET /groups`, `POST /groups`,
+`GET /groups/{id}/members`, `POST /groups/{id}/members` and
+`DELETE /groups/{id}/members/me`. The app has no way to reach any of them, so a
+player cannot create a group, add anyone, or play a member who is not a friend.
+
+### Acceptance Criteria
+
+**Reaching it**
+
+- The Friends screen has a "Groups" button, beside "Browse all users". It opens
+  `Destination.Groups`. The group screens live in `ui/groups/`. Back returns to
+  Friends.
+
+**The groups list** (`Destination.Groups`)
+
+- Lists the groups the player is in, in the server's order, each with its name and
+  member count ("3 members", "1 member"). Tapping one opens it.
+- Create: a name field and Create. The name is trimmed, and Create is enabled only
+  for 1–48 characters (`MAX_GROUP_NAME_LENGTH`). On success, the new group opens.
+  A refusal is shown in the server's words.
+- It has loading, empty ("No groups yet. Create one to play friends of friends.")
+  and failure states. A failure shows a plain message and Try again.
+
+**One group** (`Destination.Group(groupId)`)
+
+- Shows the group's name and its members, oldest first. The player appears as
+  "You" and has no buttons.
+- Every other member has Play. Play is the Friends screen's Play: the same
+  `POST /series`, the same offer when the pair already has a series (`D053`), the
+  same "No game with … to open yet." message, and the same game screen. It is one
+  shared path in `ChessAppViewModel`, not a copy.
+- Play works for a member who is not the player's friend (`D076`).
+- "Add a friend" lists the player's friends who are not already members, each
+  with Add. Add calls `POST /groups/{id}/members`. On success the member list
+  reloads and the friend moves into it. With nobody left to add it says "All your
+  friends are in this group." A refusal is shown in the server's words.
+- Leave asks first: "Leave {name}? Your games with its members carry on." On
+  confirmation it calls `DELETE /groups/{id}/members/me` and returns to the
+  groups list, which no longer shows the group.
+- A `404` (no longer a member, or no such group) says "This group is not
+  available." and offers Back.
+- It has loading and failure states like the list.
+
+**Staying current**
+
+- Opening either screen loads it fresh. Coming back to the app reloads the group
+  screen that is showing, through `refreshWhatIsOnScreen` (`D075`). Group changes
+  are not realtime events.
+
+**What does not change**
+
+- No server route, schema or API shape changes. If one turns out to be needed,
+  it is recorded as a decision before it is made.
+- The dashboard and the friends list do not show groups or group members who are
+  not friends. A game with a group member appears on the dashboard like any other.
+- No rename, no delete, no removing anyone else, no owner or admin, no group chat,
+  no "Add all", no search, no paging.
+
+**Tests**
+
+- Server: a regression test that a group member who is not the caller's friend
+  can be played through `POST /series`. This pins `D046` for the case `D076`
+  depends on.
+- Android client: the five group calls in `ChessApiClient` (request shape, success,
+  refusal text, `404`).
+- Android pure logic: name validation, member-count wording, "You" versus a
+  member with Play, and which friends can be added.
+- Android flow tests in `ChessAppViewModel` with a `MockEngine`: open the list,
+  empty, failure and retry, create and open, add a friend, play a non-friend
+  member (both started and offered), leave and return to the list, a `404` group,
+  and reloading on coming back.
+- The existing `FriendsTest`, `AllUsersFlowTest` and `ChessAppTest` pass unchanged.
+
+**On a device**
+
+- Two accounts that are not friends, each friends with a third, are put in one
+  group by the third. Each opens the group, taps Play on the other, and they play
+  a move each. The game appears on both dashboards. One leaves the group, and the
+  game carries on.
+
+---
+
 ---
 
 # M18 — Post-Chess Architecture Review

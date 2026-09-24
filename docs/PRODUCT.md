@@ -116,10 +116,6 @@ Not included in the chess MVP:
 - social feeds,
 - detailed profiles.
 
-*Groups* — a standing named pool of people used only for game-invite eligibility
-— are a deck-builder platform concept (`D049`), not part of chess. They have no
-role in game state or series identity.
-
 ### Removing a Friend
 
 Removing a friend affects the friends list only (`D053`, superseding `D013`). It
@@ -132,6 +128,41 @@ does not:
 
 A series is left running until a participant explicitly leaves it. Friendship
 matters only when a game is first started — see *Starting a Game* — not after.
+Removing a friend does not take them out of any group you share.
+
+## Groups
+
+Groups are part of the MVP (`D076`, superseding `D049`'s "deck-builder only").
+
+A group is a named set of people who can all play each other. Adding a friend to
+a group lets every member play them, friends or not. One friendship with whoever
+added them is enough (`D049`).
+
+Supported:
+
+- create a group with a name (1–48 characters; names need not be unique),
+- list the groups you are in, with how many members each has,
+- open a group to see its members,
+- add one of your own friends to a group you are in,
+- Play any other member, exactly as Play works for a friend,
+- leave a group.
+
+Membership works like friendship: it takes effect at once, with nothing to
+accept. There is no owner and no admin. Nobody can rename or delete a group or
+remove anyone else from it. Leaving is the only way out.
+
+Leaving a group removes the Play button for its members who are not friends. It
+does not end, alter or close any series or game with them.
+
+Groups are reached from the Friends screen. They do not appear on the dashboard,
+and group members who are not friends are not listed under Friends. A game with a
+group member appears on the dashboard like any other game.
+
+Group changes are not pushed live. A group screen shows what is current when it
+is opened, and when you come back to the app.
+
+Not included in the MVP: renaming, deleting, removing members, group chat, games
+with more than two players, and group statistics.
 
 ## Last Seen
 
@@ -177,8 +208,8 @@ work; see `D048` and `docs/PLATFORM-REVIEW.md`. Chess remains two-player.
 
 ## Starting a Game
 
-A friend can be selected and the game starts directly. If that friend already
-has an active series, the player is offered opening it or starting another
+A friend, or another member of a group you are in (`D076`), can be selected and
+the game starts directly. If they already have an active series with you, the player is offered opening it or starting another
 (`D053`); a new series is never silently reused or silently duplicated.
 
 No per-game invite code.

@@ -106,6 +106,7 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - Automatic rematches are the default.
 - Rematch colors alternate (the two-seat case of the general seat-rotation rule, `D050`).
 - Removing a friend affects the friends list only (`D053`, superseding `D013`; was: it disabled the next rematch and closed the series after the current game). It does not end a series, alter a game, or touch table/group membership. A series ends only when a participant explicitly leaves it.
+- Groups are MVP (`D076`, superseding `D049`'s "deck-builder only"). Any member of a group may Play any other member, friend or not. Membership mirrors friendship: immediate, no owner, and leaving is the only exit.
 - A normal move may be undone by its player while it remains the latest unanswered move.
 - Once the opponent moves, the prior move is locked.
 - If the opponent undoes their move, the previous player's move becomes undoable again.

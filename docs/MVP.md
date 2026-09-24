@@ -99,7 +99,18 @@ for task-level status.
   closes the series after the current game").
 - An "All users" page lists every user so testers can add friends without typing
   exact names (`D071`, `M17.5`, `M17.6`). It is a testing aid and part of the
-  MVP. Removing it, or restricting it to admins, is post-MVP work (`F10`).
+  MVP. Removing it, or restricting it to admins, is post-MVP work (`F12`).
+
+### Groups
+
+Groups are MVP (`D076`, superseding `D049`'s "deck-builder only"; `M17.11`).
+
+- Create a group by name.
+- List your groups; open one to see its members.
+- Add one of your own friends to a group you are in.
+- Play any other member of a group you are in, friend or not, through the same
+  Play as for a friend.
+- Leave a group. Games and series with its members carry on.
 
 ### Multiplayer
 
