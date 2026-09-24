@@ -4904,7 +4904,7 @@ and was raised separately.
 
 ## M17.8 — Startup cannot sit on "Waking the server…" past its deadline
 
-**Status:** IN PROGRESS
+**Status:** DONE
 
 **Depends on:** M15.4
 
@@ -4961,6 +4961,20 @@ every touched file.
 
 Still to do before `DONE`: run `./gradlew build`, and repeat the device check
 from the gap above.
+
+### Completion Note — 2026-09-23
+
+`.\gradlew.bat build` passed locally on 2026-09-23 at `c2ae0b5`, which has this code,
+and CI has been green on every commit since `b69b705`.
+
+The device check was repeated on the Pixel 7 (Android 16) with a debug build
+(`versionCode` 105, `m17.8-check`) against the beta server, which reported
+`build 83de79c` at `/health`. The app was uninstalled before each run, so every
+start was a fresh install with no session. In three runs, startup reached "Choose
+a username" 8–10 s after launch, measured by polling the screen with
+`uiautomator`. It never showed "Waking the server…" for more than a moment, and
+the log had no crash or ANR. The server was already awake for these runs. A cold
+start was not forced, because the beta cannot be put to sleep on demand.
 
 ---
 
