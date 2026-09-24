@@ -5,19 +5,20 @@
   baseline before M19 was implemented; they remain unchanged as historical
   records.
 - **Current evaluated `main`:** `83de79ceed51577b9b8cffa38ca1b937e029537a`
-  for the M19-01 post-remediation re-evaluation only. Later M17 work on this
-  baseline remains under evaluation; see *Not yet evaluated*.
+  for M19-01 and M17.3/M17.5–M17.10. Android 5.1 compatibility remains the
+  next evaluation stage.
 - **Current `main`:** `83de79ceed51577b9b8cffa38ca1b937e029537a`.
-- **Current milestone:** M19 post-remediation re-evaluation complete; current
-  M17 re-evaluation next.
-- **Status:** `M19 PASS — M19-01 INDEPENDENTLY CLOSED`. M17.3 and M17.5–M17.10
-  landed after the original M17 evaluation and are not yet independently
-  evaluated.
+- **Current milestone:** current M17 behavior re-evaluation complete; Android
+  5.1/API 22 compatibility next.
+- **Status:** `M19 PASS — M19-01 INDEPENDENTLY CLOSED; M17.3 AND
+  M17.5–M17.10 PASS`. M17.4 remains intentionally blocked on an owner decision.
 - **Scope boundary:** M19.1 moved to M20.1. The N >= 3 resignation and
   continuation flow formerly in M19.8 moved to M20.2. Neither is an M19 defect.
 - **Current reports:** `evals/M19/post-remediation-re-evaluation-critic-report.md`
   and `evals/M19/post-remediation-re-evaluation-test-report.md`. The earlier
-  `re-evaluation-*` reports remain the finding record.
+  `re-evaluation-*` reports remain the finding record. Current M17 reports are
+  `evals/M17/current-re-evaluation-critic-report.md` and
+  `evals/M17/current-re-evaluation-test-report.md`.
 
 ## Verdict
 
@@ -56,24 +57,22 @@ regressions still pass on the current baseline.
   through the current participant schema, including closed and active series,
   dashboard, history, moves, and events.
 
-## Not yet evaluated
+## Current M17 dispositions
 
-Current-baseline work not yet covered by an independent M17 report:
+- M17.3: PASS — dashboard-only, bounded, non-tappable username.
+- M17.4: BLOCKED by design — settings content awaits the project owner; no code.
+- M17.5: PASS — authenticated All Users flow, failure/empty/retry/Add/navigation.
+- M17.6: PASS — non-friends then friends, recency order and shared 200-row cap.
+- M17.7: PASS — responsive layouts and rotation-safe local-game lifetime.
+- M17.8: PASS — 30 s real-client request limit, WebSocket exemption, deterministic
+  stalled-peer/startup regressions, aggregate build and fresh Pixel 7 live start.
+- M17.9: PASS — shared 52 dp promotion target and 32 dp font-independent glyph.
+- M17.10: PASS — immediate foreground reload and socket replacement. Its model
+  regressions passed; the implementation track's two-device timing was reviewed
+  but the complete scenario was not independently repeated.
 
-- `48adebb` — `M17.3`: the home screen names its player.
-- `11bc23c` — `M17.5`: an "All users" page to add friends from, a testing aid
-  that is part of the MVP (`D071`).
-- `c7a6fe1` — `M17.6`: the "All users" page lists friends too.
-- `9407a2d` — `M17.7`: responsive game layouts and rotation-safe local play.
-- `b69b705` — `M17.8`: an overall HTTP request deadline; its backlog device
-  acceptance remains incomplete.
-- `ca5468d` — `M17.9`: readable promotion choices.
-- `8538db3` — Android 5.1/API 22 compatibility.
-- `83de79c` — `M17.10`: foreground resume refresh.
-
-`M17.4` (user settings) is `BLOCKED` on the project owner and has no code to
-evaluate. Documentation-only commits after `c7a6fe1` (`D072`, `docs/FUTURE.md`)
-change no behaviour.
+No new M17 finding was opened. Android 5.1/API 22 compatibility in `8538db3` is
+the only current-baseline stage not yet independently evaluated.
 
 ## Beta result
 
@@ -138,8 +137,8 @@ against disposable PostgreSQL.
 
 ## Exact next action
 
-Evaluate M17.3 and M17.5–M17.10 on the pinned `83de79c` baseline, including the
-remaining M17.8 device evidence and Android 5.1/API 22 compatibility.
+Evaluate Android 5.1/API 22 compatibility in `8538db3` and its integrated form
+on the attached Kindle KFDOWI, then refresh the consolidated verification record.
 
 After that, **M20.1 remains the next human-sign-off boundary**: choose
 the multi-game rules/module architecture with the project owner before starting
