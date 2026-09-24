@@ -91,7 +91,7 @@ fun main() {
             // be the only instance. Said at startup because that is where an operator scaling
             // the service will see it.
             log.info("Realtime delivery is in-process: run exactly one instance of this server.")
-            val database = Databases.connectAndMigrate(databaseConfig.dataSource())
+            val database = Databases.connectAndMigrate(databaseConfig)
             val users = UserRepository(database)
             val games = GameRepository(database)
             val friendships = FriendshipRepository(database)

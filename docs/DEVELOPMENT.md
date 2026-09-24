@@ -966,6 +966,8 @@ which the `$0` boundary forbids. Use Supavisor at
 `aws-<region>.pooler.supabase.com` in **session mode on port 5432** — IPv4-only
 on every tier including Free. Do not use transaction mode on port 6543: it does
 not support prepared statements, which Exposed over HikariCP relies on.
+Session mode also keeps a connection's `SET`s for as long as the connection is
+open, which is how the request connections get their time limits (`D077`).
 
 ### Beta database connection (`M15.3`)
 

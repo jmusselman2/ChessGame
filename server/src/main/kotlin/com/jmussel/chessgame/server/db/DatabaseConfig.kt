@@ -5,6 +5,7 @@ import com.zaxxer.hikari.HikariDataSource
 import java.net.URI
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
+import java.time.Duration
 import javax.sql.DataSource
 
 /**
@@ -18,9 +19,13 @@ data class DatabaseConfig(
     val username: String,
     val password: String,
     val maximumPoolSize: Int = DEFAULT_POOL_SIZE,
+    val timeouts: ConnectionTimeouts = ConnectionTimeouts(),
 ) {
     companion object {
         const val DEFAULT_POOL_SIZE: Int = 5
+
+        /** Connections Flyway may hold at once while migrating. */
+        const val MIGRATION_POOL_SIZE: Int = 3
 
         /** The variable holding the development database URL. */
         const val DATABASE_URL: String = "DATABASE_URL"
@@ -79,18 +84,61 @@ data class DatabaseConfig(
         private const val DEFAULT_PORT = 5432
     }
 
-    /** A pooled [DataSource] for this configuration. The caller closes it. */
+    /**
+     * A pooled [DataSource] for this configuration, whose every connection carries [timeouts].
+     * The caller closes it.
+     *
+     * The timeouts are set on each connection as it opens, not on the database role: the
+     * server connects as `postgres`, which is also the Supabase dashboard's role, and a
+     * `SET` holds for the whole session through Supabase's session pooler (`D077`).
+     */
     fun dataSource(): DataSource =
         HikariDataSource(
-            HikariConfig().also {
-                it.jdbcUrl = jdbcUrl
-                it.username = username
-                it.password = password
+            baseConfig().also {
                 it.maximumPoolSize = maximumPoolSize
-                it.isAutoCommit = false
+                it.connectionInitSql = timeouts.initSql
             },
         )
 
+    /**
+     * A small pool for Flyway, with no timeouts. The caller closes it.
+     *
+     * A migration may rightly run longer, or wait on a lock longer, than any request should,
+     * so it gets connections of its own rather than ones from [dataSource] with their
+     * timeouts switched off, which would go back into the pool that way (`D077`). Flyway holds
+     * more than one connection at a time, so a pool of one would wait on itself.
+     */
+    fun migrationDataSource(): HikariDataSource = HikariDataSource(baseConfig().also { it.maximumPoolSize = MIGRATION_POOL_SIZE })
+
+    private fun baseConfig(): HikariConfig =
+        HikariConfig().also {
+            it.jdbcUrl = jdbcUrl
+            it.username = username
+            it.password = password
+            it.isAutoCommit = false
+        }
+
     /** Never prints the password. */
     override fun toString(): String = "DatabaseConfig(jdbcUrl=$jdbcUrl, username=$username)"
+}
+
+/**
+ * How long a request's connection may spend on one statement, idle inside a transaction, or
+ * waiting for a lock before PostgreSQL gives up on it (`D077`).
+ *
+ * Without them a request that hangs inside a transaction keeps whatever it locked, a game
+ * row taken `FOR UPDATE` included, until the connection dies. Every query the server runs
+ * takes about a millisecond (`M17.12`), so each limit only ever ends something that is stuck.
+ */
+data class ConnectionTimeouts(
+    val statement: Duration = Duration.ofSeconds(30),
+    val idleInTransaction: Duration = Duration.ofSeconds(60),
+    val lock: Duration = Duration.ofSeconds(10),
+) {
+    /** The `SET`s that apply these to a connection, run once as it opens. */
+    val initSql: String
+        get() =
+            "SET statement_timeout = ${statement.toMillis()}; " +
+                "SET idle_in_transaction_session_timeout = ${idleInTransaction.toMillis()}; " +
+                "SET lock_timeout = ${lock.toMillis()}"
 }

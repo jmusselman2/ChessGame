@@ -842,9 +842,11 @@ Android does not receive general database-write authority.
 The implemented persistence stack is:
 
 - JetBrains Exposed's typed SQL DSL (not its DAO/entity layer),
-- HikariCP connection pooling,
+- HikariCP connection pooling, each request connection limited to a 30 s
+  statement, 60 s idle in a transaction and 10 s waiting for a lock (`D077`),
 - the PostgreSQL JDBC driver at runtime,
-- Flyway applying forward-only SQL files from `database/migrations/`.
+- Flyway applying forward-only SQL files from `database/migrations/`, on
+  connections of its own with no limits (`D077`).
 
 The SQL migrations are the schema source of truth. Exposed maps queries and
 transactions but does not generate or own the schema. `D030` records the

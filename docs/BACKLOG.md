@@ -5227,7 +5227,7 @@ phone, so Robin's side of the group screen was not seen on a device.
 
 ## M17.12 — Database: the friends index, connection timeouts, two redundant indexes
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** None
 
@@ -5280,6 +5280,56 @@ phone, so Robin's side of the group screen was not seen on a device.
   a user, game or computer player is deleted, which nothing does yet), the move
   history rewrite (`D061` leaves chess as it is), row-level security and the `anon`
   grants (`F34`), and backups (`F33`).
+
+### Progress Note — 2026-09-24
+
+Not `DONE`: every criterion is met locally, and the beta check waits for the
+project owner to deploy.
+
+**Migration.** `V10__friends_index_and_redundant_indexes.sql` adds
+`friendships_user_b_id` and drops `moves_game_id` and `games_series_id`. `IndexesTest`
+shows the new index beside `friendships_pkey`, the two dropped, and
+`moves_game_ply` and `games_series_sequence` unchanged.
+
+**Timeouts (`D077`).** `ConnectionTimeouts` in `DatabaseConfig.kt` holds 30 s, 60 s
+and 10 s. `dataSource()` applies them with Hikari's `connectionInitSql`, three
+`SET`s on each connection as it opens, which hold for the session through the
+session pooler. No role is altered. Flyway gets `migrationDataSource()`, three
+connections with no limits, opened and closed before the request pool. The first
+version gave it one connection, and the migration waited on itself for ever,
+because Flyway holds more than one at a time. `Databases.connectAndMigrate` now
+takes the config.
+
+**Tests.** `ConnectionTimeoutsTest` (5): the defaults on two pooled connections at
+once, none on the migration connection, and a statement cancelled (`57014`), a lock
+wait refused (`55P03`), and an idle transaction ended with its lock freed, each
+under a short limit of its own. With every limit short at once, the holder's idle
+limit freed the lock just as the waiter's limit fell due, so each test shortens
+only its own. With `connectionInitSql` removed, the defaults test and the statement
+test fail. `LockTimeoutTest`: with the game's row held by another connection, a
+move answers `500` well inside the default 10 s, is logged at `ERROR` with
+PostgreSQL's lock timeout as the cause, and leaves the game at version 0. The same
+move is then played once the row is free. `DatabaseTestSupport.withMigratedDatabase`
+takes optional limits and resets the schema through a migration connection, as the
+server migrates.
+
+**One test adjusted, not weakened.** `M19MigrationEvaluationTest` migrated to the
+latest version and asserted that versions 1–9 were applied, so `V10` broke it. It
+evaluates `V3`–`V9`, so it now migrates to version 9 and asserts the same list.
+
+Verified with the targeted tests, `ktlintCheck`, and `.\gradlew.bat build`: 579 server,
+515 Android and 394 game-core tests, none failed or skipped.
+
+### Completion Note — 2026-09-24
+
+The project owner deployed `05ecfaa` (`main` fast-forwarded, beta `/health` reporting
+`build 05ecfaa`). On the beta database, Flyway's latest entry is `10 friends index and
+redundant indexes`, `success=true`. `friendships_user_b_id` exists on `(user_b_id)`
+beside `friendships_pkey`. `moves_game_id` and `games_series_id` are gone, and
+`moves_game_ply` and `games_series_sequence` are unchanged. The performance advisor
+lists five foreign keys without an index, and `friendships_user_b_id_fkey` is not one
+of them. It lists `friendships_user_b_id` as not yet used, which is expected on a
+database wiped earlier that day. The server holds its five pooled connections.
 
 ---
 

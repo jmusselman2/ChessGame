@@ -28,11 +28,17 @@ object DatabaseTestSupport {
      *
      * Does nothing when no test database is configured.
      */
-    fun withMigratedDatabase(block: (DataSource) -> Unit) =
-        withDatabase { dataSource ->
-            Migrations.reset(dataSource)
-            block(dataSource)
-        }
+    fun withMigratedDatabase(
+        timeouts: ConnectionTimeouts = ConnectionTimeouts(),
+        block: (DataSource) -> Unit,
+    ) {
+        val config = config ?: return
+
+        // Through a connection with no limits, as the server migrates (`D077`), so a test's
+        // short limits cannot cut the reset short.
+        config.migrationDataSource().use { Migrations.reset(it) }
+        withDatabase(timeouts, block)
+    }
 
     /**
      * Runs [block] against an emptied test database with no migrations applied.
@@ -82,8 +88,11 @@ object DatabaseTestSupport {
         }
     }
 
-    private fun withDatabase(block: (DataSource) -> Unit) {
-        val dataSource = config?.dataSource() ?: return
+    private fun withDatabase(
+        timeouts: ConnectionTimeouts = ConnectionTimeouts(),
+        block: (DataSource) -> Unit,
+    ) {
+        val dataSource = config?.copy(timeouts = timeouts)?.dataSource() ?: return
         try {
             block(dataSource)
         } finally {

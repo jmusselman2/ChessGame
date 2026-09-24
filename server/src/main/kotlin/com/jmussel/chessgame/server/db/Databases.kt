@@ -13,9 +13,14 @@ object Databases {
     /** Exposed's handle on [dataSource]. */
     fun connect(dataSource: DataSource): Database = Database.connect(dataSource)
 
-    /** Migrates [dataSource] and returns Exposed's handle on it, in that order. */
-    fun connectAndMigrate(dataSource: DataSource): Database {
-        Migrations.migrate(dataSource)
-        return connect(dataSource)
+    /**
+     * Migrates [config]'s database, then returns Exposed's handle on a pool for requests.
+     *
+     * The migration runs on a connection of its own with no timeouts, which is closed before
+     * the pool opens (`D077`).
+     */
+    fun connectAndMigrate(config: DatabaseConfig): Database {
+        config.migrationDataSource().use { Migrations.migrate(it) }
+        return connect(config.dataSource())
     }
 }

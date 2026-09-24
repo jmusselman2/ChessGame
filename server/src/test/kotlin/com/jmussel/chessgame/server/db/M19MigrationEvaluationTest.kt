@@ -53,7 +53,8 @@ class M19MigrationEvaluationTest {
                     "values ('$game', '$series', '$first', 'MoveMade')",
             )
 
-            Migrations.migrate(dataSource)
+            // To V9, the end of what this test evaluates: a later migration is not M19's.
+            migrateTo(dataSource, "9")
 
             assertEquals((1..9).map { it.toString() }, Migrations.appliedVersions(dataSource))
             assertEquals(2, count(dataSource, "select count(*) from users where id in ('$first', '$second')"))

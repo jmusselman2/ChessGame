@@ -4917,3 +4917,63 @@ concedes nothing new.
   longer says table creation will check eligibility.
 - `D049`'s scope line points here.
 - `M17.11` builds the screen.
+
+---
+
+## D077 — Request Connections Carry Statement, Idle-Transaction and Lock Limits; Migrations Get Their Own Connections
+
+**Date:** 2026-09-24
+
+**Status:** Accepted
+
+**Relates to:** `D021`, `D035`, `M15.3`, `M17.12`
+
+### Decision
+
+- **Every pooled connection the server uses for requests has three limits:** a
+  30 s statement timeout, a 60 s idle-in-transaction timeout, and a 10 s lock
+  timeout. `ConnectionTimeouts` in `DatabaseConfig.kt` holds the values, and
+  `DatabaseConfig.dataSource()` applies them.
+- **They are set on the connection, not the role.** Hikari's `connectionInitSql`
+  runs three `SET`s as each connection opens. The server connects as `postgres`,
+  which is also the Supabase dashboard's role, so `ALTER ROLE` would limit the
+  dashboard and everything else too. A `SET` lasts for the session, and through
+  Supabase's session pooler a session is one client connection, so the limits
+  hold for as long as Hikari keeps the connection.
+- **Migrations run on connections of their own, with no limits.**
+  `DatabaseConfig.migrationDataSource()` is a small pool (three connections,
+  because Flyway holds more than one at once), opened for the migration and closed
+  before the request pool opens. A migration may rightly run longer than any
+  request. Turning a pooled connection's limits off for Flyway instead would send
+  it back into the pool without them.
+- **A request that hits a limit fails as an ordinary server error.** Nothing
+  catches it: Ktor logs it at `ERROR` and answers `500`. Its transaction is rolled
+  back, and commands are version-guarded (`D021`), so the player's retry is safe.
+
+### Rationale
+
+Before this, a request that hung inside a transaction held whatever it had locked,
+a game row taken `FOR UPDATE` included, until the connection died. Every query the
+server runs takes about a millisecond (the 2026-09-24 review), so the limits end
+only what is stuck.
+
+The lock limit is shorter than the statement limit because waiting on a lock is
+the case that spreads: every command for that game queues behind the holder.
+
+### Alternatives Considered
+
+- **`ALTER ROLE postgres SET …`.** Rejected: it limits the dashboard, the SQL
+  editor and Flyway along with the server.
+- **The JDBC URL's `options` parameter.** Rejected: whether Supabase's pooler
+  passes startup options through is not something the project has verified, and
+  `connectionInitSql` works either way.
+- **Flyway's `initSql` turning the limits off.** Rejected: it would run on a
+  pooled connection and leave that connection without limits afterwards.
+
+### Consequences
+
+- `Databases.connectAndMigrate` takes the `DatabaseConfig`, not a `DataSource`.
+- Tests that need a limit to fall due quickly pass a short `ConnectionTimeouts` to
+  `DatabaseTestSupport.withMigratedDatabase`, which also resets the schema through
+  a migration connection, as the server does.
+- A migration that must not be cut short needs nothing special.
