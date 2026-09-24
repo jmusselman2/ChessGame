@@ -11,11 +11,11 @@ game-less series and repeated opens across rematches.
 
 ## Results
 
-| Verification | Tests | Result |
-| --- | ---: | --- |
-| M9 retained plus later series idempotency | 54 | PASS |
-| Compilation and test-source checks included by Gradle | — | PASS |
-| `git diff --check` | — | PASS |
+| Verification                                          | Tests | Result |
+| ----------------------------------------------------- | -----:| ------ |
+| M9 retained plus later series idempotency             | 54    | PASS   |
+| Compilation and test-source checks included by Gradle | —     | PASS   |
+| `git diff --check`                                    | —     | PASS   |
 
 The first invocation began before the disposable PostgreSQL container was
 ready and failed all database fixtures with connection refusals. After starting

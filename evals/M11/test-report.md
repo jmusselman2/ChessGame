@@ -4,11 +4,11 @@ Baseline: `3de5e28dbcb29e5d86e163c39b26278686385c4c`
 
 ## Results
 
-| Verification | Tests | Failed | Errors | Skipped | Result |
-| --- | ---: | ---: | ---: | ---: | --- |
-| `UndoMoveTest` | 17 | 0 | 0 | 0 | PASS |
-| `MoveVersusUndoTest` | 6 | 0 | 0 | 0 | PASS |
-| `git diff --check` | — | — | — | — | PASS |
+| Verification         | Tests | Failed | Errors | Skipped | Result |
+| -------------------- | -----:| ------:| ------:| -------:| ------ |
+| `UndoMoveTest`       | 17    | 0      | 0      | 0       | PASS   |
+| `MoveVersusUndoTest` | 6     | 0      | 0      | 0       | PASS   |
+| `git diff --check`   | —     | —      | —      | —       | PASS   |
 
 The selection was forced with `--rerun-tasks` against the disposable PostgreSQL
 18.6 `chessgame_test` database. The concurrency class includes the later M16.7

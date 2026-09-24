@@ -15,15 +15,15 @@ Baseline: `0da5f42b7deacde1aaa698f09d32b19a72e6df89`
 
 ## Results
 
-| Verification | Tests | Failed | Errors | Skipped | Result |
-| --- | ---: | ---: | ---: | ---: | --- |
-| Retained Android M7 authentication | 13 | 0 | 0 | 0 | PASS |
-| Shared Android startup/restart paths | 27 | 0 | 0 | 0 | PASS |
-| Android M7 adversarial | 6 | 2 | 0 | 0 | DEFECT PROVED |
-| Retained server M7 focused | 48 | 0 | 0 | 0 | PASS |
-| Adjacent server identity route | 6 | 0 | 0 | 0 | PASS |
-| Server M7 adversarial | 11 | 4 | 0 | 0 | DEFECT PROVED |
-| `game-core` | 394 | 0 | 0 | 0 | PASS |
+| Verification                         | Tests | Failed | Errors | Skipped | Result        |
+| ------------------------------------ | -----:| ------:| ------:| -------:| ------------- |
+| Retained Android M7 authentication   | 13    | 0      | 0      | 0       | PASS          |
+| Shared Android startup/restart paths | 27    | 0      | 0      | 0       | PASS          |
+| Android M7 adversarial               | 6     | 2      | 0      | 0       | DEFECT PROVED |
+| Retained server M7 focused           | 48    | 0      | 0      | 0       | PASS          |
+| Adjacent server identity route       | 6     | 0      | 0      | 0       | PASS          |
+| Server M7 adversarial                | 11    | 4      | 0      | 0       | DEFECT PROVED |
+| `game-core`                          | 394   | 0      | 0      | 0       | PASS          |
 
 The two Android failures are the 429 and 503 identity-replacement variants.
 The server failures are three last-seen rollback variants and the signed token

@@ -4,11 +4,11 @@ Baseline: `3de5e28dbcb29e5d86e163c39b26278686385c4c`
 
 ## Results
 
-| Verification | Tests | Failed | Errors | Skipped | Result |
-| --- | ---: | ---: | ---: | ---: | --- |
-| M13 server plus later idempotency suites | 69 | 0 | 0 | 0 | PASS |
-| `game-core` resignation suite | 8 | 0 | 0 | 0 | PASS |
-| `git diff --check` | — | — | — | — | PASS |
+| Verification                             | Tests | Failed | Errors | Skipped | Result |
+| ---------------------------------------- | -----:| ------:| ------:| -------:| ------ |
+| M13 server plus later idempotency suites | 69    | 0      | 0      | 0       | PASS   |
+| `game-core` resignation suite            | 8     | 0      | 0      | 0       | PASS   |
+| `git diff --check`                       | —     | —      | —      | —       | PASS   |
 
 The server selection comprised `FinalizeGameTest`, `AutomaticRematchTest`,
 `SeriesClosesAfterLastGameTest`, `ResignationTest`, `ResignRouteTest`, and the

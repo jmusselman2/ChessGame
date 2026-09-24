@@ -74,12 +74,12 @@ can no longer have a friendship to remove, so it already answers 404
 Checked, because `D045` makes the case it defends unreachable through the API.
 **It is kept, and it is not strictly dead.** The four sites are:
 
-| Site | Shape | Verdict |
-| --- | --- | --- |
-| `FriendRoutes` `GET /friends` | `mapNotNull { ...toSummaryOrNull() }` | keep |
-| `DashboardEntry.of` | `?: return null` | keep |
-| `SeriesHistoryEntry.of` | `?: return null` | keep |
-| `SeriesSummary.of`, `GameView.of` | `requireNotNull` | keep |
+| Site                              | Shape                                 | Verdict |
+| --------------------------------- | ------------------------------------- | ------- |
+| `FriendRoutes` `GET /friends`     | `mapNotNull { ...toSummaryOrNull() }` | keep    |
+| `DashboardEntry.of`               | `?: return null`                      | keep    |
+| `SeriesHistoryEntry.of`           | `?: return null`                      | keep    |
+| `SeriesSummary.of`, `GameView.of` | `requireNotNull`                      | keep    |
 
 No *new* friendship row can have a nameless side after this fix: the target
 always needed a username, the caller now does too, and a username is claimed once
@@ -192,12 +192,12 @@ which proves the guarded UPDATE still revives the row when it really is removed.
 
 ### Results
 
-| Run | Result |
-| --- | --- |
-| `friends.*` | 39 tests, 1 failed — the `M8-03` regression only |
-| `friends.*` + `series.*` + `user.*` + `dashboard.*` + `history.*` | 190 tests, 1 failed — the `M8-03` regression only |
-| Remaining server suites except `M10AdversarialTest`/`M12AdversarialTest` | BUILD SUCCESSFUL |
-| `./gradlew build -x :server:test -x :android-app:testDebugUnitTest` | BUILD SUCCESSFUL |
+| Run                                                                      | Result                                            |
+| ------------------------------------------------------------------------ | ------------------------------------------------- |
+| `friends.*`                                                              | 39 tests, 1 failed — the `M8-03` regression only  |
+| `friends.*` + `series.*` + `user.*` + `dashboard.*` + `history.*`        | 190 tests, 1 failed — the `M8-03` regression only |
+| Remaining server suites except `M10AdversarialTest`/`M12AdversarialTest` | BUILD SUCCESSFUL                                  |
+| `./gradlew build -x :server:test -x :android-app:testDebugUnitTest`      | BUILD SUCCESSFUL                                  |
 
 The two excluded test tasks are the ones carrying out-of-scope evaluator
 regressions (`M10-01`, `M12-01` in `:server:test`; `M14-01/02/03` in
@@ -375,11 +375,11 @@ Deleted or skipped: none.
 
 ### Results
 
-| Run | Result |
-| --- | --- |
-| `friends.*` + `series.*` + `db.*` | **BUILD SUCCESSFUL** |
+| Run                                                                                                                                                    | Result               |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------- |
+| `friends.*` + `series.*` + `db.*`                                                                                                                      | **BUILD SUCCESSFUL** |
 | `dashboard.*`, `history.*`, `user.*`, `auth.*`, `game.*` (less M10), `realtime.*` (less M12), `ApplicationTest`, `DeploymentTest`, `ServerLoggingTest` | **BUILD SUCCESSFUL** |
-| `./gradlew build -x :server:test -x :android-app:testDebugUnitTest` | **BUILD SUCCESSFUL** |
+| `./gradlew build -x :server:test -x :android-app:testDebugUnitTest`                                                                                    | **BUILD SUCCESSFUL** |
 
 All six `M8AdversarialTest` cases pass, including `M8-01` and `M8-02` from Part 1.
 `M10AdversarialTest`, `M12AdversarialTest`, and `NetworkInterruptionTest` were not

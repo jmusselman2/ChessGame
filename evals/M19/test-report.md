@@ -4,13 +4,13 @@ Production baseline: `38be421dfd64c269687c893300f11e661bfa9c90`
 
 ## Results
 
-| Verification | Checks | Unmet | Errors | Result |
-| --- | ---: | ---: | ---: | --- |
-| M19.1–M19.12 backlog status inventory | 12 | 12 | 0 | INCOMPLETE |
-| Migration-file inventory | 3 expected through V3 | 1 | 0 | INCOMPLETE |
-| Installed schema acceptance inventory | 6 M19 schema areas | 6 | 0 | INCOMPLETE |
-| M19 implementation/test symbol audit | 12 submilestones | 12 | 0 | INCOMPLETE |
-| `git diff --check` | 1 | 0 | 0 | PASS |
+| Verification                          | Checks                | Unmet | Errors | Result     |
+| ------------------------------------- | ---------------------:| -----:| ------:| ---------- |
+| M19.1–M19.12 backlog status inventory | 12                    | 12    | 0      | INCOMPLETE |
+| Migration-file inventory              | 3 expected through V3 | 1     | 0      | INCOMPLETE |
+| Installed schema acceptance inventory | 6 M19 schema areas    | 6     | 0      | INCOMPLETE |
+| M19 implementation/test symbol audit  | 12 submilestones      | 12    | 0      | INCOMPLETE |
+| `git diff --check`                    | 1                     | 0     | 0      | PASS       |
 
 All twelve M19 task headings are followed by `Status: TODO`. Repository search
 found decisions D048–D056, but no implementation symbols or dedicated tests for

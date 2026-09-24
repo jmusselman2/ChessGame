@@ -2552,12 +2552,12 @@ until `M19` tasks act on it.
 
 There are four social entities, not two:
 
-| entity | shape | role |
-|---|---|---|
-| person | one account (`users`) | identity |
-| friendship | 2 people, symmetric (exists today) | relationship |
-| group | *n* people, standing named pool (`D049`) | invite convenience only |
-| table | 2–4 participants, one per game/series | **unit of continuity** |
+| entity     | shape                                    | role                    |
+| ---------- | ---------------------------------------- | ----------------------- |
+| person     | one account (`users`)                    | identity                |
+| friendship | 2 people, symmetric (exists today)       | relationship            |
+| group      | *n* people, standing named pool (`D049`) | invite convenience only |
+| table      | 2–4 participants, one per game/series    | **unit of continuity**  |
 
 - A **table** is a creator-assembled set of 2–4 participants. It, not the friend
   pair, is what a series belongs to. A series is keyed to a table's **exact
@@ -2736,11 +2736,11 @@ rotating participants N.
 N = 4, base order `[A, B, C, D]` chosen at random for cycle 1:
 
 | game | order after rotation | first | last |
-|---|---|---|---|
-| 1 | `[A, B, C, D]` | A | D |
-| 2 | `[B, C, D, A]` | B | A |
-| 3 | `[C, D, A, B]` | C | B |
-| 4 | `[D, A, B, C]` | D | C |
+| ---- | -------------------- | ----- | ---- |
+| 1    | `[A, B, C, D]`       | A     | D    |
+| 2    | `[B, C, D, A]`       | B     | A    |
+| 3    | `[C, D, A, B]`       | C     | B    |
+| 4    | `[D, A, B, C]`       | D     | C    |
 
 Cycle 1 covers every seat as first once and last once.
 
@@ -3478,11 +3478,11 @@ user-facing behaviour and no API response.
 `users` carries three activity timestamps beside `created_at`, and they are not
 interchangeable:
 
-| column | when it is written | accuracy |
-|---|---|---|
-| `last_seen_at` | any authenticated request (`D010`) | **throttled** — at most one write per user per five minutes |
-| `last_login_at` | a session starting: `GET /me` | exact, unthrottled |
-| `last_action_at` | a command being **accepted** | exact, unthrottled, in the command's own transaction |
+| column           | when it is written                 | accuracy                                                    |
+| ---------------- | ---------------------------------- | ----------------------------------------------------------- |
+| `last_seen_at`   | any authenticated request (`D010`) | **throttled** — at most one write per user per five minutes |
+| `last_login_at`  | a session starting: `GET /me`      | exact, unthrottled                                          |
+| `last_action_at` | a command being **accepted**       | exact, unthrottled, in the command's own transaction        |
 
 - **`last_seen_at` keeps its existing meaning and mechanism exactly** (`D010`,
   `LastSeenTracker`). It is the "recently around" marker, it is deliberately
@@ -3680,12 +3680,12 @@ not per-seat state splitting, not delta encoding, not compression.
 
 **What became of `M19.9`'s recommendations** (`docs/UNDO-STORAGE.md`):
 
-| recommendation (2026-09-10) | outcome |
-|---|---|
-| Store the action and its inverse, with a full checkpoint at each barrier, and reach earlier states by replaying from the checkpoint | **Rejected** — it restores by replay. Full snapshots are adopted instead. Exact data-level deltas remain a later option that needs measurement |
-| Write `state` in parts, per seat plus a shared row | **Not adopted.** It may be revisited with measurements of the real implementation |
-| `append` / `truncateTo` as a prerequisite; `truncateTo` refuses to cross `undoBarrierSeq`; prune below the barrier in the transaction that records the shuffle | **Adopted**, all three, and pruning covers equivalent barriers too |
-| Card instances as ids against a static catalogue | **Not decided here** — it is a question about state shape, not undo storage |
+| recommendation (2026-09-10)                                                                                                                                    | outcome                                                                                                                                        |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Store the action and its inverse, with a full checkpoint at each barrier, and reach earlier states by replaying from the checkpoint                            | **Rejected** — it restores by replay. Full snapshots are adopted instead. Exact data-level deltas remain a later option that needs measurement |
+| Write `state` in parts, per seat plus a shared row                                                                                                             | **Not adopted.** It may be revisited with measurements of the real implementation                                                              |
+| `append` / `truncateTo` as a prerequisite; `truncateTo` refuses to cross `undoBarrierSeq`; prune below the barrier in the transaction that records the shuffle | **Adopted**, all three, and pruning covers equivalent barriers too                                                                             |
+| Card instances as ids against a static catalogue                                                                                                               | **Not decided here** — it is a question about state shape, not undo storage                                                                    |
 
 The measurements themselves stand, and remain the evidence for the sizes above.
 
@@ -4229,6 +4229,7 @@ no rules, and takes no `M20.1` decision.
 
 - **Three kinds, named by platform behaviour rather than by the deck-builder's
   characters:**
+
   - `USER` is a person with a `users` row, and rotates.
   - `COMPUTER` is not a person, plays a seat as a person would, and rotates. This
     is `D051`'s future AI player.
@@ -4238,20 +4239,24 @@ no rules, and takes no `M20.1` decision.
   Rotation is the only thing the platform knows about a kind
   (`ParticipantKind.rotates`). Everything else these participants do belongs to a
   game type's rules, and none exist yet.
+
 - **A non-user participant is a row in `non_user_participants`.** The row holds an
   id, a kind, and `state jsonb`. The platform stores that document and never reads
   it. That is `D051`'s "persistent per-instance state" without inventing its shape.
+
 - **A seat names exactly one reference, and the database checks it.** A seat's
   `user_id` is set if and only if its kind is `USER`, and its
   `non_user_participant_id` is set if and only if it is not. A composite reference
   `(non_user_participant_id, kind) → non_user_participants (id, kind)` stops a seat
   from claiming a kind its participant does not have. Nobody, person or not, takes
   two seats at a table or in a game.
+
 - **In Kotlin, a seat is a `Participant(kind, ref)`.** `userId` is non-null only for
   a person. Anything person-shaped reads `userIds` and never sees anyone else: the
   dashboard's and history's opponent, realtime recipients, and chess's
   White/Black. Seat rotation filters on kind (`rotating()`, `finalTurn()`) before
   and after `SeatRotation` (`D050`).
+
 - **The canonical set key stays `KIND:ref`** (`D064`), and stored rotations now
   store `KIND:ref` too. A bare id still reads as a user.
 

@@ -12,11 +12,11 @@ independent ordinary database connection.
 
 ## Results
 
-| Verification | Tests | Failed | Errors | Skipped | Result |
-| --- | ---: | ---: | ---: | ---: | --- |
-| Retained M10 command/API suites | 53 | 0 | 0 | 0 | PASS |
-| M10 adversarial canonical refresh | 1 | 1 | 0 | 0 | DEFECT PROVED |
-| `git diff --check` | — | — | — | — | PASS |
+| Verification                      | Tests | Failed | Errors | Skipped | Result        |
+| --------------------------------- | -----:| ------:| ------:| -------:| ------------- |
+| Retained M10 command/API suites   | 53    | 0      | 0      | 0       | PASS          |
+| M10 adversarial canonical refresh | 1     | 1      | 0      | 0       | DEFECT PROVED |
+| `git diff --check`                | —     | —      | —      | —       | PASS          |
 
 The adversarial failure is
 `aRefreshCannotMixAnOldGameRowWithNewMoveHistory`: after the writer committed

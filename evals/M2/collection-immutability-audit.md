@@ -104,23 +104,23 @@ in `finally`, so one intentional failure cannot contaminate later tests.
 
 ## Audited collection inventory
 
-| Collection surface | Disposition | Evidence |
-|---|---|---|
-| `DrawRuleState.positionCounts` constructor input | Safe | Defensive snapshot; retained regression passes. |
-| Published repetition map | Safe | Unmodifiable wrapper rejects direct writes at 0/1/many entries. |
-| Repetition `entries`, `keys`, and `values` | Safe | Entry `setValue`, key removal, and value removal all throw; tests pass. |
-| `Board.of` placement map | Safe | Copied into private square storage; caller-map mutation test passes. |
-| `Board` query lists | Safe | Fresh results; clearing them leaves placement intact. |
-| `ChessGame.history` | Defective | Constructor alias and public backing both mutate the game. |
-| `ChessGame.moves` | Safe | Fresh derived list; clearing it leaves history intact. |
-| `Square.ALL` | Defective | Mutable shared list. |
-| `PieceType.PROMOTION_CHOICES` | Defective | Mutable shared list. |
-| `StandardPosition.BACK_RANK` | Defective | Mutable shared list. |
-| `Direction.ORTHOGONAL`, `DIAGONAL`, `ALL` | Defective | Three independently mutable shared lists. |
-| `PseudoLegalMoves.KNIGHT_STEPS` | Defective | Mutable shared list. |
-| `InsufficientMaterial.MATING_MATERIAL` | Safe from callers | Private and never returned. |
+| Collection surface                                      | Disposition              | Evidence                                                                         |
+| ------------------------------------------------------- | ------------------------ | -------------------------------------------------------------------------------- |
+| `DrawRuleState.positionCounts` constructor input        | Safe                     | Defensive snapshot; retained regression passes.                                  |
+| Published repetition map                                | Safe                     | Unmodifiable wrapper rejects direct writes at 0/1/many entries.                  |
+| Repetition `entries`, `keys`, and `values`              | Safe                     | Entry `setValue`, key removal, and value removal all throw; tests pass.          |
+| `Board.of` placement map                                | Safe                     | Copied into private square storage; caller-map mutation test passes.             |
+| `Board` query lists                                     | Safe                     | Fresh results; clearing them leaves placement intact.                            |
+| `ChessGame.history`                                     | Defective                | Constructor alias and public backing both mutate the game.                       |
+| `ChessGame.moves`                                       | Safe                     | Fresh derived list; clearing it leaves history intact.                           |
+| `Square.ALL`                                            | Defective                | Mutable shared list.                                                             |
+| `PieceType.PROMOTION_CHOICES`                           | Defective                | Mutable shared list.                                                             |
+| `StandardPosition.BACK_RANK`                            | Defective                | Mutable shared list.                                                             |
+| `Direction.ORTHOGONAL`, `DIAGONAL`, `ALL`               | Defective                | Three independently mutable shared lists.                                        |
+| `PseudoLegalMoves.KNIGHT_STEPS`                         | Defective                | Mutable shared list.                                                             |
+| `InsufficientMaterial.MATING_MATERIAL`                  | Safe from callers        | Private and never returned.                                                      |
 | Legal-move, attack, draw-claim, and board-query results | Safe from owner mutation | Fresh derived `List`/`Set` values; mutation cannot reach domain or shared state. |
-| Kotlin enum `entries` collections | Safe | Runtime-owned immutable enum views, not caller-supplied or domain backing state. |
+| Kotlin enum `entries` collections                       | Safe                     | Runtime-owned immutable enum views, not caller-supplied or domain backing state. |
 
 No other public/shared `List`, `Map`, `Set`, constructor collection, or
 collection-backed domain property was found in the current chess package.

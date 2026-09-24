@@ -11,16 +11,16 @@ expiry claims. No test was deleted, skipped, weakened, or rewritten.
 
 ## Results
 
-| Verification | Tests | Failed | Errors | Skipped | Result |
-| --- | ---: | ---: | ---: | ---: | --- |
-| Focused Android auth/startup | 39 | 0 | 0 | 0 | PASS |
-| Android M7 adversarial subset | 6 | 0 | 0 | 0 | PASS |
-| Focused server M7 | 69 | 0 | 0 | 0 | PASS |
-| Server M7 adversarial subset | 11 | 0 | 0 | 0 | PASS |
-| Full `game-core` tests | 394 | 0 | 0 | 0 | PASS |
-| Full Android host-side tests | 413 | 0 | 0 | 0 | PASS |
-| Full server tests | 429 | 0 | 0 | 0 | PASS |
-| Total JVM tests in aggregate build | 1,236 | 0 | 0 | 0 | PASS |
+| Verification                       | Tests | Failed | Errors | Skipped | Result |
+| ---------------------------------- | -----:| ------:| ------:| -------:| ------ |
+| Focused Android auth/startup       | 39    | 0      | 0      | 0       | PASS   |
+| Android M7 adversarial subset      | 6     | 0      | 0      | 0       | PASS   |
+| Focused server M7                  | 69    | 0      | 0      | 0       | PASS   |
+| Server M7 adversarial subset       | 11    | 0      | 0      | 0       | PASS   |
+| Full `game-core` tests             | 394   | 0      | 0      | 0       | PASS   |
+| Full Android host-side tests       | 413   | 0      | 0      | 0       | PASS   |
+| Full server tests                  | 429   | 0      | 0      | 0       | PASS   |
+| Total JVM tests in aggregate build | 1,236 | 0      | 0      | 0       | PASS   |
 
 The focused Android total comprises 12 `AnonymousAuthTest`, 6
 `M7AdversarialTest`, 3 live `SupabaseLiveAuthTest`, 16 `AppStartupTest`, and 2

@@ -40,12 +40,12 @@ state:
 
 The cheapest question first: how much of the server is about chess?
 
-| | files | lines |
-|---|---|---|
-| `game-core` (all chess) | 22 | 1,779 |
-| `server` main source | 32 | 4,257 |
-| …of which mention `game-core` at all | 7 | 1,856 |
-| …of which are *shaped* by chess | 5 | ~1,444 |
+|                                      | files | lines  |
+| ------------------------------------ | ----- | ------ |
+| `game-core` (all chess)              | 22    | 1,779  |
+| `server` main source                 | 32    | 4,257  |
+| …of which mention `game-core` at all | 7     | 1,856  |
+| …of which are *shaped* by chess      | 5     | ~1,444 |
 
 The seven are `api/ApiTypes.kt`, `db/GameRepository.kt`, `db/GameStateDocument.kt`,
 `game/GameCommandService.kt`, `game/GameRoutes.kt`, `series/SeriesService.kt`,

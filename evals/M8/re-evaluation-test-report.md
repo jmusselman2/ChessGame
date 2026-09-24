@@ -4,16 +4,16 @@ Re-evaluation baseline: `a4bb6999af4dea4665c832bebcaf6122a021e183`
 
 ## Results
 
-| Verification | Tests | Failed | Errors | Skipped | Result |
-| --- | ---: | ---: | ---: | ---: | --- |
-| M8 and adjacent server suites | 256 | 0 | 0 | 0 | PASS |
-| `M8AdversarialTest` within that selection | 6 | 0 | 0 | 0 | PASS |
-| Android `ChessAppTest` plus interruption harness | 116 | 3 | 0 | 0 | EXPECTED FAIL |
-| Retained tests in that Android selection | 113 | 0 | 0 | 0 | PASS |
-| Carried M10/M12 evaluator regressions | 2 | 2 | 0 | 0 | EXPECTED FAIL |
-| Full `game-core` result XML | 394 | 0 | 0 | 0 | PASS |
-| Build excluding known-red evaluator test tasks | — | — | — | — | PASS |
-| `git diff --check` | — | — | — | — | PASS |
+| Verification                                     | Tests | Failed | Errors | Skipped | Result        |
+| ------------------------------------------------ | -----:| ------:| ------:| -------:| ------------- |
+| M8 and adjacent server suites                    | 256   | 0      | 0      | 0       | PASS          |
+| `M8AdversarialTest` within that selection        | 6     | 0      | 0      | 0       | PASS          |
+| Android `ChessAppTest` plus interruption harness | 116   | 3      | 0      | 0       | EXPECTED FAIL |
+| Retained tests in that Android selection         | 113   | 0      | 0      | 0       | PASS          |
+| Carried M10/M12 evaluator regressions            | 2     | 2      | 0      | 0       | EXPECTED FAIL |
+| Full `game-core` result XML                      | 394   | 0      | 0      | 0       | PASS          |
+| Build excluding known-red evaluator test tasks   | —     | —      | —      | —       | PASS          |
+| `git diff --check`                               | —     | —      | —      | —       | PASS          |
 
 The 256-test database-backed server selection included the `friends`, `series`,
 `user`, `dashboard`, `history`, and `db` packages. It was forced with

@@ -32,13 +32,13 @@ they restore exactly without executing rules. An "equivalent" barrier is an
 event that, like a shuffle, cannot be undone correctly. A reveal such as a draw
 is not a barrier, because undo by agreement may still pass it.
 
-| recommendation below | outcome under `D061` |
-|---|---|
-| §1 Delta form: store the action and its inverse, with a full checkpoint at each barrier, and replay from the checkpoint | **Rejected.** Restoration by replay through rules is not safe once a bug fix changes rule behaviour. Full snapshots are adopted. *Data-level* deltas, which apply recorded state changes without running rules, remain a later option that needs measurement |
-| §1 Per-row compression not worth it | **Agreed**, and not adopted |
-| §2 Write `state` in parts, per seat plus a shared row | **Not adopted.** It may be revisited with measurements of the real implementation |
-| §3 `append` / `truncateTo` as a prerequisite; `truncateTo` refuses to cross `undoBarrierSeq`; pruning in the transaction that records the shuffle | **Adopted**, all three |
-| Card instances as ids against a static catalogue | **Not decided by `D061`.** Still a recommendation for state-shape design |
+| recommendation below                                                                                                                              | outcome under `D061`                                                                                                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| §1 Delta form: store the action and its inverse, with a full checkpoint at each barrier, and replay from the checkpoint                           | **Rejected.** Restoration by replay through rules is not safe once a bug fix changes rule behaviour. Full snapshots are adopted. *Data-level* deltas, which apply recorded state changes without running rules, remain a later option that needs measurement |
+| §1 Per-row compression not worth it                                                                                                               | **Agreed**, and not adopted                                                                                                                                                                                                                                  |
+| §2 Write `state` in parts, per seat plus a shared row                                                                                             | **Not adopted.** It may be revisited with measurements of the real implementation                                                                                                                                                                            |
+| §3 `append` / `truncateTo` as a prerequisite; `truncateTo` refuses to cross `undoBarrierSeq`; pruning in the transaction that records the shuffle | **Adopted**, all three                                                                                                                                                                                                                                       |
+| Card instances as ids against a static catalogue                                                                                                  | **Not decided by `D061`.** Still a recommendation for state-shape design                                                                                                                                                                                     |
 
 Two terms are kept distinct. **Replay** reruns recorded gameplay commands through
 a rules implementation. **Data-level delta restoration** applies recorded state
@@ -101,15 +101,15 @@ real.
 
 ## Chess, as built (96 plies)
 
-| | bytes |
-|---|---:|
-| `state` blob, opening position | 307 |
-| `state` blob, peak | 1,040 |
-| `state` blob, mean | 451 |
-| `state` blob with `repetitions` emptied | 262 |
-| `moves` table, final size | 43,363 |
+|                                                    | bytes         |
+| -------------------------------------------------- | -------------:|
+| `state` blob, opening position                     | 307           |
+| `state` blob, peak                                 | 1,040         |
+| `state` blob, mean                                 | 451           |
+| `state` blob with `repetitions` emptied            | 262           |
+| `moves` table, final size                          | 43,363        |
 | **`moves` bytes actually written across the game** | **1,844,774** |
-| Write amplification vs. an append-only log | **42×** |
+| Write amplification vs. an append-only log         | **42×**       |
 
 Two things are worth pulling out.
 
@@ -133,11 +133,11 @@ magnitude, that does not survive.
 ### Representative retained-snapshot size
 
 | participants | compact (ids) | verbose (embedded definitions) |
-|---:|---:|---:|
-| 2 | 1,512 B | 7,565 B |
-| 3 | 1,828 B | 9,148 B |
-| 4 | 2,144 B | 10,742 B |
-| 5 | 2,460 B | 12,331 B |
+| ------------:| -------------:| ------------------------------:|
+| 2            | 1,512 B       | 7,565 B                        |
+| 3            | 1,828 B       | 9,148 B                        |
+| 4            | 2,144 B       | 10,742 B                       |
+| 5            | 2,460 B       | 12,331 B                       |
 
 Growth is linear and gentle: about **+320 B per participant** compact, **+1.6 KB
 verbose**. The five-participant row is the `D048` ceiling (four humans plus the
@@ -154,10 +154,10 @@ the compact form.
 Deck-builders are many-actions-per-turn games, which is exactly the property
 chess did not exercise (`PLATFORM-REVIEW`, *What chess did not prove*).
 
-| | actions |
-|---|---:|
-| One turn (play a hand, buy, resolve reactions) | 8–15 |
-| A four-player game, ~20 turns each | ~800–1,000 |
+|                                                | actions    |
+| ---------------------------------------------- | ----------:|
+| One turn (play a hand, buy, resolve reactions) | 8–15       |
+| A four-player game, ~20 turns each             | ~800–1,000 |
 | **Between shuffles — the number that matters** | **~10–30** |
 
 The retention span is *not* the game length, because the barrier is a shuffle by
@@ -174,12 +174,12 @@ Both are costed below.
 At five participants, 2,460 B per snapshot:
 
 | actions since shuffle | snapshots retained | written under `save(wholeGame)` | that action's own write |
-|---:|---:|---:|---:|
-| 10 | 24.6 KB | 135 KB | 24.6 KB |
-| 30 *(typical)* | 73.8 KB | **1.14 MB** | 73.8 KB |
-| 60 | 148 KB | 4.5 MB | 148 KB |
-| 120 | 295 KB | 17.9 MB | 295 KB |
-| 960 *(pathological)* | 2.36 MB | **1.13 GB** | **2.36 MB** |
+| ---------------------:| ------------------:| -------------------------------:| -----------------------:|
+| 10                    | 24.6 KB            | 135 KB                          | 24.6 KB                 |
+| 30 *(typical)*        | 73.8 KB            | **1.14 MB**                     | 73.8 KB                 |
+| 60                    | 148 KB             | 4.5 MB                          | 148 KB                  |
+| 120                   | 295 KB             | 17.9 MB                         | 295 KB                  |
+| 960 *(pathological)*  | 2.36 MB            | **1.13 GB**                     | **2.36 MB**             |
 
 **Retention is affordable. The write pattern is not.**
 
@@ -206,12 +206,12 @@ the clearest way to say it: at 960 actions, playing one card writes 2.36 MB.
 
 Measured, at the five-participant size:
 
-| form | chess (real) | deck-builder (modelled) |
-|---|---:|---:|
-| Whole, uncompressed | 1× | 1× |
-| Whole, compressed per row | **1.95×** | 2.6× |
-| Whole, sequence compressed together | 18.5× | (upper bound only — see below) |
-| Delta between consecutive snapshots | **~5.5×** | **~250×** |
+| form                                | chess (real) | deck-builder (modelled)        |
+| ----------------------------------- | ------------:| ------------------------------:|
+| Whole, uncompressed                 | 1×           | 1×                             |
+| Whole, compressed per row           | **1.95×**    | 2.6×                           |
+| Whole, sequence compressed together | 18.5×        | (upper bound only — see below) |
+| Delta between consecutive snapshots | **~5.5×**    | **~250×**                      |
 
 **Per-row compression is not worth having.** 1.95× on real chess data: these
 payloads are a few hundred bytes to a few kilobytes, and gzip cannot warm a
@@ -328,16 +328,16 @@ Two things the signature should carry:
 
 ## Summary
 
-| question | answer (2026-09-10) | binding outcome (`D061`, 2026-09-13) |
-|---|---|---|
-| Representative snapshot | **2.5 KB** at 5 participants, compact ids; 12 KB if definitions are embedded | measurement stands |
-| Realistic action count | 8–15 per turn; **10–30 between shuffles**; ~960 pathological | estimate stands |
-| Retained bytes | 74 KB typical, 2.4 MB pathological — **affordable** | measurement stands; full snapshot retention accepted |
-| Per-action write, as built | 74 KB typical, **2.4 MB** pathological — **not affordable** | measurement stands; fixed by append/truncate |
-| Snapshot form | **Delta + a full checkpoint at each barrier**, reached by replay. Per-row compression buys 1.95× and is not worth it | **Rejected:** a full snapshot at every independently undoable boundary, and no replay. Data-level deltas only after measurement. No compression |
-| State persistence | **In parts, per seat plus shared** — ~8× off the per-action write at 5 participants | **Not adopted**; revisit only with measurements |
-| `append` / `truncateTo` | **Confirmed prerequisite.** `save(wholeGame)` cannot express a bounded rewind; it is the whole source of the 42× | **Adopted**, with a `truncateTo` that refuses to cross the barrier and pruning in the barrier's transaction |
-| Card representation | **Ids against a static catalogue** — 5× smaller, costs nothing | not decided by `D061` |
+| question                   | answer (2026-09-10)                                                                                                  | binding outcome (`D061`, 2026-09-13)                                                                                                            |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| Representative snapshot    | **2.5 KB** at 5 participants, compact ids; 12 KB if definitions are embedded                                         | measurement stands                                                                                                                              |
+| Realistic action count     | 8–15 per turn; **10–30 between shuffles**; ~960 pathological                                                         | estimate stands                                                                                                                                 |
+| Retained bytes             | 74 KB typical, 2.4 MB pathological — **affordable**                                                                  | measurement stands; full snapshot retention accepted                                                                                            |
+| Per-action write, as built | 74 KB typical, **2.4 MB** pathological — **not affordable**                                                          | measurement stands; fixed by append/truncate                                                                                                    |
+| Snapshot form              | **Delta + a full checkpoint at each barrier**, reached by replay. Per-row compression buys 1.95× and is not worth it | **Rejected:** a full snapshot at every independently undoable boundary, and no replay. Data-level deltas only after measurement. No compression |
+| State persistence          | **In parts, per seat plus shared** — ~8× off the per-action write at 5 participants                                  | **Not adopted**; revisit only with measurements                                                                                                 |
+| `append` / `truncateTo`    | **Confirmed prerequisite.** `save(wholeGame)` cannot express a bounded rewind; it is the whole source of the 42×     | **Adopted**, with a `truncateTo` that refuses to cross the barrier and pruning in the barrier's transaction                                     |
+| Card representation        | **Ids against a static catalogue** — 5× smaller, costs nothing                                                       | not decided by `D061`                                                                                                                           |
 
 `D055`'s accepted retention cost survives measurement. Its *mechanism* does not,
 and the fix was already named — the command signature — which this confirms and

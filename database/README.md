@@ -22,16 +22,16 @@ of truth. The `M6` foundation:
 
 Later migrations, each named for the decision and task behind it:
 
-| Migration | What it does |
-|---|---|
-| `V2__friendship_status.sql` | `friendships.status`, room for a later approval flow (`D047`) |
-| `V3__groups.sql` | `groups` and `group_members`, standing invite-eligibility pools (`D049`, `M19.2`) |
-| `V4__engagement_timestamps.sql` | `users.last_login_at` and `users.last_action_at` (`D060`, `M19.11`) |
-| `V5__tables_and_participants.sql` | `game_types`, `tables`, `table_participants` and `game_participants` replace the friend-pair columns of `game_series` and `games` (`D048`, `D063`, `M19.3`) |
-| `V6__parallel_series.sql` | drops the one-active-series-per-table index, so a pair may have several active series (`D053`, `M19.4`) |
-| `V7__series_outlive_friendships.sql` | drops `game_series.close_after_current_game`; removing a friend no longer closes a series (`D053`, `M19.5`) |
-| `V8__seat_rotation.sql` | `game_series.seat_rotation` (`D050`, `D066`, `M19.6`) |
-| `V9__non_user_participants.sql` | `non_user_participants`, and seats that can hold one: participants that are not people (`D051`, `D067`, `M19.7`) |
+| Migration                            | What it does                                                                                                                                                |
+| ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `V2__friendship_status.sql`          | `friendships.status`, room for a later approval flow (`D047`)                                                                                               |
+| `V3__groups.sql`                     | `groups` and `group_members`, standing invite-eligibility pools (`D049`, `M19.2`)                                                                           |
+| `V4__engagement_timestamps.sql`      | `users.last_login_at` and `users.last_action_at` (`D060`, `M19.11`)                                                                                         |
+| `V5__tables_and_participants.sql`    | `game_types`, `tables`, `table_participants` and `game_participants` replace the friend-pair columns of `game_series` and `games` (`D048`, `D063`, `M19.3`) |
+| `V6__parallel_series.sql`            | drops the one-active-series-per-table index, so a pair may have several active series (`D053`, `M19.4`)                                                     |
+| `V7__series_outlive_friendships.sql` | drops `game_series.close_after_current_game`; removing a friend no longer closes a series (`D053`, `M19.5`)                                                 |
+| `V8__seat_rotation.sql`              | `game_series.seat_rotation` (`D050`, `D066`, `M19.6`)                                                                                                       |
+| `V9__non_user_participants.sql`      | `non_user_participants`, and seats that can hold one: participants that are not people (`D051`, `D067`, `M19.7`)                                            |
 
 `docs/ARCHITECTURE.md` §27 describes the resulting tables.
 

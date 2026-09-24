@@ -4,26 +4,26 @@ Evaluated `main`: `1f17312848a6d6c9499c0accbd7eb6401f44e657`
 
 ## Results
 
-| Verification | Result |
-| --- | --- |
-| M19 focused server/schema/API suites on disposable PostgreSQL | PASS |
-| Empty database migration through V9 | PASS |
-| Evaluator V2 -> V9 preservation test | PASS |
-| Retained V4 -> current `TablesMigrationTest` | PASS |
-| Full server suite before expected-red evaluator regression | PASS — 560 tests, none skipped |
-| Full Android debug unit suite | PASS — 442 tests, none skipped |
-| Formatting/static checks | PASS |
-| Aggregate build with evaluator regression | EXPECTED FAIL — 562 server tests, only M19-01 failed |
-| `M19ParticipantIdentityRegressionTest` | EXPECTED FAIL |
-| Live beta cold wake / build identity | PASS — build `1f17312`, 54.329 s |
-| Live HTTPS/WSS beta smoke | PASS |
-| Endpoint-configured debug APK build/install/launch | PASS |
-| Throwaway-signed release APK verification | PASS — all 6 checks |
-| Newly established Android session restoration | PASS — dashboard after cold relaunch |
-| Direct beta Flyway-history query | BLOCKED — no beta database credential |
-| Signed distributable beta APK | BLOCKED — no project signing key |
-| Previously existing Android session/data smoke | BLOCKED — available AVDs began without the app |
-| Deployed log readback | BLOCKED — no Render API credential |
+| Verification                                                  | Result                                               |
+| ------------------------------------------------------------- | ---------------------------------------------------- |
+| M19 focused server/schema/API suites on disposable PostgreSQL | PASS                                                 |
+| Empty database migration through V9                           | PASS                                                 |
+| Evaluator V2 -> V9 preservation test                          | PASS                                                 |
+| Retained V4 -> current `TablesMigrationTest`                  | PASS                                                 |
+| Full server suite before expected-red evaluator regression    | PASS — 560 tests, none skipped                       |
+| Full Android debug unit suite                                 | PASS — 442 tests, none skipped                       |
+| Formatting/static checks                                      | PASS                                                 |
+| Aggregate build with evaluator regression                     | EXPECTED FAIL — 562 server tests, only M19-01 failed |
+| `M19ParticipantIdentityRegressionTest`                        | EXPECTED FAIL                                        |
+| Live beta cold wake / build identity                          | PASS — build `1f17312`, 54.329 s                     |
+| Live HTTPS/WSS beta smoke                                     | PASS                                                 |
+| Endpoint-configured debug APK build/install/launch            | PASS                                                 |
+| Throwaway-signed release APK verification                     | PASS — all 6 checks                                  |
+| Newly established Android session restoration                 | PASS — dashboard after cold relaunch                 |
+| Direct beta Flyway-history query                              | BLOCKED — no beta database credential                |
+| Signed distributable beta APK                                 | BLOCKED — no project signing key                     |
+| Previously existing Android session/data smoke                | BLOCKED — available AVDs began without the app       |
+| Deployed log readback                                         | BLOCKED — no Render API credential                   |
 
 All database-backed local tests used the disposable PostgreSQL URL documented in
 `docs/DEVELOPMENT.md`, with the required database flag enabled. No beta reset or

@@ -148,18 +148,18 @@ remediation moved the lines they name.
 
 ## Verification
 
-| Verification | Result |
-| --- | --- |
-| `M10AdversarialTest` | PASS (was the proof of M10-01) |
-| `M12AdversarialTest` | PASS (was the proof of M12-01) |
-| `NetworkInterruptionTest` — the three M14 cases | PASS (were the proof of M14-01/02/03) |
-| `evals/M18/M18DocumentationRegressionTest.ps1` | PASS |
-| `RealtimeFanOutTest`, `StaleResponseOrderingTest` (new) | PASS |
-| Server suite | PASS |
-| Android JVM suite | PASS |
-| `game-core` suite | PASS |
-| `.\gradlew.bat build` | BUILD SUCCESSFUL |
-| `git diff --check` | clean |
+| Verification                                            | Result                                |
+| ------------------------------------------------------- | ------------------------------------- |
+| `M10AdversarialTest`                                    | PASS (was the proof of M10-01)        |
+| `M12AdversarialTest`                                    | PASS (was the proof of M12-01)        |
+| `NetworkInterruptionTest` — the three M14 cases         | PASS (were the proof of M14-01/02/03) |
+| `evals/M18/M18DocumentationRegressionTest.ps1`          | PASS                                  |
+| `RealtimeFanOutTest`, `StaleResponseOrderingTest` (new) | PASS                                  |
+| Server suite                                            | PASS                                  |
+| Android JVM suite                                       | PASS                                  |
+| `game-core` suite                                       | PASS                                  |
+| `.\gradlew.bat build`                                   | BUILD SUCCESSFUL                      |
+| `git diff --check`                                      | clean                                 |
 
 Decisions recorded: `D057` (stable display read), `D058` (realtime fan-out),
 `D059` (client result ordering).
@@ -191,9 +191,9 @@ New tests beside the regression, in `TableRepositoryTest`: the key for a shared-
 user and scripted participant is the same in either order, and a set of users keeps
 the key `V5` wrote. `D064` carries a correction note.
 
-| Verification | Result |
-| --- | --- |
-| `M19ParticipantIdentityRegressionTest` | PASS (was the proof of M19-01) |
-| `TableRepositoryTest`, `TablesMigrationTest`, `NonUserParticipantTest`, `M19MigrationEvaluationTest` | PASS |
-| `.\gradlew.bat build` | BUILD SUCCESSFUL |
-| `git diff --check` | clean |
+| Verification                                                                                         | Result                         |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------ |
+| `M19ParticipantIdentityRegressionTest`                                                               | PASS (was the proof of M19-01) |
+| `TableRepositoryTest`, `TablesMigrationTest`, `NonUserParticipantTest`, `M19MigrationEvaluationTest` | PASS                           |
+| `.\gradlew.bat build`                                                                                | BUILD SUCCESSFUL               |
+| `git diff --check`                                                                                   | clean                          |

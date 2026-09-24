@@ -15,13 +15,13 @@ events so a partial write cannot pass.
 
 ## Results
 
-| Verification | Tests | Failed | Errors | Skipped | Result |
-| --- | ---: | ---: | ---: | ---: | --- |
-| M6 database-focused server tests | 63 | 0 | 0 | 0 | PASS |
-| Full server tests | 410 | 0 | 0 | 0 | PASS |
-| `game-core` tests | 394 | 0 | 0 | 0 | PASS |
-| Android host-side tests | 398 | 0 | 0 | 0 | PASS |
-| Total JVM tests in aggregate build | 1,202 | 0 | 0 | 0 | PASS |
+| Verification                       | Tests | Failed | Errors | Skipped | Result |
+| ---------------------------------- | -----:| ------:| ------:| -------:| ------ |
+| M6 database-focused server tests   | 63    | 0      | 0      | 0       | PASS   |
+| Full server tests                  | 410   | 0      | 0      | 0       | PASS   |
+| `game-core` tests                  | 394   | 0      | 0      | 0       | PASS   |
+| Android host-side tests            | 398   | 0      | 0      | 0       | PASS   |
+| Total JVM tests in aggregate build | 1,202 | 0      | 0      | 0       | PASS   |
 
 Additional checks passed:
 

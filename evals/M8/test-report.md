@@ -20,14 +20,14 @@ timing or sleeps.
 
 ## Results
 
-| Verification | Tests | Failed | Errors | Skipped | Result |
-| --- | ---: | ---: | ---: | ---: | --- |
-| Retained M8 lookup/add/list/remove | 41 | 0 | 0 | 0 | PASS |
-| Adjacent series lifecycle/open/idempotency | 35 | 0 | 0 | 0 | PASS |
-| Final M8 adversarial | 6 | 3 | 0 | 0 | DEFECT PROVED |
-| Aggregate server run before final reactivation probe | 435 | 2 | 0 | 0 | EXPECTED FAIL |
-| Relevant Android client/app/navigation | 156 | 0 | 0 | 0 | PASS |
-| `game-core` | 394 | 0 | 0 | 0 | PASS |
+| Verification                                         | Tests | Failed | Errors | Skipped | Result        |
+| ---------------------------------------------------- | -----:| ------:| ------:| -------:| ------------- |
+| Retained M8 lookup/add/list/remove                   | 41    | 0      | 0      | 0       | PASS          |
+| Adjacent series lifecycle/open/idempotency           | 35    | 0      | 0      | 0       | PASS          |
+| Final M8 adversarial                                 | 6     | 3      | 0      | 0       | DEFECT PROVED |
+| Aggregate server run before final reactivation probe | 435   | 2      | 0      | 0       | EXPECTED FAIL |
+| Relevant Android client/app/navigation               | 156   | 0      | 0      | 0       | PASS          |
+| `game-core`                                          | 394   | 0      | 0      | 0       | PASS          |
 
 The final adversarial failures are:
 

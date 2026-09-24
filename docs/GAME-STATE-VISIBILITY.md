@@ -44,14 +44,14 @@ stay in their own documents.
 
 ## What leaves the server today
 
-| Surface | Carries | To whom |
-|---|---|---|
+| Surface                                                                                  | Carries                                                                                                                              | To whom                                               |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------- |
 | `GET /games/{id}`, and the state attached to a refused command (`CommandRejection.game`) | `GameView`: the whole board, the whole move list, last move, side to move, check, result, `canUndo`, claimable draws, `seriesActive` | a seated participant only (`NotAParticipant` → `403`) |
-| `GET /dashboard` | `DashboardEntry`: game id, **version**, your side, side to move, move number, `seriesActive` | the caller, for series they sit at |
-| `GET /history` | `SeriesHistoryEntry`: finished games' result, reason, move count — no moves or positions | the caller, for series they sat at |
-| `POST /series`, `POST /series/{id}/leave` | `SeriesSummary`: ids, status, opponent | the caller |
-| realtime `game-updated` | `{type, gameId, version}` — no state | every user participant of that game |
-| server log | ids, expected version, outcome (`commandLogLine`) | operators |
+| `GET /dashboard`                                                                         | `DashboardEntry`: game id, **version**, your side, side to move, move number, `seriesActive`                                         | the caller, for series they sit at                    |
+| `GET /history`                                                                           | `SeriesHistoryEntry`: finished games' result, reason, move count — no moves or positions                                             | the caller, for series they sat at                    |
+| `POST /series`, `POST /series/{id}/leave`                                                | `SeriesSummary`: ids, status, opponent                                                                                               | the caller                                            |
+| realtime `game-updated`                                                                  | `{type, gameId, version}` — no state                                                                                                 | every user participant of that game                   |
+| server log                                                                               | ids, expected version, outcome (`commandLogLine`)                                                                                    | operators                                             |
 
 **Never sent, by construction:** `GameStateDocument` (the stored `state`), `moves.position_before`
 (the undo record, `D029`), `game_events` payloads, `game_series.seat_rotation`, and
@@ -197,16 +197,16 @@ A spectator is a viewer with no seat. For projection that means:
 
 ## How each is validated and tested
 
-| Rule | Validation |
-|---|---|
-| Nothing leaves except through a projection | Responses are `server/api` types built field by field. A test per game-state route asserts the serialized JSON has **exactly** the expected keys, so an added field fails a test rather than shipping silently. |
-| Hidden zones never cross | For each hidden zone, a **two-viewer test** plays a state where the zone differs by viewer and asserts the other viewer's payload contains neither the list nor any identity from it — searched in the raw JSON text, not the decoded DTO, so an unmapped field still fails. |
-| Refusals are projected too | The same assertions against the `game` attached to a `409`/`422` refusal. |
-| The seed never ships | A test with a known seed asserts it (and the counter) appear in no response body, realtime frame, or captured log line. |
-| Undo returns projection, not snapshot | An undo test for a hidden zone asserts the response equals the projection of the restored state for that viewer. |
-| Realtime carries no state | A test asserts a pushed frame's keys are exactly `type`, `gameId`, `version`. |
-| Payload identity includes viewer | Any cache or dedup introduced gets a test with two viewers at one version receiving different payloads. |
-| Spectators see only public zones | When spectators exist: a spectator-view test beside each two-viewer test. |
+| Rule                                       | Validation                                                                                                                                                                                                                                                                   |
+| ------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Nothing leaves except through a projection | Responses are `server/api` types built field by field. A test per game-state route asserts the serialized JSON has **exactly** the expected keys, so an added field fails a test rather than shipping silently.                                                              |
+| Hidden zones never cross                   | For each hidden zone, a **two-viewer test** plays a state where the zone differs by viewer and asserts the other viewer's payload contains neither the list nor any identity from it — searched in the raw JSON text, not the decoded DTO, so an unmapped field still fails. |
+| Refusals are projected too                 | The same assertions against the `game` attached to a `409`/`422` refusal.                                                                                                                                                                                                    |
+| The seed never ships                       | A test with a known seed asserts it (and the counter) appear in no response body, realtime frame, or captured log line.                                                                                                                                                      |
+| Undo returns projection, not snapshot      | An undo test for a hidden zone asserts the response equals the projection of the restored state for that viewer.                                                                                                                                                             |
+| Realtime carries no state                  | A test asserts a pushed frame's keys are exactly `type`, `gameId`, `version`.                                                                                                                                                                                                |
+| Payload identity includes viewer           | Any cache or dedup introduced gets a test with two viewers at one version receiving different payloads.                                                                                                                                                                      |
+| Spectators see only public zones           | When spectators exist: a spectator-view test beside each two-viewer test.                                                                                                                                                                                                    |
 
 Chess has no hidden zone, so the two-viewer and seed tests have nothing to test yet. They
 belong to the first hidden-information ruleset's projection, alongside the code that makes

@@ -18,21 +18,21 @@ Do not build a universal board-game engine during the chess MVP.
 
 ## 2. Technology Stack
 
-| Area | Choice |
-|---|---|
-| Android language | Kotlin |
-| Android UI | Jetpack Compose |
-| Shared game logic | Pure Kotlin/JVM module |
-| Backend | Kotlin + Ktor |
-| Database | PostgreSQL 18 locally/CI; beta on `ChessGame Dev`'s PostgreSQL (`D035`) |
-| SQL access | JetBrains Exposed DSL over HikariCP |
-| Migrations | Flyway applying forward-only SQL files |
-| Authentication | Supabase anonymous auth |
-| Serialization | Kotlin serialization + JSON |
-| Commands / queries | HTTPS |
-| Realtime updates | WebSockets |
-| Build | Gradle Kotlin DSL |
-| Repository | Monorepo |
+| Area               | Choice                                                                  |
+| ------------------ | ----------------------------------------------------------------------- |
+| Android language   | Kotlin                                                                  |
+| Android UI         | Jetpack Compose                                                         |
+| Shared game logic  | Pure Kotlin/JVM module                                                  |
+| Backend            | Kotlin + Ktor                                                           |
+| Database           | PostgreSQL 18 locally/CI; beta on `ChessGame Dev`'s PostgreSQL (`D035`) |
+| SQL access         | JetBrains Exposed DSL over HikariCP                                     |
+| Migrations         | Flyway applying forward-only SQL files                                  |
+| Authentication     | Supabase anonymous auth                                                 |
+| Serialization      | Kotlin serialization + JSON                                             |
+| Commands / queries | HTTPS                                                                   |
+| Realtime updates   | WebSockets                                                              |
+| Build              | Gradle Kotlin DSL                                                       |
+| Repository         | Monorepo                                                                |
 
 `game-core` starts as Kotlin/JVM because both current consumers are JVM-based: Android and the Ktor server.
 
@@ -449,11 +449,11 @@ Database requirements:
 
 Three, and they are not interchangeable (`D060`, `M19.11`):
 
-| column | written when | accuracy |
-|---|---|---|
-| `last_seen_at` | any authenticated request (`D010`) | throttled to one write per user per five minutes |
-| `last_login_at` | a session starting — `GET /me` | exact |
-| `last_action_at` | a command being **accepted** | exact, inside the command's transaction |
+| column           | written when                       | accuracy                                         |
+| ---------------- | ---------------------------------- | ------------------------------------------------ |
+| `last_seen_at`   | any authenticated request (`D010`) | throttled to one write per user per five minutes |
+| `last_login_at`  | a session starting — `GET /me`     | exact                                            |
+| `last_action_at` | a command being **accepted**       | exact, inside the command's transaction          |
 
 `GET /me` is what "session start" means here: every other authenticated route is
 a session being *used*, and this is the one the app calls after restoring or

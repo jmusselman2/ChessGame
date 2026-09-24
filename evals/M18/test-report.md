@@ -4,12 +4,12 @@ Production baseline: `38be421dfd64c269687c893300f11e661bfa9c90`
 
 ## Results
 
-| Verification | Tests | Failed | Errors | Skipped | Result |
-| --- | ---: | ---: | ---: | ---: | --- |
-| Required review-section audit | 4 sections | 0 | 0 | 0 | PASS |
-| D044 and `ARCHITECTURE.md` §31 reconciliation | 2 records | 0 | 0 | 0 | PASS |
-| `M18DocumentationRegressionTest.ps1` | 1 | 1 | 0 | 0 | EXPECTED FAIL |
-| `git diff --check` | — | — | — | — | PASS |
+| Verification                                  | Tests      | Failed | Errors | Skipped | Result        |
+| --------------------------------------------- | ----------:| ------:| ------:| -------:| ------------- |
+| Required review-section audit                 | 4 sections | 0      | 0      | 0       | PASS          |
+| D044 and `ARCHITECTURE.md` §31 reconciliation | 2 records  | 0      | 0      | 0       | PASS          |
+| `M18DocumentationRegressionTest.ps1`          | 1          | 1      | 0      | 0       | EXPECTED FAIL |
+| `git diff --check`                            | —          | —      | —      | —       | PASS          |
 
 The structural audit found the four acceptance-criterion sections:
 `Chess-specific concepts`, `Proven platform concepts`, `Abstractions worth

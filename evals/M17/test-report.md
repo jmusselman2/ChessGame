@@ -4,14 +4,14 @@ Production baseline: `38be421dfd64c269687c893300f11e661bfa9c90`
 
 ## Results
 
-| Verification | Tests | Failed | Errors | Skipped | Result |
-| --- | ---: | ---: | ---: | ---: | --- |
-| `scripts/verify-beta-apk.sh` | 6 checks | 0 | 0 | 0 | PASS |
-| New-game broadcast and server build identity | 16 | 0 | 0 | 0 | PASS |
-| Dashboard sections and build label | 23 | 0 | 0 | 0 | PASS |
-| Live deployed `/health` and TLS | 1 probe | 0 | 0 | 0 | PASS |
-| Tracked artifact/credential inspection | — | — | — | — | PASS |
-| `git diff --check` | — | — | — | — | PASS |
+| Verification                                 | Tests    | Failed | Errors | Skipped | Result |
+| -------------------------------------------- | --------:| ------:| ------:| -------:| ------ |
+| `scripts/verify-beta-apk.sh`                 | 6 checks | 0      | 0      | 0       | PASS   |
+| New-game broadcast and server build identity | 16       | 0      | 0      | 0       | PASS   |
+| Dashboard sections and build label           | 23       | 0      | 0      | 0       | PASS   |
+| Live deployed `/health` and TLS              | 1 probe  | 0      | 0      | 0       | PASS   |
+| Tracked artifact/credential inspection       | —        | —      | —      | —       | PASS   |
+| `git diff --check`                           | —        | —      | —      | —       | PASS   |
 
 The repository verifier ran through the installed Git Bash. Its six checks
 proved the default release remains unsigned; a throwaway key produces a

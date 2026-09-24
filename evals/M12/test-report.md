@@ -11,12 +11,12 @@ checking the second, making the sequential fan-out blockage explicit.
 
 ## Results
 
-| Verification | Tests | Failed | Errors | Skipped | Result |
-| --- | ---: | ---: | ---: | ---: | --- |
-| Retained M12 and later new-game realtime suites | 31 | 0 | 0 | 0 | PASS |
-| M12 adversarial stalled-recipient isolation | 1 | 1 | 0 | 0 | DEFECT PROVED |
-| Test-source style check | — | — | — | — | PASS |
-| `git diff --check` | — | — | — | — | PASS |
+| Verification                                    | Tests | Failed | Errors | Skipped | Result        |
+| ----------------------------------------------- | -----:| ------:| ------:| -------:| ------------- |
+| Retained M12 and later new-game realtime suites | 31    | 0      | 0      | 0       | PASS          |
+| M12 adversarial stalled-recipient isolation     | 1     | 1      | 0      | 0       | DEFECT PROVED |
+| Test-source style check                         | —     | —      | —      | —       | PASS          |
+| `git diff --check`                              | —     | —      | —      | —       | PASS          |
 
 The combined forced run contained `RealtimeConnectionTest`,
 `GameUpdateBroadcastTest`, `ReconnectRecoveryTest`, `WebSocketKeepAliveTest`,

@@ -4,12 +4,12 @@ Production baseline: `38be421dfd64c269687c893300f11e661bfa9c90`
 
 ## Results
 
-| Verification | Tests | Failed | Errors | Skipped | Result |
-| --- | ---: | ---: | ---: | ---: | --- |
-| Duplicate commands, series idempotency, logging, and locked command reads | 33 | 0 | 0 | 0 | PASS |
-| Network interruption, app restart, and silent-socket resilience | 26 | 3 | 0 | 0 | EXPECTED FAIL |
-| Retained cases within the Android resilience selection | 23 | 0 | 0 | 0 | PASS |
-| `git diff --check` | — | — | — | — | PASS |
+| Verification                                                              | Tests | Failed | Errors | Skipped | Result        |
+| ------------------------------------------------------------------------- | -----:| ------:| ------:| -------:| ------------- |
+| Duplicate commands, series idempotency, logging, and locked command reads | 33    | 0      | 0      | 0       | PASS          |
+| Network interruption, app restart, and silent-socket resilience           | 26    | 3      | 0      | 0       | EXPECTED FAIL |
+| Retained cases within the Android resilience selection                    | 23    | 0      | 0      | 0       | PASS          |
+| `git diff --check`                                                        | —     | —      | —      | —       | PASS          |
 
 The server selection comprised `DuplicateCommandTest` (11),
 `SeriesIdempotencyTest` (10), `ServerLoggingTest` (6), and

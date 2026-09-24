@@ -14,13 +14,13 @@ Baseline: `0da5f42b7deacde1aaa698f09d32b19a72e6df89`
 
 ## Results
 
-| Verification | Tests | Failed | Errors | Skipped | Result |
-| --- | ---: | ---: | ---: | ---: | --- |
-| Android host-side unit tests | 398 | 0 | 0 | 0 | PASS |
-| `game-core` tests | 394 | 0 | 0 | 0 | PASS |
-| Server tests in full build | 408 | 0 | 0 | 0 | PASS |
-| API 36 Compose instrumentation | 7 | 0 | 0 | 0 | PASS |
-| Total JVM tests | 1,200 | 0 | 0 | 0 | PASS |
+| Verification                   | Tests | Failed | Errors | Skipped | Result |
+| ------------------------------ | -----:| ------:| ------:| -------:| ------ |
+| Android host-side unit tests   | 398   | 0      | 0      | 0       | PASS   |
+| `game-core` tests              | 394   | 0      | 0      | 0       | PASS   |
+| Server tests in full build     | 408   | 0      | 0      | 0       | PASS   |
+| API 36 Compose instrumentation | 7     | 0      | 0      | 0       | PASS   |
+| Total JVM tests                | 1,200 | 0      | 0      | 0       | PASS   |
 
 The following checks also passed:
 

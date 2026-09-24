@@ -117,11 +117,11 @@ tasks it could still have run.
 
 ## Verification
 
-| Run | Result |
-| --- | --- |
-| `:android-app:testDebugUnitTest --tests ChessAppTest` | **BUILD SUCCESSFUL** |
+| Run                                                                               | Result               |
+| --------------------------------------------------------------------------------- | -------------------- |
+| `:android-app:testDebugUnitTest --tests ChessAppTest`                             | **BUILD SUCCESSFUL** |
 | `:server:test` — every suite except `M10AdversarialTest` and `M12AdversarialTest` | **BUILD SUCCESSFUL** |
-| `./gradlew build --continue -x :server:test -x :android-app:testDebugUnitTest` | **BUILD SUCCESSFUL** |
+| `./gradlew build --continue -x :server:test -x :android-app:testDebugUnitTest`    | **BUILD SUCCESSFUL** |
 
 M8-01, M8-02, and M8-03 all still pass. `M10AdversarialTest`,
 `M12AdversarialTest`, and `NetworkInterruptionTest` were not run and not modified —

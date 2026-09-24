@@ -4,13 +4,13 @@ Baseline: `38be421dfd64c269687c893300f11e661bfa9c90`
 
 ## Results
 
-| Verification | Tests | Failed | Errors | Skipped | Result |
-| --- | ---: | ---: | ---: | ---: | --- |
-| Deployment, database URL, migration, and reset-guard tests | 33 | 0 | 0 | 0 | PASS |
-| Beta endpoint, wake policy, and app-startup tests | 30 | 0 | 0 | 0 | PASS |
-| Live deployed `/health` over TLS | 2 probes | 0 | 0 | 0 | PASS |
-| Secret tracking and ignore-rule inspection | — | — | — | — | PASS |
-| `git diff --check` | — | — | — | — | PASS |
+| Verification                                               | Tests    | Failed | Errors | Skipped | Result |
+| ---------------------------------------------------------- | --------:| ------:| ------:| -------:| ------ |
+| Deployment, database URL, migration, and reset-guard tests | 33       | 0      | 0      | 0       | PASS   |
+| Beta endpoint, wake policy, and app-startup tests          | 30       | 0      | 0      | 0       | PASS   |
+| Live deployed `/health` over TLS                           | 2 probes | 0      | 0      | 0       | PASS   |
+| Secret tracking and ignore-rule inspection                 | —        | —      | —      | —       | PASS   |
+| `git diff --check`                                         | —        | —      | —      | —       | PASS   |
 
 The server selection comprised `DeploymentTest`, `DatabaseConfigTest`,
 `DisposableDatabaseTest`, and `MigrationsTest`, forced with `--rerun-tasks`

@@ -4,15 +4,15 @@ Baseline: `3de5e28dbcb29e5d86e163c39b26278686385c4c`
 
 ## Results
 
-| Verification | Tests | Failed | Errors | Skipped | Result |
-| --- | ---: | ---: | ---: | ---: | --- |
-| Full Android JVM suite, including M14 evaluator regressions | 416 | 3 | 0 | 0 | EXPECTED FAIL |
-| Retained Android JVM tests | 413 | 0 | 0 | 0 | PASS |
-| M14 server history, game-view, and identity slice | 26 | 0 | 0 | 0 | PASS |
-| Full `game-core` suite | 394 | 0 | 0 | 0 | PASS |
-| Android test-source ktlint | — | — | — | — | PASS |
-| Debug APK assembly and Android lint | — | — | — | — | PASS |
-| `git diff --check` | — | — | — | — | PASS |
+| Verification                                                | Tests | Failed | Errors | Skipped | Result        |
+| ----------------------------------------------------------- | -----:| ------:| ------:| -------:| ------------- |
+| Full Android JVM suite, including M14 evaluator regressions | 416   | 3      | 0      | 0       | EXPECTED FAIL |
+| Retained Android JVM tests                                  | 413   | 0      | 0      | 0       | PASS          |
+| M14 server history, game-view, and identity slice           | 26    | 0      | 0      | 0       | PASS          |
+| Full `game-core` suite                                      | 394   | 0      | 0      | 0       | PASS          |
+| Android test-source ktlint                                  | —     | —      | —      | —       | PASS          |
+| Debug APK assembly and Android lint                         | —     | —      | —      | —       | PASS          |
+| `git diff --check`                                          | —     | —      | —      | —       | PASS          |
 
 The full Android suite was forced with `--rerun-tasks`. Its only failures were
 the three new deterministic tests in `NetworkInterruptionTest`:

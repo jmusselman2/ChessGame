@@ -5874,6 +5874,7 @@ This is an analysis and decision task, documented under `D062`:
    document** in `docs/` (for example `docs/GAME-STATE-VISIBILITY.md`). If a
    suitable focused document already exists when the task starts, update and
    reuse it rather than creating a duplicate. It consolidates, in one place:
+
    - per-viewer state projection, and the `GameView.of` seam;
    - hidden-state exposure;
    - deck order, unknown-position card identity, and randomness secrets (the
@@ -5890,11 +5891,14 @@ This is an analysis and decision task, documented under `D062`:
    binding decisions. It is **not** a repository-wide security catchall:
    authentication, logging (`M16.5`), and infrastructure security stay in their
    existing documents.
+
 2. **A numbered decision in `docs/DECISIONS.md` for each binding conclusion**,
    linking to the document, with the document linking back.
+
 3. **A concise completion pointer in this backlog** when done: a link to the
    document and the decisions, plus the essential outcome, not a restatement of
    the analysis.
+
 4. **The document added to `CLAUDE.md`'s conditional required-reading list** in
    the same change that creates it.
 
@@ -6049,13 +6053,13 @@ beside `M16.5`'s "what is never logged".
 than severity.** A line reaches `INFO` when it means something actually went
 wrong *for a player*; it stays at `DEBUG` when it is only detail.
 
-| | level | why |
-|---|---|---|
-| A realtime send that **failed** | `INFO` | one player did not get one update |
-| A realtime send that **timed out** | `WARN` | a socket that neither delivers nor fails — the `M12-01` pathology |
-| A **rejected bearer token** | `INFO` | one is a stale session; a run of them is worth looking at |
-| A socket **opening, closing, or ending by exception** | `DEBUG` | see below |
-| An error that **escapes a route** | `ERROR` | Ktor's own handler; nothing added |
+|                                                       | level   | why                                                               |
+| ----------------------------------------------------- | ------- | ----------------------------------------------------------------- |
+| A realtime send that **failed**                       | `INFO`  | one player did not get one update                                 |
+| A realtime send that **timed out**                    | `WARN`  | a socket that neither delivers nor fails — the `M12-01` pathology |
+| A **rejected bearer token**                           | `INFO`  | one is a stale session; a run of them is worth looking at         |
+| A socket **opening, closing, or ending by exception** | `DEBUG` | see below                                                         |
+| An error that **escapes a route**                     | `ERROR` | Ktor's own handler; nothing added                                 |
 
 **Why an abnormally-ended socket is `DEBUG` and not `INFO`,** which is the one
 thing here that was got wrong first and then measured: an ordinary
