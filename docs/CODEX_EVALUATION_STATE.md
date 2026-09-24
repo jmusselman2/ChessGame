@@ -7,10 +7,11 @@
 - **Current evaluated `main`:** `83de79ceed51577b9b8cffa38ca1b937e029537a`
   for M19-01, M17.3/M17.5–M17.10, and Android 5.1/API 22 compatibility.
 - **Current `main`:** `83de79ceed51577b9b8cffa38ca1b937e029537a`.
-- **Current milestone:** current M17 behavior and Android 5.1/API 22
-  compatibility re-evaluations complete; consolidated state refresh next.
+- **Current milestone:** independent evaluation current through pinned
+  `origin/main`; M20.1 is the next human-sign-off boundary.
 - **Status:** `M19 PASS — M19-01 INDEPENDENTLY CLOSED; M17.3 AND
-  M17.5–M17.10 PASS`. M17.4 remains intentionally blocked on an owner decision.
+  M17.5–M17.10 PASS; ANDROID 5.1/API 22 COMPATIBILITY PASS`. M17.4 remains
+  intentionally blocked on an owner decision.
 - **Scope boundary:** M19.1 moved to M20.1. The N >= 3 resignation and
   continuation flow formerly in M19.8 moved to M20.2. Neither is an M19 defect.
 - **Current reports:** `evals/M19/post-remediation-re-evaluation-critic-report.md`
@@ -76,6 +77,26 @@ No new M17 finding was opened. Android 5.1/API 22 compatibility in `8538db3`
 passes static, build, package, Pixel regression, and physical Kindle API 22
 runtime verification.
 
+## Findings and limitations
+
+- **New findings:** none. No evaluator regression was added in this evaluation
+  batch. The original `M19ParticipantIdentityRegressionTest` remains unchanged
+  and passes, closing M19-01.
+- **M17.10 device timing:** its four model regressions passed and the
+  implementation track's Pixel/Kindle evidence was inspected, but this
+  evaluation did not repeat the complete two-account opponent-move/foreground
+  timing scenario. This does not block its verdict because the state transition
+  and socket replacement are deterministic and covered directly.
+- **Signing:** no project beta signing keystore was used. API 22 runtime checks
+  used an isolated debug application id; debug and unsigned release packaging
+  both passed.
+- **Device isolation:** the Kindle's installed ChessGame package and data were
+  not replaced. The evaluator clone was removed, and both devices' original
+  stay-awake value (`0`) was restored.
+- The historical beta-database, Render-log and signing-credential limitations
+  below remain unchanged; no credential value was printed or required for the
+  local/database/device verdicts.
+
 ## Beta result
 
 At the time of the M19 evaluation, the existing Render beta was serving the
@@ -117,31 +138,35 @@ All database commands used
 `TEST_DATABASE_URL=postgresql://chessgame:chessgame@localhost:55432/chessgame_test`
 against disposable PostgreSQL.
 
-- focused M19 server and migration tests: PASS;
-- `./gradlew :server:test --rerun-tasks --continue`: PASS, 560 tests and none
-  skipped, before adding the expected-red evaluator regression;
-- `./gradlew :android-app:testDebugUnitTest --rerun-tasks`: PASS, 442 tests and
-  none skipped;
-- `./gradlew ktlintCheck`: PASS;
-- `./gradlew build --continue`: expected failure only at
-  `M19ParticipantIdentityRegressionTest` (562 server tests, 1 failure; Android
-  build, lint, and 442 tests completed successfully under `--continue`);
-- `./gradlew :server:test --tests M19MigrationEvaluationTest --rerun-tasks`:
-  PASS;
-- `./gradlew :server:test --tests M19ParticipantIdentityRegressionTest
-  --rerun-tasks`: EXPECTED FAIL;
-- `evals/M19/current-beta-smoke.ps1`: PASS;
-- `./gradlew :android-app:assembleDebug -PchessServerUrl=<beta HTTPS endpoint>
-  -PsupabaseAnonKey=<publishable key>`: PASS; clean emulator install and cold
-  relaunch/session restoration: PASS;
-- `scripts/verify-beta-apk.sh`: PASS, 6/6 with a disposable signing key;
-- `git diff --check`: PASS.
+- M19 repository/migration selection: PASS, 23/23 with no failures, errors, or
+  skips, including the unchanged `M19ParticipantIdentityRegressionTest`;
+- `./gradlew :server:test --rerun-tasks --continue`: PASS, 570/570 with no
+  database-backed skips;
+- M17 focused server/Android selection: PASS, 197/197;
+- complete `game-core`: PASS, 394/394;
+- complete Android host-side: PASS, 484/484;
+- `./gradlew :android-app:build --rerun-tasks --continue`: PASS, 110 tasks,
+  including ktlint, lint, dependency metadata, debug/release assembly and APK
+  packaging;
+- `./gradlew build --continue`: PASS in 20m55s, 134 tasks (28 executed, 106
+  up-to-date), including all modules, static checks, lint, debug/release
+  artifacts and server distributions;
+- Pixel 7 / Android 16: `GameLayoutUiTest` 9/9 and live beta
+  `LocalGameRotationTest` 1/1 PASS;
+- Kindle KFDOWI / Android 5.1.1 API 22: the same 9/9 and 1/1 PASS using an
+  isolated evaluator package; cold launch and a refusing-server failure screen
+  also PASS;
+- `apkanalyzer manifest min-sdk`: `22`; `aapt dump badging`: minSdk 22,
+  targetSdk 37, launchable `MainActivity`; raster pre-v26 icon resources present;
+- initial version-code and sleeping/locked-screen instrumentation failures were
+  infrastructure/setup failures; clean reruns above passed;
+- `git diff --check` and complete evaluator-diff inspection: PASS.
 
 ## Exact next action
 
-Refresh the consolidated verification record, run final aggregate checks, and
-then keep M20.1 as the next human-sign-off boundary.
+**M20.1 is the next human-sign-off boundary:** choose the multi-game
+rules/module architecture with the project owner before starting M20.2. Do not
+choose that architecture automatically.
 
-After that, **M20.1 remains the next human-sign-off boundary**: choose
-the multi-game rules/module architecture with the project owner before starting
-M20.2. Do not choose that architecture automatically.
+The independent evaluation track is current through pinned `origin/main`
+`83de79ceed51577b9b8cffa38ca1b937e029537a`.

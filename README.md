@@ -80,8 +80,11 @@ the developer. The arc:
   physical Android device, got through onboarding unaided, and played an online
   game to the end without developer intervention. Since then the home screen
   names its player, and an "All users" page lets testers add friends without
-  typing exact names (`M17.3`, `M17.5`, `M17.6`). User settings (`M17.4`) wait on
-  the project owner deciding what they hold.
+  typing exact names. Game screens now fit compact and rotated windows, HTTP
+  calls have an overall deadline, promotion choices are readable, foreground
+  returns refresh immediately, and the app supports Android 5.1/API 22
+  (`M17.3`, `M17.5`–`M17.10`). User settings (`M17.4`) wait on the project owner
+  deciding what they hold.
 - `M18` — a review of what the chess implementation proved about the platform
   underneath it, in `docs/PLATFORM-REVIEW.md`.
 - `M19` — the platform generalized to tables and typed participants, parallel
@@ -105,9 +108,9 @@ Implemented foundations include:
 - aggregate Gradle verification with ktlint, Android lint, JVM tests, Android
   unit tests, APK assembly, and server distributions.
 
-Independent evaluation (`evals/`) runs on its own track. It has evaluated M19;
-the `M19-01` remediation and `M17.3`, `M17.5` and `M17.6` are still to be
-evaluated.
+Independent evaluation (`evals/`) runs on its own track. It has independently
+closed `M19-01` and passed the current M17 work, including physical Pixel 7 and
+Android 5.1 Kindle compatibility checks.
 `docs/CODEX_EVALUATION_STATE.md` is the source of truth for its evidence and
 findings.
 
