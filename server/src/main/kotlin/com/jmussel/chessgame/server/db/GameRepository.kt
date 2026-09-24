@@ -59,7 +59,20 @@ data class StoredGame(
 data class StoredGameEvent(
     val type: String,
     val payload: JsonObject,
+    /** The player whose request caused the event, or `null` when no player did (`D078`). */
+    val actorId: Uuid? = null,
+    /** The series the event belongs to, or `null` for one that belongs to none. */
+    val seriesId: Uuid? = null,
 )
+
+/** One `game_events` row as the repositories read it back. */
+internal fun toStoredGameEvent(row: ResultRow): StoredGameEvent =
+    StoredGameEvent(
+        type = row[GameEventsTable.type],
+        payload = row[GameEventsTable.payload],
+        actorId = row[GameEventsTable.actorId],
+        seriesId = row[GameEventsTable.seriesId],
+    )
 
 /** Raised when a game has moved on since the caller read it (`D021`). */
 class StaleGameVersionException(
@@ -257,12 +270,16 @@ class GameRepository(
      * with the move that caused them, or none of them are. Finalization happens exactly
      * once because only one write can move the row off the version it was read at, and
      * only the write that finds a running game and leaves a finished one finalizes it.
+     *
+     * Both events name [actor], the player whose command this write is, and the game's
+     * series (`D078`).
      */
     fun save(
         id: Uuid,
         expectedVersion: Long,
         game: ChessGame,
         auditEvent: String? = null,
+        actor: Uuid? = null,
     ): Long =
         transaction(database) {
             val current =
@@ -306,13 +323,17 @@ class GameRepository(
             MovesTable.deleteWhere { MovesTable.gameId eq id }
             writeHistory(id, game)
 
+            val seriesId = current[GamesTable.seriesId]
+
             auditEvent?.let { type ->
-                recordEvent(id, type, now, buildJsonObject { put("version", nextVersion) })
+                recordEvent(id, seriesId, actor, type, now, buildJsonObject { put("version", nextVersion) })
             }
 
             if (finalizing) {
                 recordEvent(
                     gameId = id,
+                    seriesId = seriesId,
+                    actor = actor,
                     type = GAME_ENDED,
                     at = now,
                     payload =
@@ -348,18 +369,22 @@ class GameRepository(
                 .selectAll()
                 .where { GameEventsTable.gameId eq gameId }
                 .orderBy(GameEventsTable.id to SortOrder.ASC)
-                .map { StoredGameEvent(type = it[GameEventsTable.type], payload = it[GameEventsTable.payload]) }
+                .map(::toStoredGameEvent)
         }
 
     /** Appends one audit event. Append-only: nothing ever updates or deletes these rows. */
     private fun recordEvent(
         gameId: Uuid,
+        seriesId: Uuid,
+        actor: Uuid?,
         type: String,
         at: OffsetDateTime,
         payload: JsonObject,
     ) {
         GameEventsTable.insert { row ->
             row[GameEventsTable.gameId] = gameId
+            row[GameEventsTable.seriesId] = seriesId
+            row[GameEventsTable.actorId] = actor
             row[GameEventsTable.type] = type
             row[GameEventsTable.payload] = payload
             row[GameEventsTable.createdAt] = at

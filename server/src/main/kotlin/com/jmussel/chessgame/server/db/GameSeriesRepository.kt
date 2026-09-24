@@ -167,6 +167,7 @@ class GameSeriesRepository(
     fun recordEvent(
         seriesId: Uuid,
         gameId: Uuid?,
+        actor: Uuid?,
         type: String,
         payload: JsonObject,
     ) {
@@ -174,6 +175,7 @@ class GameSeriesRepository(
             GameEventsTable.insert { row ->
                 row[GameEventsTable.seriesId] = seriesId
                 row[GameEventsTable.gameId] = gameId
+                row[GameEventsTable.actorId] = actor
                 row[GameEventsTable.type] = type
                 row[GameEventsTable.payload] = payload
                 row[GameEventsTable.createdAt] = Instant.now().atOffset(ZoneOffset.UTC)
@@ -188,7 +190,7 @@ class GameSeriesRepository(
                 .selectAll()
                 .where { GameEventsTable.seriesId eq seriesId }
                 .orderBy(GameEventsTable.id to SortOrder.ASC)
-                .map { StoredGameEvent(type = it[GameEventsTable.type], payload = it[GameEventsTable.payload]) }
+                .map(::toStoredGameEvent)
         }
 
     /** Records where [seriesId] is in its seat rotation, beside the game that position produced. */

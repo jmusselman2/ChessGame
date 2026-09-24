@@ -5335,7 +5335,7 @@ database wiped earlier that day. The server holds its five pooled connections.
 
 ## M17.13 — Audit events record who acted, and which series they belong to
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M17.12
 
@@ -5387,6 +5387,34 @@ three or more players who acted cannot be worked out afterwards. The wipe emptie
   `series_id` hold.
 - Out of scope: showing the log to players (`D056`), and indexes on `actor_id`
   (see `M17.12`).
+
+### Completion Note — 2026-09-24
+
+Decided in `D078`. `GameRepository.save` takes an `actor` and writes it, with the
+game's `series_id` read from the row it is already updating, on both the command's
+event and `GameEnded`. The four commands in `GameCommandService` pass the caller, and
+`applied` passes them on to `SeriesService.settleAfter`, which puts them on
+`RematchCreated`. `SeriesService.leave` writes the leaving player as the actor and
+keeps `userId` in the payload. `StoredGameEvent` carries `actorId` and `seriesId`,
+read by one shared mapper in both repositories.
+
+**No event without an actor.** Every event is written while a player's request is
+handled, so in chess none has an empty `actor_id`. `save` and `settleAfter` keep the
+actor optional for callers with no player, which are only tests that call a
+repository directly.
+
+**Tests.** `AuditActorTest` (6) drives the real routes: a move and an undo, a
+resignation (its `PlayerResigned`, `GameEnded` and `RematchCreated` all in the
+resigner's name), Fool's mate (`GameEnded` and `RematchCreated` in the mating
+player's name), a threefold claim after the knights go out and back twice, a leave,
+and a series' log holding its games' moves, resignation, ending and rematch in order.
+With the `actor_id` writes removed, five of the six fail; the sixth checks order only.
+`SeriesExitTest`, `FinalizeGameTest`, `GameRepositoryTest` and `AutomaticRematchTest`
+pass unchanged. `ARCHITECTURE.md` §9 says what `actor_id`, `game_id` and `series_id`
+hold.
+
+Verified with `ktlintCheck` and `.\gradlew.bat build`: 585 server, 515 Android and
+394 game-core tests, none failed or skipped.
 
 ---
 

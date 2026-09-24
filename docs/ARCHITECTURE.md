@@ -279,6 +279,11 @@ RematchCreated
 SeriesLeft
 ```
 
+Each event names who caused it and what it belongs to (`D078`): `actor_id` is the
+player whose request caused it, which for `GameEnded` and `RematchCreated` is the
+player whose command ended the game; `game_id` is its game, if any; and `series_id`
+is its series, so a series' log holds its games' events as well as its own.
+
 `SeriesClosed` was recorded until `M19.5` removed the path that closed a series
 after its current game; leaving a series records `SeriesLeft` (`D068`). Friendship
 and group changes are not events: their rows are kept rather than deleted, with

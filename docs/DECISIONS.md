@@ -4977,3 +4977,59 @@ the case that spreads: every command for that game queues behind the holder.
   `DatabaseTestSupport.withMigratedDatabase`, which also resets the schema through
   a migration connection, as the server does.
 - A migration that must not be cut short needs nothing special.
+
+---
+
+## D078 — Every Audit Event Names Who Caused It and Which Series It Belongs To
+
+**Date:** 2026-09-24
+
+**Status:** Accepted
+
+**Relates to:** `D020`, `D051`, `D056`, `D067`, `M17.13`
+
+### Decision
+
+- **`game_events.actor_id` is the player whose request caused the event.** For
+  `MoveMade`, `MoveUndone`, `DrawClaimed` and `PlayerResigned` that is the player
+  who sent the command. `GameEnded` and `RematchCreated` happen in the same request
+  as the command that ended the game (the final move, a draw claim, or the
+  resignation), so they carry that player too. An automatic draw is ended by the
+  move that caused it. `SeriesLeft` carries the player who left.
+- **No event in chess lacks an actor.** Every event is written while a player's
+  request is handled. `actor_id` stays nullable, for a caller that has no player,
+  such as a test calling a repository directly.
+- **Every event about a game records the game's series.** `GameRepository` reads
+  `series_id` from the game row it is already writing. So
+  `GameSeriesRepository.auditEvents(seriesId)` returns a whole series in order:
+  its games' moves, undos, claims, resignations and endings, and its rematches and
+  leave.
+- **`SeriesLeft` keeps `userId` in its payload.** It now repeats `actor_id`.
+  Removing it would change a record's shape for no reader's benefit, and events
+  already written have it.
+- **The actor is a user.** `actor_id` references `users`. A computer participant
+  (`D051`, `D067`) acting in a later ruleset would need the column to name a
+  non-user participant too; that belongs to `M20` and is not decided here.
+
+### Rationale
+
+`actor_id` was created in `V1` and never written. Chess could work out who acted
+from the seats, the version and the result, but `D056` derives the deck-builder's
+player-facing history from this log ("Turn 3: Alice played Ironclad"). With three
+or more players who acted cannot be worked out afterwards. The 2026-09-24 wipe had
+just emptied the log, so nothing needed backfilling.
+
+### Alternatives Considered
+
+- **Leave `actor_id` empty and derive the actor when needed.** Rejected: it works
+  only for two players.
+- **Drop the column.** Rejected: `D056` needs it.
+- **No actor on `GameEnded` and `RematchCreated`, as system events.** Rejected:
+  both happen only because a player's command ended the game, in that request.
+
+### Consequences
+
+- `GameRepository.save` takes an `actor`, and `SeriesService.settleAfter` passes
+  the finishing player through to `RematchCreated`.
+- `StoredGameEvent` carries `actorId` and `seriesId`.
+- `ARCHITECTURE.md` §9 says what the two columns hold.

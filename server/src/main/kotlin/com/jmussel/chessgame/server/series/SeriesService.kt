@@ -146,6 +146,7 @@ class SeriesService(
             series.recordEvent(
                 seriesId = seriesId,
                 gameId = current.currentGameId,
+                actor = caller,
                 type = SERIES_LEFT,
                 payload = buildJsonObject { put("userId", caller.toString()) },
             )
@@ -175,21 +176,28 @@ class SeriesService(
      * series that is no longer active, or whose current game is no longer the finished one,
      * has already been settled and is handed back untouched. That covers a retry, a
      * duplicated command, and two transactions arriving together.
+     *
+     * [actor] is the player whose command finished the game, and so caused the rematch; its
+     * audit event names them (`D078`).
      */
-    fun settleAfter(finished: StoredGame): StoredSeries? =
+    fun settleAfter(
+        finished: StoredGame,
+        actor: Uuid? = null,
+    ): StoredSeries? =
         transaction(database) {
             val current = series.findForUpdate(finished.seriesId) ?: return@transaction null
 
             when {
                 !current.isActive -> current
                 current.currentGameId != finished.id -> current
-                else -> startRematch(current, finished)
+                else -> startRematch(current, finished, actor)
             }
         }
 
     private fun startRematch(
         series: StoredSeries,
         finished: StoredGame,
+        actor: Uuid?,
     ): StoredSeries {
         // The next turn order comes from the series' seat rotation (`D050`). For chess that is
         // two rotating participants, so each game reverses the last one's colours (`D014`):
@@ -211,6 +219,7 @@ class SeriesService(
         this.series.recordEvent(
             seriesId = series.id,
             gameId = gameId,
+            actor = actor,
             type = REMATCH_CREATED,
             payload =
                 buildJsonObject {

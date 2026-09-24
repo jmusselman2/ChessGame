@@ -131,6 +131,7 @@ class GameCommandService(
                         expectedVersion = expectedVersion,
                         game = played,
                         auditEvent = MOVE_MADE,
+                        actor = userId,
                     )
                 } catch (_: StaleGameVersionException) {
                     // Another command won the race between the read and the write.
@@ -173,6 +174,7 @@ class GameCommandService(
                         expectedVersion = expectedVersion,
                         game = claimed,
                         auditEvent = DRAW_CLAIMED,
+                        actor = userId,
                     )
                 } catch (_: StaleGameVersionException) {
                     return@transaction CommandResult.StaleVersion(reload(gameId, stored))
@@ -213,6 +215,7 @@ class GameCommandService(
                         expectedVersion = expectedVersion,
                         game = resigned,
                         auditEvent = PLAYER_RESIGNED,
+                        actor = userId,
                     )
                 } catch (_: StaleGameVersionException) {
                     return@transaction CommandResult.StaleVersion(reload(gameId, stored))
@@ -258,6 +261,7 @@ class GameCommandService(
                         expectedVersion = expectedVersion,
                         game = undone,
                         auditEvent = MOVE_UNDONE,
+                        actor = userId,
                     )
                 } catch (_: StaleGameVersionException) {
                     return@transaction CommandResult.StaleVersion(reload(gameId, stored))
@@ -300,7 +304,7 @@ class GameCommandService(
 
         val saved = reload(gameId, fallback)
 
-        if (saved.isComplete) series.settleAfter(saved)
+        if (saved.isComplete) series.settleAfter(saved, actor = userId)
 
         return CommandResult.Applied(saved)
     }
