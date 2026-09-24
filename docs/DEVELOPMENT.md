@@ -25,7 +25,7 @@ Verified during bootstrap:
 - Kotlin: 2.2.10
 - Android Gradle Plugin: 9.3.1
 - Android compileSdk: 37
-- Android minSdk: 31
+- Android minSdk: 22
 - Android targetSdk: 37
 - Ktor: 3.5.2
 - ktlint Gradle plugin: 14.2.0
@@ -507,14 +507,14 @@ The local database is a disposable Docker container defined in `compose.yaml` at
 the repository root. It is development/test only — never a production or beta
 environment — and its credentials are deliberately non-secret local values.
 
-| | |
-|---|---|
-| Image | `postgres:18-alpine` (PostgreSQL 18.6) |
-| Container | `chessgame-postgres` |
-| Host port | `55432` (so an installed local PostgreSQL on `5432` is left alone) |
-| User / password | `chessgame` / `chessgame` (local throwaway values) |
-| Development database | `chessgame_dev` |
-| Test database | `chessgame_test` |
+|                      |                                                                    |
+| -------------------- | ------------------------------------------------------------------ |
+| Image                | `postgres:18-alpine` (PostgreSQL 18.6)                             |
+| Container            | `chessgame-postgres`                                               |
+| Host port            | `55432` (so an installed local PostgreSQL on `5432` is left alone) |
+| User / password      | `chessgame` / `chessgame` (local throwaway values)                 |
+| Development database | `chessgame_dev`                                                    |
+| Test database        | `chessgame_test`                                                   |
 
 ### Start
 
@@ -691,16 +691,16 @@ The shared development environment. This is *not* the disposable local database 
 that is the Docker container under **Local PostgreSQL**, which stays the target
 for tests.
 
-| | |
-|---|---|
-| Project | `ChessGame Dev` |
-| Project ref | `rkwymrtqayyyfahfgmbm` |
-| Region | `us-east-2` |
-| PostgreSQL | 17.6 (`db.rkwymrtqayyyfahfgmbm.supabase.co`) |
-| API URL | `https://rkwymrtqayyyfahfgmbm.supabase.co` |
-| Auth issuer | `https://rkwymrtqayyyfahfgmbm.supabase.co/auth/v1` |
-| JWKS | `https://rkwymrtqayyyfahfgmbm.supabase.co/auth/v1/.well-known/jwks.json` |
-| Token signing | `ES256` (EC key, served from JWKS) |
+|               |                                                                          |
+| ------------- | ------------------------------------------------------------------------ |
+| Project       | `ChessGame Dev`                                                          |
+| Project ref   | `rkwymrtqayyyfahfgmbm`                                                   |
+| Region        | `us-east-2`                                                              |
+| PostgreSQL    | 17.6 (`db.rkwymrtqayyyfahfgmbm.supabase.co`)                             |
+| API URL       | `https://rkwymrtqayyyfahfgmbm.supabase.co`                               |
+| Auth issuer   | `https://rkwymrtqayyyfahfgmbm.supabase.co/auth/v1`                       |
+| JWKS          | `https://rkwymrtqayyyfahfgmbm.supabase.co/auth/v1/.well-known/jwks.json` |
+| Token signing | `ES256` (EC key, served from JWKS)                                       |
 
 None of the above is a secret — the project ref and API URL ship inside the
 Android app. Keys are a different matter and are never committed.
@@ -930,17 +930,17 @@ explicit human authorization.
 
 Confirmed terms as of 2026-08-31 (numbers and references in `D032`):
 
-| | |
-|---|---|
-| Render Free instance hours | 750 per workspace per calendar month; Free web services suspended until next month when gone |
-| Render Hobby workspace (`$0`) | 5 GB outbound bandwidth, 500 build pipeline minutes, up to 25 services |
-| Render Free sleep | spins down after 15 min without traffic; roughly a one-minute cold start |
-| Render over-quota, no payment method | services spin down until the next month; no charge |
-| Render scaling | Free instance type is single-instance; autoscaling needs Pro |
-| Supabase Free | 2 active projects per org, 500 MB database, 1 GB storage, 5 GB egress + 5 GB cached, 50k MAU |
-| Supabase Free pausing | project paused after one week of inactivity |
-| Supabase Free over-quota | notified, grace period, then restricted under Fair Use (`402`); no charge |
-| Supabase Free backups | none; no point-in-time recovery |
+|                                      |                                                                                              |
+| ------------------------------------ | -------------------------------------------------------------------------------------------- |
+| Render Free instance hours           | 750 per workspace per calendar month; Free web services suspended until next month when gone |
+| Render Hobby workspace (`$0`)        | 5 GB outbound bandwidth, 500 build pipeline minutes, up to 25 services                       |
+| Render Free sleep                    | spins down after 15 min without traffic; roughly a one-minute cold start                     |
+| Render over-quota, no payment method | services spin down until the next month; no charge                                           |
+| Render scaling                       | Free instance type is single-instance; autoscaling needs Pro                                 |
+| Supabase Free                        | 2 active projects per org, 500 MB database, 1 GB storage, 5 GB egress + 5 GB cached, 50k MAU |
+| Supabase Free pausing                | project paused after one week of inactivity                                                  |
+| Supabase Free over-quota             | notified, grace period, then restricted under Fair Use (`402`); no charge                    |
+| Supabase Free backups                | none; no point-in-time recovery                                                              |
 
 **The beta reuses `ChessGame Dev` (`D035`).** No second Supabase project is
 created. Development and beta share that project's identities (`auth.users`),
@@ -979,13 +979,13 @@ Supavisor **session** pooler:
 
 Every part of that is settled:
 
-| | |
-|---|---|
-| Cluster | `aws-0-us-east-2` — confirmed against the pooler on 2026-08-31: `aws-0` reaches password authentication, `aws-1` answers `(ENOTFOUND) tenant/user postgres.rkwymrtqayyyfahfgmbm not found` |
-| Port | `5432`, session mode — transaction mode on `6543` has no prepared statements, which Exposed over HikariCP needs (`M15.1`) |
-| Username | `postgres.<project-ref>`, the pooler's tenant form, not plain `postgres` |
-| `sslmode` | `require`, carried in the URL |
-| Why not direct | `db.rkwymrtqayyyfahfgmbm.supabase.co` is IPv6-only and does not resolve on an IPv4-only host such as Render, which was reconfirmed here |
+|                |                                                                                                                                                                                            |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Cluster        | `aws-0-us-east-2` — confirmed against the pooler on 2026-08-31: `aws-0` reaches password authentication, `aws-1` answers `(ENOTFOUND) tenant/user postgres.rkwymrtqayyyfahfgmbm not found` |
+| Port           | `5432`, session mode — transaction mode on `6543` has no prepared statements, which Exposed over HikariCP needs (`M15.1`)                                                                  |
+| Username       | `postgres.<project-ref>`, the pooler's tenant form, not plain `postgres`                                                                                                                   |
+| `sslmode`      | `require`, carried in the URL                                                                                                                                                              |
+| Why not direct | `db.rkwymrtqayyyfahfgmbm.supabase.co` is IPv6-only and does not resolve on an IPv4-only host such as Render, which was reconfirmed here                                                    |
 
 `DatabaseConfig.fromUrl` now carries the query string through onto the JDBC URL
 and percent-decodes the credentials, so `?sslmode=require` survives and a
@@ -1104,13 +1104,13 @@ body after the first deploy, not just the status.
 Where the beta actually stands, so no step is assumed from the existence of the
 service:
 
-| State | Status |
-|---|---|
-| 1. Hosting resource exists | **Done**, manually, outside the backlog |
-| 2. Ktor is deployment-ready for Render | **Done** — `M15.2`, verified 2026-09-01 |
-| 3. Beta Supabase/database/auth configured | **Done** — `M15.3`, verified 2026-08-31 |
+| State                                             | Status                                                                                                                                        |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Hosting resource exists                        | **Done**, manually, outside the backlog                                                                                                       |
+| 2. Ktor is deployment-ready for Render            | **Done** — `M15.2`, verified 2026-09-01                                                                                                       |
+| 3. Beta Supabase/database/auth configured         | **Done** — `M15.3`, verified 2026-08-31                                                                                                       |
 | 4. Deployment succeeds and `/health` is reachable | **Done** — building since 2026-09-01; `dep-dabqj2eq1p3s73fs2sog` (`2be1f06`) is `live`, serving out of health-only mode, confirmed 2026-09-02 |
-| 5. Android beta points at the deployed service | **Done** — `M15.4`, play-through on the `ChessPlayer1` emulator 2026-09-02 |
+| 5. Android beta points at the deployed service    | **Done** — `M15.4`, play-through on the `ChessPlayer1` emulator 2026-09-02                                                                    |
 
 Three deploys failed, the last of `b54a40e` on 2026-08-31, all during the Docker
 build (`build_failed`). That was expected and is now addressed: the repository
@@ -1149,9 +1149,9 @@ after about 15 idle minutes and the next request pays a significant cold start.
 Measured 2026-09-02, `GET /health` over HTTPS:
 
 | Idle before the request | First request | Warm requests after |
-|---|---|---|
-| ~21 min | **59.0 s** | 0.43 s, 0.20 s |
-| ~20 min | **64.5 s** | 0.28 s |
+| ----------------------- | ------------- | ------------------- |
+| ~21 min                 | **59.0 s**    | 0.43 s, 0.20 s      |
+| ~20 min                 | **64.5 s**    | 0.28 s              |
 
 A request only 7 minutes after the previous one returned in 0.25 s — inside the
 15-minute window, so the instance was still up. That is the shape to expect: a
@@ -1175,17 +1175,20 @@ variables, or handle credentials (`D032` acceptance, `M15` milestone note).
 
 1. ~~**Give the service a branch that contains the `Dockerfile`.**~~ **Done** —
    `claude-autopilot` was integrated into `main`; both are `2be1f06`.
+
 2. ~~**Put the beta environment variables on the service.**~~ **Done** — proven
    by the `/health` body, which no longer reports health-only. For reference, the
    two are `DATABASE_URL` (the session-pooler URL under **Beta database
    connection** above, with the password and `?sslmode=require`, held in the
    owner's git-ignored `.env` as `BETA_DATABASE_URL`) and `SUPABASE_URL`
    (`https://rkwymrtqayyyfahfgmbm.supabase.co`).
+
 3. ~~**Deploy, and read the `/health` body.**~~ **Done** — builds have succeeded
    since `036a1a18` on 2026-09-01; auto-deploy then fired on `2be1f06` and
    `dep-dabqj2eq1p3s73fs2sog` went `live` at `2026-09-02T04:47:28Z`.
    `curl https://chessgame-hit7.onrender.com/health` returns
    `ChessGame server is healthy` without `(health-only: ...)`.
+
 4. ~~**Measure cold starts.**~~ **Done** — two samples, 59.0 s and 64.5 s after
    ~20 idle minutes, against 0.20–0.43 s warm. See the table above.
 

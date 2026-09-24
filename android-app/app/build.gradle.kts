@@ -98,7 +98,7 @@ android {
 
     defaultConfig {
         applicationId = "com.jmussel.chessgame"
-        minSdk = 31
+        minSdk = 22
         targetSdk = 37
         versionCode = chessVersionCode
         versionName = chessVersionName
