@@ -14,12 +14,29 @@ import com.jmussel.chessgame.auth.SessionStore
 import com.jmussel.chessgame.auth.SupabaseAuthClient
 import com.jmussel.chessgame.auth.SupabaseConfig
 import io.ktor.client.HttpClient
+import io.ktor.client.HttpClientConfig
 import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.serialization.kotlinx.json.json
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+
+/**
+ * The longest one HTTP request may take, from sending it to having the whole reply.
+ *
+ * OkHttp's own timeouts limit only the TCP connect and the gap between two reads, ten
+ * seconds each. Nothing limits a DNS lookup, a wait for a connection, or a reply that keeps
+ * arriving a few bytes at a time, and without an overall limit one such request can stall
+ * forever. `withServerWake` checks its deadline only between attempts, so that one request
+ * held startup on "Waking the server…" for minutes on a real device (`M17.8`, `D074`).
+ *
+ * Three times OkHttp's read timeout, so it never cuts off a request that is still making
+ * ordinary progress. It exists for the stalls nothing else catches.
+ */
+val httpRequestTimeout: Duration = 30.seconds
 
 /**
  * The long-lived objects the screens are built from: one HTTP client, the anonymous
@@ -108,7 +125,8 @@ class ChessAppDependencies(
             )
 
         /**
-         * One client for both APIs and the socket, lenient about fields it does not know.
+         * One client for both APIs and the socket, lenient about fields it does not know, with
+         * an overall limit on every HTTP request ([httpRequestTimeout]).
          *
          * The engine is named rather than resolved from the classpath, because the keepalive
          * below is an OkHttp setting and only OkHttp honours it. Ktor's own
@@ -121,13 +139,32 @@ class ChessAppDependencies(
          * [pingInterval] is a parameter so a test can choose a period it can afford to wait
          * out, and choose none at all to show what the app did before.
          */
-        fun defaultHttpClient(pingInterval: Duration = webSocketPingInterval): HttpClient =
+        fun defaultHttpClient(
+            pingInterval: Duration = webSocketPingInterval,
+            requestTimeout: Duration = httpRequestTimeout,
+        ): HttpClient =
             HttpClient(OkHttp) {
                 engine {
                     config { pingInterval(pingInterval.inWholeMilliseconds, TimeUnit.MILLISECONDS) }
                 }
-                install(ContentNegotiation) { json(ChessApiClient.Json) }
-                install(WebSockets)
+                installAppPlugins(requestTimeout)
             }
     }
+}
+
+/**
+ * What every client the app talks through carries, whichever engine is underneath.
+ *
+ * Kept apart from the engine so a test can put exactly this in front of a `MockEngine`.
+ * [requestTimeout] is a parameter for the same reason as the ping interval: a test chooses
+ * a limit it can afford to wait out, and [Duration.INFINITE] to show what the app did
+ * before it had one.
+ */
+internal fun HttpClientConfig<*>.installAppPlugins(requestTimeout: Duration) {
+    install(ContentNegotiation) { json(ChessApiClient.Json) }
+    install(WebSockets)
+    // Ktor leaves WebSocket requests out of the request timeout, so the realtime socket,
+    // which stays open for as long as the app does, is not cut off by it. Its liveness is
+    // the ping interval's job (`M16.6`).
+    install(HttpTimeout) { requestTimeoutMillis = requestTimeout.inWholeMilliseconds }
 }

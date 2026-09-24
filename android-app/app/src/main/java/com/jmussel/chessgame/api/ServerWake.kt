@@ -22,7 +22,14 @@ import kotlinx.coroutines.delay
  * overshoot the deadline and leave the player staring at nothing.
  */
 data class ServerWakePolicy(
-    /** Total time to keep trying before giving up and calling it a failure. */
+    /**
+     * Total time to keep trying before giving up and calling it a failure.
+     *
+     * Checked between attempts, so no attempt *starts* after it. An attempt already in
+     * flight is not interrupted, which is why every request the app makes has its own
+     * overall limit (`httpRequestTimeout`, `D074`): the worst case is this deadline plus
+     * one attempt, not forever.
+     */
     val deadlineMillis: Long = DEFAULT_DEADLINE_MILLIS,
     /** How long to wait after the first failure. */
     val initialDelayMillis: Long = DEFAULT_INITIAL_DELAY_MILLIS,
@@ -98,6 +105,10 @@ data class ServerWaking(
  * anything that is not the app's own fault: a refusal the server actually issued is an
  * answer and is rethrown at once, while an unreachable host, a dropped connection, or a
  * timeout is exactly what a sleeping instance looks like.
+ *
+ * This never times an [attempt] out itself. It relies on the attempt ending, and the app's
+ * HTTP client guarantees that for requests (`D074`). An attempt that could suspend forever
+ * would hold the caller here, reporting that the server is waking, for as long as it did.
  */
 suspend fun <T> withServerWake(
     policy: ServerWakePolicy = ServerWakePolicy(),

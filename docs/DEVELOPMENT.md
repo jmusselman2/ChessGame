@@ -794,6 +794,11 @@ than an error while that is happening. Mutating commands are deliberately **not*
 retried: a move carries the version it was decided against, and re-sending it is
 settled by the server's version guard, not by a client loop (`D021`).
 
+The deadline is checked between attempts, so every HTTP request also has an
+overall 30 s limit (`httpRequestTimeout`, `D074`). Without it, one request that
+never finished held startup on *"Waking the server…"* indefinitely (`M17.8`). The
+realtime WebSocket is exempt.
+
 ## Local Logs
 
 Status: VERIFIED (2026-08-26, `M16.5`)

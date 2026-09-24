@@ -4702,3 +4702,74 @@ device cover every size and font scale.
   to run the device tests and check rotation by hand.
 - The instrumented tests need Espresso 3.6.1 or later on Android 16. The catalog has
   Espresso 3.7.0 and `androidx.test.ext:junit` 1.3.0.
+
+---
+
+## D074 — Every HTTP Request Has an Overall Time Limit
+
+**Date:** 2026-09-24
+
+**Status:** Accepted
+
+**Relates to:** `D021`, `D037`, `M16.6`, `M17.8`
+
+### Decision
+
+- **The app's HTTP client gives every request 30 s**, from sending it to having
+  the whole reply (`httpRequestTimeout`, through Ktor's `HttpTimeout`). A request
+  that runs out fails as a transport failure (`HttpRequestTimeoutException`, an
+  `IOException`).
+- **Its failure is handled like any other transport failure.** Startup and
+  canonical reloads wait through it under `D037`'s deadline. A command reports it
+  and is not retried (`D021`, `D037`).
+- **The realtime WebSocket is exempt.** Ktor does not apply the request timeout to
+  WebSocket requests. The socket's liveness stays the ping interval's job
+  (`M16.6`).
+- **`D037`'s deadline stays 150 s and stays a limit on retrying.** It is checked
+  between attempts and never interrupts one. The worst case before startup reports
+  a failure is therefore the deadline plus one attempt, not unbounded.
+
+### Rationale
+
+`M17.7`'s device verification found startup on *"Waking the server…"* for more
+than three minutes while the server was up, and "Try again" worked at once. The
+deadline was never reached because the attempt in flight never ended. OkHttp's
+defaults limit only the TCP connect and the gap between two reads, ten seconds
+each. Nothing limited DNS, waiting for a connection, or a reply that arrives a few
+bytes at a time, and the app set no overall limit. `StalledRequestTest` shows the
+real client waiting forever on a reply that sends a byte every 200 ms.
+
+The limit goes on the transport rather than in `withServerWake` for two reasons.
+It also bounds commands, which never go through the wake loop and could hang the
+same way. And a coroutine timeout inside the loop would run on the test
+dispatcher's virtual clock. `MockEngine` answers on `Dispatchers.IO`, and
+`runTest` skips ahead to the next timed event whenever its own dispatcher is idle,
+so the timeout could fire while a request was still being answered. Model tests
+would see spurious timeouts.
+
+30 s is three times OkHttp's read timeout. A request still making ordinary
+progress finishes well inside it, so it catches only stalls.
+
+### Alternatives Considered
+
+- **OkHttp's `callTimeout` in the engine configuration.** Same effect for HTTP,
+  but it is OkHttp's alone, so no `MockEngine` test could exercise it, and whether
+  it touches the WebSocket would depend on OkHttp internals. Ktor's plugin works
+  with any engine and exempts WebSockets explicitly.
+- **A per-attempt timeout in `withServerWake`.** Rejected for the virtual-clock
+  reason above, and because it leaves commands unbounded.
+- **Shortening the backoff cap.** Not the cause. The cap is 8 s, so a server that
+  has woken is noticed within 8 s plus one request.
+
+### Consequences
+
+- `installAppPlugins` in `ChessAppDependencies.kt` holds the plugins the real
+  client uses. Tests that need the real limit put it in front of a `MockEngine`.
+- A move whose request stalls now fails after 30 s with the ordinary
+  transport-failure message and canonical state, where before it could wait
+  indefinitely.
+- Cutting off a sign-up or a refresh whose reply is on its way loses that reply,
+  as a dropped connection, OkHttp's read timeout, or a "Try again" tap already
+  could. For a sign-up that leaves an orphaned anonymous user the device never
+  saw. For a refresh it leaves a rotated token the device never received. The
+  limit adds one more way to lose a reply, and only after 30 s.

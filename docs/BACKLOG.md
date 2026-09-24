@@ -4902,6 +4902,68 @@ and was raised separately.
 
 ---
 
+## M17.8 — Startup cannot sit on "Waking the server…" past its deadline
+
+**Status:** IN PROGRESS
+
+**Depends on:** M15.4
+
+### The gap
+
+Found during `M17.7`'s device verification on 2026-09-23 (Pixel 7, Android 16,
+debug build `versionCode` 101 against the beta server, fresh install). The app
+opened on *"Waking the server…"* and was still there more than three minutes
+later, although `/health` answered `200` in 0.3 s. Tapping "Try again" went
+straight to username onboarding.
+
+`withServerWake` (`D037`) checks its 150 s deadline only *between* attempts, so
+an attempt that never finishes is never measured against it. The app's one HTTP
+client sets no overall time limit on a request. OkHttp's defaults limit only the
+TCP connect (10 s) and the gap between two reads (10 s). Nothing limits DNS,
+waiting for a connection, or a reply that keeps arriving a few bytes at a time.
+One such request holds startup on `Waking` indefinitely. The retry button cancels
+it, which is why the tap worked at once.
+
+### Acceptance Criteria
+
+- Every HTTP request from the app's real client has an overall time limit. A
+  request that exceeds it fails as a transport failure: startup and canonical
+  reloads wait through it (`D037`), and a command reports it without retrying.
+- The realtime WebSocket is not subject to that limit.
+- Startup reaches `Ready` or `Failed` in bounded time even when a request never
+  answers. The worst case is the deadline plus one attempt.
+- Regression tests: the real client against a local peer that trickles a reply
+  forever, and startup through a request that never answers.
+- A decision records the limit and how it relates to `D037`'s deadline.
+
+### Progress Note — 2026-09-24
+
+Not `DONE`: `./gradlew build` has not run. The cloud session that made the change
+could not reach `dl.google.com` (Android SDK) or the JDK 25 toolchain download,
+so the Android module could not be built there.
+
+The deadline check and the backoff were correct. After the deadline, startup
+reports `Failed`, and the 8 s cap is not the cause. What was missing is a limit on
+the attempt itself. `installAppPlugins` in `ChessAppDependencies.kt` now gives the
+real client Ktor's `HttpTimeout` with a 30 s request limit (`httpRequestTimeout`,
+`D074`). Ktor exempts WebSocket requests from it. `withServerWake` is unchanged
+apart from documenting that it relies on attempts ending.
+
+The narrower checks ran in a scratch JVM project that compiles the real `api`,
+`auth` (minus the DataStore store), `AppStartup` and `ChessAppDependencies` sources
+against Ktor 3.5.2 and coroutines 1.11.0. `ServerWakeTest` (9), `AppStartupTest`
+(18), `StalledRequestTest` (2), `SilentSocketTest` (2), `ChessApiClientTest` (35)
+and `AnonymousAuthTest` (12) all passed. With the `HttpTimeout` line removed, the
+three new regression tests failed as the device did. Startup never left waking
+within a 10 s budget, and the real OkHttp client was still waiting on a reply
+trickled one byte every 200 ms. ktlint 1.5.0 (the plugin's version) is clean on
+every touched file.
+
+Still to do before `DONE`: run `./gradlew build`, and repeat the device check
+from the gap above.
+
+---
+
 ---
 
 # M18 — Post-Chess Architecture Review

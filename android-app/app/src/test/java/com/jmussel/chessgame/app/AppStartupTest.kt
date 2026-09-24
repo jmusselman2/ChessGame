@@ -19,13 +19,16 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.io.IOException
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * The first thing the app does: get a session, ask the server who it belongs to, or say
@@ -374,6 +377,91 @@ class AppStartupTest {
         assertTrue("it should have tried more than once before giving up", paths.size > 1)
     }
 
+    /**
+     * The Pixel 7 in `M17.7`: startup was already waking, and one request then never
+     * answered. The deadline is checked only between attempts, so without a time limit on
+     * the request the player sat on "Waking the server…" until they tapped "Try again"
+     * (`M17.8`). With the app's client the request is given up on and asked again.
+     */
+    @Test
+    fun aRequestThatNeverAnswersIsGivenUpOnAndAskedAgain() {
+        var call = 0
+        val startup =
+            startupOver(
+                MockEngine { request ->
+                    paths += request.url.encodedPath
+                    call++
+                    when (call) {
+                        1 -> throw IOException("connection refused")
+                        2 -> awaitCancellation()
+                        else ->
+                            respond(
+                                content = identityBody(username = "Jordan"),
+                                status = HttpStatusCode.OK,
+                                headers = headersOf("Content-Type", ContentType.Application.Json.toString()),
+                            )
+                    }
+                },
+                wakePolicy = ServerWakePolicy(deadlineMillis = 5_000, initialDelayMillis = 1, maxDelayMillis = 4),
+            )
+
+        val waking = mutableListOf<StartupState.Waking>()
+        val state = runBlocking { withTimeout(BUDGET) { startup.run(onWaking = { waking += it }) } }
+
+        assertEquals(StartupState.Ready(CurrentUserDto(userId = "server-1", username = "Jordan")), state)
+        assertEquals("the stalled request is a failure like any other", listOf(1, 2), waking.map { it.failures })
+    }
+
+    /**
+     * Waking is only ever temporary. A server that takes every request and answers none
+     * ends in a failure with a retry button, not an endless "Waking the server…".
+     */
+    @Test
+    fun aServerThatNeverAnswersEndsInFailureRatherThanWakingForever() {
+        val startup =
+            startupOver(
+                MockEngine { request ->
+                    paths += request.url.encodedPath
+                    awaitCancellation()
+                },
+                wakePolicy = ServerWakePolicy(deadlineMillis = 1_000, initialDelayMillis = 1, maxDelayMillis = 2),
+            )
+
+        val waking = mutableListOf<StartupState.Waking>()
+        val state = runBlocking { withTimeout(BUDGET) { startup.run(onWaking = { waking += it }) } }
+
+        assertTrue("expected a failure but was $state", state is StartupState.Failed)
+        assertTrue((state as StartupState.Failed).canRetry)
+        assertTrue("it should have been waking before it gave up", waking.isNotEmpty())
+    }
+
+    /**
+     * Startup with a stored session, over [engine] behind the same plugins the app's real
+     * client has, with a request limit short enough for a test.
+     */
+    private fun startupOver(
+        engine: MockEngine,
+        wakePolicy: ServerWakePolicy,
+    ): AppStartup {
+        val httpClient = HttpClient(engine) { installAppPlugins(requestTimeout = 100.milliseconds) }
+        val authenticator =
+            AnonymousAuthenticator(
+                SupabaseAuthClient(config, httpClient),
+                InMemorySessionStore(storedSession(expiresAt = 5_000)),
+                now = { 1_000 },
+            )
+
+        return AppStartup(
+            supabaseConfig = config,
+            authenticator = authenticator,
+            chessApi =
+                ChessApiClient(ChessServerConfig("https://chess.example"), httpClient) {
+                    authenticator.currentSession().accessToken
+                },
+            wakePolicy = wakePolicy,
+        )
+    }
+
     @Test
     fun theSessionIsInHandBeforeTheServerIsAskedAnything() {
         val store = InMemorySessionStore()
@@ -383,5 +471,10 @@ class AppStartupTest {
 
         assertEquals(listOf("/auth/v1/signup", "/me"), paths)
         assertEquals("access-2", runBlocking { store.read() }?.accessToken)
+    }
+
+    private companion object {
+        /** Far beyond what either wake needs, so a startup that never ends fails instead of hanging the build. */
+        const val BUDGET = 10_000L
     }
 }
