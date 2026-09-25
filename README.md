@@ -107,16 +107,18 @@ Implemented foundations include:
 - aggregate Gradle verification with ktlint, Android lint, JVM tests, Android
   unit tests, APK assembly, and server distributions.
 
-Independent evaluation (`evals/`) runs on its own track. It has independently
-closed `M19-01` and passed the current M17 work, including physical Pixel 7 and
-Android 5.1 Kindle compatibility checks.
-`docs/CODEX_EVALUATION_STATE.md` is the source of truth for its evidence and
-findings.
+Independent evaluation (`evals/`) runs on its own track. Earlier reports closed
+`M19-01` and recorded M17 and physical-device evidence; those reports are now
+historical comparison material. A fresh sequential M1-M19 evaluation is ready
+to begin on `codex-autopilot`, with `docs/CODEX_EVALUATION_STATE.md` as the
+source of truth for its baseline, progress, evidence, and findings.
 
-What happens next is the human-sign-off architecture decision in `M20.1`. The
-N >= 3 continuation flow is separately deferred to `M20.2`; it is not part of
-M19's chess-only series-exit work. Work outside the MVP is listed, unscheduled,
-in `docs/FUTURE.md`; the backlog holds only scheduled work (`D072`).
+The next production-development boundary is the human-sign-off architecture
+decision in `M20.1`. It is not part of the fresh M1-M19 independent evaluation
+and must not be started by that run. The N >= 3 continuation flow is separately
+deferred to `M20.2`; it is not part of M19's chess-only series-exit work. Work
+outside the MVP is listed, unscheduled, in `docs/FUTURE.md`; the backlog holds
+only scheduled work (`D072`).
 
 ## Getting Started
 
@@ -149,7 +151,8 @@ backlog. See `docs/AUTONOMOUS-DEVELOPMENT.md`. In short: work happens on the
 across milestone boundaries and stopping only for genuine blockers.
 
 Independent milestone evaluation on `codex-autopilot` follows
-`docs/INDEPENDENT-EVALUATION.md`: each milestone receives its own committed and
-pushed checkpoint, defects are carried forward without stopping the run, and
-evaluation continues through the milestone requested and recorded in
-`docs/CODEX_EVALUATION_STATE.md`.
+`docs/INDEPENDENT-EVALUATION.md`: evaluate M1 through M19 freshly, one milestone
+and one committed, pushed, remotely verified checkpoint at a time. Historical
+reports are consulted only after each fresh phase. A confirmed production bug
+is fully documented and checkpointed before the run stops for remediation on
+`claude-autopilot`; production code is never changed on the evaluation branch.

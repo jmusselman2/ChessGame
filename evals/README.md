@@ -14,3 +14,10 @@ Evaluation reports are organized as immutable, named runs:
 Reports in a completed run are historical records and must not be overwritten.
 [`docs/CODEX_EVALUATION_STATE.md`](../docs/CODEX_EVALUATION_STATE.md) identifies
 the active evaluation, its baseline, progress, findings, and current reports.
+
+The next evaluation is a fresh M1-M19 run governed by
+[`docs/INDEPENDENT-EVALUATION.md`](../docs/INDEPENDENT-EVALUATION.md). It uses one
+new stable run ID for all nineteen milestones. Each milestone directory must
+contain `critic-report.md`, `test-report.md`, and `kindle-checklist.md`; the last
+records `NOT APPLICABLE` with a reason when no device evidence applies. Fresh
+verification precedes comparison with these historical records.

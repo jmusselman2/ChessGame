@@ -20,6 +20,11 @@ Before making architectural or product-behavior changes, read:
 - `docs/DEVELOPMENT.md`
 - `docs/AUTONOMOUS-DEVELOPMENT.md`
 
+For independent-evaluation work, also read
+`docs/INDEPENDENT-EVALUATION.md` and `docs/CODEX_EVALUATION_STATE.md`. They govern
+the evaluator's branch, range, reports, checkpoints, and current progress; they
+do not replace the product and architecture precedence below.
+
 Also read `docs/PLATFORM-REVIEW.md` before any work that generalises chess into
 the turn-based platform, or that designs the deck-building game. It records what
 the chess MVP proved reusable, what stayed chess-specific, and what chess never
@@ -135,6 +140,22 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - Keep persistence DTOs out of the pure game domain.
 - Prefer standard Kotlin/Android/Ktor conventions over custom frameworks.
 - Avoid unnecessary interfaces, wrapper layers, and one-use abstractions.
+
+## Independent Evaluation
+
+Requests to evaluate milestones independently follow
+`docs/INDEPENDENT-EVALUATION.md` and the active state in
+`docs/CODEX_EVALUATION_STATE.md`, not the autonomous implementation loop below.
+Independent evaluation runs only on `codex-autopilot`, changes no production
+code, and creates one pushed and remotely verified evaluator checkpoint per
+milestone. A confirmed production defect stops the evaluation only after its
+complete milestone checkpoint is pushed and verified; production remediation
+then occurs on `claude-autopilot`.
+
+Evaluator checkpoint pushes to `codex-autopilot` are the narrow exception to
+the implementation branch-update procedure later in this file. They must not
+fast-forward `main`, modify `claude-autopilot`, combine milestones, or rewrite
+published history.
 
 ## Continuous Autonomous Development
 
@@ -324,5 +345,6 @@ Do not perform any of the following without explicit authorization:
 - deleting untracked user work,
 - force pushing,
 - pushing to `main` or `codex-autopilot` other than as in **Updating `main`
-  and `codex-autopilot`**,
+  and `codex-autopilot`**, or the milestone checkpoint procedure in
+  `docs/INDEPENDENT-EVALUATION.md`,
 - rewriting published history.
