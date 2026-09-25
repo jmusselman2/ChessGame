@@ -1,13 +1,13 @@
 # Codex Evaluation State
 
-- **Status:** `M4 PASSED`
+- **Status:** `M5 PASSED`
 - **Evaluation branch:** `codex-autopilot`
 - **Requested range:** M1 through M19 inclusive
-- **Next milestone:** M5
+- **Next milestone:** M6
 - **Run ID:** `2026-09-24-f941135`
 - **Pinned baseline:** `f9411358d319d8501bfc58aa05470523a67bd6a8`
-- **Last verified checkpoint:** M3 at
-  `d66fb91295ac63a8ba47c126293ea83ad2688c1a`
+- **Last verified checkpoint:** M4 at
+  `23d7d4a4ce8967aabb2f22c36140bcb33c12d472`
 - **Current findings:** none
 
 ## Evaluation boundaries
@@ -30,6 +30,6 @@ history. It does not control this fresh run.
 
 ## Exact next action
 
-Review the complete M4 evaluator diff, run `git diff --check`, create exactly
-one M4 evaluator checkpoint commit, push it to `origin/codex-autopilot`, and
-verify the live remote ref before beginning M5.
+Review the complete M5 evaluator diff, run `git diff --check`, create exactly
+one M5 evaluator checkpoint commit, push it to `origin/codex-autopilot`, and
+verify the live remote ref before beginning M6.
