@@ -1,11 +1,13 @@
 # Codex Evaluation State
 
-- **Status:** `M1 PASSED`
+- **Status:** `M2 PASSED`
 - **Evaluation branch:** `codex-autopilot`
 - **Requested range:** M1 through M19 inclusive
-- **Next milestone:** M2
+- **Next milestone:** M3
 - **Run ID:** `2026-09-24-f941135`
 - **Pinned baseline:** `f9411358d319d8501bfc58aa05470523a67bd6a8`
+- **Last verified checkpoint:** M1 at
+  `23cc0f8d91f84420ebd457a631d6cca5cb18dd51`
 - **Current findings:** none
 
 ## Evaluation boundaries
@@ -28,6 +30,6 @@ history. It does not control this fresh run.
 
 ## Exact next action
 
-Commit the complete M1 evaluator checkpoint, push it to
-`origin/codex-autopilot`, and verify the live remote ref resolves to that
-checkpoint. Only then begin M2's fresh phase.
+Review the complete M2 evaluator diff, run `git diff --check`, create exactly
+one M2 evaluator checkpoint commit, push it to `origin/codex-autopilot`, and
+verify the live remote ref before beginning M3.
