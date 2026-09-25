@@ -82,6 +82,7 @@ this order, not the numbers. `MVP.md` lists the same items by topic.
 | `F32` | iOS or web clients                          | Other Clients         | not estimated | Not needed yet     |
 | `F33` | Database backups                            | Operations            | S             | High (protection)  |
 | `F34` | Lock down direct database access            | Operations            | S–M           | High (protection)  |
+| `F36` | Replace Exposed with jOOQ, with a DB wipe   | Operations            | M–L           | None (groundwork)  |
 
 ---
 
@@ -423,9 +424,11 @@ Waiting on a concrete non-JVM client requirement.
 
 ## 8. Operations
 
-Added by the project owner on 2026-09-24 from the database review of that day,
-at the bottom of the list. Neither changes what a player sees; both protect the
-data players already have.
+Added by the project owner from the database reviews of 2026-09-24 (`F33`,
+`F34`) and 2026-09-25 (`F36`), at the bottom of the list. None changes what a
+player sees. `F33` and `F34` protect the data players already have. `F36`
+replaces the server's database library and deliberately wipes that data; it sits
+next to `F34` because the database it re-creates can start out locked down.
 
 ### F33 — Database backups
 
@@ -467,3 +470,61 @@ data players already have.
   keeping them closed: exposing `public` again would open every table to the
   key in the APK at once. Supabase's security advisor does not flag it, because
   its row-level-security check covers only exposed schemas.
+
+### F36 — Replace Exposed with jOOQ, with a database wipe
+
+- **Source:** the project owner, 2026-09-25, from a backend review for a separate
+  app that plans jOOQ over HikariCP. Doing it here first proves that stack on a
+  working server with a real test suite. It would supersede `D030`.
+- **Value:** None to players directly (groundwork). Generated table classes
+  replace the hand-maintained `server/.../db/Tables.kt`, and transactions become
+  explicit.
+- **Effort:** Medium–large, about three to five backlog tasks. Exposed is used by
+  13 main files (about 3,100 lines, 56 `transaction(` call sites) and 26 of the
+  76 server test files. Most of it translates mechanically; the risk is in three
+  places:
+    - **Implicit transaction joining.** Repositories open `transaction(database)`
+      inside a service's transaction, and Exposed reuses the outer one
+      (`db/UserRepository.kt` relies on this around line 192).
+      `GameCommandService.makeMove` holds a `FOR UPDATE` lock across
+      `GameRepository.save`, `SeriesService` and `UserRepository`. jOOQ needs the
+      transaction's `DSLContext` passed in, or `ThreadLocalTransactionProvider`;
+      otherwise the inner work takes a second connection and waits on the outer
+      lock until `lock_timeout` (`D077`).
+    - **Exposed's automatic retry.** Exposed reruns a `transaction {}` block after
+      a `SQLException`; jOOQ does not. `UserRepository.resolveBySubject` appears
+      to rely on it when two first requests race. `INSERT … ON CONFLICT DO
+      NOTHING` followed by a select removes the need.
+    - **Types.** Converters for `kotlin.uuid.Uuid` (jOOQ generates
+      `java.util.UUID`) and for the five `jsonb` columns, which use `StorageJson`.
+- **Scope:**
+    1. Squash `V1`–`V10` into one baseline migration.
+    2. Wipe the beta database and re-create it from the baseline, rather than
+       repairing `flyway_schema_history` in place. The local and CI databases
+       are disposable already.
+    3. jOOQ code generation against the migrated compose or CI database, using
+       the Kotlin generator. Commit the generated code, because the
+       `Dockerfile` build has no database, and fail CI when regenerating changes
+       it.
+    4. Convert the repositories one at a time while Exposed still owns
+       transactions, by running jOOQ on the current transaction's JDBC
+       connection. That bridge is unproven on Exposed 1.5, so prove it on one
+       repository first. Then move transaction ownership to jOOQ.
+    5. Remove Exposed and `Tables.kt`, return Hikari's `isAutoCommit` to its
+       default in `DatabaseConfig.baseConfig()`, port the 26 test files, and
+       update `ARCHITECTURE.md` and `DEVELOPMENT.md`.
+- **What the wipe loses:** every row in the application's tables — usernames,
+  friendships, groups, series and games. Supabase's `auth.users` is outside the
+  migrations, so installed apps stay signed in: `resolveBySubject` creates a
+  fresh user on the next request, and each player chooses a username again.
+- **Depends on:** nothing. Pairs with `F34`: the baseline can carry `F34`'s
+  revokes and default-privilege changes, so the re-created database starts
+  locked down.
+- **Open decisions:** a decision superseding `D030`; explicit authorization for
+  the wipe when it runs, since it is a destructive database operation
+  (`CLAUDE.md`), and how it runs — `Migrations.reset` with `DisposableDatabase`'s
+  override variable, or dropping the schema by hand; whether `auth.users` is
+  wiped too; whether `F34` is folded in; whether transactions pass `DSLContext`
+  explicitly or use `ThreadLocalTransactionProvider`; and whether migrations stay
+  with Flyway or move to Supabase CLI migrations, which the wipe also makes
+  cheap.

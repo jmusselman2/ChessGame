@@ -231,6 +231,7 @@ changing both.
 - `F33` database backups
 - `F34` locking down direct database access: row-level security and the `anon`
   grants
+- `F36` replacing Exposed with jOOQ, with a database wipe (`D030`)
 
 Several active series per friend pair was on this list until `D053` made it MVP
 behaviour.
