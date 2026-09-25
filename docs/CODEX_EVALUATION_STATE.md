@@ -1,12 +1,11 @@
 # Codex Evaluation State
 
-- **Status:** `READY FOR FRESH M1 EVALUATION`
+- **Status:** `M1 PASSED`
 - **Evaluation branch:** `codex-autopilot`
 - **Requested range:** M1 through M19 inclusive
-- **Next milestone:** M1
-- **Run ID:** pending selection immediately before M1 begins
-- **Pinned baseline:** pending verification and recording of the live
-  `origin/codex-autopilot` tip immediately before M1 begins
+- **Next milestone:** M2
+- **Run ID:** `2026-09-24-f941135`
+- **Pinned baseline:** `f9411358d319d8501bfc58aa05470523a67bd6a8`
 - **Current findings:** none
 
 ## Evaluation boundaries
@@ -29,7 +28,6 @@ history. It does not control this fresh run.
 
 ## Exact next action
 
-Immediately before beginning M1, verify the clean `codex-autopilot` checkout
-and live remote tip, choose and record the new run ID, pin and record the
-verified `origin/codex-autopilot` baseline, create the new run's M1 report
-directory, and then begin the fresh M1 phase.
+Commit the complete M1 evaluator checkpoint, push it to
+`origin/codex-autopilot`, and verify the live remote ref resolves to that
+checkpoint. Only then begin M2's fresh phase.
