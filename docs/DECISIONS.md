@@ -651,6 +651,10 @@ Library quality changes faster than the architecture itself.
 
 **Status:** Accepted
 
+**Superseded in part by `D079`:** each commit pushed to `claude-autopilot` is now
+integrated into `main` straight away, before CI, and `codex-autopilot` is
+fast-forwarded to it when possible. The rest of this decision stands.
+
 ### Decision
 
 After M1.1-M1.6 were reconciled and locally verified, autonomous development
@@ -5033,3 +5037,65 @@ just emptied the log, so nothing needed backfilling.
   the finishing player through to `RematchCreated`.
 - `StoredGameEvent` carries `actorId` and `seriesId`.
 - `ARCHITECTURE.md` §9 says what the two columns hold.
+
+---
+
+## D079 — `main` and `codex-autopilot` Are Fast-Forwarded to Pushed Work Without Waiting for CI
+
+**Date:** 2026-09-24
+
+**Status:** Accepted
+
+**Supersedes in part:** `D026` (integrating `claude-autopilot` into `main` was a
+human step)
+
+### Decision
+
+- **After Claude pushes the commits it intends to `claude-autopilot`, it
+  integrates them into `main` immediately.** It does not wait for CI. This holds
+  for any finished coding task, inside the autonomous loop or not.
+- **`main` is fast-forwarded when it can be.** When `main` has commits
+  `claude-autopilot` lacks, Claude merges `main` into `claude-autopilot` with an
+  ordinary merge commit, builds, pushes, and then fast-forwards `main`. It never
+  rebases. A non-mechanical conflict, or a build failure the task did not cause,
+  is reported and `main` is left alone.
+- **`codex-autopilot` is fast-forwarded to the new `main` when it is an ancestor
+  of it.** When it is not, it is left alone. Claude never merges into, rebases
+  or force-pushes that branch, and never merges it into `main`.
+- **The CI gate is unchanged.** The next task still starts only after the
+  required CI run for the pushed commit is green. A failure is fixed on
+  `claude-autopilot` and reaches `main` the same way.
+- **Updating `main` deploys the beta**, because Render auto-deploys `main`. The
+  owner authorized that with this decision. No force-push, and no rewriting
+  published history, still apply to every branch.
+
+Both branches move only by fast-forward. They differ only when that is
+impossible: `main` is merged into `claude-autopilot` first; `codex-autopilot` is
+skipped.
+
+The procedure is in `docs/AUTONOMOUS-DEVELOPMENT.md`, **Updating `main` and `codex-autopilot`**.
+
+### Rationale
+
+The owner merged every verified `claude-autopilot` commit into `main` by hand
+anyway, and is not concerned about a bad commit reaching `main`: it can be
+reverted in git. Waiting for a person added delay and nothing else. GitHub has
+no protection on `main`, and an ordinary push is refused unless it is a
+fast-forward, so nothing anyone else pushed can be overwritten.
+
+### Alternatives Considered
+
+- **Integrate only after CI is green.** Rejected by the owner: they asked for
+  integration before CI.
+- **Merge `codex-autopilot` into `main` too.** Rejected: the evaluator's
+  checkpoints reach `main` only through the owner. A fast-forward moves the
+  evaluator's branch onto work it has not seen, but adds none of Claude's
+  judgement to it.
+
+### Consequences
+
+- `CLAUDE.md` and `docs/AUTONOMOUS-DEVELOPMENT.md` describe the new step and drop
+  "`main` is human-controlled".
+- A red CI run can now be on `main` and the beta until the fix lands.
+- The evaluator should fetch before it starts, as `docs/INDEPENDENT-EVALUATION.md`
+  step 1 already requires, because `origin/codex-autopilot` may have moved.

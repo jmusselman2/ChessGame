@@ -154,12 +154,15 @@ normal task loop is exactly:
 9. Review `git status` and `git diff`.
 10. Commit the verified task on `claude-autopilot`.
 11. Push `claude-autopilot` to `origin`.
-12. Wait for the required GitHub Actions run for that pushed commit.
-13. If CI fails, diagnose and fix it, rerun local verification, commit, push
-    again, and wait for CI again (same escalation ladder).
-14. Only after the required CI checks are green may the workflow select and
+12. Fast-forward `main` and `codex-autopilot` to it, without waiting for CI
+    (`D079`; see **Updating `main` and `codex-autopilot`** below).
+13. Wait for the required GitHub Actions run for that pushed commit.
+14. If CI fails, diagnose and fix it, rerun local verification, commit, push
+    again, update `main` and `codex-autopilot` again, and wait for CI again (same
+    escalation ladder).
+15. Only after the required CI checks are green may the workflow select and
     begin the next backlog task.
-15. Continue automatically across milestone boundaries.
+16. Continue automatically across milestone boundaries.
 
 Key clarifications:
 
@@ -196,12 +199,14 @@ Key clarifications:
   security stop condition applies only when the task would need a security
   decision the documents have not made, or a change to the approved security
   model.
-- Continuous autonomous work happens entirely on `claude-autopilot`. The loop
-  does not merge, rebase, synchronize with, or otherwise manage `main`;
-  integrating into `main` is human-controlled and outside the loop.
-- Preserved guardrails: no direct pushes to `main`, no force-push, no rewriting
-  published history; PR/merge into `main` stays human-controlled; production and
-  beta deployment remain prohibited without explicit authorization.
+- Work happens on `claude-autopilot`, and `main` and `codex-autopilot` are
+  fast-forwarded to each pushed commit straight away, before CI finishes
+  (`D079`). The CI gate still decides
+  when the next task may start.
+- Preserved guardrails: no force-push, no rebasing `main`, no rewriting
+  published history. Updating `main` deploys the beta (Render auto-deploys
+  `main`); that is authorized by `D079`. Production deployment still needs
+  explicit authorization.
 
 ## Verification Commands
 
@@ -255,20 +260,43 @@ Routine autonomous work may include:
 - running Gradle builds/tests/checks,
 - inspecting `git status`, `git diff`, and history,
 - making local commits on `claude-autopilot` after verified tasks,
-- pushing `claude-autopilot` to `origin` so CI can run.
+- pushing `claude-autopilot` to `origin` so CI can run,
+- fast-forwarding `main` and `codex-autopilot` to `claude-autopilot`, as below.
 
 ### `claude-autopilot` branch workflow
 
-- Continuous autonomous work happens entirely on `claude-autopilot`. The loop
-  does not merge, rebase, synchronize with, or otherwise manage `main`.
-- One focused commit per completed, verified backlog task; the message names the
-  task id.
-- `main` is protected: do not commit, push, merge, or rebase it, and do not
-  merge `main` into `claude-autopilot`.
-- Integrating `claude-autopilot` into `main` (via pull request) is outside the
-  autonomous loop and is human-controlled unless explicitly authorized. If the
-  branches diverge, surface it as a human integration step and keep working on
-  `claude-autopilot`.
+- Work happens on `claude-autopilot`. One focused commit per completed, verified
+  backlog task; the message names the task id.
+- Do not commit directly on `main`; work reaches it only from `claude-autopilot`.
+
+### Updating `main` and `codex-autopilot`
+
+Whenever Claude has finished a coding task and pushed the commits it intends to
+`claude-autopilot` (in the autonomous loop or not), it fast-forwards `main` and
+`codex-autopilot` to them immediately, without waiting for CI (`D079`). The owner
+rolls `main` back by hand if needed.
+
+Both branches move only by fast-forward, so neither ever gets a merge commit of
+its own. They differ only when a fast-forward is impossible: `main` is then
+merged into `claude-autopilot` first, so the fast-forward becomes possible;
+`codex-autopilot` is skipped, because its extra commits are the evaluator's.
+
+Full procedure: `docs/AUTONOMOUS-DEVELOPMENT.md`, **Updating `main` and
+`codex-autopilot`**. In short:
+
+1. `git fetch origin`.
+2. If `origin/main` is an ancestor of `claude-autopilot`:
+   `git push origin claude-autopilot:main`.
+3. Otherwise merge `origin/main` into `claude-autopilot` (ordinary merge, never
+   rebase), run `./gradlew build`, push `claude-autopilot`, then do step 2. If
+   the merge conflicts non-mechanically or the build fails for a reason the task
+   did not cause, abort the merge, leave `main` alone and report it.
+4. If `origin/codex-autopilot` is an ancestor of the new `origin/main`:
+   `git push origin origin/main:codex-autopilot`. Otherwise skip it and say so.
+   Never merge into, rebase or force-push `codex-autopilot`.
+
+All pushes are ordinary pushes, so a non-fast-forward is refused rather than
+overwriting anything.
 
 ### Pre-commit hygiene
 
@@ -288,11 +316,13 @@ Routine autonomous work may include:
 Do not perform any of the following without explicit authorization:
 
 - destructive production actions,
-- production or beta deployment,
+- production deployment (beta deployment by updating `main` is authorized,
+  `D079`),
 - credential changes,
 - destructive database operations,
 - `git reset --hard`,
 - deleting untracked user work,
 - force pushing,
-- pushing to `main` or any other protected branch,
+- pushing to `main` or `codex-autopilot` other than as in **Updating `main`
+  and `codex-autopilot`**,
 - rewriting published history.

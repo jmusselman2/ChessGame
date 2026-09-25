@@ -31,14 +31,18 @@ Work continuously through the backlog. The normal autonomous task loop is
 10. Commit the verified task on `claude-autopilot` (see **Branch and Commit
     Workflow**).
 11. Push `claude-autopilot` to `origin`.
-12. Wait for the required GitHub Actions run for **that pushed commit** (see
+12. Fast-forward `main` and `codex-autopilot` to the pushed commit (see
+    **Updating `main` and `codex-autopilot`**). Do this straight away; it does not wait for
+    CI (`D079`).
+13. Wait for the required GitHub Actions run for **that pushed commit** (see
     **Remote CI Gate**).
-13. If CI fails: diagnose the failure, make the necessary fix, rerun local
-    verification (`./gradlew build`), commit, push again, and wait for CI again.
-    Use the same **Failure Handling and Escalation** ladder.
-14. Only after the required CI checks are green for the pushed commit may the
+14. If CI fails: diagnose the failure, make the necessary fix, rerun local
+    verification (`./gradlew build`), commit, push again, update `main` and
+    `codex-autopilot` again, and wait for CI again. Use the same **Failure Handling and
+    Escalation** ladder.
+15. Only after the required CI checks are green for the pushed commit may the
     workflow select and begin the next backlog task.
-15. Continue automatically across milestone boundaries.
+16. Continue automatically across milestone boundaries.
 
 ### `DONE` vs. advancing to the next task
 
@@ -117,13 +121,15 @@ one first.
     changed.
 18. Commit the verified work on `claude-autopilot`.
 19. Push `claude-autopilot` to `origin`.
-20. Identify and watch the required GitHub Actions run for the commit just
+20. Fast-forward `main` and `codex-autopilot` (see **Updating `main` and `codex-autopilot`**).
+    This does not wait for CI.
+21. Identify and watch the required GitHub Actions run for the commit just
     pushed (see **Remote CI Gate**). Confirm the run's head SHA matches the
     pushed commit.
-21. If CI fails, diagnose and fix it (same escalation ladder), then re-run local
-    verification, commit, push, and watch CI again. Repeat until the required
-    checks are green.
-22. Only once the required CI checks are green for that commit, continue to the
+22. If CI fails, diagnose and fix it (same escalation ladder), then re-run local
+    verification, commit, push, update `main` and `codex-autopilot` again, and watch CI again.
+    Repeat until the required checks are green.
+23. Only once the required CI checks are green for that commit, continue to the
     next unblocked task.
 
 ## Verification
@@ -266,29 +272,66 @@ recommended conventional option per `CLAUDE.md`.
 
 ## Branch and Commit Workflow
 
-Continuous autonomous work happens entirely on the `claude-autopilot` branch.
-The autonomous loop does not merge, rebase, synchronize with, or otherwise
-manage `main`. Integrating `claude-autopilot` into `main` is outside the
-autonomous loop and is human-controlled.
+Development happens on the `claude-autopilot` branch. `main` and
+`codex-autopilot` are fast-forwarded to every commit Claude pushes there,
+without waiting for CI (`D079`). This
+applies to any coding task Claude finishes and pushes, not only the autonomous
+loop.
 
 - Use the existing `claude-autopilot` branch (`git switch claude-autopilot`).
 - Make one focused commit per completed, verified task. Commit messages state
   the backlog task id and what changed.
 - Local commits after verified tasks are expected and require no approval.
-- After each such commit, push `claude-autopilot` to `origin` and then satisfy
-  the **Remote CI Gate** before starting the next task.
-- **Do not** force-push.
-- **Do not** commit, push, merge, or rebase `main`, and do not merge `main`
-  into `claude-autopilot`.
-- **Do not** rewrite published history.
-- Pushing `claude-autopilot` to `origin` is expected so CI can run. Opening a
-  pull request, and merging `claude-autopilot` into `main`, are human steps
-  unless explicitly authorized.
-- Production and beta deployment remain prohibited without explicit approval.
+- After each such commit, push `claude-autopilot` to `origin`, update `main` and
+  `codex-autopilot` (below), and then satisfy the **Remote CI Gate** before starting the
+  next task.
+- **Do not** force-push any branch.
+- **Do not** rebase `main` or rewrite published history.
+- **Do not** commit directly on `main`. Work reaches `main` only from
+  `claude-autopilot`.
+- Opening a pull request is not needed; `main` is updated by push.
 
-If a divergence between `claude-autopilot` and `main` needs resolving, that is a
-human integration step — surface it and continue autonomous work on
-`claude-autopilot`; do not reconcile the branches from inside the loop.
+### Updating `main` and `codex-autopilot`
+
+Run this after each push of `claude-autopilot`. It does not wait for CI. The
+owner reverts `main` by hand if a bad commit reaches it.
+
+Both branches move only by fast-forward, so neither ever gets a merge commit of
+its own. They differ only when a fast-forward is impossible: `main` is then
+merged into `claude-autopilot` first, so the fast-forward becomes possible;
+`codex-autopilot` is skipped, because its extra commits are the evaluator's.
+
+1. `git fetch origin`.
+2. **If `origin/main` is an ancestor of `claude-autopilot`**
+   (`git merge-base --is-ancestor origin/main claude-autopilot`), fast-forward
+   it: `git push origin claude-autopilot:main`.
+3. **Otherwise `main` has commits `claude-autopilot` lacks** (for example a
+   commit the owner made on `main`). Merge `origin/main` into
+   `claude-autopilot` with an ordinary merge commit (`git merge --no-edit
+   origin/main`; never rebase), run `./gradlew build`, push `claude-autopilot`,
+   and then fast-forward `main` as in step 2. If the merge conflicts and the
+   resolution is not mechanical, or the merged build fails in a way the task
+   did not cause, `git merge --abort`, leave `main` as it is, report the
+   divergence to the owner, and keep working on `claude-autopilot`.
+4. **Fast-forward `codex-autopilot`, or skip it.** If
+   `origin/codex-autopilot` is an ancestor of the new `origin/main`, push it
+   forward: `git push origin origin/main:codex-autopilot`. If it is not (the
+   evaluator has commits not yet in `main`), skip it and say so. Never
+   merge into, rebase, or force-push `codex-autopilot`, and never merge it into
+   `main`; that branch belongs to the independent evaluator
+   (`docs/INDEPENDENT-EVALUATION.md`).
+5. Update the local `main` and `codex-autopilot` refs if they exist and are not
+   checked out elsewhere (`git fetch origin main:main
+   codex-autopilot:codex-autopilot`); a failure here is harmless.
+
+An ordinary push is refused when it is not a fast-forward, so a concurrent push
+by someone else cannot be overwritten; fetch and repeat from step 1.
+
+Render auto-deploys `main` to the beta service, so each update of `main` also
+deploys the beta. The owner authorized that together with the automatic update
+(`D079`).
+Production deployment, where it exists separately, still needs explicit
+approval.
 
 ## Test Integrity Rule
 
@@ -330,7 +373,8 @@ Do not perform without explicit authorization:
 - `git reset --hard`,
 - deleting untracked user work,
 - force push,
-- pushing to `main` or any protected branch,
+- pushing to `main` or `codex-autopilot` other than as described in
+  **Updating `main` and `codex-autopilot`**,
 - rewriting published history.
 
 Prefer additive, reversible recovery approaches.
