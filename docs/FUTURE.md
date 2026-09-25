@@ -457,3 +457,13 @@ data players already have.
   affects.
 - **Open decisions:** it is a security change to the live database, so it needs a
   decision in `DECISIONS.md`; and whether the server gets its own role.
+- **Rechecked 2026-09-25:** the grants and row-level security are unchanged, and
+  the `503` is explained. PostgREST 14.5 is running with no exposed schemas: it
+  starts with `db-schemas=pg_pgrst_no_exposed_schemas`, fails to load its schema
+  cache and retries every 32 seconds, so the REST API serves no table.
+  `pg_stat_statements`, collecting since the project was created on 2026-08-26,
+  holds no statement run as `anon` or `authenticated`, so nothing shows the
+  tables were ever reached that way. That dashboard setting is the only thing
+  keeping them closed: exposing `public` again would open every table to the
+  key in the APK at once. Supabase's security advisor does not flag it, because
+  its row-level-security check covers only exposed schemas.
