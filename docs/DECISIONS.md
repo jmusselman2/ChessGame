@@ -2070,6 +2070,12 @@ and works, right up until a peer goes away quietly.
 
 **Status:** Accepted
 
+**Superseded in part by `D080`:** item 2's rethrow no longer reaches the request.
+`LastSeenTracker` still hands a failed write's window back and rethrows, but the
+authentication provider now logs that failure and lets the authenticated request
+go on, rather than answering `500`. The rest of this decision stands, including
+the rest of item 2.
+
 **Relates to:** `D004` (the server trusts no client), `D006` (invisible anonymous
 accounts), `D008` (a username is never released), `D010` (no continuous
 heartbeat), `D031` (the app talks to Supabase auth directly), `D039` (a `401`
@@ -5099,3 +5105,86 @@ fast-forward, so nothing anyone else pushed can be overwritten.
 - A red CI run can now be on `main` and the beta until the fix lands.
 - The evaluator should fetch before it starts, as `docs/INDEPENDENT-EVALUATION.md`
   step 1 already requires, because `origin/codex-autopilot` may have moved.
+
+---
+
+## D080 — A Failed `last_seen_at` Write Never Fails an Authenticated Request
+
+**Date:** 2026-09-24
+
+**Status:** Accepted
+
+**Supersedes in part:** `D043` item 2 (a failed `last_seen_at` write was rethrown
+into the request)
+
+**Relates to:** `D010`, `D039`, `D060`, `M7.5`, `M16.5`
+
+### Decision
+
+- **Recording `last_seen_at` is best effort.** When `LastSeenTracker.record`
+  throws, the authentication provider logs it at `WARN` and still establishes
+  the principal. The request then runs as though the write had succeeded.
+- **The boundary is that one call and nothing else.** A missing, invalid or
+  expired token still gets the same `401`. A failure to resolve or create the
+  user still fails the request before any route runs. Only exceptions are
+  caught: an `Error` propagates, and so does cancellation.
+- **The tracker is unchanged.** The throttle is still five minutes, and a failed
+  write still gives its window back and rethrows (`D043`), so the next
+  authenticated request retries it. Whether a failure matters is the caller's
+  decision, and this caller has decided it does not.
+- **The log line names the user, the method and the path, and carries the
+  exception.** It never carries a header. The tracker is given only a user id
+  and a time, so the token cannot reach the exception either (`M16.5`).
+- The provider guards both HTTP and the `/ws` upgrade, so both behave this way.
+
+### Rationale
+
+The write runs after the token is verified and the user is resolved, so by then
+the request is valid. Letting it throw made engagement telemetry decide
+whether a real request succeeded. On `GET /me` that meant the app could not
+start: startup asks `/me` who the session belongs to, and a `500` there stops
+it. A database that refuses one small `UPDATE` would have locked every player
+out, for data nobody sees (`D010`: "the MVP does not need to prominently display
+it").
+
+`D043` rejected swallowing the failure because it would be "a separate product
+change". It was fixing a different defect, where a failed write still spent its
+throttle window, and chose to leave the `500` alone. `D060` has since settled the
+question for engagement data in general: a failed `last_login_at` write is
+logged and the player gets into the app. `last_seen_at` is the same kind of data
+and is written on the same request. Treating it more strictly than the exact
+timestamp would make no sense.
+
+Giving the window back is what keeps this cheap. A failed write costs at most
+that one write, because the very next request tries again. Nothing is silently
+dropped for five minutes.
+
+### Alternatives Considered
+
+- **Make `LastSeenTracker.record` swallow the failure itself.** Rejected: the
+  tracker would then decide what matters to a request it knows nothing about,
+  and `D043`'s tests of the give-back rely on the failure being visible. The
+  call site knows the request is already valid.
+- **Catch around all of `onAuthenticate`.** Rejected: that would also swallow a
+  failure to resolve or create the user, and an unresolvable user is not a
+  caller.
+- **Catch `Throwable`.** Rejected: an `OutOfMemoryError` or `LinkageError` is not
+  a lost telemetry write, and turning it into a successful sign-in would hide
+  it.
+- **Record `last_seen_at` after the response, or asynchronously.** Rejected as
+  more machinery than the defect needs. It would also move the write out of the
+  request whose activity it records.
+
+### Consequences
+
+- A database that refuses `last_seen_at` writes shows up as one `WARN` per
+  authenticated request, not as a `500`. It is noticed in the log rather than by
+  players.
+- While writes keep failing, every request retries one, as `D043` already
+  accepted. That load is bounded by requests that now succeed rather than fail.
+- `LastSeenTest` covers `/me`, the retry and throttle over HTTP, bad tokens, a
+  user-resolution failure, and `/ws`, each with the write refused.
+- `M7AdversarialTest.failedAuthenticatedActivityIsPersistedByTheImmediateRetry`
+  asserted the `500` that this decision removes. Its first request now expects
+  `200` with nothing recorded. The retry assertion, which is what the test is
+  for, is unchanged.

@@ -33,6 +33,10 @@ class LastSeenTracker(
     /**
      * Notes activity by [userId], writing it through only if the last write was long
      * enough ago. Returns whether it wrote.
+     *
+     * A failed write gives its window back and is rethrown (`D043`); whether it matters is
+     * the caller's decision. The authentication provider logs it and lets the request go on
+     * (`D080`).
      */
     fun record(userId: Uuid): Boolean {
         val now = clock()

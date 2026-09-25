@@ -21,6 +21,7 @@ import javax.sql.DataSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.uuid.ExperimentalUuidApi
 
@@ -152,7 +153,10 @@ class M7AdversarialTest {
                     client.get("/me") {
                         header("Authorization", "Bearer ${tokens.tokenFor("route-last-seen-subject")}")
                     }
-                assertEquals(HttpStatusCode.InternalServerError, failed.status)
+                // The refused write no longer fails the request (`D080`, superseding `D043`'s
+                // 500); it is lost, and the retry below is what records the activity.
+                assertEquals(HttpStatusCode.OK, failed.status)
+                assertNull(users.resolveBySubject("route-last-seen-subject").lastSeenAt)
 
                 execute(dataSource, "drop trigger evaluator_reject_last_seen on users")
                 now = now.plusSeconds(1)

@@ -2,14 +2,29 @@
 
 package com.jmussel.chessgame.server.user
 
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
+import com.jmussel.chessgame.server.api.CurrentUser
 import com.jmussel.chessgame.server.auth.TestTokens
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.UserRepository
+import com.jmussel.chessgame.server.realtime.RealtimeMessage
 import com.jmussel.chessgame.server.testModule
+import io.ktor.client.plugins.websocket.WebSockets
+import io.ktor.client.plugins.websocket.webSocketSession
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.statement.bodyAsText
+import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.testApplication
+import io.ktor.websocket.Frame
+import io.ktor.websocket.close
+import io.ktor.websocket.readText
+import kotlinx.coroutines.withTimeout
+import kotlinx.serialization.json.Json
+import org.slf4j.LoggerFactory
 import java.time.Duration
 import java.time.Instant
 import javax.sql.DataSource
@@ -29,6 +44,7 @@ import kotlin.uuid.ExperimentalUuidApi
  */
 class LastSeenTest {
     private val tokens = TestTokens()
+    private val json = Json { ignoreUnknownKeys = true }
 
     private fun withUsers(block: (UserRepository) -> Unit) =
         DatabaseTestSupport.withMigratedDatabase { dataSource ->
@@ -154,7 +170,196 @@ class LastSeenTest {
         }
     }
 
-    /** Makes any `last_seen_at` update fail, the way a database that is refusing writes would. */
+    // --- A refused write does not stop the request (D080) ------------------------------
+
+    /**
+     * The startup path: the app restores its session and asks `GET /me` who it is. A
+     * `last_seen_at` write that fails must not turn that into a server error, because the
+     * token was good and the user was found — the request is valid and only the telemetry
+     * was lost.
+     */
+    @Test
+    fun aRefusedLastSeenWriteDoesNotStopAValidRequest() {
+        DatabaseTestSupport.withMigratedDatabase { dataSource ->
+            val database = Databases.connect(dataSource)
+            val users = UserRepository(database)
+            val existing = users.resolveBySubject("auth-1")
+            val at = Instant.parse("2026-08-26T10:00:00Z")
+
+            refuseLastSeenWrites(dataSource)
+            captureLogs { logged ->
+                testApplication {
+                    application { testModule(tokens.verifier(), database, LastSeenTracker(users, clock = { at })) }
+
+                    val token = tokens.tokenFor("auth-1")
+                    val response = client.get("/me") { header("Authorization", "Bearer $token") }
+                    val body = response.bodyAsText()
+
+                    assertEquals(HttpStatusCode.OK, response.status, body)
+                    // The route ran as the token's user: it read the principal to answer.
+                    assertEquals(existing.id.toString(), json.decodeFromString<CurrentUser>(body).userId)
+                    ENGAGEMENT_FIELDS.forEach { leak ->
+                        assertFalse(body.contains(leak, ignoreCase = true), "/me leaked $leak")
+                    }
+
+                    val line = logged.map { it.formattedMessage }.single { it.contains("Could not record activity") }
+                    assertTrue(line.contains(existing.id.toString()), "the line names the user: $line")
+                    assertTrue(line.contains("/me"), "and the request: $line")
+                    val everything = logged.joinToString("\n") { "${it.formattedMessage} ${it.throwableProxy?.message}" }
+                    assertFalse(everything.contains(token), "no token reaches the log")
+                    assertFalse(everything.contains("Bearer"), "nor the header it came in")
+                }
+            }
+
+            assertNull(users.find(existing.id)?.lastSeenAt, "the refused write really was refused")
+            assertNotNull(users.find(existing.id)?.lastLoginAt, "and the session start was still recorded")
+        }
+    }
+
+    /**
+     * The refused write hands its window back, so the very next request — well inside five
+     * minutes — writes, and the one that lands is what starts the quiet.
+     */
+    @Test
+    fun theRequestAfterARefusedWriteRetriesIt() {
+        DatabaseTestSupport.withMigratedDatabase { dataSource ->
+            val database = Databases.connect(dataSource)
+            val users = UserRepository(database)
+            val user = users.resolveBySubject("auth-1")
+            var now = Instant.parse("2026-08-26T10:00:00Z")
+            val tracker = LastSeenTracker(users, throttle = Duration.ofMinutes(5), clock = { now })
+
+            testApplication {
+                application { testModule(tokens.verifier(), database, tracker) }
+                val authorization = "Bearer ${tokens.tokenFor("auth-1")}"
+
+                refuseLastSeenWrites(dataSource)
+                assertEquals(HttpStatusCode.OK, client.get("/me") { header("Authorization", authorization) }.status)
+                assertNull(users.find(user.id)?.lastSeenAt)
+
+                allowLastSeenWrites(dataSource)
+                now = now.plusSeconds(1)
+                assertEquals(HttpStatusCode.OK, client.get("/friends") { header("Authorization", authorization) }.status)
+                val retried = now
+                assertEquals(retried, users.find(user.id)?.lastSeenAt, "the next request wrote")
+
+                now = now.plusSeconds(30)
+                client.get("/friends") { header("Authorization", authorization) }
+                assertEquals(retried, users.find(user.id)?.lastSeenAt, "and the throttle is back in force")
+
+                now = retried.plus(Duration.ofMinutes(5))
+                client.get("/friends") { header("Authorization", authorization) }
+                assertEquals(now, users.find(user.id)?.lastSeenAt, "until its five minutes are up")
+            }
+        }
+    }
+
+    /** Being lenient about telemetry is not being lenient about the token. */
+    @Test
+    fun aRefusedLastSeenWriteLetsNoBadTokenIn() {
+        DatabaseTestSupport.withMigratedDatabase { dataSource ->
+            val database = Databases.connect(dataSource)
+            val users = UserRepository(database)
+
+            refuseLastSeenWrites(dataSource)
+            testApplication {
+                application { testModule(tokens.verifier(), database, LastSeenTracker(users)) }
+
+                val missing = client.get("/me")
+                assertEquals(HttpStatusCode.Unauthorized, missing.status)
+                assertEquals("Missing bearer token", missing.bodyAsText())
+
+                listOf(
+                    tokens.tokenFromAnotherKey("auth-1"),
+                    tokens.tokenFor("auth-1", expiresAt = Instant.now().minusSeconds(60)),
+                ).forEach { bad ->
+                    val refused = client.get("/me") { header("Authorization", "Bearer $bad") }
+                    assertEquals(HttpStatusCode.Unauthorized, refused.status)
+                    assertEquals("Invalid bearer token", refused.bodyAsText())
+                }
+            }
+        }
+    }
+
+    /**
+     * The leniency covers `last_seen_at` and nothing else. A user who cannot be resolved is
+     * not a caller, and that failure still stops the request before any route runs.
+     */
+    @Test
+    fun aFailureToResolveTheUserIsStillAFailure() {
+        DatabaseTestSupport.withMigratedDatabase { dataSource ->
+            val database = Databases.connect(dataSource)
+            val users = UserRepository(database)
+
+            execute(
+                dataSource,
+                """
+                create function refuse_new_users() returns trigger language plpgsql as
+                ${'$'}body${'$'}
+                begin
+                    raise exception 'user creation refused';
+                end
+                ${'$'}body${'$'};
+                create trigger refuse_new_users
+                    before insert on users
+                    for each row execute function refuse_new_users()
+                """.trimIndent(),
+            )
+
+            testApplication {
+                application { testModule(tokens.verifier(), database, LastSeenTracker(users)) }
+
+                val response = client.get("/me") { header("Authorization", "Bearer ${tokens.tokenFor("auth-new")}") }
+
+                assertEquals(HttpStatusCode.InternalServerError, response.status, "no route answered as a signed-in user")
+            }
+        }
+    }
+
+    /** `/ws` sits behind the same provider, so the realtime socket gets the same leniency. */
+    @Test
+    fun aRefusedLastSeenWriteDoesNotStopTheRealtimeSocket() {
+        DatabaseTestSupport.withMigratedDatabase { dataSource ->
+            val database = Databases.connect(dataSource)
+            val users = UserRepository(database)
+            users.resolveBySubject("auth-1")
+
+            refuseLastSeenWrites(dataSource)
+            testApplication {
+                application { testModule(tokens.verifier(), database, LastSeenTracker(users)) }
+
+                val session =
+                    createClient { install(WebSockets) }.webSocketSession("/ws") {
+                        header("Authorization", "Bearer ${tokens.tokenFor("auth-1")}")
+                    }
+                val hello = withTimeout(5_000) { (session.incoming.receive() as Frame.Text).readText() }
+
+                assertEquals(RealtimeMessage.CONNECTED, json.decodeFromString<RealtimeMessage>(hello).type)
+                session.close()
+            }
+        }
+    }
+
+    /** Everything logged while [block] runs. */
+    private fun captureLogs(block: (List<ILoggingEvent>) -> Unit) {
+        val root = LoggerFactory.getLogger(org.slf4j.Logger.ROOT_LOGGER_NAME) as Logger
+        val captured = ListAppender<ILoggingEvent>().apply { start() }
+
+        root.addAppender(captured)
+        try {
+            block(captured.list)
+        } finally {
+            root.detachAppender(captured)
+            captured.stop()
+        }
+    }
+
+    /**
+     * Makes any `last_seen_at` update fail, the way a database that is refusing writes would.
+     *
+     * Only that column: `last_login_at` is written on the same request and must stay free to
+     * succeed, or a test could not tell the two apart.
+     */
     private fun refuseLastSeenWrites(dataSource: DataSource) =
         execute(
             dataSource,
@@ -166,7 +371,7 @@ class LastSeenTest {
             end
             ${'$'}body${'$'};
             create trigger refuse_last_seen
-                before update on users
+                before update of last_seen_at on users
                 for each row execute function refuse_last_seen()
             """.trimIndent(),
         )
@@ -224,5 +429,9 @@ class LastSeenTest {
 
             assertNull(users.find(existing.id)?.lastSeenAt)
         }
+    }
+
+    private companion object {
+        val ENGAGEMENT_FIELDS = listOf("lastLogin", "last_login", "lastAction", "last_action", "lastSeen", "last_seen")
     }
 }

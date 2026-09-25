@@ -1457,6 +1457,15 @@ a value that was never stored (`M7-02`). A window is now spent only by a write
 that landed: a failed claim is handed back — unless a later caller has already
 taken it — and the next request writes (`D043`).
 
+**Corrected:** 2026-09-24 — the failed write was still rethrown out of the
+authentication provider. That happened before the principal was set, so a
+refused `last_seen_at` write turned a valid request into a `500`. On `GET /me`,
+that stopped the app starting. The provider now logs the failure and lets the
+request go on (`D080`). The window is still given back, so the next request
+retries. Token, user-resolution and fatal-error failures still fail as before.
+`LastSeenTest` covers `/me`, the retry and throttle over HTTP, bad tokens, a
+user-resolution failure, and `/ws`, each with the write refused.
+
 ### Acceptance Criteria
 
 Meaningful activity updates `lastSeenAt` without continuous heartbeat.

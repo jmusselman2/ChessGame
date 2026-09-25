@@ -468,6 +468,12 @@ Three, and they are not interchangeable (`D060`, `M19.11`):
 a session being *used*, and this is the one the app calls after restoring or
 creating its session, so it is the only place the server can tell the two apart.
 
+A failed `last_seen_at` or `last_login_at` write never fails the request it
+describes. It is logged and the request goes on (`D060`, `D080`). A failed
+`last_seen_at` write also gives its throttle window back, so the next request
+retries it (`D043`). `last_action_at` is different on purpose: it commits or
+fails with its command.
+
 "Accepted command" means an accepted *mutation*. A refused command writes
 nothing, and neither does reading a game — `GameCommandService.load` returns
 `Applied` as well, so the write hangs off the accepted-mutation path rather than

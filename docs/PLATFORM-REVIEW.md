@@ -210,9 +210,10 @@ wrong then everything else they believe may be too. Only the fifth step is chess
 canonical current state, active history, separate audit — is a platform decision
 that a second ruleset inherits unchanged. Only the event *names* are chess.
 
-**`lastSeenAt` as a throttled side effect, not a heartbeat (`D010`, `D043`).**
+**`lastSeenAt` as a throttled side effect, not a heartbeat (`D010`, `D043`, `D080`).**
 Written at most once per window, from ordinary authenticated traffic, and the
-window is spent only after the write lands.
+window is spent only after the write lands. A failed write is logged and never
+fails the request that caused it.
 
 ## Abstractions worth extracting
 

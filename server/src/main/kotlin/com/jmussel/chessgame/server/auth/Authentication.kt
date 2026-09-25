@@ -18,6 +18,7 @@ import io.ktor.server.request.ApplicationRequest
 import io.ktor.server.request.httpMethod
 import io.ktor.server.request.path
 import io.ktor.server.response.respondText
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -93,11 +94,11 @@ class SupabaseAuthenticationProvider(
                 return
             }
 
+        // Outside the best-effort boundary below: a user who cannot be resolved is not a
+        // caller, so this failure still fails the request.
         val user = users.resolveBySubject(identity.subject)
 
-        // An authenticated request is meaningful activity; the tracker decides whether
-        // that is worth a write (D010).
-        lastSeen?.record(user.id)
+        recordActivity(context.call, user.id)
 
         context.principal(
             AuthenticatedUser(
@@ -106,6 +107,39 @@ class SupabaseAuthenticationProvider(
                 isAnonymous = identity.isAnonymous,
             ),
         )
+    }
+
+    /**
+     * Records an authenticated request as activity; the tracker decides whether that is
+     * worth a write (`D010`).
+     *
+     * Best effort, and only this (`D080`). By the time it runs the token is verified and the
+     * user resolved, so the request is valid whatever happens here, and a lost `last_seen_at`
+     * write must not turn it into a 500 — on `GET /me` that is the app failing to start. The
+     * tracker has already handed a failed write's window back (`D043`), so the next request
+     * retries. Only exceptions are caught: an `Error` is not a lost write, and cancellation
+     * stays cancellation.
+     *
+     * The line names the user and the request, never a header — the token has no business
+     * here and the tracker never sees it (`M16.5`).
+     */
+    private fun recordActivity(
+        call: ApplicationCall,
+        userId: Uuid,
+    ) {
+        try {
+            lastSeen?.record(userId)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (failure: Exception) {
+            call.application.log.warn(
+                "Could not record activity for user {} on {} {}; continuing, and the next request retries",
+                userId,
+                call.request.httpMethod.value,
+                call.request.path(),
+                failure,
+            )
+        }
     }
 }
 
