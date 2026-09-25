@@ -188,6 +188,7 @@ changing both.
 - `F12` removing the "All users" page, or restricting it to admins (`D071`)
 - `F13` account recovery UI (`PRODUCT.md`)
 - `F14` approval setting for friend requests and game invites (`D047`, `D049`)
+- `F35` user settings, opened from the username (`PRODUCT.md`)
 
 ### Social
 

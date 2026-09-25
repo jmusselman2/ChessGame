@@ -198,7 +198,7 @@ private fun ShellChrome(
         TextButton(onClick = { onOpen(Destination.LocalGame) }) { Text(text = LOCAL_GAME) }
 
         // At the far end, where an account conventionally sits. Plain text for now: it
-        // becomes the way into user settings (`M17.4`), and until then it must not look
+        // becomes the way into user settings (`F35`), and until then it must not look
         // like something to tap.
         ShellChromeContent.ownUsername(navigation, username)?.let { name ->
             Spacer(modifier = Modifier.weight(1f))

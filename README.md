@@ -83,8 +83,7 @@ the developer. The arc:
   typing exact names. Game screens now fit compact and rotated windows, HTTP
   calls have an overall deadline, promotion choices are readable, foreground
   returns refresh immediately, and the app supports Android 5.1/API 22
-  (`M17.3`, `M17.5`–`M17.10`). User settings (`M17.4`) wait on the project owner
-  deciding what they hold.
+  (`M17.3`, `M17.5`–`M17.10`). User settings are future work (`F35`).
 - `M18` — a review of what the chess implementation proved about the platform
   underneath it, in `docs/PLATFORM-REVIEW.md`.
 - `M19` — the platform generalized to tables and typed participants, parallel

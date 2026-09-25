@@ -10,8 +10,7 @@
 - **Current milestone:** independent evaluation current through pinned
   `origin/main`; M20.1 is the next human-sign-off boundary.
 - **Status:** `M19 PASS — M19-01 INDEPENDENTLY CLOSED; M17.3 AND
-  M17.5–M17.10 PASS; ANDROID 5.1/API 22 COMPATIBILITY PASS`. M17.4 remains
-  intentionally blocked on an owner decision.
+  M17.5–M17.10 PASS; ANDROID 5.1/API 22 COMPATIBILITY PASS`.
 - **Scope boundary:** M19.1 moved to M20.1. The N >= 3 resignation and
   continuation flow formerly in M19.8 moved to M20.2. Neither is an M19 defect.
 - **Current reports:** `evals/runs/2026-09-17-e2b3287/M19/post-remediation-re-evaluation-critic-report.md`
@@ -62,7 +61,6 @@ regressions still pass on the current baseline.
 ## Current M17 dispositions
 
 - M17.3: PASS — dashboard-only, bounded, non-tappable username.
-- M17.4: BLOCKED by design — settings content awaits the project owner; no code.
 - M17.5: PASS — authenticated All Users flow, failure/empty/retry/Add/navigation.
 - M17.6: PASS — non-friends then friends, recency order and shared 200-row cap.
 - M17.7: PASS — responsive layouts and rotation-safe local-game lifetime.

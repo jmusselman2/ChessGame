@@ -60,6 +60,7 @@ this order, not the numbers. `MVP.md` lists the same items by topic.
 | `F11` | Dead-position detection by search           | Chess Play            | M             | Low                |
 | `F12` | Remove the "All users" page                 | Identity and Accounts | S–M           | None (testing aid) |
 | `F13` | Account recovery UI                         | Identity and Accounts | L             | High               |
+| `F35` | User settings, opened from the username     | Identity and Accounts | not estimated | not estimated      |
 | `F14` | Approval for friend requests, game invites  | Identity and Accounts | M             | Low                |
 | `F15` | Blocking                                    | Social                | M             | Low now            |
 | `F16` | Chat                                        | Social                | L             | Medium             |
@@ -121,7 +122,7 @@ No dependency outside this tier. The most value to players for the cost.
 - **Value:** Medium
 - **Effort:** Small. Explicit series exit already exists (`M19.8`).
 - **Depends on:** nothing.
-- **Open decisions:** where the switch lives, possibly user settings (`M17.4`).
+- **Open decisions:** whether the switch lives in user settings (`F35`).
 
 ### F5 — Username changes
 
@@ -226,6 +227,16 @@ The task's acceptance criteria:
   identity.
 - **Depends on:** nothing new.
 - **Open decisions:** which recovery methods. A security decision.
+
+### F35 — User settings, opened from the username
+
+- **Source:** `PRODUCT.md`
+- **Value:** not estimated. The screen's value depends on which settings it holds.
+- **Effort:** not estimated until its initial contents are decided.
+- **Depends on:** the feature or features chosen for its initial contents; possible
+  contents already include `F4`, `F5`, `F8`, and `F14`.
+- **Open decisions:** which settings it contains. Its entry point is decided:
+  tapping the username at the right-hand end of the dashboard's top row.
 
 ## 3. Social
 

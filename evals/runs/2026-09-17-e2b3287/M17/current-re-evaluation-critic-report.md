@@ -6,8 +6,7 @@ Evaluated `main`: `83de79ceed51577b9b8cffa38ca1b937e029537a`
 
 This evaluation reconciled the current backlog criteria, `D071`, `D073`,
 `D074`, `D075`, architecture and product documentation with the integrated
-implementation and its retained tests. M17.4 has no implementation and remains
-intentionally blocked on the project owner's settings decision.
+implementation and its retained tests.
 
 **Verdict: PASS for M17.3, M17.5, M17.6, M17.7, M17.8, M17.9, and the later
 M17.10 addition.** No new product defect was found and no evaluator regression
@@ -21,11 +20,6 @@ The username is derived from `currentUser` and rendered only on the dashboard's
 non-Back shell row. Startup, onboarding, game screens, and every pushed screen
 omit it. The text is non-clickable, one line, and ellipsized inside the row's
 remaining bounded width, so the three navigation controls retain their space.
-
-### M17.4 — BLOCKED, not a defect
-
-There is no settings implementation to evaluate and no product decision about
-its contents. This evaluation did not invent one.
 
 ### M17.5 and M17.6 — PASS
 
