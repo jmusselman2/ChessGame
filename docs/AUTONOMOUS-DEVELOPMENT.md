@@ -285,8 +285,11 @@ loop.
 - After each such commit, push `claude-autopilot` to `origin`, update `main` and
   `codex-autopilot` (below), and then satisfy the **Remote CI Gate** before starting the
   next task.
-- **Do not** force-push any branch.
-- **Do not** rebase `main` or rewrite published history.
+- **Do not** force-push any branch, and do not rewrite published history,
+  except updating `claude-autopilot` with `--force-with-lease` after rebasing
+  it onto `origin/main` (below).
+- **Do not** merge into, rebase, or force-push `main`. Its history stays
+  linear.
 - **Do not** commit directly on `main`. Work reaches `main` only from
   `claude-autopilot`.
 - Opening a pull request is not needed; `main` is updated by push.
@@ -296,23 +299,34 @@ loop.
 Run this after each push of `claude-autopilot`. It does not wait for CI. The
 owner reverts `main` by hand if a bad commit reaches it.
 
-Both branches move only by fast-forward, so neither ever gets a merge commit of
-its own. They differ only when a fast-forward is impossible: `main` is then
-merged into `claude-autopilot` first, so the fast-forward becomes possible;
-`codex-autopilot` is skipped, because its extra commits are the evaluator's.
+Both branches move only by fast-forward, and `main`'s history stays linear: it
+never gets a merge commit. They differ only when a fast-forward is impossible:
+`claude-autopilot` is then rebased onto `origin/main` first, so the fast-forward
+becomes possible; `codex-autopilot` is skipped, because its extra commits are
+the evaluator's.
 
 1. `git fetch origin`.
-2. **If `origin/main` is an ancestor of `claude-autopilot`**
-   (`git merge-base --is-ancestor origin/main claude-autopilot`), fast-forward
+2. **Before any push to `main`, require both checks.** `origin/main` must be
+   an ancestor of `claude-autopilot`
+   (`git merge-base --is-ancestor origin/main claude-autopilot`), and there must
+   be no merge commits in between (`git rev-list --merges
+   origin/main..claude-autopilot` prints nothing). If both hold, fast-forward
    it: `git push origin claude-autopilot:main`.
 3. **Otherwise `main` has commits `claude-autopilot` lacks** (for example a
-   commit the owner made on `main`). Merge `origin/main` into
-   `claude-autopilot` with an ordinary merge commit (`git merge --no-edit
-   origin/main`; never rebase), run `./gradlew build`, push `claude-autopilot`,
-   and then fast-forward `main` as in step 2. If the merge conflicts and the
-   resolution is not mechanical, or the merged build fails in a way the task
-   did not cause, `git merge --abort`, leave `main` as it is, report the
-   divergence to the owner, and keep working on `claude-autopilot`.
+   commit the owner made on `main`). Never merge `main` into
+   `claude-autopilot`. Instead:
+   1. Rebase it onto `origin/main` (`git rebase origin/main`).
+   2. If the rebase can't be done cleanly, `git rebase --abort` and squash the
+      branch's new commits into one commit on top of `origin/main` instead.
+   3. If even that won't resolve cleanly, stop and report the divergence to the
+      owner. Leave `main` as it is and keep the unrebased work on
+      `claude-autopilot`.
+   4. Run `./gradlew build`. If the rebased build fails in a way the task did
+      not cause, stop and report it the same way.
+   5. Update `claude-autopilot` on GitHub with
+      `git push --force-with-lease origin claude-autopilot`. This is the only
+      branch that is ever force-pushed. `main` is never force-pushed.
+   6. Fast-forward `main` as in step 2.
 4. **Fast-forward `codex-autopilot`, or skip it.** If
    `origin/codex-autopilot` is an ancestor of the new `origin/main`, push it
    forward: `git push origin origin/main:codex-autopilot`. If it is not (the
@@ -324,8 +338,10 @@ merged into `claude-autopilot` first, so the fast-forward becomes possible;
    checked out elsewhere (`git fetch origin main:main
    codex-autopilot:codex-autopilot`); a failure here is harmless.
 
-An ordinary push is refused when it is not a fast-forward, so a concurrent push
-by someone else cannot be overwritten; fetch and repeat from step 1.
+An ordinary push is refused when it is not a fast-forward, and
+`--force-with-lease` is refused when `origin/claude-autopilot` has moved since
+the last fetch, so a concurrent push by someone else cannot be overwritten;
+fetch and repeat from step 1.
 
 Render auto-deploys `main` to the beta service, so each update of `main` also
 deploys the beta. The owner authorized that together with the automatic update
@@ -372,10 +388,11 @@ Do not perform without explicit authorization:
 
 - `git reset --hard`,
 - deleting untracked user work,
-- force push,
+- force push, except updating a rebased `claude-autopilot` with
+  `--force-with-lease` as in **Updating `main` and `codex-autopilot`**,
 - pushing to `main` or `codex-autopilot` other than as described in
   **Updating `main` and `codex-autopilot`**,
-- rewriting published history.
+- rewriting published history, with the same `claude-autopilot` exception.
 
 Prefer additive, reversible recovery approaches.
 

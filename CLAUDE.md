@@ -224,10 +224,12 @@ Key clarifications:
   fast-forwarded to each pushed commit straight away, before CI finishes
   (`D079`). The CI gate still decides
   when the next task may start.
-- Preserved guardrails: no force-push, no rebasing `main`, no rewriting
-  published history. Updating `main` deploys the beta (Render auto-deploys
-  `main`); that is authorized by `D079`. Production deployment still needs
-  explicit authorization.
+- Preserved guardrails: `main` stays linear and is never merged into, rebased,
+  or force-pushed. No force-push and no rewriting published history, except
+  updating a rebased `claude-autopilot` with `--force-with-lease` (`D079`).
+  Updating `main` deploys the beta (Render auto-deploys `main`); that is
+  authorized by `D079`. Production deployment still needs explicit
+  authorization.
 
 ## Verification Commands
 
@@ -297,27 +299,33 @@ Whenever Claude has finished a coding task and pushed the commits it intends to
 `codex-autopilot` to them immediately, without waiting for CI (`D079`). The owner
 rolls `main` back by hand if needed.
 
-Both branches move only by fast-forward, so neither ever gets a merge commit of
-its own. They differ only when a fast-forward is impossible: `main` is then
-merged into `claude-autopilot` first, so the fast-forward becomes possible;
-`codex-autopilot` is skipped, because its extra commits are the evaluator's.
+Both branches move only by fast-forward, and `main`'s history stays linear: it
+never gets a merge commit. They differ only when a fast-forward is impossible:
+`claude-autopilot` is then rebased onto `origin/main` first, so the fast-forward
+becomes possible; `codex-autopilot` is skipped, because its extra commits are
+the evaluator's.
 
 Full procedure: `docs/AUTONOMOUS-DEVELOPMENT.md`, **Updating `main` and
 `codex-autopilot`**. In short:
 
 1. `git fetch origin`.
-2. If `origin/main` is an ancestor of `claude-autopilot`:
-   `git push origin claude-autopilot:main`.
-3. Otherwise merge `origin/main` into `claude-autopilot` (ordinary merge, never
-   rebase), run `./gradlew build`, push `claude-autopilot`, then do step 2. If
-   the merge conflicts non-mechanically or the build fails for a reason the task
-   did not cause, abort the merge, leave `main` alone and report it.
+2. Before any push to `main`, require both: `origin/main` is an ancestor of
+   `claude-autopilot`, and `git rev-list --merges origin/main..claude-autopilot`
+   prints nothing. Then `git push origin claude-autopilot:main`.
+3. Otherwise never merge `main` into `claude-autopilot`. Rebase it onto
+   `origin/main`. If the rebase can't be done cleanly, squash its new commits
+   into one commit on top of `origin/main` instead. If even that won't resolve
+   cleanly, stop and report, and leave `main` alone. After a rebase or squash,
+   run `./gradlew build`, update `claude-autopilot` on GitHub with
+   `git push --force-with-lease origin claude-autopilot` (that branch only),
+   then do step 2. `main` is never force-pushed.
 4. If `origin/codex-autopilot` is an ancestor of the new `origin/main`:
    `git push origin origin/main:codex-autopilot`. Otherwise skip it and say so.
    Never merge into, rebase or force-push `codex-autopilot`.
 
-All pushes are ordinary pushes, so a non-fast-forward is refused rather than
-overwriting anything.
+Every push except that `--force-with-lease` update of `claude-autopilot` is an
+ordinary push, so a non-fast-forward is refused rather than overwriting
+anything.
 
 ### Pre-commit hygiene
 
@@ -343,8 +351,9 @@ Do not perform any of the following without explicit authorization:
 - destructive database operations,
 - `git reset --hard`,
 - deleting untracked user work,
-- force pushing,
+- force pushing, except updating a rebased `claude-autopilot` with
+  `--force-with-lease` as in **Updating `main` and `codex-autopilot`**,
 - pushing to `main` or `codex-autopilot` other than as in **Updating `main`
   and `codex-autopilot`**, or the milestone checkpoint procedure in
   `docs/INDEPENDENT-EVALUATION.md`,
-- rewriting published history.
+- rewriting published history, with the same `claude-autopilot` exception.

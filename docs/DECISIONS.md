@@ -5052,6 +5052,12 @@ just emptied the log, so nothing needed backfilling.
 
 **Status:** Accepted
 
+**Amended:** 2026-09-24 — the first version merged `origin/main` into
+`claude-autopilot` when they had diverged, and put a merge commit (`fc8b692`) on
+`main`. The owner rolled `main` back by hand. `main` must stay linear, so a
+diverged `claude-autopilot` is now rebased onto `main`, or squashed when a rebase
+is not workable, and never merged.
+
 **Supersedes in part:** `D026` (integrating `claude-autopilot` into `main` was a
 human step)
 
@@ -5060,11 +5066,17 @@ human step)
 - **After Claude pushes the commits it intends to `claude-autopilot`, it
   integrates them into `main` immediately.** It does not wait for CI. This holds
   for any finished coding task, inside the autonomous loop or not.
-- **`main` is fast-forwarded when it can be.** When `main` has commits
-  `claude-autopilot` lacks, Claude merges `main` into `claude-autopilot` with an
-  ordinary merge commit, builds, pushes, and then fast-forwards `main`. It never
-  rebases. A non-mechanical conflict, or a build failure the task did not cause,
-  is reported and `main` is left alone.
+- **`main` only moves by fast-forward, and its history stays linear.** Before
+  any push to `main`, `origin/main` must be an ancestor of `claude-autopilot`,
+  and there must be no merge commits between them.
+- **Claude never merges `main` into `claude-autopilot`.** If `claude-autopilot`
+  has diverged, Claude rebases it onto `origin/main`. If the rebase can't be done
+  cleanly, it squashes the branch's new commits into one commit on top of
+  `main`. If even that won't resolve cleanly, or the rebased build fails for a
+  reason the task did not cause, it stops and reports, and `main` is left alone.
+- **After a rebase, `claude-autopilot` is updated on GitHub with
+  `--force-with-lease`, and only that branch.** `main` still moves only by
+  fast-forward and is never force-pushed.
 - **`codex-autopilot` is fast-forwarded to the new `main` when it is an ancestor
   of it.** When it is not, it is left alone. Claude never merges into, rebases
   or force-pushes that branch, and never merges it into `main`.
@@ -5073,11 +5085,12 @@ human step)
   `claude-autopilot` and reaches `main` the same way.
 - **Updating `main` deploys the beta**, because Render auto-deploys `main`. The
   owner authorized that with this decision. No force-push, and no rewriting
-  published history, still apply to every branch.
+  published history, still apply to every branch, except the
+  `--force-with-lease` update of a rebased `claude-autopilot`.
 
 Both branches move only by fast-forward. They differ only when that is
-impossible: `main` is merged into `claude-autopilot` first; `codex-autopilot` is
-skipped.
+impossible: `claude-autopilot` is rebased onto `main` first; `codex-autopilot`
+is skipped.
 
 The procedure is in `docs/AUTONOMOUS-DEVELOPMENT.md`, **Updating `main` and `codex-autopilot`**.
 
@@ -5089,10 +5102,19 @@ reverted in git. Waiting for a person added delay and nothing else. GitHub has
 no protection on `main`, and an ordinary push is refused unless it is a
 fast-forward, so nothing anyone else pushed can be overwritten.
 
+The owner wants `main`'s history linear. A merge commit on `main` makes it
+harder to read, revert and bisect. Rebasing the working branch instead keeps
+every commit on `main` a single step. `claude-autopilot` is Claude's own branch,
+so rewriting it after a rebase costs nobody anything. `--force-with-lease` still
+refuses the push if someone else moved that branch in the meantime.
+
 ### Alternatives Considered
 
 - **Integrate only after CI is green.** Rejected by the owner: they asked for
   integration before CI.
+- **Merge `origin/main` into `claude-autopilot` when they diverge.** This
+  decision's first version did this. Rejected by the owner once it put a merge
+  commit on `main`: `main` must stay linear.
 - **Merge `codex-autopilot` into `main` too.** Rejected: the evaluator's
   checkpoints reach `main` only through the owner. A fast-forward moves the
   evaluator's branch onto work it has not seen, but adds none of Claude's
@@ -5103,6 +5125,8 @@ fast-forward, so nothing anyone else pushed can be overwritten.
 - `CLAUDE.md` and `docs/AUTONOMOUS-DEVELOPMENT.md` describe the new step and drop
   "`main` is human-controlled".
 - A red CI run can now be on `main` and the beta until the fix lands.
+- A rebased `claude-autopilot` gets new commit ids. Its CI runs again for the
+  rebased head, and the CI gate applies to that run.
 - The evaluator should fetch before it starts, as `docs/INDEPENDENT-EVALUATION.md`
   step 1 already requires, because `origin/codex-autopilot` may have moved.
 
