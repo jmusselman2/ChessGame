@@ -76,6 +76,15 @@ class ChessAppViewModel(
     var startup: StartupState by mutableStateOf(StartupState.Loading)
         private set
 
+    /**
+     * When this model was made, on the monotonic clock: in practice, when the app launched.
+     *
+     * The launch splash measures its limit from here rather than from an activity, because
+     * an activity recreated mid-launch (a device turning as the app opens) is still the
+     * same launch, and this model outlives it.
+     */
+    val createdAtNanos: Long = System.nanoTime()
+
     /** Who the server says the player is, once startup has asked it. */
     var currentUser: CurrentUserDto? by mutableStateOf(null)
         private set

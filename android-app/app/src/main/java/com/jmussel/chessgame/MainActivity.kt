@@ -11,9 +11,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.jmussel.chessgame.app.ChessApp
 import com.jmussel.chessgame.app.ChessAppDependencies
 import com.jmussel.chessgame.app.ChessAppViewModel
+import com.jmussel.chessgame.app.LaunchSplash
 import com.jmussel.chessgame.ui.allusers.AllUsersActions
 import com.jmussel.chessgame.ui.dashboard.DashboardActions
 import com.jmussel.chessgame.ui.friends.FriendsActions
@@ -35,12 +37,22 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // Before super.onCreate: it swaps the launch theme for Theme.ChessGame.
+        val splashScreen = installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
         // Started here rather than from composition, so a recomposition cannot ask for a
         // second session; the model ignores the call when it already has one.
         viewModel.start()
+
+        // Timed from the model, not this activity. A device turning as the app opens
+        // recreates the activity mid-launch, and the new one must go on holding the splash;
+        // a turn once the app is showing finds startup over, or the limit long past.
+        splashScreen.setKeepOnScreenCondition {
+            val shownForMillis = (System.nanoTime() - viewModel.createdAtNanos) / NANOS_PER_MILLI
+            LaunchSplash.keepsOnScreen(viewModel.startup, shownForMillis)
+        }
 
         setContent {
             ChessGameTheme {
@@ -166,3 +178,5 @@ class MainActivity : ComponentActivity() {
         if (!isChangingConfigurations) viewModel.onBackground()
     }
 }
+
+private const val NANOS_PER_MILLI = 1_000_000L

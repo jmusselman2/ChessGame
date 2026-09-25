@@ -7,4 +7,10 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Material 3's default light background, which the app's first screen is drawn on. -->
+    <color name="splash_background">#FFFFFBFE</color>
+    <!-- The launcher icon's background (drawable/ic_launcher_background), so the splash
+         shows the same icon the player just tapped. -->
+    <color name="splash_icon_background">#FF3DDC84</color>
 </resources>

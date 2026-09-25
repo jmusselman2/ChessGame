@@ -2,4 +2,17 @@
 <resources>
 
     <style name="Theme.ChessGame" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!--
+        What the launcher shows before the app's first frame. On Android 12+ the system
+        draws it; before that the splash library does, as the window background. Either way
+        it is the only launch screen: MainActivity swaps it for Theme.ChessGame with
+        installSplashScreen() before super.onCreate().
+    -->
+    <style name="Theme.ChessGame.Starting" parent="Theme.SplashScreen.IconBackground">
+        <item name="windowSplashScreenBackground">@color/splash_background</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/splash_icon_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/splash_icon</item>
+        <item name="postSplashScreenTheme">@style/Theme.ChessGame</item>
+    </style>
 </resources>
