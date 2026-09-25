@@ -1,13 +1,13 @@
 # Codex Evaluation State
 
-- **Status:** `M6 PASSED`
+- **Status:** `M7 PASSED`
 - **Evaluation branch:** `codex-autopilot`
 - **Requested range:** M1 through M19 inclusive
-- **Next milestone:** M7
+- **Next milestone:** M8
 - **Run ID:** `2026-09-24-f941135`
 - **Pinned baseline:** `f9411358d319d8501bfc58aa05470523a67bd6a8`
-- **Last verified checkpoint:** M5 at
-  `563887caeec97f41546c3185f968ad7efd7dc2b5`
+- **Last verified checkpoint:** M6 at
+  `a6c7f49c8ab3d31a7326130b97fb5cf59916b347`
 - **Current findings:** none
 
 ## Evaluation boundaries
@@ -30,6 +30,6 @@ history. It does not control this fresh run.
 
 ## Exact next action
 
-Review the complete M6 evaluator diff, run `git diff --check`, create exactly
-one M6 evaluator checkpoint commit, push it to `origin/codex-autopilot`, and
-verify the live remote ref before beginning M7.
+Inspect the M8 requirements, implementation, schema, callers, and retained
+tests, then complete and record the fresh M8 assessment before consulting any
+historical M8 report.
