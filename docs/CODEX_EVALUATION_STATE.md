@@ -1,14 +1,34 @@
 # Codex Evaluation State
 
-- **Status:** `M7 PASSED`
+- **Status:** `M8 PASSED`
 - **Evaluation branch:** `codex-autopilot`
 - **Requested range:** M1 through M19 inclusive
-- **Next milestone:** M8
+- **Next milestone:** M9
 - **Run ID:** `2026-09-24-f941135`
 - **Pinned baseline:** `f9411358d319d8501bfc58aa05470523a67bd6a8`
-- **Last verified checkpoint:** M6 at
-  `a6c7f49c8ab3d31a7326130b97fb5cf59916b347`
+- **Last verified checkpoint:** rewritten M7 at
+  `2e3afb6e01f7a692d9b45822a65afaa24e2d2607`
 - **Current findings:** none
+
+## Live branch reconciliation
+
+During M8, the live `codex-autopilot` history was rebased from the previously
+verified M7 checkpoint `7a2b3bf57294b2e644287a3d09473e6cd979ca0d` onto two production commits:
+
+- `6d168190929c008caa5249b38909031109389ec2` — Android launch splash
+- `3e50441f6846de1213eb4fb38b6816bc4b720e34` — future-planning documentation
+
+The rewritten M7 checkpoint is live at `2e3afb6e01f7a692d9b45822a65afaa24e2d2607`.
+The original pinned baseline remains
+`f9411358d319d8501bfc58aa05470523a67bd6a8`. After the evaluator paused, the
+work was unstashed and the user directed the run to resume on the published
+rewritten history.
+
+The intervening diff changes the Android launch splash and planning documents;
+the `server` and `game-core` trees are unchanged. M8's 49 focused server tests
+were rerun on the rewritten tip, and a complete Android build passed all 521
+tests, lint, and debug/release assembly. No conflict with M8 or the evaluation
+workflow remains known. No production file was changed by the evaluator.
 
 ## Evaluation boundaries
 
@@ -30,6 +50,6 @@ history. It does not control this fresh run.
 
 ## Exact next action
 
-Inspect the M8 requirements, implementation, schema, callers, and retained
-tests, then complete and record the fresh M8 assessment before consulting any
-historical M8 report.
+Inspect the complete M8 evaluator diff, run `git diff --check`, create and push
+the single M8 checkpoint, and verify the live remote ref. Then begin the fresh
+M9 assessment before consulting historical M9 reports.
