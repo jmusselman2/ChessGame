@@ -1,12 +1,12 @@
 # Codex Evaluation State
 
-- **Status:** `M18 PASS`
+- **Status:** `M1-M19 COMPLETE`
 - **Evaluation branch:** `codex-autopilot`
 - **Requested range:** M1 through M19 inclusive
-- **Next milestone:** M19
+- **Next milestone:** None - stop; M20.1 was not started
 - **Run ID:** `2026-09-24-f941135`
 - **Pinned baseline:** `f9411358d319d8501bfc58aa05470523a67bd6a8`
-- **Last verified checkpoint:** M18 passing checkpoint (the commit containing
+- **Last verified checkpoint:** M19 completion checkpoint (the commit containing
   this state; its live remote SHA is verified after publication)
 - **Current findings:** None
 
@@ -35,7 +35,8 @@ identified `M18-U01`: the platform review said 22 `game-core` Kotlin files at
 `9941402`, while the named tree contains 23. Remediation commit
 `12297c1bfa126ce980b0a3f60a0844d3796c9cad` changed only those two false
 counts on `claude-autopilot`. The user reconciled the two-line documentation
-fix by amending the M18 checkpoint to `4d4e8c53feb2ba15d16a5155cab80c143a12ee0c`.
+fix by amending the M18 checkpoint. Its final live form is
+`13009135359874ec95b1d0feffc12b454f51543f`.
 The exact regression now passes, the 1,779-line count remains correct, all nine
 relative links resolve, and `M18-U01` is closed.
 
@@ -57,7 +58,13 @@ relative links resolve, and `M18-U01` is closed.
 Historical evaluation state remains available in the immutable reports and Git
 history. It does not control this fresh run.
 
+## Completion
+
+M19.2-M19.12 passed fresh evaluation. The retained participant-identity and
+migration regressions pass unchanged, the final full build passed 1,508 tests
+with no failures, errors, or skips, and no M19 finding was opened. The unified
+run summary is `evals/runs/2026-09-24-f941135/UNIFIED-M1-M19-SUMMARY.md`.
+
 ## Exact next action
 
-Begin the fresh M19 evaluation after the M18 passing checkpoint is remotely
-verified. Do not begin M20.1.
+Stop. The requested M1-M19 evaluation is complete. Do not begin M20.1.
