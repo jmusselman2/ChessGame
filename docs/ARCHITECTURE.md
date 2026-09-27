@@ -637,7 +637,9 @@ For MVP:
   last game is unfinished, marked `seriesActive: false`,
 - closed series remain historical,
 - creation does not check that the pair are friends (`D046`), so a series may
-  outlive — or never have had — a friendship between its two players.
+  outlive — or never have had — a friendship between its two players,
+- creation does refuse a caller who has not claimed a username (`403`, `D081`), as
+  `POST /friends` does (`D045`), so both players of every new series can see it.
 
 ## 17. Friend Removal and Series Lifecycle
 

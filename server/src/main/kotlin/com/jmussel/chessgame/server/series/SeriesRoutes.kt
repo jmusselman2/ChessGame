@@ -31,7 +31,9 @@ import kotlin.uuid.Uuid
  * The server does not check that the two are friends (`D046`). The app only ever offers
  * people the player already knows, and that selection is the gate; re-deciding it here
  * bought nothing except a check that could be raced. This is the one place the client is
- * trusted for a state assertion, and it is deliberate and narrow.
+ * trusted for a state assertion, and it is deliberate and narrow. It covers who a player may
+ * play, not whether they can be seen: a caller who has not claimed a username is refused with
+ * `403`, because both players must be able to find the game (`D081`).
  *
  * `POST /series/{seriesId}/leave` is a player leaving a series, which ends it (`D052`). It is
  * a separate action from resigning a game, and it touches no game: the series' current game
@@ -48,6 +50,14 @@ fun Route.seriesRoutes(
 ) {
     post("/series") {
         val caller = call.authenticatedUser()
+
+        // A caller with no username would be the opponent in a game the other player cannot
+        // see: their dashboard can only show people who have a name (`D081`, as `D045`).
+        if (users.find(caller.userId)?.username == null) {
+            call.respondText("Claim a username before starting a game", status = HttpStatusCode.Forbidden)
+            return@post
+        }
+
         val requested = call.receiveText().trim()
 
         if (Username.ofOrNull(requested) == null) {

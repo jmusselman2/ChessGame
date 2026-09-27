@@ -2393,6 +2393,10 @@ re-deciding it.
 name belonging to nobody, and 201/200 for everyone else. The 403 it used to
 answer is gone.
 
+*Superseded in part by `D081`:* `POST /series` answers 403 again, but only to a
+caller who has not claimed a username. That is about whether the caller can be
+seen, not about the relationship, so there is still no relationship check.
+
 **The accepted consequence, stated plainly:** a caller who bypasses the app and
 calls the API directly can open a series with someone who is not their friend.
 That is accepted for the MVP.
@@ -2443,7 +2447,8 @@ becoming a precedent.
 ### Consequences
 
 - `seriesRoutes` no longer takes a `FriendshipRepository`. `POST /series` cannot
-  answer 403.
+  answer 403. (*Superseded in part by `D081`:* it answers 403 to a caller with no
+  username, and to nobody else.)
 - **A series may exist between users who are not friends.** Anything reading
   series, dashboards, or history must not assume the pair are currently friends.
   Nothing did assume it; this records that it must stay that way.
@@ -5212,3 +5217,72 @@ dropped for five minutes.
   asserted the `500` that this decision removes. Its first request now expects
   `200` with nothing recorded. The retry assertion, which is what the test is
   for, is unchanged.
+
+---
+
+## D081 — A Nameless Caller Is Refused `POST /series`, as It Is `POST /friends`
+
+**Date:** 2026-09-26
+
+**Status:** Accepted
+
+**Supersedes in part:** `D046`'s "`POST /series` cannot answer 403", for a
+caller with no username only
+
+**Relates to:** `D006`, `D045`, `D046`, `D053`, `D065`, `M9.1`,
+`evals/runs/2026-09-24-f941135/M9/critic-report.md` (`M9-U01`)
+
+### Decision
+
+`POST /series` refuses a caller who has not claimed a username yet. It answers
+**403 Forbidden** with the sentence "Claim a username before starting a game".
+The check runs before the body is read and before any table, series or game is
+written. It applies with or without `another=true`.
+
+The endpoint's answers are now: 400 for a malformed name or yourself, 403 for a
+caller with no name of their own, 404 for a name belonging to nobody, 409 with a
+`SeriesOffer` when the pair already has an active series (`D053`), and 201 for a
+series that was started.
+
+The person asked for already had to have a username. With this, both players of
+every new series have a public identity.
+
+### Rationale
+
+This is `D045` applied to the third endpoint that can create something between
+two people. Authentication creates the internal user on a subject's first
+request (`D006`), so an authenticated caller may have no name. When `D046`
+removed the friendship check from `POST /series`, it also removed the only thing
+that had kept a nameless caller away from series creation, because `D045` had
+already kept them from making friends. A nameless subject could then play
+`Alex`, receive 201, and commit a series and game that Alex's dashboard cannot
+show: `DashboardEntry.of` drops an opponent with no name. Alex has a live game
+they never asked for and cannot find.
+
+`D046` trusts the client about who a player picks. It does not trust the client
+about whether the caller can be seen by the person they picked, and it never
+said it did. This check does not reintroduce a relationship check. It is a
+property of the caller alone, stored on their own row, and it cannot race with
+anything `D046` worried about.
+
+403 matches `POST /friends` and `POST /groups`. The request is well formed, and
+the person asked for may exist. What is missing is the caller's own standing.
+
+### Alternatives Considered
+
+- **Teach the dashboard, series summaries and game views to render an opponent
+  with no name.** Rejected for the reasons `D045` gives: a placeholder identity
+  invented in several places for a user who has not chosen one, and
+  `SeriesSummary` would lose a real invariant.
+
+### Consequences
+
+- No client change. The Android app routes a new player through onboarding
+  before Play, so it never sends this request.
+- It is not retrospective. A series written before this decision keeps its
+  shape, and the defensive `toSummaryOrNull` drops that read it stay.
+- `OpenSeriesTest.theEndpointRefusesACallerWithoutAUsername` pins the status,
+  the sentence, and that no table, series or game row exists afterwards, for
+  both plain Play and `another=true`. The evaluator's
+  `M9AdversarialTest.aNamelessCallerCannotStartAOneSidedInvisibleSeries` pins
+  the dashboard consequence.

@@ -1608,6 +1608,12 @@ is not a friend, 400 for yourself or a malformed name, 404 for an unknown user.
 (The 403 was later removed: `D046` deletes the friendship check at series
 creation rather than making it race-safe, so the remaining answers are 201, 200,
 400, and 404.)
+(Remediated 2026-09-26, `M9-U01` in
+`evals/runs/2026-09-24-f941135/M9/critic-report.md`: a caller who has not
+claimed a username is refused with 403 "Claim a username before starting a
+game" before anything is written (`D081`). Pinned by
+`OpenSeriesTest.theEndpointRefusesACallerWithoutAUsername` and the evaluator's
+`M9AdversarialTest`.)
 Verified locally with `.\gradlew.bat :server:test` (13 new `OpenSeriesTest`
 cases) including the required concurrency test: eight simultaneous opens from
 both sides through a `CyclicBarrier` produce exactly one creation, one series id

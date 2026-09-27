@@ -13,6 +13,8 @@ import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.db.GameSeriesTable
 import com.jmussel.chessgame.server.db.GameTypes
+import com.jmussel.chessgame.server.db.GamesTable
+import com.jmussel.chessgame.server.db.TablesTable
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.testModule
 import com.jmussel.chessgame.server.user.Username
@@ -366,6 +368,36 @@ class OpenSeriesTest {
 
             assertEquals(HttpStatusCode.Created, response.status)
             assertEquals(1, fixture.seriesCount())
+        }
+    }
+
+    /**
+     * A caller who has not claimed a username cannot start a game (`D081`, `M9-U01`).
+     *
+     * Before this, the request answered `201` and committed a series and game whose other
+     * player could not see it: the dashboard only shows opponents who have a name. Nothing may
+     * be written before the refusal, and asking for another series changes nothing.
+     */
+    @Test
+    fun theEndpointRefusesACallerWithoutAUsername() {
+        withServer { fixture ->
+            fixture.users.resolveBySubject("auth-1")
+            fixture.named("auth-2", "Alex")
+
+            for (path in listOf("/series", "/series?another=true")) {
+                val response =
+                    client.post(path) {
+                        header("Authorization", "Bearer ${tokens.tokenFor("auth-1")}")
+                        setBody("Alex")
+                    }
+
+                assertEquals(HttpStatusCode.Forbidden, response.status, path)
+                assertEquals("Claim a username before starting a game", response.bodyAsText(), path)
+            }
+
+            assertEquals(0, fixture.seriesCount())
+            assertEquals(0L, transaction(fixture.database) { GamesTable.selectAll().count() })
+            assertEquals(0L, transaction(fixture.database) { TablesTable.selectAll().count() })
         }
     }
 
