@@ -1,16 +1,17 @@
 # Codex Evaluation State
 
-- **Status:** `M14 PASSED`
+- **Status:** `M15 PASSED`
 - **Evaluation branch:** `codex-autopilot`
 - **Requested range:** M1 through M19 inclusive
-- **Next milestone:** M15
+- **Next milestone:** M16
 - **Run ID:** `2026-09-24-f941135`
 - **Pinned baseline:** `f9411358d319d8501bfc58aa05470523a67bd6a8`
-- **Last verified checkpoint:** M13 passing checkpoint at
-  `2fd13fa16e13d3af6d8d39bb9e123d6add9878ea`
-- **Current findings:** none; historical `M14-01`, `M14-02`, and `M14-03`
-  remain closed under D059, and fresh Android, API, instrumentation, and
-  two-client verification passes
+- **Last verified checkpoint:** M14 passing checkpoint at
+  `de9acdd91755f5ec00b911e26d6221f83dfc67cf`
+- **Current findings:** none; M15 deployment, beta database, Android endpoint,
+  and destructive-reset requirements pass fresh verification. Supabase's
+  disabled-RLS/broad-grant exposure remains the documented F34 latent risk,
+  currently blocked by the no-exposed-schema Data API setting.
 
 ## Live branch reconciliation
 
@@ -52,6 +53,6 @@ history. It does not control this fresh run.
 
 ## Exact next action
 
-Create and remotely verify the M14 evaluator checkpoint. Then begin M15 with a
-fresh assessment of the current beta-deployment requirements before consulting
-any retained M15 report.
+Create and remotely verify the M15 evaluator checkpoint. Then begin M16 with a
+fresh assessment of current network-interruption requirements before consulting
+any retained M16 report.
