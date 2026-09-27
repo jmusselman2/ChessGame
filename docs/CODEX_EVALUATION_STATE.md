@@ -1,17 +1,15 @@
 # Codex Evaluation State
 
-- **Status:** `M15 PASSED`
+- **Status:** `M16 PASSED`
 - **Evaluation branch:** `codex-autopilot`
 - **Requested range:** M1 through M19 inclusive
-- **Next milestone:** M16
+- **Next milestone:** M17
 - **Run ID:** `2026-09-24-f941135`
 - **Pinned baseline:** `f9411358d319d8501bfc58aa05470523a67bd6a8`
-- **Last verified checkpoint:** M14 passing checkpoint at
-  `de9acdd91755f5ec00b911e26d6221f83dfc67cf`
-- **Current findings:** none; M15 deployment, beta database, Android endpoint,
-  and destructive-reset requirements pass fresh verification. Supabase's
-  disabled-RLS/broad-grant exposure remains the documented F34 latent risk,
-  currently blocked by the no-exposed-schema Data API setting.
+- **Last verified checkpoint:** M15 passing checkpoint at
+  `18dad2f3f1aca8abad86b3ec66103b8462605561`
+- **Current findings:** none; M16.1-M16.7 pass fresh interruption, restart,
+  idempotency, logging, silent-socket, and command-read race verification
 
 ## Live branch reconciliation
 
@@ -53,6 +51,6 @@ history. It does not control this fresh run.
 
 ## Exact next action
 
-Create and remotely verify the M15 evaluator checkpoint. Then begin M16 with a
-fresh assessment of current network-interruption requirements before consulting
-any retained M16 report.
+Create and remotely verify the M16 evaluator checkpoint. Then begin M17 with a
+fresh assessment of M17.1-M17.3 and M17.5-M17.13 before consulting any retained
+M17 report. M17.4 does not exist and must not be introduced.
