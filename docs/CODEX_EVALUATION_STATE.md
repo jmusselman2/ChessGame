@@ -1,15 +1,14 @@
 # Codex Evaluation State
 
-- **Status:** `REMEDIATION REQUIRED`
+- **Status:** `M9 PASSED`
 - **Evaluation branch:** `codex-autopilot`
 - **Requested range:** M1 through M19 inclusive
-- **Next milestone:** M9 remediation re-evaluation; do not begin M10
+- **Next milestone:** M10
 - **Run ID:** `2026-09-24-f941135`
 - **Pinned baseline:** `f9411358d319d8501bfc58aa05470523a67bd6a8`
-- **Last verified checkpoint:** M8 at
-  `88239f1a120e328e1707f044da03e50a1ed6a6a1`
-- **Current findings:** `M9-U01` - a nameless authenticated caller can create a
-  series and game that the named participant cannot discover on the dashboard
+- **Last verified checkpoint:** M9 remediation base at
+  `35da49ad12345d438b519ec0599037085ae3cedc`
+- **Current findings:** none; `M9-U01` closed by D081 and independently verified
 
 ## Live branch reconciliation
 
@@ -51,8 +50,6 @@ history. It does not control this fresh run.
 
 ## Exact next action
 
-Create and remotely verify the M9 evaluator checkpoint containing the reports,
-state, and smallest reliable regression for `M9-U01`. Remediate the production
-defect separately on `claude-autopilot`, then return to this branch and re-run
-M9. Do not begin M10 before M9 passes and its passing checkpoint is pushed and
-remotely verified.
+Create and remotely verify the evaluator-only M9 passing checkpoint containing
+the remediation re-evaluation reports and state update. Then begin M10 with a
+fresh assessment before consulting any retained M10 report.

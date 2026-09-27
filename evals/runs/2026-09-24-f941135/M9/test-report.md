@@ -56,3 +56,29 @@ The complete build's server test task ran 591 tests and reported exactly one
 failure. The 590 pre-existing server tests therefore passed; the sole failure
 is the intentionally red `M9AdversarialTest` that must turn green after
 production remediation.
+
+## Remediation re-evaluation
+
+Candidate: `35da49ad12345d438b519ec0599037085ae3cedc`
+
+| Verification | Result |
+| --- | --- |
+| `M9AdversarialTest` plus `OpenSeriesTest` | PASS - 16 tests, 0 failures, 0 errors, 0 skipped |
+| Core M9 series/dashboard/schema/migration/table selection | PASS - 168 tests, 0 failures, 0 errors, 0 skipped |
+| Supplemental `GroupSchemaTest` | PASS - 8 tests, 0 failures, 0 errors, 0 skipped |
+| Retained `M19MigrationEvaluationTest` | PASS - 1 test, 0 failures, 0 errors, 0 skipped |
+| Focused aggregate | PASS - 177 tests, 0 failures, 0 errors, 0 skipped |
+| Complete `build --continue --rerun-tasks` | PASS - 134 tasks executed in 18m43s |
+| Complete game-core suite | PASS - 394 tests, 0 failures, 0 errors, 0 skipped |
+| Complete Android unit suite | PASS - 521 tests, 0 failures, 0 errors, 0 skipped; lint and debug/release APK assembly passed |
+| Complete server suite | PASS - 592 tests, 0 failures, 0 errors, 0 skipped |
+| GitHub CI for remediation SHA | PASS - completed successfully on `main` and `claude-autopilot` |
+| `adb devices -l` | No connected device; device acceptance remains not applicable |
+
+The independent rerun observed the exact D081 behavior: the evaluator request
+returned 403, Alex's dashboard remained empty, and no series or game row was
+written. The production route test passed for both `/series` and
+`/series?another=true`, including its exact response and zero-write assertions.
+Ordinary 201 creation, newest-first 409 offers, deliberate parallel creation,
+random colors, lifecycle, dashboard, schema, and migration cases all remained
+green. The full build also passed every formatting and packaging gate.

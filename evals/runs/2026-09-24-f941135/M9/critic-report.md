@@ -119,4 +119,38 @@ After the remediation is committed and pushed on `claude-autopilot`, return to
 the evaluator workflow for a fresh M9 re-evaluation. Do not begin M10 until the
 M9 passing checkpoint is pushed and the live remote ref is verified.
 
-**Final M9 verdict: REMEDIATION REQUIRED.**
+**Defect-checkpoint verdict: REMEDIATION REQUIRED.**
+
+## Remediation re-evaluation
+
+**Remediation candidate:** `35da49ad12345d438b519ec0599037085ae3cedc`
+
+D081 and the corresponding route change close `M9-U01` at the authoritative
+write boundary. `POST /series` now resolves the authenticated caller's stored
+user before reading the request body. If that user has no username, the route
+returns 403 with `Claim a username before starting a game` and returns before
+calling any table, series, or game service. The requested opponent's existing
+username requirement is unchanged, so every newly created series has two
+renderable public identities.
+
+The repair is deliberately narrower than a relationship gate. Named callers
+can still start a series without a friendship; existing-series offers remain
+newest-first 409 responses; `another=true` still creates a parallel series;
+initial colors remain random; and explicit leave behavior is unchanged. The
+five-file remediation diff contains the route gate, one retained route test,
+and synchronized D081, architecture, and M9 backlog text. No unrelated
+production behavior changed.
+
+The original evaluator regression now passes and proves that Alex's dashboard
+contains no invisible entry and that zero series and game rows were written.
+The production route test independently pins both `/series` variants, the exact
+403 response, and zero table, series, and game rows. All 177 focused cases and
+the complete 592-test server suite pass with no failures, errors, or skips. The
+complete game-core and Android suites, Android lint, and both APK assemblies
+also pass. GitHub CI completed successfully for the same remediation SHA on
+both `main` and `claude-autopilot`.
+
+No device was connected. Device testing remains inapplicable to this server
+identity/write-boundary defect and its deterministic HTTP/PostgreSQL proof.
+
+**Final M9 verdict after remediation: PASS. `M9-U01` is closed.**
