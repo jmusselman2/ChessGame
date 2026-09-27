@@ -1,15 +1,15 @@
 # Codex Evaluation State
 
-- **Status:** `M16 PASSED`
+- **Status:** `M17 PASSED`
 - **Evaluation branch:** `codex-autopilot`
 - **Requested range:** M1 through M19 inclusive
-- **Next milestone:** M17
+- **Next milestone:** M18
 - **Run ID:** `2026-09-24-f941135`
 - **Pinned baseline:** `f9411358d319d8501bfc58aa05470523a67bd6a8`
-- **Last verified checkpoint:** M15 passing checkpoint at
-  `18dad2f3f1aca8abad86b3ec66103b8462605561`
-- **Current findings:** none; M16.1-M16.7 pass fresh interruption, restart,
-  idempotency, logging, silent-socket, and command-read race verification
+- **Last verified checkpoint:** M16 passing checkpoint at
+  `628a6e7d1293729075d7eff1e2b0ad5961bcd5c4`
+- **Current findings:** none; M17.1-M17.3 and M17.5-M17.13 pass fresh
+  repository, signing, JVM, device, live-service, and live-database verification
 
 ## Live branch reconciliation
 
@@ -51,6 +51,6 @@ history. It does not control this fresh run.
 
 ## Exact next action
 
-Create and remotely verify the M16 evaluator checkpoint. Then begin M17 with a
-fresh assessment of M17.1-M17.3 and M17.5-M17.13 before consulting any retained
-M17 report. M17.4 does not exist and must not be introduced.
+Create and remotely verify the M17 evaluator checkpoint. Then begin M18 with a
+fresh assessment before consulting any retained M18 report. M17.4 remains
+absent, and M20.1 remains outside this run.
