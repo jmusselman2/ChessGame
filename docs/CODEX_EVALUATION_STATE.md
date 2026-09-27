@@ -1,15 +1,15 @@
 # Codex Evaluation State
 
-- **Status:** `M12 PASSED`
+- **Status:** `M13 PASSED`
 - **Evaluation branch:** `codex-autopilot`
 - **Requested range:** M1 through M19 inclusive
-- **Next milestone:** M13
+- **Next milestone:** M14
 - **Run ID:** `2026-09-24-f941135`
 - **Pinned baseline:** `f9411358d319d8501bfc58aa05470523a67bd6a8`
-- **Last verified checkpoint:** M11 passing checkpoint at
-  `01641002aee13717a414972ef94a66009237bc5a`
-- **Current findings:** none; historical `M12-01` remains closed by D058 and
-  passes its retained regression
+- **Last verified checkpoint:** M12 passing checkpoint at
+  `77b012a49383e8b017230f99ac3c43145b88c96b`
+- **Current findings:** none; current D053/D068 finalization, rematch,
+  resignation, and explicit-leave lifecycle pass focused verification
 
 ## Live branch reconciliation
 
@@ -51,6 +51,5 @@ history. It does not control this fresh run.
 
 ## Exact next action
 
-Create and remotely verify the evaluator-only M12 passing checkpoint containing
-the reports and state update. Then begin M13 with a fresh assessment before
-consulting any retained M13 report.
+Create and remotely verify the M13 evaluator checkpoint. Then begin the fresh
+M14 assessment before consulting historical M14 reports.
