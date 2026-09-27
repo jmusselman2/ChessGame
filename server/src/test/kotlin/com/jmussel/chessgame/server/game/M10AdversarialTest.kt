@@ -6,12 +6,14 @@ import com.jmussel.chessgame.core.chess.ChessGame
 import com.jmussel.chessgame.core.chess.ChessRules
 import com.jmussel.chessgame.core.chess.Move
 import com.jmussel.chessgame.core.chess.Square
+import com.jmussel.chessgame.server.api.GameView
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.db.GameTypes
 import com.jmussel.chessgame.server.db.UserRepository
+import com.jmussel.chessgame.server.series.seriesService
 import com.jmussel.chessgame.server.user.Username
 import java.lang.reflect.InvocationTargetException
 import java.lang.reflect.Proxy
@@ -29,7 +31,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.uuid.ExperimentalUuidApi
 
-/** Independent M10 probe for atomic canonical reads during a concurrent command. */
+/** Independent M10 probes for canonical state and capabilities. */
 class M10AdversarialTest {
     @Test
     fun aRefreshCannotMixAnOldGameRowWithNewMoveHistory() {
@@ -75,6 +77,56 @@ class M10AdversarialTest {
                 releaseHistoryRead.countDown()
                 pool.shutdownNow()
             }
+        }
+    }
+
+    @Test
+    fun aFinishedGameDoesNotAdvertiseDrawClaims() {
+        DatabaseTestSupport.withMigratedDatabase { dataSource ->
+            val database = Databases.connect(dataSource)
+            val users = UserRepository(database)
+            val white = users.resolveBySubject("m10-claim-white").id
+            val black = users.resolveBySubject("m10-claim-black").id
+            users.claimUsername(white, Username.of("ClaimWhite"))
+            users.claimUsername(black, Username.of("ClaimBlack"))
+
+            val series = GameSeriesRepository(database).openOrCreate(GameTypes.CHESS, listOf(white, black)).series
+            val games = GameRepository(database)
+            val initial = ChessGame.newGame()
+            val gameId =
+                games.create(
+                    seriesId = series.id,
+                    sequenceNumber = 1,
+                    users = listOf(white, black),
+                    game = initial,
+                )
+            val commands = GameCommandService(database, games, seriesService(database))
+            val repetitionMoves =
+                listOf(
+                    white to Move(Square.parse("g1"), Square.parse("f3")),
+                    black to Move(Square.parse("g8"), Square.parse("f6")),
+                    white to Move(Square.parse("f3"), Square.parse("g1")),
+                    black to Move(Square.parse("f6"), Square.parse("g8")),
+                    white to Move(Square.parse("g1"), Square.parse("f3")),
+                    black to Move(Square.parse("g8"), Square.parse("f6")),
+                    white to Move(Square.parse("f3"), Square.parse("g1")),
+                    black to Move(Square.parse("f6"), Square.parse("g8")),
+                )
+            repetitionMoves.forEachIndexed { version, (player, move) ->
+                assertTrue(commands.makeMove(player, gameId, version.toLong(), move) is CommandResult.Applied)
+            }
+            val repeated = assertNotNull(games.load(gameId))
+            assertTrue(ChessRules.availableDrawClaims(repeated.game.state).isNotEmpty())
+            assertTrue(commands.resign(black, gameId, repeated.version) is CommandResult.Applied)
+
+            val stored = assertNotNull(games.load(gameId))
+            val view = GameView.of(stored, white, assertNotNull(users.find(black)))
+
+            assertTrue(view.isOver)
+            assertTrue(
+                view.availableDrawClaims.isEmpty(),
+                "a finished game must not advertise a draw claim that every command will refuse",
+            )
         }
     }
 

@@ -1,14 +1,15 @@
 # Codex Evaluation State
 
-- **Status:** `M9 PASSED`
+- **Status:** `M10 PASSED`
 - **Evaluation branch:** `codex-autopilot`
 - **Requested range:** M1 through M19 inclusive
-- **Next milestone:** M10
+- **Next milestone:** M11
 - **Run ID:** `2026-09-24-f941135`
 - **Pinned baseline:** `f9411358d319d8501bfc58aa05470523a67bd6a8`
-- **Last verified checkpoint:** M9 remediation base at
-  `35da49ad12345d438b519ec0599037085ae3cedc`
-- **Current findings:** none; `M9-U01` closed by D081 and independently verified
+- **Last verified checkpoint:** M9 passing checkpoint at
+  `48f981aa2e4ea5ae6c9bf8d7fe5050b2b27c8e96`
+- **Current findings:** none; historical `M10-01` remains closed by D057 and
+  passes its retained regression
 
 ## Live branch reconciliation
 
@@ -50,6 +51,6 @@ history. It does not control this fresh run.
 
 ## Exact next action
 
-Create and remotely verify the evaluator-only M9 passing checkpoint containing
-the remediation re-evaluation reports and state update. Then begin M10 with a
-fresh assessment before consulting any retained M10 report.
+Create and remotely verify the evaluator-only M10 passing checkpoint containing
+the reports, state update, and retained capability regression. Then begin M11
+with a fresh assessment before consulting any retained M11 report.
