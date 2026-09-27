@@ -97,12 +97,32 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - Canonical undo restoration never replays commands through the rules. It restores recorded full state, or, only after measurement, exact data-level deltas that execute no rules (`D061`).
 - Do not introduce microservices for the MVP.
 - Do not add speculative deck-building abstractions during the chess MVP.
+- ChessGame and the Deck Builder are separate Android apps in this one repository.
+  They share one Ktor server, one database and one shared user (`D082`, which
+  settled `M20.1`). Each has its own pure-JVM rules module: `chess-core` (today's
+  `game-core`, renamed by `M20.3`) and `deck-core`. A chess app never depends on
+  `deck-core`, a Deck Builder app never depends on `chess-core`, and the two rules
+  modules never depend on each other. The server may depend on both. It dispatches
+  on `game_type` with an explicit `when`. No generic `GameRules`, `GameEngine`,
+  undo contract or capability system is introduced. A shared module is extracted
+  only when two real implementations show the same semantics (`D044`).
 - Keep user, friendship, game-series, persistence, and transport concerns outside the chess rules engine.
 
 ## Product Rules That Must Not Be Changed Silently
 
 - Usernames are globally unique, case-insensitively.
-- Authentication is invisible/anonymous for the MVP.
+- Authentication is invisible: no password or login screen. Identity is claimed by
+  username (`D082`, implemented by `M20.4`):
+  - a new name creates the shared user;
+  - a name that already exists attaches this installation to that user, with no
+    verification.
+
+  This is deliberately insecure and prototype-only, and it must be replaced before
+  any untrusted or public use. The anonymous Supabase session stays the
+  per-installation credential, and many installations may map to one `users.id`.
+  The username is never the per-request credential. Friends, groups and profile
+  are shared across both apps. Games, series and history stay with their game
+  type.
 - Friends are added by username.
 - Friendships are mutual immediately.
 - `lastSeenAt` is tracked internally.

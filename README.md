@@ -113,12 +113,22 @@ historical comparison material. A fresh sequential M1-M19 evaluation is ready
 to begin on `codex-autopilot`, with `docs/CODEX_EVALUATION_STATE.md` as the
 source of truth for its baseline, progress, evidence, and findings.
 
-The next production-development boundary is the human-sign-off architecture
-decision in `M20.1`. It is not part of the fresh M1-M19 independent evaluation
-and must not be started by that run. The N >= 3 continuation flow is separately
-deferred to `M20.2`; it is not part of M19's chess-only series-exit work. Work
-outside the MVP is listed, unscheduled, in `docs/FUTURE.md`; the backlog holds
-only scheduled work (`D072`).
+The multi-game architecture decision `M20.1` was signed off on 2026-09-26 as
+`D082`:
+
+- ChessGame and a future Deck Builder are separate Android apps in this
+  repository;
+- they share one Ktor server, one database and one user account;
+- each has its own pure-JVM rules module.
+
+It is not part of the fresh M1-M19 independent evaluation. The next production
+work is `M20.3`, which renames `game-core` to `chess-core`, then `M20.4`, the
+prototype username claim.
+
+The N >= 3 continuation flow moved out of the backlog to `F37` in
+`docs/FUTURE.md`, because it needs a real Deck Builder ruleset. Work outside the
+MVP is listed, unscheduled, in `docs/FUTURE.md`; the backlog holds only scheduled
+work (`D072`).
 
 ## Getting Started
 

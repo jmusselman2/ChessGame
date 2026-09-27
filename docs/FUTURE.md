@@ -27,7 +27,9 @@ These are the four things `D062` asks every standalone document to state:
 - **Assumptions:** effort is relative: **Small (S)** is about one backlog task,
   **Medium (M)** a few tasks, **Large (L)** a milestone, **Extra large (XL)**
   several milestones. *At a Glance* uses the letters. It assumes the code as
-  it is today, and nothing about `M20.1`'s answer.
+  it is today, and nothing about `M20.1`'s answer. *Since decided 2026-09-26
+  (`D082`):* the Deck Builder is a separate app on the same repository, server and
+  shared user. The estimates are unchanged.
 - **Relationship to binding decisions:** `D072` (where non-MVP work lives),
   `D071` (the "All users" page), and the decision named as each item's source.
   A decision that later changes an item is reflected here in the same change.
@@ -75,6 +77,7 @@ this order, not the numbers. `MVP.md` lists the same items by topic.
 | `F25` | Push notifications                          | Social                | L             | High               |
 | `F26` | Deck-building systems                       | Deck-Builder Platform | not estimated | The long-term goal |
 | `F27` | "Suggest friends" for table co-participants | Social                | not estimated | Medium             |
+| `F37` | N ≥ 3 resignation, continue among the rest  | Deck-Builder Platform | not estimated | Medium             |
 | `F28` | Deck-builder solo mode                      | Deck-Builder Platform | not estimated | Medium             |
 | `F29` | AI players in the deck-builder modes        | Deck-Builder Platform | not estimated | Medium             |
 | `F30` | Detailed and per-table statistics           | Series and Statistics | not estimated | Low–medium         |
@@ -152,7 +155,10 @@ players than tier 1.
 - **Source:** `MVP.md`
 - **Value:** Medium–high
 - **Effort:** Large
-- **Depends on:** nothing new. Non-user participants exist (`M19.7`, `D051`).
+- **Depends on:** the audit change `D082` point 12 requires. `game_events.actor_id`
+  references `users`, so a `COMPUTER` participant cannot be recorded as the actor
+  of its moves. The change is made before the AI opponent produces audited
+  actions. Non-user participants themselves exist (`M19.7`, `D051`).
 - **Open decisions:** which engine, and where it runs. A server-side engine is a
   hosting cost.
 
@@ -228,6 +234,12 @@ The task's acceptance criteria:
   identity.
 - **Depends on:** nothing new.
 - **Open decisions:** which recovery methods. A security decision.
+- **Since `D082` (2026-09-26):** the prototype username claim already lets anyone
+  who types a name reach that account, the owner included, so "recovery" is
+  trivial and insecure. This item is now where real authentication replaces that
+  claim, through Supabase's account linking. It must happen before any untrusted
+  or public production use. Friendships, groups, games and `users.id` are
+  unaffected.
 
 ### F35 — User settings, opened from the username
 
@@ -352,10 +364,13 @@ High value, but intentionally deferred for now due to the additional infrastruct
 - **Depends on:** nothing in the code.
 - **Open decisions:** a new external account, and the security of device tokens.
 
-## 6. Deck-builder, after `M20.1`
+## 6. Deck-builder
 
-Waiting on `M20.1`'s sign-off. `F27` is marked higher priority than most non-MVP
-work (`D049`), so it comes right after `F26`, which it needs.
+`M20.1` is decided (`D082`, 2026-09-26). The Deck Builder is a separate Android app
+(`deck-app`) with its own pure-JVM rules module (`deck-core`), on this repository's
+one server, one database and shared users. `F27` is marked higher priority than
+most non-MVP work (`D049`), so it comes right after `F26`, which it needs. `F37`
+follows, because it needs `F26`'s first real rules.
 
 ### F26 — Deck-building systems
 
@@ -363,8 +378,15 @@ work (`D049`), so it comes right after `F26`, which it needs.
   `M19` and `M20` in the backlog.
 - **Value:** The long-term goal
 - **Effort:** not estimated.
-- **Depends on:** `M20.1`.
-- **Open decisions:** `M20.1`.
+- **Depends on:** `M20.1` (done, `D082`). Before the scripted enemy (`D051`) or
+  any computer participant produces audited actions, it also needs the audit
+  change `D082` point 12 requires: `game_events.actor_id` must be able to name a
+  participant that is not a user.
+- **Open decisions:** the items `D082` defers until real Deck Builder code exists.
+  They include creating `deck-core` and `deck-app`, extracting `client-common`,
+  registering the game type, the `when (gameType)` dispatch and the Deck Builder's
+  own state document, and scoping dashboards, history and series lists by game
+  type.
 
 ### F27 — "Suggest friends" for table co-participants
 
@@ -373,6 +395,78 @@ work (`D049`), so it comes right after `F26`, which it needs.
 - **Effort:** not estimated. It matters only once tables of three or more exist.
 - **Depends on:** `F26`.
 - **Open decisions:** when the prompt appears.
+
+### F37 — N ≥ 3 resignation and continue-among-remainder
+
+- **Source:** former backlog task `M20.2`, moved here on 2026-09-26 by `D082`.
+  It was split out of `M19.8` on 2026-09-16 (`D063`). Its product rules are
+  `D052`, which stays binding. See also `M20.1`, `D063`, `D068` and `M19.8`.
+- **Value:** Medium. It stops one player's resignation from ending a three- or
+  four-player game for everyone.
+- **Effort:** not estimated.
+- **Depends on:** `F26`'s first real Deck Builder rules. `M20.1` and `M19.8` are
+  done. Chess is an N = 2 game and cannot honestly exercise this. **No fake or
+  test-only ruleset is built to implement or prove it** (`D082`).
+- **Why it moved:** it needs a game that continues after one participant
+  resigns. Only a real ruleset with three or more participants can provide one,
+  so it is Deck Builder work, not ChessGame work.
+
+**Requirements** (the owner's, 2026-09-26). These are intended requirements and
+design constraints, not yet implementation decisions:
+
+- In an N ≥ 3 game, a resignation removes only the resigning participant, if the
+  ruleset determines that the remaining active participants still meet its
+  continuation requirements.
+- Resigned seats are skipped in later turn order.
+- The ruleset owns the minimum-active-participant rule, and decides whether play
+  can continue after a resignation.
+- The resigner is asked whether they want to continue at the table after
+  resigning.
+- An unanswered continuation prompt must not block the remaining participants
+  indefinitely.
+- "Continue among the remainder" creates a new table and a new series through the
+  ordinary new-table concept. It does not change the membership of the existing
+  series (`D048`, `D052`).
+- A narrow continuation-eligibility mechanism may be needed, so the previous
+  table's participants can continue together even when the original creator was
+  their only friendship or group connection.
+- Declining to continue after a resignation reuses the existing series and table
+  exit (`D068`), not a second, unrelated exit. The audit keeps enough to tell
+  the reason for the exit apart.
+- `D044` still applies. No generic architecture is specified in advance for
+  this.
+
+**The original acceptance criteria** (as `M20.2` had them):
+
+- In an N ≥ 3 game, resignation ends only that participation; the game continues;
+  the resigner is asked about continuing; declining cancels the table
+  auto-rematch and offers the remainder a new table + new series.
+- "Continue among the remainder" is implemented as ordinary new-table creation,
+  not a series mutation.
+- Chess (N = 2) resignation and rematch behaviour stays as `M19.8` leaves it.
+
+**Open decisions.** These are not resolved here, because they need evidence from
+the real Deck Builder implementation:
+
+- **Several resignations:** what happens when more than one participant resigns
+  in a game, or when a second resigns while the first's prompt is open.
+- **Prompt timing:** when the resigner is asked (at once, or when the game ends),
+  and when the remainder are offered to continue.
+- **Unanswered prompts:** how long a prompt waits, and what silence means.
+- **Minimum players:** what happens when a resignation leaves fewer active
+  participants than the ruleset's minimum, and whether a scripted enemy counts
+  (`D048` counts it toward the table's floor).
+- **Remainder acceptance:** whether every remaining participant must accept, or
+  whether a subset may continue.
+- **Invite eligibility:** `D046` and `D064` put no server-side eligibility check
+  on table creation, and the invite UI is the gate (`D048`, `D049`). The
+  continuation offer has to reach participants whose only connection was the
+  creator. Whether that needs the narrow mechanism above, and what it is, is
+  open.
+- **Turn order:** how resigned seats are skipped, and how `D050`'s rotation
+  starts at the new table.
+- **Audit and series exit:** how a declined continuation is recorded, for example
+  a reason on `SeriesLeft`, and what the audit shows for the resignation itself.
 
 ### F28 — Deck-builder solo mode
 
@@ -387,7 +481,8 @@ work (`D049`), so it comes right after `F26`, which it needs.
 - **Source:** `D051`
 - **Value:** Medium
 - **Effort:** not estimated.
-- **Depends on:** `F26`.
+- **Depends on:** `F26`, and the audit change `D082` point 12 requires, so a
+  `COMPUTER` participant can be recorded as the actor of its actions.
 - **Open decisions:** none recorded yet.
 
 ### F30 — Detailed and per-table statistics
@@ -406,7 +501,7 @@ work (`D049`), so it comes right after `F26`, which it needs.
 - **Value:** Low
 - **Effort:** not estimated.
 - **Depends on:** `F1` and `F30`, so all three share one statistics model; the
-  deck-builder, after `M20.1`.
+  deck-builder (`F26`).
 - **Open decisions:** when a new series counts as a revival.
 
 ## 7. Other clients

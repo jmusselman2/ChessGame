@@ -5556,6 +5556,9 @@ ordered by the whole participant, ref then kind, and the evaluator's
 `M19ParticipantIdentityRegressionTest` passes unmodified. `M19.1` remains `M20.1`, and
 the N >= 3 portion of `M19.8` remains `M20.2`.
 
+*2026-09-26:* `M20.1` is decided (`D082`), and former `M20.2` moved out of the
+backlog to `F37` in `docs/FUTURE.md`. `M19.2`–`M19.12` stay as built.
+
 ## M19.2 — Groups: standing invite-eligibility pools
 
 **Status:** DONE (one integration deferred to `M19.3`)
@@ -6126,7 +6129,8 @@ of identity. Fixed there; see the note under `M19.3`.
 
 ## M19.8 — Explicit series exit, separate from resignation
 
-**Status:** DONE (chess-only; N ≥ 3 resignation is `M20.2`, still `TODO`)
+**Status:** DONE (chess-only; N ≥ 3 resignation, formerly `M20.2`, moved to `F37`
+in `docs/FUTURE.md` on 2026-09-26, `D082`)
 
 **Depends on:** M19.3, M19.7 — *revised 2026-09-16:* this task briefly depended
 on `M19.1` under `D063`'s trigger, because its N ≥ 3 resignation criterion needs
@@ -6143,6 +6147,10 @@ resignation ending only the resigner's participation, the game continuing, the
 "continue at this table?" prompt, cancelling the table's auto-rematch, and the
 "continue among yourselves?" new-table offer are all `M20.2`, and stay `TODO`
 until it is done.
+
+*2026-09-26 (`D082`):* that work left the backlog. It is `F37` in
+`docs/FUTURE.md`, Deck Builder work waiting for a real N ≥ 3 ruleset, and still
+not built.
 
 ### Objective
 
@@ -6523,34 +6531,42 @@ and realtime regressions, and `.\gradlew.bat build`.
 
 `M19` generalised the platform with chess as the only implemented game. This
 milestone starts where that stops being enough: where game-specific rules live,
-how the server routes state and commands by game type once a second ruleset
-exists, and the behaviour that cannot be built until it does.
+and how the server routes state and commands by game type once a second ruleset
+exists.
 
-`M20.1` is the decision deferred under `D063`, moved here from `M19` (where it was
-`M19.1`) on 2026-09-16. It needs human sign-off. The autonomous loop does not
-select or decide it, and stops and asks when it is the next task. Everything else
-in this milestone depends on it.
+`M20.1` was the decision deferred under `D063`, moved here from `M19` (where it was
+`M19.1`) on 2026-09-16. The owner signed it off on 2026-09-26, and it is recorded
+as
+[`D082`](DECISIONS.md#d082--chessgame-and-the-deck-builder-are-separate-apps-on-one-platform-one-repository-one-server-separate-rules-modules-one-shared-user-claimed-by-username).
+In short:
+
+- one repository, one Ktor server, one database;
+- two separate Android apps;
+- separate pure-JVM rules modules, `chess-core` and `deck-core`;
+- explicit dispatch by game type, with no generic engine (`D044`);
+- one shared user, claimed by username in a deliberately insecure prototype flow.
+
+`M20.3` and `M20.4` are the ChessGame work that decision orders now. Neither needs
+any Deck Builder code, and neither needs further sign-off.
+
+*Moved 2026-09-26:* former `M20.2`, "N ≥ 3 resignation and
+continue-among-remainder", left this backlog. It needs a real ruleset with three or
+more participants, which chess can never be, so it is Deck Builder work. It is
+[`F37`](FUTURE.md#f37--n--3-resignation-and-continue-among-remainder) in
+`docs/FUTURE.md`, with its requirements and open questions intact. It is not
+ChessGame work and does not count against ChessGame's completion. The ID `M20.2`
+is not reused.
 
 ## M20.1 — Decide and establish multi-game rules/module architecture
 
-**Status:** TODO — needs human sign-off. The autonomous loop does not select or
-decide it.
+**Status:** DONE
 
-**Depends on:** — *Deferred (`D063`)* until the first task that requires
-deck-builder-specific code (rules, a `deck-core`-style module, a deck-builder
-game-type registration, client UI) or a concrete decision about where
-game-specific rules are implemented. Such a task lists `M20.1` under
-**Depends on**, and human sign-off is still required. That happened on
-2026-09-16: N ≥ 3 resignation needs a game that continues after a resignation,
-which no chess-only change can provide. It was split out of `M19.8` into `M20.2`.
-`M19.8` and `M19.10` do not depend on this task.
+**Depends on:** —
 
 *Moved 2026-09-16:* formerly `M19.1`, "Decide the deck-builder's repository and
-module structure". The substance and the sign-off requirement are unchanged. The
-new title names what the trigger showed the decision has to answer: not only
-where the deck-builder's code lives, but where game-specific rules live and how
-the server routes state and commands once a second ruleset exists. A local draft
-branch still carries the old name, `M19.1`.
+module structure". A local draft branch still carries the old name, `M19.1`
+(`1b9b1df`). It proposed one app with two modes, which `D082` rejects, and it is
+not applied.
 
 ### Objective
 
@@ -6578,28 +6594,123 @@ command applies `ChessRules`.
 - Human sign-off in the conversation, as a difficult-to-reverse architecture
   change.
 
-## M20.2 — N ≥ 3 resignation and continue-among-remainder
+### Completion Note — 2026-09-26
+
+Signed off by the project owner in conversation on 2026-09-26, and recorded as
+`D082`. The decision, its scope-change table, and what proceeds now against what
+waits for real Deck Builder code are all there. The outcome:
+
+- `M19.2`–`M19.12` stay `DONE` and need no change now. `D082` names the
+  integration points a second ruleset will meet.
+- `M19.8` stays chess's N = 2 resignation.
+- Former `M20.2` is `F37`.
+- `F26` and later Deck Builder work are no longer waiting on this task.
+- The owner's two orders become tasks here: the module rename (`M20.3`) and the
+  username claim (`M20.4`).
+
+Documentation only. `.\gradlew.bat build` passes.
+
+## M20.3 — Name the chess modules for what they are: `chess-core` and `chess-app`
 
 **Status:** TODO
 
-**Depends on:** M20.1, M19.8
-
-Moved out of `M19.8` on 2026-09-16. It needs a game that continues after one
-participant resigns, which needs a second ruleset or a seam that dispatches state
-and commands by game type. Where that lives is `M20.1`, and `D044` forbids the
-generic seam before a second ruleset exists.
+**Depends on:** M20.1
 
 ### Objective
 
-`D052`, multi-participant part: the post-resignation "continue at this table?" /
-"continue among yourselves?" flow, on top of `M19.8`'s separation of resignation
-from series exit.
+`D082` point 4: `game-core` is the chess rules implementation, not a generic
+engine, and is renamed `chess-core`. `android-app` becomes `chess-app`, the
+ChessGame app of `D082`'s layout. It is a rename only. Nothing is extracted or
+generalised (`D044`).
 
 ### Acceptance Criteria
 
-- In an N ≥ 3 game, resignation ends only that participation; the game continues;
-  the resigner is asked about continuing; declining cancels the table
-  auto-rematch and offers the remainder a new table + new series.
-- "Continue among the remainder" is implemented as ordinary new-table creation,
-  not a series mutation.
-- Chess (N = 2) resignation and rematch behaviour stays as `M19.8` leaves it.
+- `:game-core` is `:chess-core` and `:android-app` is `:chess-app`. The
+  directories and Gradle project paths are renamed, and every project dependency
+  on them is updated.
+- These stay unchanged, so the beta upgrades in place:
+  - the application ID and namespace `com.jmussel.chessgame`;
+  - the Kotlin packages (`core.chess`, `D027`);
+  - signing;
+  - the app name "ChessGame".
+- Everything that names the old paths is updated:
+  - `settings.gradle.kts`, including the `serverOnly` comment;
+  - the `Dockerfile`;
+  - `.github/workflows/ci.yml`;
+  - `scripts/verify-beta-apk.sh`, including its APK output paths;
+  - `docs/DEVELOPMENT.md`;
+  - `CLAUDE.md`, `README.md`, and `ARCHITECTURE.md` §4 and §5.
+- Historical completion notes, earlier decisions and `evals/` keep the names they
+  were written with.
+- No `deck-core`, `deck-app`, `client-common` or shared rules module is created
+  (`D082`, `D044`).
+- If the rename turns out to be unusually disruptive for a concrete repository
+  reason, the task records that exception and the exact future point at which the
+  rename happens, instead of forcing it (the owner's instruction in `D082`).
+
+### Verification
+
+- `.\gradlew.bat build`.
+- The server-only build the `Dockerfile` runs (`-PserverOnly=true`), so the beta
+  deploy still builds.
+
+## M20.4 — A username claim attaches the installation to the shared user
+
+**Status:** TODO
+
+**Depends on:** M20.1
+
+### Objective
+
+`D082` points 7–9: one shared user across both apps, claimed by username. The
+anonymous Supabase subject is the installation-scoped authentication principal,
+and its session stays the credential. `users.id` is the permanent logical user.
+Claiming a name that already exists attaches the installation to that user, with
+no verification. This is deliberately insecure and prototype-only.
+
+### Acceptance Criteria
+
+- **Mapping.** A migration adds a subject-to-user mapping, conceptually
+  `user_auth_subjects(auth_subject UNIQUE, user_id → users)`. It carries every
+  existing `users.auth_subject` over and drops that column, so there is one
+  source of truth, and many subjects can map to one user.
+- **Authentication** resolves each Supabase subject through the mapping. Token
+  verification (`D006`, `D031`, `D039`) is unchanged.
+- **Claiming** (`POST /username`):
+  - A name that does not exist creates the user and maps this subject to it.
+  - A name that already exists maps this subject to that user, without any
+    ownership check.
+  - "Already exists" follows the repository's existing username normalization and
+    uniqueness semantics (`D007`). No new matching rule is introduced.
+- **Invariant:** no claim creates a second `users` row when the claimed username
+  already resolves to an existing user under the repository's existing
+  normalization and uniqueness rules. Today a subject's first request creates a
+  user (`resolveBySubject`). That path changes as needed to keep the invariant,
+  and the `D045` and `D081` nameless-caller refusals still hold.
+- **Shared data.** Two installations mapped to one user share the same user and
+  the same platform-scoped identity and social data: username, friends, groups
+  and profile. Both get realtime updates.
+- **Game data stays scoped.** Tables, series, games and history stay scoped to
+  their game type and product. Today only chess exists, so ChessGame's series are
+  unchanged. This task does not make any series visible across products.
+- **Android onboarding** accepts a name that already exists instead of reporting
+  it taken. Its copy never mentions another product.
+- **Open, for this task to decide and record:** what a claim does from an
+  installation that is already mapped to a user. Today a rename answers `409`.
+- **Tests:**
+  - create;
+  - attach;
+  - attach with a name that matches under the existing normalization;
+  - two installations sharing identity and social data;
+  - game-specific data staying scoped by game type;
+  - concurrent first claims of one new name produce exactly one user.
+- **Changed requirement.** `M7.4`'s tests that expect `409` for a name another
+  user holds are updated, because the requirement changed (`D082`). They are not
+  weakened for any other reason.
+- `ARCHITECTURE.md` §13–§14 and `PRODUCT.md` say that the claim is implemented.
+
+### Verification
+
+- `.\gradlew.bat :server:test` for the claim and authentication tests.
+- The Android onboarding tests.
+- `.\gradlew.bat build`.

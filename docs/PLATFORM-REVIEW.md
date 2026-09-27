@@ -767,6 +767,15 @@ Named here so they are not lost. Each is undecided unless it says otherwise:
   is deferred until the first task that needs deck-builder-specific code, which
   turned out to be N ≥ 3 resignation (`M20.2`). The participants schema
   (`M19.3`) is built without it, with player-count ranges stored per game type.
+  **Decided 2026-09-26** (`D082`):
+  - one repository, one Ktor server, one database;
+  - two separate Android apps;
+  - separate pure-JVM rules modules, `chess-core` (renamed from `game-core`) and
+    `deck-core`, which never depend on each other;
+  - explicit `when (gameType)` dispatch, with no generic engine (`D044` intact);
+  - one shared user, claimed by username in a prototype flow.
+
+  N ≥ 3 resignation moved out of the backlog to `F37` in `docs/FUTURE.md`.
 - **Performance under deck-builder load.** Two uncosted things: the
   `loadForUpdate` row lock held across rule resolution, and `inSeries`'s N+1
   (test-only today). The third, the whole-`state`-blob read-and-rewrite per

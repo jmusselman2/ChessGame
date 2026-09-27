@@ -114,6 +114,42 @@ game-core ──→ database
 game-core ──→ Supabase
 ```
 
+### Multi-game layout (`D082`)
+
+ChessGame and the Deck Builder are separate Android apps in this one repository.
+They share one Ktor server, one database and one deployment. The repository
+moves toward this layout:
+
+```text
+chess-core      pure JVM: chess rules      — today's game-core, renamed by M20.3
+chess-app       the ChessGame app          — today's android-app, renamed by M20.3
+deck-core       pure JVM: Deck Builder rules — created with real Deck Builder rules
+deck-app        the Deck Builder app       — created with real Deck Builder rules
+client-common   code both clients share    — extracted once deck-app exists
+server          the one Ktor server        — exists
+```
+
+```text
+chess-app ──→ chess-core, client-common
+deck-app  ──→ deck-core,  client-common
+server    ──→ chess-core, deck-core
+```
+
+Forbidden, in addition to the rules above for every rules module:
+
+```text
+chess-app  ──→ deck-core
+deck-app   ──→ chess-core
+chess-core ──→ deck-core
+deck-core  ──→ chess-core
+```
+
+A shared pure-JVM rules/support module (something like `shared-game-core`) that
+both rules modules depend on is allowed later. It is created only when real chess
+and Deck Builder implementations show genuinely identical semantics, never from
+chess alone (`D044`). Until then nothing is extracted, and the server reaches each
+ruleset through an explicit `when (gameType)` (§30).
+
 ### Implementation status
 
 This document describes the intended structure, not how much of it is built.
@@ -130,7 +166,10 @@ reviews what building all of it proved about the boundaries described here, and
 
 ## 5. `game-core`
 
-`game-core` contains pure chess rules and state.
+`game-core` contains pure chess rules and state. It is the chess rules module, not
+a generic engine, and `M20.3` renames it `chess-core` (`D082`). The Deck Builder's
+rules will live beside it in `deck-core`, under the same restrictions, and neither
+module depends on the other.
 
 Implemented concrete chess concepts include:
 
@@ -187,6 +226,13 @@ Database transaction
 ```
 
 Keep them in the Android/server application layers rather than `game-core`.
+
+They are also the **shared platform** for both products (`D082`): users and
+identity, usernames, friends, groups, tables, participants, series, and the
+realtime and audit infrastructure where it really is shared. One user record
+serves both apps, so friends, groups and profile data are the same in each. Each
+app shows them simply as the user's own, never as another product's. Tables,
+games, series and history stay tied to their game type and product.
 
 ## 7. Server Authority
 
@@ -283,6 +329,12 @@ Each event names who caused it and what it belongs to (`D078`): `actor_id` is th
 player whose request caused it, which for `GameEnded` and `RematchCreated` is the
 player whose command ended the game; `game_id` is its game, if any; and `series_id`
 is its series, so a series' log holds its games' events as well as its own.
+
+`actor_id` references `users`, so it cannot name a `COMPUTER` or `SCRIPTED`
+participant (§18, `D067`). The long-term concept is an action performed by a
+participant, which may not be a person. The schema change is required before any
+non-user participant produces audited actions, and is not made before then
+(`D082` point 12).
 
 `SeriesClosed` was recorded until `M19.5` removed the path that closed a series
 after its current game; leaving a series records `SeriesLeft` (`D068`). Friendship
@@ -432,6 +484,37 @@ Account recovery is deferred.
 
 A lost anonymous account's username remains reserved for MVP.
 
+### Shared users and the prototype username claim (`D082`)
+
+The two apps share one user. Three things are kept distinct:
+
+```text
+username    human-facing shared identity, used only to claim
+users.id    permanent logical user identity
+Supabase    the anonymous subject is this installation's authentication
+            principal; its session/token authenticates it on every request
+```
+
+The anonymous Supabase subject is an installation-scoped authentication
+principal. It is not the logical user. Many subjects may map to one `users.id`
+through a mapping, conceptually `user_auth_subjects(auth_subject UNIQUE, user_id)`
+(§14).
+
+On first launch of either app the user enters a username:
+
+- a name that does not exist creates the user and maps this subject to it;
+- a name that already exists maps this subject to that existing user.
+
+"Exists" follows the existing normalization and uniqueness rules (§14, `D007`).
+There is no password, verification or ownership challenge. That is deliberate and
+**prototype-only**: anyone who types a name reaches that account, and it must be
+replaced by real authentication before any untrusted or public production use
+(`F13`). Keeping Supabase as the credential leaves its account-linking path open,
+so replacing the claim changes no friendship, group, game or `users.id`.
+
+*Implementation:* `M20.4`. Until it lands, a subject still maps to exactly one
+user through `users.auth_subject`, and claiming a taken name is refused.
+
 ## 14. User Model
 
 Conceptually:
@@ -453,6 +536,10 @@ Database requirements:
 - case-insensitive uniqueness through `usernameNormalized`,
 - username validation enforced server-side,
 - database uniqueness constraint is the final race-safe authority.
+
+The Supabase subjects that authenticate as a user move from the single
+`users.auth_subject` column to a mapping table that allows several installations
+per user (§13, `D082`, `M20.4`).
 
 ### Activity timestamps
 
@@ -1036,6 +1123,30 @@ authenticate
 → publish update
 ```
 
+### More than one ruleset (`D082`)
+
+When the Deck Builder exists, `game_type` is the discriminator. Table, series and
+social routes and services stay shared. At the application or service boundary, an
+explicit `when` reaches the concrete implementation:
+
+```kotlin
+when (gameType) {
+    CHESS -> chessCommandService.execute(...)
+    DECK_BUILDER -> deckCommandService.execute(...)
+}
+```
+
+No generic rules interface is introduced to make this look polymorphic (`D044`).
+
+- **Each rules module owns** its state, legal commands, transitions, terminal and
+  minimum-player rules, viewer projection semantics, and what an undo barrier
+  means.
+- **The server owns** serialising only the correct projection to each viewer
+  (`D069`, `docs/GAME-STATE-VISIBILITY.md`), and each ruleset's own persistence document, as chess has
+  `GameStateDocument`, rather than one generic state type. It also owns undo
+  snapshot storage, append/truncate, pruning and transactions (`D061`), without
+  knowing what a shuffle means.
+
 ### Logging failures
 
 A failure the server recovers from still leaves a trace (`M19.12`). The level is
@@ -1082,6 +1193,12 @@ until a second ruleset exists**, and it names the six candidates for that moment
 No generic engine interface, no command hierarchy, no seat abstraction, no
 generic action table, no platform module — §5, §8, and §32 already forbid these
 and the review confirms they were right to.
+
+`D082` (2026-09-26) decides where the second game goes. It is a separate app
+(`deck-app`) with its own rules module (`deck-core`), on this repository's one
+server, one database and shared users (§4, §13, §30). It changes none of the above:
+the only rename it makes is `game-core` → `chess-core`, and anything shared is
+still extracted from two implementations, not one.
 
 Do not add future deck-building mechanics yet.
 

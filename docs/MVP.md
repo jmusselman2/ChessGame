@@ -84,6 +84,11 @@ for task-level status.
 - Ktor verifies the authenticated user.
 - `lastSeenAt` is tracked.
 - Lost anonymous usernames are not automatically recycled.
+- Claiming a username that already exists attaches this installation to that
+  existing user, with no verification. It is a deliberately insecure prototype
+  flow (`D082`, `M20.4`). The Supabase anonymous session stays the credential, and
+  many installations may map to one user. A claimed name therefore always
+  resolves to its existing user, never to a new one.
 
 ### Friends
 
@@ -225,6 +230,8 @@ changing both.
 - `F26` deck-building systems
 - `F28` deck-builder solo mode (`D048`)
 - `F29` AI players in the deck-builder's normal modes (`D051`)
+- `F37` N ≥ 3 resignation and continue-among-remainder (`D052`; formerly backlog
+  `M20.2`, moved by `D082`)
 
 ### Operations
 

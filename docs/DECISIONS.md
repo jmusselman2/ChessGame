@@ -168,6 +168,12 @@ Supabase is managed infrastructure, not the application architecture. Android sh
 **Date:** 2026-08-21  
 **Status:** Accepted
 
+**Amended 2026-09-26 by `D082`:** the anonymous Supabase subject is an
+installation-scoped authentication principal, not the application's logical user.
+Many subjects may map to one `users.id`, and a username claim attaches an
+installation to an existing user without verification (prototype only). Supabase
+anonymous sessions stay the credential.
+
 ### Decision
 
 Use Supabase anonymous authentication for MVP.
@@ -232,6 +238,12 @@ A normalized username must have a database uniqueness constraint.
 ### Decision
 
 If an anonymous MVP account becomes inaccessible, do not automatically recycle its username.
+
+*Note 2026-09-26 (`D082`):* still true literally, because a claimed name always
+resolves to its existing `users.id` and never passes to a different user. The
+impersonation rationale below is overtaken, though: under the prototype username
+claim, anyone who types a name is attached to that user. The owner accepted this
+for the prototype.
 
 ### Rationale
 
@@ -2167,6 +2179,11 @@ and every token Supabase issues carries one, so requiring it costs nothing real.
 **Relates to:** `ARCHITECTURE` §5, §8, §31, §32, `M18.1`,
 `docs/PLATFORM-REVIEW.md`
 
+**Superseded in part 2026-09-26 by `D082`:** only "nothing is … renamed now", and
+only for module names. `game-core` becomes `chess-core` and `android-app` becomes
+`chess-app` (`M20.3`). Nothing is extracted or generalised, and the rest of this
+decision governs `D082` unchanged.
+
 ### Decision
 
 `M18.1` reviewed the finished chess MVP for what is genuinely reusable. The
@@ -2959,6 +2976,9 @@ silent drop.
   are `M19.8`. The N ≥ 3 parts above (the game continuing after a resignation,
   both prompts, cancelling the table's auto-rematch) are `M20.2`, which depends
   on `M20.1`. How chess-only series exit works is `D068`.
+  *Moved 2026-09-26 (`D082`):* `M20.2` left the backlog. It is `F37` in
+  `docs/FUTURE.md`, Deck Builder work that waits for a real N ≥ 3 ruleset. The
+  rules above are unchanged.
 - Series exit is now an explicit player action, not a side effect of the friend
   graph — `D013`'s "removing a friend closes the series" is separately removed
   (`D053`).
@@ -3600,7 +3620,9 @@ later ruleset. Changes no current code. Chess already satisfies the restoration
 half — it restores a recorded prior position (`D029`) — and keeps its current
 `save(wholeGame)` write pattern, as `D044` and `docs/UNDO-STORAGE.md` leave it.
 This decision holds under any repository, module, or server layout and does not
-bear on `M20.1` (formerly `M19.1`), which remains open.
+bear on `M20.1` (formerly `M19.1`), which remains open. *Since decided
+2026-09-26 (`D082`):* the ruleset defines what a barrier means, and server
+persistence owns the snapshots, append/truncate and pruning. Nothing here changes.
 
 ### Decision
 
@@ -3804,7 +3826,7 @@ could fail or fall behind.
 
 **Scope:** How analysis and decision work is documented. It decides no product or
 architecture question, and in particular does not bear on `M20.1` (formerly
-`M19.1`), which remains open. It applies from now on and to `M19.9` and
+`M19.1`), which remains open (*since decided 2026-09-26, `D082`*). It applies from now on and to `M19.9` and
 `M19.10`. It does not restructure earlier completion notes retroactively, or the
 evaluation reports under `evals/`, which follow `docs/INDEPENDENT-EVALUATION.md`.
 
@@ -3938,6 +3960,10 @@ across several files.
 decide** the deck-builder's repository, server process, or module structure, or
 where game-specific rules live. That remains `M20.1`, which still needs human
 sign-off.
+
+**Resolved 2026-09-26 by `D082`:** the owner signed off `M20.1`. The deferral below
+has ended, and `M20.2` has left the backlog: it is `F37` in `docs/FUTURE.md`. The
+per-game-type player ranges and the chess-only registration stand.
 
 **Amended 2026-09-16 — the deferred task moved to `M20`.** The task this decision
 defers was `M19.1`. It is now `M20.1`, "Decide and establish multi-game
@@ -4313,7 +4339,8 @@ that, and a game type can seat its own characters as one of them.
 `ARCHITECTURE` §16, §17
 
 **Scope:** How `D052`'s explicit series exit works with chess as the only ruleset. N ≥ 3
-resignation and the continue prompts are `M20.2` and are not decided here.
+resignation and the continue prompts are `M20.2` and are not decided here. *Moved
+2026-09-26 (`D082`):* they are now `F37` in `docs/FUTURE.md`.
 
 ### Decision
 
@@ -4383,7 +4410,9 @@ game. A closed series never points at a game other than its newest.
 [`docs/GAME-STATE-VISIBILITY.md`](GAME-STATE-VISIBILITY.md) (findings 1–3, 6, 7)
 
 **Scope:** Every ruleset's game-state payloads. Chess already satisfies it, and no code
-changes. Where a ruleset's projection code lives is `M20.1`.
+changes. Where a ruleset's projection code lives is `M20.1`. *Since decided 2026-09-26
+(`D082`):* projection semantics are pure behaviour in each rules module, and the server
+makes sure only the right projection is serialized to each viewer.
 
 ### Decision
 
@@ -5025,6 +5054,10 @@ the case that spreads: every command for that game queues behind the holder.
 - **The actor is a user.** `actor_id` references `users`. A computer participant
   (`D051`, `D067`) acting in a later ruleset would need the column to name a
   non-user participant too; that belongs to `M20` and is not decided here.
+  *Carried forward 2026-09-26 by `D082` (point 12):* the long-term actor is a
+  participant. The schema change is required before any computer or scripted
+  participant produces audited actions (`F7`, `F26`, `F29`), and it is not made
+  now.
 
 ### Rationale
 
@@ -5286,3 +5319,313 @@ the person asked for may exist. What is missing is the caller's own standing.
   both plain Play and `another=true`. The evaluator's
   `M9AdversarialTest.aNamelessCallerCannotStartAOneSidedInvisibleSeries` pins
   the dashboard consequence.
+
+---
+
+## D082 — ChessGame and the Deck Builder Are Separate Apps on One Platform: One Repository, One Server, Separate Rules Modules, One Shared User Claimed by Username
+
+**Date:** 2026-09-26
+
+**Status:** Accepted
+
+**Owner sign-off:** given by the project owner in conversation on 2026-09-26, as
+the difficult-to-reverse architecture change `M20.1` required. The credential model
+below is the owner's own answer to the one question put to them, and the owner
+revised the wording of four points before approving.
+
+**Resolves:** `M20.1`, "Decide and establish multi-game rules/module architecture"
+(formerly `M19.1`), and so the deferral in `D063`
+
+**Supersedes in part:** `D044`'s "nothing is … renamed now", for module names only.
+Nothing else in `D044` changes, and its extraction rule governs everything below.
+
+**Amends:** `D006`. The anonymous Supabase subject is an installation-scoped
+authentication principal, not the application's logical user, and many subjects
+may map to one user.
+
+**Relates to:** `D003`, `D007`, `D008`, `D023`, `D027`, `D031`, `D039`, `D044`,
+`D045`, `D046`, `D048`, `D049`, `D051`, `D052`, `D054`, `D061`, `D063`, `D064`,
+`D067`, `D068`, `D069`, `D071`, `D072`, `D076`, `D078`, `D081`,
+`docs/PLATFORM-REVIEW.md`, `docs/FUTURE.md` (`F7`, `F13`, `F26`, `F29`, `F37`)
+
+**Scope:** Documentation and backlog only. No code or schema changes in this
+commit. The two changes the decision orders now are backlog tasks: `M20.3` renames
+the chess modules, and `M20.4` implements the identity claim.
+
+### Decision
+
+**1. One repository.** ChessGame and the Deck Builder live in this repository. The
+identity, social, table and series platform is shared on purpose, and copying it
+into a second project, or publishing it for one, buys nothing at this stage.
+Sharing a repository does not make them one product to users.
+
+**2. One server, one database, one deployment.** Both products use one Ktor server,
+one database and one backend deployment. No microservices and no second backend
+for the Deck Builder. The two Android apps release independently even though the
+backend does not. Whether the backend should release independently is reconsidered
+only on actual operational evidence.
+
+**3. Two separate Android apps.** ChessGame and the Deck Builder are separate
+products. Someone who installs one need not know the other exists. Each has its
+own Android application module, application/package ID, name, icon and branding,
+navigation, Play Store listing, release pipeline, and game-specific dependencies.
+
+The repository moves toward this layout:
+
+```text
+chess-core      pure JVM: chess rules (today's game-core)
+deck-core       pure JVM: Deck Builder rules
+client-common   only code both clients genuinely share
+chess-app       the ChessGame Android app
+deck-app        the Deck Builder Android app
+server          the one Ktor server
+```
+
+Dependency rules:
+
+- `chess-app` may depend on `chess-core` and `client-common`. It never depends on
+  `deck-core`.
+- `deck-app` may depend on `deck-core` and `client-common`. It never depends on
+  `chess-core`.
+- `server` may depend on both rules modules.
+- `chess-core` and `deck-core` never depend on each other. Both stay pure JVM,
+  usable by Android and the server, and independent of Android, Compose, Ktor,
+  persistence, HTTP and WebSockets (`D003`).
+- **A shared pure-JVM rules/support module is allowed later**, something like
+  `shared-game-core`, and both rules modules may then depend on it. It is created
+  only when real Chess and Deck Builder implementations show genuinely identical
+  semantics, never speculatively from chess alone. `D044` governs that extraction.
+- `client-common` is extracted when `deck-app` exists and not before. That is
+  `D044` item 6's condition, a second *application*, now foreseen but not yet met.
+
+**4. `game-core` is renamed `chess-core`.** It is the chess rules implementation,
+not a generic engine, and its name should say so. Nothing in the repository makes
+the rename unusually disruptive: it is two Gradle paths, their directories, and the
+build files and scripts that name them. `android-app` is renamed `chess-app` in the
+same task. The application ID `com.jmussel.chessgame`, the Kotlin packages
+(`core.chess`, `D027`), signing and the app name do not change, so the beta
+upgrades in place. That is `M20.3`. The Deck Builder's rules module, when it is
+created, is the sibling `deck-core`.
+
+**5. No speculative generic engine.** Two games do not justify a universal
+`GameRules`, `GameEngine`, generic undo contract, generic capability system, or
+anything like them. `D044` continues to apply unchanged: an interface or shared
+abstraction is extracted only after the real Deck Builder implementation shows that
+it and chess need the same semantic shape. The shared abstraction is learned from
+two implementations, not designed from chess with the word "chess" removed.
+
+Until then dispatch is explicit, and a plain `when` is acceptable architecture:
+
+```kotlin
+when (gameType) {
+    CHESS -> chessCommandService.execute(...)
+    DECK_BUILDER -> deckCommandService.execute(...)
+}
+```
+
+**6. The shared platform, and the rulesets on top of it.** These are platform
+concerns shared by both products: users and identity, usernames, friends, groups,
+tables, participants, series, and the realtime and history/audit infrastructure
+where it really is shared. Chess rules and Deck Builder rules are separate domains
+layered on that platform. `M19.2`–`M19.12` are not rewritten to look as though they
+anticipated this layout. Integration changes are made only when a real second
+ruleset needs them.
+
+**7. One shared user across both apps.** Identity and social relationships belong
+to the platform, not to a game. There is one backend user record. A friendship made
+in ChessGame appears in the Deck Builder when the same user uses it, and the same
+goes for groups and profile data. Neither app describes this as "your ChessGame
+friends" or otherwise reveals the other product. It is simply the user's friends
+list. Tables, games, series and history stay associated with their game type and
+product, and one app never shows the other's.
+
+**8. Prototype identity: claiming a username.** For the current prototype, identity
+is claimed by username, deliberately simply and insecurely. On first launch of
+either app:
+
+1. The app asks for a username.
+2. Usernames are globally unique across the shared platform (`D007`).
+3. If the username does not exist, the shared user is created.
+4. If it exists, the installation is attached to that existing user.
+5. There is no password, Google sign-in, email verification, ownership challenge,
+   or any other verification.
+
+So `jordan` created in ChessGame and `jordan` entered later in the Deck Builder
+resolve to the same `users.id`. Friends, groups and profile data are shared because
+they belong to that user. Two users are never created and merged later. Whether a
+name "exists" follows the repository's existing username normalization and
+uniqueness semantics (`D007`, `usernameNormalized`). This decision adds no new
+matching rule.
+
+This is deliberate, and it is **prototype-only**. It must be replaced by real
+authentication before any untrusted or public production use.
+
+**9. The username is not the credential.** The username is used only to claim an
+identity. It is never sent to authenticate a request.
+
+- **The installation's credential stays the anonymous Supabase session** (`D006`,
+  `D031`, `D039`). The current anonymous Supabase subject is the
+  **installation-scoped authentication principal**. It is not the application's
+  logical shared user identity. The Supabase session or token authenticates that
+  principal on every request.
+- **`users.id` is the permanent logical user identity.** A separate mapping,
+  conceptually `user_auth_subjects(auth_subject UNIQUE, user_id → users)`, replaces
+  the unique `users.auth_subject` column, so many subjects can map to one user.
+- **Claiming** an unused name creates a new `users` row and maps the current
+  subject to it. Claiming an existing name maps the current subject to that
+  existing `users.id`, with no ownership check.
+- In short: the username is the human-facing shared identity, `users.id` is the
+  permanent backend identity, and the Supabase session is the credential for this
+  installation.
+
+Keeping Supabase as the credential keeps Supabase's account-linking path open.
+Real authentication can later replace the insecure claim step without changing
+friendships, groups, tables, series, history, or anyone's `users.id`. No production
+authentication system is built now. That is `M20.4`.
+
+**10. Each ruleset owns its semantics. The server owns storage and what leaves it.**
+
+- A rules module owns its domain state, its legal commands, its state transitions,
+  its terminal and minimum-player rules, its viewer-specific projection semantics,
+  and what an undo barrier and a snapshot mean for it.
+- Projection is pure ruleset behaviour. The server makes sure only the correct
+  projection is serialized and sent to each viewer (`D069`, `D070`).
+- Persistence DTOs stay outside the pure rules modules. Each ruleset may have its
+  own server-side persistence/state document, as chess has `GameStateDocument`.
+  Chess and the Deck Builder are not forced into one generic state type.
+- For Deck Builder undo under `D061`, the ruleset decides that a boundary such as a
+  shuffle stops undo there. The server and persistence code owns snapshot storage,
+  append/truncate, transactions and physical persistence. Server infrastructure does
+  not need to understand what a "shuffle" means in the game.
+
+**11. Dispatch by game type.** The existing `game_type` is the discriminator. Table,
+series and social infrastructure is not duplicated per game. Shared platform routes
+and services stay shared where that remains natural. At the application or service
+boundary, explicit routing reaches the concrete chess or Deck Builder
+implementation. No generic rules abstraction is created only to make dispatch look
+polymorphic.
+
+**12. `game_events.actor_id` cannot name a non-user actor.** It references `users`
+(`D078`), so a `COMPUTER` or `SCRIPTED` participant (`D067`) cannot be recorded as
+the actor of an event. The long-term concept is that an audited game action is
+performed by a **participant**, which may or may not be a person. The audit schema
+is not redesigned now: nothing scheduled needs a non-user actor. It is **required
+work before any computer or scripted participant has to generate auditable
+actions**. That is the chess AI opponent (`F7`), the Deck Builder's scripted enemy
+(`F26`, `D051`), and AI players in the Deck Builder (`F29`). Each lists it as a
+prerequisite.
+
+### Former `M20.2` moves to the Deck Builder's future work
+
+"N ≥ 3 resignation and continue-among-remainder" is not ChessGame work. Chess is an
+N = 2 game and cannot honestly exercise it. The real Deck Builder ruleset is its
+consumer, and no fake or test-only ruleset is built to prove it. It leaves the
+backlog entirely. It is not deferred, blocked or done there, and it no longer counts
+as unfinished ChessGame work.
+
+There is no separate Deck Builder backlog. Non-MVP work lives in
+`docs/FUTURE.md` (`D072`), where the Deck Builder's items are, so it is now **`F37`**
+there, with its requirements, rationale, dependencies and open questions intact.
+`D052` remains the binding source of its product rules. Its dependency chain is
+`M20.1` (this decision), then the first real Deck Builder rules (`F26`), then `F37`.
+The ID `M20.2` is not reused.
+
+### Scope changes
+
+| task or item                      | change                                                                                                                                                                                                                                                                                                                                                                                             |
+| --------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `M19.2`–`M19.12`                  | Stay `DONE`. Nothing needs changing now. The integration points a second ruleset will meet are named, not changed: `games.state` holds a chess `GameStateDocument`, `GameCommandService` applies `ChessRules`, `game_types` registers only `CHESS`, and dashboards, history and series lists are not scoped by game type because only one type exists. `users.auth_subject` changes under `M20.4`. |
+| `M19.8`                           | Stays the implemented chess N = 2 resignation and series-exit behaviour (`D068`).                                                                                                                                                                                                                                                                                                                  |
+| `M20.1`                           | `DONE`, by this decision.                                                                                                                                                                                                                                                                                                                                                                          |
+| former `M20.2`                    | Removed from the backlog. It is `F37` in `docs/FUTURE.md`.                                                                                                                                                                                                                                                                                                                                         |
+| `M20.3` (new)                     | Rename `game-core` → `chess-core` and `android-app` → `chess-app`. It proceeds now.                                                                                                                                                                                                                                                                                                                |
+| `M20.4` (new)                     | Username claim and the subject-to-user mapping. It proceeds now.                                                                                                                                                                                                                                                                                                                                   |
+| `F26` and later Deck Builder work | `M20.1` is satisfied. They build inside this layout: `deck-core`, `deck-app`, the shared server. They stay unscheduled until the owner schedules them (`D072`).                                                                                                                                                                                                                                    |
+| `F7`, `F26`, `F29`                | Gain the non-user-actor audit change (point 12) as a prerequisite.                                                                                                                                                                                                                                                                                                                                 |
+| `F13`                             | Becomes the place where real authentication replaces the prototype claim.                                                                                                                                                                                                                                                                                                                          |
+
+### What proceeds now, and what waits for real Deck Builder code
+
+**Now:** `M20.3`, then `M20.4`. Both are ChessGame work, and neither needs a line
+of Deck Builder code.
+
+**Deferred until real Deck Builder implementation exists:**
+
+- creating `deck-core` and `deck-app`;
+- extracting `client-common`, or any shared rules/support module;
+- registering the Deck Builder game type in `game_types`;
+- the `when (gameType)` dispatch, and the Deck Builder's own state document;
+- scoping dashboards, history and series lists by game type;
+- the non-user actor in the audit schema;
+- `F37`.
+
+### Rationale
+
+The platform half of the server is already game-agnostic. `D044` measured that
+two-thirds of it never mentions chess, and `M19` finished moving series, tables,
+seats and participants off chess's pair model. One repository and one server keep
+that platform in one place, with one schema and one deployment, which is what a
+shared user and a shared friend graph need. Splitting the backend now would mean
+cross-service identity for a benefit nobody has measured.
+
+The products are separate because they are different games for possibly different
+people, and neither should advertise the other. Separate application modules and
+separate rules modules make "ChessGame does not ship Deck Builder code" a build
+fact, not a convention.
+
+The rename is the one place this goes beyond `D044`'s letter. It makes the code
+more concrete, not more general: `game-core` suggests a generic engine that does
+not exist, and `chess-core` says what the module is.
+
+Dispatching with an explicit `when` keeps `D044`'s rule honest at exactly the point
+where a second game makes an interface feel overdue. The seam will be visible in
+one place, and it can be extracted when two implementations agree.
+
+Treating the Supabase subject as an installation's principal, not as the user, is
+what makes a shared user possible without replacing authentication. It is also what
+lets real authentication arrive later without touching a single friendship or game.
+
+### Alternatives Considered
+
+- **A separate repository for the Deck Builder.** Rejected: it would duplicate or
+  have to publish the whole identity, social, table and series platform.
+- **A second backend, or microservices.** Rejected for now. It needs cross-service
+  identity and buys release independence nobody has needed yet. It can be
+  reconsidered on operational evidence.
+- **One Android app with two modes.** Proposed by the local draft branch `M19.1`
+  (`1b9b1df`, never signed off or merged). Rejected by the owner: the products are
+  separate, and neither should expose the other. The draft is not applied.
+- **A generic rules interface or engine now.** Rejected under `D044`.
+- **One user per app, merged later if the same person appears in both.** Rejected:
+  merging friendships, groups and history is harder than never splitting them.
+- **The username as the per-request credential.** Rejected: it would make the
+  insecure step permanent and tie every request to a mutable, human-facing string.
+- **Server-issued random installation tokens in place of Supabase sessions.**
+  Rejected by the owner. Supabase already gives every installation a credential,
+  and keeping it preserves `D006`, `D031`, `D039` and the account-linking path.
+- **Keep the name `game-core`.** Rejected: it names a generic engine that does not
+  exist.
+
+### Consequences
+
+- **Identity:**
+  - `CLAUDE.md`'s product rules, `PRODUCT.md`, `MVP.md` and `ARCHITECTURE.md`
+    §4–§6, §9, §13, §14, §30 and §31 are updated in this change to the rules above.
+  - The claim model contradicts `D006`'s rejected alternative ("username-only
+    identity with no auth") in spirit, and overtakes `D008`'s impersonation
+    rationale. `D008` still holds literally, because a name never passes to a
+    different `users.id`.
+  - With the "All users" page (`D071`), anyone can find any username and claim
+    it. That is the accepted cost of the prototype, and the reason it must be
+    replaced before untrusted use.
+- **Backlog:**
+  - `docs/BACKLOG.md` marks `M20.1` `DONE`, removes `M20.2`, and adds `M20.3` and
+    `M20.4`.
+  - `M20.4` changes the requirement behind `M7.4`'s "a taken name is refused".
+    Those tests change with the requirement.
+- **Future work:** `docs/FUTURE.md` gains `F37` and the actor prerequisite, and
+  `docs/MVP.md` lists `F37`.
+- **Earlier decisions:** `D006`, `D044`, `D052`, `D061`, `D062`, `D063`, `D068`,
+  `D069` and `D078` carry dated pointers here. `docs/PLATFORM-REVIEW.md`,
+  `docs/GAME-STATE-VISIBILITY.md` and `docs/UNDO-STORAGE.md` record that `M20.1`
+  is decided (`D062`).

@@ -38,7 +38,8 @@ stay in their own documents.
 - **Legality never depends on hidden contents** (`D054`), so a client needs no hidden state
   to pre-validate.
 - **No answer to `M20.1`.** Nothing here depends on where rules code lives; every conclusion
-  is about what the authoritative server sends.
+  is about what the authoritative server sends. *Since decided 2026-09-26 (`D082`):* none of
+  them change.
 - **Spectators are out of MVP scope** (`F20` in `FUTURE.md`), but the model must not assume a fixed cap on
   observers (`PLATFORM-REVIEW.md` *Still open*).
 
@@ -83,7 +84,9 @@ information ruleset:
   all outside it.
 - **Its output type is chess's.** A board and a move list. A deck-builder's view is a
   different document, so "the projection" becomes one function per ruleset, not a flag on
-  this one. Where that function lives is `M20.1`'s question.
+  this one. Where that function lives is `M20.1`'s question. *Answered 2026-09-26 (`D082`):*
+  projection semantics are pure behaviour in each rules module (`chess-core`, `deck-core`),
+  and the server makes sure only the correct projection is serialized to each viewer.
 - **It is a copy with nothing to omit.** Visibility projection is an *allowlist over
   canonical state per viewer*: each zone is either copied, reduced to a count, or omitted,
   according to who is looking. Chess's answer is "copy everything" for every field.

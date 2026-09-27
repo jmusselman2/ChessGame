@@ -19,7 +19,9 @@ was first made, and every passage `D061` changed is labelled where it appears.
 It also assumes **no** answer to `M20.1` (formerly `M19.1`). Every number below
 is about a state document and a write pattern, not about where code lives, so the
 analysis holds under any repository or module layout. Neither this document nor `D061` bears on
-that open question.
+that open question. *Since decided 2026-09-26 (`D082`):* the ruleset defines what a barrier
+means, and server persistence owns snapshots, append/truncate and pruning. Nothing below
+changes.
 
 ## Outcome — `D061` (2026-09-13)
 
@@ -82,7 +84,8 @@ real.
 ## Assumptions
 
 - **No `M20.1` answer.** Nothing here depends on where the deck-builder's code
-  lives.
+  lives. (It is now decided, `D082`: `deck-core` and a separate app on the shared
+  server.)
 - **The modelled state shape** is the one `D048`/`D051` imply: per seat, a deck,
   hand, discard and play area plus counters; a shared ten-pile market; a trash;
   and a turn record. The real shape will differ.

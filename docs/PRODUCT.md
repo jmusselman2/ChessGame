@@ -13,7 +13,7 @@ Open app
 → leave
 ```
 
-Chess is the first implementation of a broader turn-based game platform. The eventual goal is a custom deck-building strategy game.
+Chess is the first implementation of a broader turn-based game platform. The eventual goal is a custom deck-building strategy game, which will ship as a separate app on the same platform (`D082`).
 
 ## Core Experience
 
@@ -58,6 +58,7 @@ Rules:
 - no spaces.
 - username changes are outside MVP.
 - if an anonymous account is lost, its username remains reserved for MVP rather than being automatically recycled.
+- entering a username that already exists attaches this installation to that existing user, with no verification (`D082`). A lost username is regained by typing it again, and anyone else who types it reaches the same account. This is a deliberately insecure prototype behaviour that must be replaced before untrusted or public use (implementation: `M20.4`).
 
 ### Authentication
 
@@ -80,7 +81,11 @@ Restore identity
 
 No conventional password/login screen is required for MVP.
 
-Account recovery is deferred, but the architecture must allow anonymous identities to be upgraded later.
+Account recovery is deferred, but the architecture must allow anonymous identities to be upgraded later. Until real authentication exists (`F13`), the prototype username claim above is the only way back into an account, and it is not secure.
+
+### One account across products
+
+ChessGame and the future Deck Builder are separate products and separate apps. Someone who installs one need not know the other exists, and neither app mentions the other. They share one account (`D082`): the same username entered in either app is the same user, so the friends list, groups and profile are the same in both. Each app shows them simply as the user's own. Games, series and history belong to the product they were played in, and each app shows only its own.
 
 ## Friends
 
