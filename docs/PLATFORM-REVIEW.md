@@ -42,7 +42,7 @@ The cheapest question first: how much of the server is about chess?
 
 |                                      | files | lines  |
 | ------------------------------------ | ----- | ------ |
-| `game-core` (all chess)              | 22    | 1,779  |
+| `game-core` (all chess)              | 23    | 1,779  |
 | `server` main source                 | 32    | 4,257  |
 | …of which mention `game-core` at all | 7     | 1,856  |
 | …of which are *shaped* by chess      | 5     | ~1,444 |
@@ -69,7 +69,7 @@ concepts*, the client replay).
 These exist because the game is chess. A second ruleset replaces them; it does
 not generalise them.
 
-**Everything in `game-core`.** All 22 files, all 1,779 lines. `Board`, `Piece`,
+**Everything in `game-core`.** All 23 files, all 1,779 lines. `Board`, `Piece`,
 `Square`, `Side`, `CastlingRights`, `EnPassant`, `Repetition`, `DrawRuleState`,
 `InsufficientMaterial`, `PseudoLegalMoves`, `Attacks`, `ChessRules`. This is
 correct and was the point: the module has no platform ambitions and no

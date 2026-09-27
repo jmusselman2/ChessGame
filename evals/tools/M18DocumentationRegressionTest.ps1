@@ -20,4 +20,27 @@ if ($claimsTwoPhysicalDevices -and -not $recordsOwnerPhysicalDevice) {
     throw 'PLATFORM-REVIEW.md claims two physical devices, but the M17 record identifies only the tester device as physical.'
 }
 
-Write-Output 'PASS: the platform review does not exceed the physical-device evidence recorded by M17.'
+$reviewedAt = [regex]::Match($review, '(?m)^\*\*Reviewed at:\*\* `([0-9a-f]{7,40})`')
+if (-not $reviewedAt.Success) {
+    throw 'PLATFORM-REVIEW.md does not name the Git revision its measurements describe.'
+}
+
+$documentedCoreFiles = [regex]::Match(
+    $review,
+    '(?m)^\| `game-core` \(all chess\)\s+\|\s+(\d+)\s+\|'
+)
+if (-not $documentedCoreFiles.Success) {
+    throw 'PLATFORM-REVIEW.md does not contain the measured game-core file count.'
+}
+
+$reviewedRevision = $reviewedAt.Groups[1].Value
+$actualCoreFiles = @(
+    git -C $repositoryRoot ls-tree -r --name-only $reviewedRevision -- game-core/src/main/kotlin |
+        Where-Object { $_ -match '\.kt$' }
+).Count
+$claimedCoreFiles = [int]$documentedCoreFiles.Groups[1].Value
+if ($claimedCoreFiles -ne $actualCoreFiles) {
+    throw "PLATFORM-REVIEW.md claims $claimedCoreFiles game-core Kotlin files at $reviewedRevision; Git contains $actualCoreFiles."
+}
+
+Write-Output 'PASS: the platform review matches the M17 physical-device evidence and its named-snapshot file count.'

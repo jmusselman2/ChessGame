@@ -1,15 +1,14 @@
 # Codex Evaluation State
 
-- **Status:** `M17 PASSED`
+- **Status:** `M18 PASS`
 - **Evaluation branch:** `codex-autopilot`
 - **Requested range:** M1 through M19 inclusive
-- **Next milestone:** M18
+- **Next milestone:** M19
 - **Run ID:** `2026-09-24-f941135`
 - **Pinned baseline:** `f9411358d319d8501bfc58aa05470523a67bd6a8`
-- **Last verified checkpoint:** M16 passing checkpoint at
-  `628a6e7d1293729075d7eff1e2b0ad5961bcd5c4`
-- **Current findings:** none; M17.1-M17.3 and M17.5-M17.13 pass fresh
-  repository, signing, JVM, device, live-service, and live-database verification
+- **Last verified checkpoint:** M18 passing checkpoint (the commit containing
+  this state; its live remote SHA is verified after publication)
+- **Current findings:** None
 
 ## Live branch reconciliation
 
@@ -31,6 +30,15 @@ were rerun on the rewritten tip, and a complete Android build passed all 521
 tests, lint, and debug/release assembly. No conflict with M8 or the evaluation
 workflow remains known. No production file was changed by the evaluator.
 
+During M18, the evaluator checkpoint `cd8c389591298fa9654e4ad9fac6b292a3bcb738`
+identified `M18-U01`: the platform review said 22 `game-core` Kotlin files at
+`9941402`, while the named tree contains 23. Remediation commit
+`12297c1bfa126ce980b0a3f60a0844d3796c9cad` changed only those two false
+counts on `claude-autopilot`. The user reconciled the two-line documentation
+fix by amending the M18 checkpoint to `4d4e8c53feb2ba15d16a5155cab80c143a12ee0c`.
+The exact regression now passes, the 1,779-line count remains correct, all nine
+relative links resolve, and `M18-U01` is closed.
+
 ## Evaluation boundaries
 
 - Follow `docs/INDEPENDENT-EVALUATION.md` one milestone and one remotely
@@ -51,6 +59,5 @@ history. It does not control this fresh run.
 
 ## Exact next action
 
-Create and remotely verify the M17 evaluator checkpoint. Then begin M18 with a
-fresh assessment before consulting any retained M18 report. M17.4 remains
-absent, and M20.1 remains outside this run.
+Begin the fresh M19 evaluation after the M18 passing checkpoint is remotely
+verified. Do not begin M20.1.
