@@ -80,9 +80,9 @@ data class ChessServerConfig(
 /**
  * Raised when the Chess server refuses a request.
  *
- * [explanation] is what the server said about it, when it said anything — "That username is
- * taken" is worth showing a player, and the app has no business rewriting it. [message] is
- * for a log; it names the request as well.
+ * [explanation] is what the server said about it, when it said anything — "A username can
+ * be at most 24 characters" is worth showing a player, and the app has no business rewriting
+ * it. [message] is for a log; it names the request as well.
  */
 class ChessApiException(
     val status: Int,
@@ -309,11 +309,14 @@ class ChessApiClient(
     suspend fun me(): CurrentUserDto = get("/me")
 
     /**
-     * Claims [username] for the caller, returning the name as the server stored it.
+     * Claims [username] for this installation, returning the name as the server stored it.
      *
-     * A name is picked once and never changed (`docs/PRODUCT.md`), and whether it is
-     * available is the database's decision, not the app's (`D007`) — so an invalid or taken
-     * name comes back as a refusal carrying the server's explanation.
+     * A name nobody has becomes the caller's. A name somebody has makes this installation
+     * that user (`D082`), so the caller's user id may change: ask [me] afterwards. A name is
+     * picked once and never changed (`docs/PRODUCT.md`), and whether it is allowed is the
+     * server's decision, not the app's (`D007`) — so an invalid name, or a different name
+     * for an installation that already has one, comes back as a refusal carrying the
+     * server's explanation.
      */
     suspend fun claimUsername(username: String): String = post("/username", username)
 

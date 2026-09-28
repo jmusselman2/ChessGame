@@ -123,8 +123,8 @@ The multi-game architecture decision `M20.1` was signed off on 2026-09-26 as
 
 It is not part of the fresh M1-M19 independent evaluation. `M20.3` renamed the
 chess modules `chess-core` and `chess-app` (formerly `game-core` and
-`android-app`). The next production work is `M20.4`, the prototype username
-claim.
+`android-app`). `M20.4` implemented the prototype username claim: a name that
+already exists attaches the installation to that user (`D082`, `D083`).
 
 The N >= 3 continuation flow moved out of the backlog to `F37` in
 `docs/FUTURE.md`, because it needs a real Deck Builder ruleset. Work outside the

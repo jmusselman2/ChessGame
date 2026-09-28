@@ -72,7 +72,8 @@ class M7AdversarialTest {
                 "every verified request should resolve: ${attempts.mapNotNull { it.exceptionOrNull()?.cause?.message }}",
             )
             assertEquals(1, attempts.mapNotNull { it.getOrNull()?.id }.distinct().size)
-            assertEquals(1, count(dataSource, "select count(*) from users where auth_subject = 'one-supabase-subject'"))
+            assertEquals(1, count(dataSource, "select count(*) from user_auth_subjects where auth_subject = 'one-supabase-subject'"))
+            assertEquals(1, count(dataSource, "select count(*) from users"), "the losers' nameless users are rolled back")
         }
     }
 

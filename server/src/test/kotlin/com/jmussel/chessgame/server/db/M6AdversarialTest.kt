@@ -156,7 +156,6 @@ class M6AdversarialTest {
                 listOf(white to "evaluator-white", black to "evaluator-black").forEach { (id, username) ->
                     UsersTable.insert { row ->
                         row[UsersTable.id] = id
-                        row[UsersTable.authSubject] = "auth-$id"
                         row[UsersTable.username] = username
                         row[UsersTable.usernameNormalized] = username
                         row[UsersTable.createdAt] = now

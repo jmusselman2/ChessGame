@@ -5629,3 +5629,92 @@ lets real authentication arrive later without touching a single friendship or ga
   `D069` and `D078` carry dated pointers here. `docs/PLATFORM-REVIEW.md`,
   `docs/GAME-STATE-VISIBILITY.md` and `docs/UNDO-STORAGE.md` record that `M20.1`
   is decided (`D062`).
+
+*2026-09-28:* `M20.3` renamed the chess modules (point 4), and `M20.4` implemented
+points 7–9. `D083` settles the one thing point 9 left open: what a claim does from an
+installation that is already mapped to a user.
+
+## D083 — A Claim Attaches Only a Nameless Installation, and the Nameless User It Replaces Is Deleted
+
+**Date:** 2026-09-28
+
+**Status:** Accepted
+
+**Resolves:** the question `M20.4` left open: what a claim does from an installation
+that is already mapped to a user
+
+**Relates to:** `D006`, `D007`, `D008`, `D045`, `D076`, `D081`, `D082`, `M7.4`,
+`M20.4`
+
+### Decision
+
+Authentication still maps a new Supabase subject to a new, **nameless** user on its
+first request (`D006`). Every installation is therefore already mapped to a user
+when it claims a name. What the claim does depends on that user:
+
+| the installation's user | the name                       | result                                                                                  |
+| ----------------------- | ------------------------------ | --------------------------------------------------------------------------------------- |
+| nameless                | nobody has it                  | the nameless user takes it                                                              |
+| nameless                | somebody has it (`D007` match) | the installation's subject is re-pointed to that user, and the nameless user is deleted |
+| named                   | its own name, in any casing    | nothing changes: `200` with the stored name                                             |
+| named                   | any other name, new or taken   | refused with `409`, as a rename is                                                      |
+
+- **Attaching deletes the nameless stand-in** in the same transaction, so after
+  any claim a person is exactly one `users` row. That is safe because a nameless
+  user owns nothing another row refers to: making a friend, a series or a group
+  refuses a nameless caller (`D045`, `D081`, `D076`), and nobody can add a nameless
+  user to anything, because everything is added by name. The foreign keys would
+  refuse the delete, and so the claim, if that ever stopped being true. A named user
+  is never deleted, so `D008` holds: a name is never released.
+- **A named installation cannot move to another user.** Claiming another user's
+  name from an installation that already has one is refused exactly like a rename.
+  It would be a rename by another route, and it would let a mistyped name silently
+  leave a player's own account. An installation starts again only with a new
+  anonymous session, as after a reinstall.
+- **Claiming your own name again is harmless**, whether the installation took the
+  name or was attached to it.
+- **The reply is the same for taking and attaching**: `200` with the name as
+  stored. The app then asks `GET /me` who it is, because attaching changes the
+  installation's `userId`, and reopens its realtime socket if it did.
+- **Races.** The claim locks the caller's `users` row, so two claims from one
+  installation take turns. Two nameless users claiming one new name both reach
+  the update; the unique index on `username_normalized` lets one win (`D007`), and
+  the loser starts again, finds the winner, and attaches. A claim whose nameless
+  user another claim from the same installation has just replaced is repeated as
+  the installation's current user.
+
+### Rationale
+
+The minimal rule keeps what the product already said, that a name is chosen once
+and never changed, and adds only what `D082` requires: a nameless installation can
+become an existing user. Letting a named installation switch users would make the
+claim a way to change who you are, which is a rename in all but name, and it would
+double the ways a typo loses someone their account.
+
+Deleting the nameless stand-in, rather than leaving it, keeps `D082`'s invariant
+honest: claiming an existing name never leaves a second user behind. Not creating a
+user until a name is claimed was the alternative. It would change what every
+authenticated route can assume, that a caller has a `users.id`, and the
+nameless-caller refusals (`D045`, `D081`) are built on that.
+
+### Alternatives Considered
+
+- **A named installation may claim another existing name and move to it.**
+  Rejected, as above.
+- **Leave the nameless stand-in in place after attaching.** Rejected: every attach
+  would leave an unreachable `users` row.
+- **Create no user until a name is claimed.** Rejected: a large change to
+  authentication for no gain.
+- **Tell the client whether it attached.** Not needed. The app learns its user
+  from `GET /me`, and the reply stays silent about whether the name was in use.
+
+### Consequences
+
+- `M7.4`'s "a taken name is `409`" becomes "a taken name attaches". Its tests
+  changed with the requirement, and only those.
+- A nameless `users` row can now be deleted. Nothing else deletes users.
+- A socket the nameless user opened stays registered to that user until its client
+  replaces it. Only the claiming installation ever had one, and it replaces it.
+- `V11` drops `users.auth_subject`. A server built before `M20.4` cannot run against
+  a database it has migrated, so rolling `main` back past `M20.4` also needs the
+  column restored from `user_auth_subjects`.

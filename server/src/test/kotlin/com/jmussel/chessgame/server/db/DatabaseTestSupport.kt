@@ -65,6 +65,20 @@ object DatabaseTestSupport {
             }
         }
 
+    /** The single number [sql] selects, such as a `count(*)`. */
+    fun count(
+        dataSource: DataSource,
+        sql: String,
+    ): Int =
+        dataSource.connection.use { connection ->
+            connection.createStatement().use { statement ->
+                statement.executeQuery(sql).use { rows ->
+                    check(rows.next())
+                    rows.getInt(1)
+                }
+            }
+        }
+
     /** Asserts the test database is reachable, so a misconfigured URL is not mistaken for absence. */
     fun assertReachable() =
         withDatabase { dataSource ->

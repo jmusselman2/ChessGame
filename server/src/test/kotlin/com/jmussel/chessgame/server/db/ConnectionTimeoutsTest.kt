@@ -34,14 +34,14 @@ class ConnectionTimeoutsTest {
 
     private fun DataSource.anyUserId(): String =
         connection.use { connection ->
-            connection.run("insert into users (auth_subject) values ('timeouts-test')")
-            connection.commit()
-            connection.createStatement().use { statement ->
-                statement.executeQuery("select id from users where auth_subject = 'timeouts-test'").use { rows ->
-                    rows.next()
-                    rows.getString(1)
-                }
-            }
+            connection
+                .createStatement()
+                .use { statement ->
+                    statement.executeQuery("insert into users default values returning id").use { rows ->
+                        rows.next()
+                        rows.getString(1)
+                    }
+                }.also { connection.commit() }
         }
 
     @Test

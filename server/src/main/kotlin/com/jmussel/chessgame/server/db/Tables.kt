@@ -30,7 +30,6 @@ val StorageJson: Json =
  */
 object UsersTable : Table("users") {
     val id = uuid("id")
-    val authSubject = text("auth_subject")
     val username = text("username").nullable()
     val usernameNormalized = text("username_normalized").nullable()
     val lastSeenAt = timestampWithTimeZone("last_seen_at").nullable()
@@ -43,6 +42,20 @@ object UsersTable : Table("users") {
     val createdAt = timestampWithTimeZone("created_at")
 
     override val primaryKey = PrimaryKey(id)
+}
+
+/**
+ * Which user each installation authenticates as (`M20.4`, `D082`).
+ *
+ * A Supabase subject is one installation's credential, so it maps to exactly one user,
+ * while one user may be reached from any number of installations.
+ */
+object UserAuthSubjectsTable : Table("user_auth_subjects") {
+    val authSubject = text("auth_subject")
+    val userId = uuid("user_id")
+    val createdAt = timestampWithTimeZone("created_at")
+
+    override val primaryKey = PrimaryKey(authSubject)
 }
 
 object FriendshipsTable : Table("friendships") {

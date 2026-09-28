@@ -2,9 +2,11 @@
 
 **Reviewed at:** `9941402`, 2026-09-08 (`M18.1`)
 
-*Module names, 2026-09-28:* this review keeps the names the code had when it was
+*Since the review, 2026-09-28:* this review keeps the names the code had when it was
 reviewed. `M20.3` (`D082`) has since renamed `game-core` to `chess-core` and
 `android-app` to `chess-app`. Nothing else about either module changed.
+`M20.4` then moved `users.auth_subject` to `user_auth_subjects`, so one user can
+have several installations (`D082`, `D083`).
 
 ## What this document is
 

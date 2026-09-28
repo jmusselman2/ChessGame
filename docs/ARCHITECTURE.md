@@ -477,7 +477,9 @@ Android
 → internal user identity resolved
 ```
 
-The Supabase auth subject maps to the application's immutable `userId`.
+The Supabase auth subject maps to the application's immutable `userId` through
+`user_auth_subjects` (§14). A subject seen for the first time is mapped to a new,
+nameless user.
 
 Username is human-facing and must never be used as the authentication credential.
 
@@ -498,8 +500,9 @@ Supabase    the anonymous subject is this installation's authentication
 
 The anonymous Supabase subject is an installation-scoped authentication
 principal. It is not the logical user. Many subjects may map to one `users.id`
-through a mapping, conceptually `user_auth_subjects(auth_subject UNIQUE, user_id)`
-(§14).
+through `user_auth_subjects(auth_subject PRIMARY KEY, user_id → users)` (§14).
+Token verification is unchanged: authentication verifies the token as before and
+then resolves its subject through the mapping.
 
 On first launch of either app the user enters a username:
 
@@ -513,8 +516,22 @@ replaced by real authentication before any untrusted or public production use
 (`F13`). Keeping Supabase as the credential leaves its account-linking path open,
 so replacing the claim changes no friendship, group, game or `users.id`.
 
-*Implementation:* `M20.4`. Until it lands, a subject still maps to exactly one
-user through `users.auth_subject`, and claiming a taken name is refused.
+*Implemented by `M20.4`* (`POST /username`). What a claim does depends on the
+installation's current user (`D083`):
+
+- **nameless, new name:** the nameless user takes it;
+- **nameless, existing name:** the subject is re-pointed to that user and the
+  nameless user is deleted in the same transaction, so no second user is left
+  behind. It owns nothing to delete: a nameless caller is refused everything that
+  would make a row about it (`D045`, `D081`, `D076`);
+- **named, the same name in any casing:** nothing changes;
+- **named, any other name:** refused with `409`, like a rename.
+
+Taking and attaching both answer `200` with the stored name, so the reply does not
+say whether the name was in use. The app then reads `GET /me`, because attaching
+changes its `userId`, and reopens its socket if so. The claim locks the caller's
+row, and the unique index on `username_normalized` settles a race for a new name:
+the loser starts again and attaches to the winner.
 
 ## 14. User Model
 
@@ -538,9 +555,11 @@ Database requirements:
 - username validation enforced server-side,
 - database uniqueness constraint is the final race-safe authority.
 
-The Supabase subjects that authenticate as a user move from the single
-`users.auth_subject` column to a mapping table that allows several installations
-per user (§13, `D082`, `M20.4`).
+The Supabase subjects that authenticate as a user live in `user_auth_subjects`,
+not in `users` (`V11`, `M20.4`): the subject is the primary key, so it maps to one
+user, and `user_id` references `users`, so a user can have several installations
+(§13, `D082`). `V11` carried every former `users.auth_subject` over to it and
+dropped the column.
 
 ### Activity timestamps
 
@@ -976,6 +995,7 @@ tables              -- D048, M19.3: one row per exact participant set per game t
 table_participants  -- who sits at a table, by seat
 game_participants   -- who took which seat in one game
 non_user_participants -- D051, D067, M19.7: participants that are not people, with opaque state
+user_auth_subjects  -- D082, D083, M20.4: which user each installation's Supabase subject is
 ```
 
 Columns removed since:
@@ -983,6 +1003,7 @@ Columns removed since:
 ```text
 game_series.user_a_id / user_b_id   -- M19.3: replaced by game_series.table_id
 games.white_user_id / black_user_id -- M19.3: replaced by game_participants
+users.auth_subject                  -- M20.4: replaced by user_auth_subjects
 ```
 
 Columns added since:
@@ -998,6 +1019,7 @@ game_series.seat_rotation           -- D050, D066, M19.6: the series' place in i
 Use database constraints for race-sensitive invariants where possible, including:
 
 - normalized username uniqueness,
+- one user per Supabase subject,
 - friendship uniqueness,
 - one table per exact participant set per game type,
 - one seat per participant per table and per game,

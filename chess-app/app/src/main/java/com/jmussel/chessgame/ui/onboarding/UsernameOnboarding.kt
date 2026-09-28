@@ -19,10 +19,11 @@ sealed interface UsernameClaim {
 /**
  * What onboarding says about a name that was not accepted.
  *
- * The rules themselves — length, characters, and who already has the name — belong to the
- * server and the database (`D007`), so the app repeats the explanation it was given rather
- * than keeping a second copy of the rules that could disagree. The only thing decided here
- * is that an empty box is not worth a request.
+ * The rules themselves — length and characters — belong to the server and the database
+ * (`D007`), so the app repeats the explanation it was given rather than keeping a second
+ * copy of the rules that could disagree. A name someone already has is not a refusal: it
+ * makes this installation that player (`D082`). The only thing decided here is that an
+ * empty box is not worth a request.
  *
  * Pure, so the wording is tested without a screen.
  */

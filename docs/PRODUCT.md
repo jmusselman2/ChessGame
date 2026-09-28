@@ -58,7 +58,8 @@ Rules:
 - no spaces.
 - username changes are outside MVP.
 - if an anonymous account is lost, its username remains reserved for MVP rather than being automatically recycled.
-- entering a username that already exists attaches this installation to that existing user, with no verification (`D082`). A lost username is regained by typing it again, and anyone else who types it reaches the same account. This is a deliberately insecure prototype behaviour that must be replaced before untrusted or public use (implementation: `M20.4`).
+- entering a username that already exists attaches this installation to that existing user, with no verification (`D082`). A lost username is regained by typing it again, and anyone else who types it reaches the same account. This is a deliberately insecure prototype behaviour that must be replaced before untrusted or public use. Implemented by `M20.4`.
+- an installation that already has a username cannot claim a different one, whether the other name is new or already someone's (`D083`). Entering its own name again changes nothing.
 
 ### Authentication
 

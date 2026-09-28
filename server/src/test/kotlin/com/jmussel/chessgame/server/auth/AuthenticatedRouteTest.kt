@@ -103,7 +103,7 @@ class AuthenticatedRouteTest {
             val userId = Uuid.parse(response.currentUser().userId)
             val stored = users.find(userId)
 
-            assertEquals("auth-1", stored?.authSubject)
+            assertEquals(userId, users.resolveBySubject("auth-1").id, "the subject is mapped to that user")
             assertTrue(stored?.username == null, "a new account has not claimed a username yet")
         }
     }
@@ -137,7 +137,8 @@ class AuthenticatedRouteTest {
             val again = users.resolveBySubject("auth-1")
 
             assertEquals(first.id, again.id)
-            assertEquals("auth-1", first.authSubject)
+            assertEquals(1, DatabaseTestSupport.count(dataSource, "select count(*) from users"), "one user for the account")
+            assertEquals(1, DatabaseTestSupport.count(dataSource, "select count(*) from user_auth_subjects where auth_subject = 'auth-1'"))
         }
     }
 }

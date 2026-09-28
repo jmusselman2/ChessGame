@@ -54,7 +54,6 @@ class GameRepositoryTest {
                 listOf(white to "jordan", black to "alex").forEach { (id, name) ->
                     UsersTable.insert { row ->
                         row[UsersTable.id] = id
-                        row[UsersTable.authSubject] = "auth-$name-$id"
                         row[UsersTable.username] = name
                         row[UsersTable.usernameNormalized] = name
                         row[UsersTable.createdAt] = now

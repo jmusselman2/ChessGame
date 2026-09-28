@@ -402,7 +402,7 @@ class ChessApiClientTest {
 
     @Test
     fun aTakenUsernameComesBackWithTheServersExplanation() {
-        val client = clientReplying("That username is taken", status = HttpStatusCode.Conflict)
+        val client = clientReplying("You are already Jordan; username changes are not supported", status = HttpStatusCode.Conflict)
 
         val failure =
             try {
@@ -413,7 +413,7 @@ class ChessApiClientTest {
             }
 
         assertEquals(409, failure?.status)
-        assertEquals("That username is taken", failure?.explanation)
+        assertEquals("You are already Jordan; username changes are not supported", failure?.explanation)
     }
 
     @Test

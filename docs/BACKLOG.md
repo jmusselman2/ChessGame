@@ -6707,7 +6707,7 @@ Verified with:
 
 ## M20.4 — A username claim attaches the installation to the shared user
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M20.1
 
@@ -6765,3 +6765,84 @@ no verification. This is deliberately insecure and prototype-only.
 - `.\gradlew.bat :server:test` for the claim and authentication tests.
 - The Android onboarding tests.
 - `.\gradlew.bat build`.
+
+### Completion Note — 2026-09-28
+
+- **Mapping.** `V11__user_auth_subjects.sql` creates
+  `user_auth_subjects(auth_subject PRIMARY KEY, user_id NOT NULL → users, created_at)`
+  with an index on `user_id`, copies every `users.auth_subject` to it (keeping each
+  user's id and creation time), and drops the column. A subject maps to one user; a
+  user may have many subjects.
+- **Authentication** is unchanged up to the verified subject, which
+  `UserRepository.resolveBySubject` now looks up through the mapping. A new subject
+  still gets a new nameless user. Concurrent first requests each insert their own
+  nameless user, `ON CONFLICT DO NOTHING` lets one mapping in, and the losers roll
+  theirs back: `M7AdversarialTest` now also asserts that exactly one `users` row is
+  left.
+- **Claiming** (`UserRepository.claimUsername`, `POST /username`):
+  - a new name names the caller's nameless user;
+  - an existing name, matched on `username_normalized` exactly as `D007` already
+    matched it, re-points the caller's subject to that user and deletes the nameless
+    stand-in in the same transaction. No claim of an existing name ever creates or
+    leaves a second user;
+  - both answer `200` with the name as stored.
+
+  The claim locks the caller's `users` row. The unique index settles a race for a new
+  name, and the loser retries (explicitly, at most three times) and attaches.
+- **The open question**, a claim from an installation that already has a user, is
+  decided and recorded as `D083`. Every installation already has a user (its
+  nameless stand-in) before claiming, so the rule is about the *named* ones:
+  - the same name in any casing is a harmless no-op;
+  - any other name, new or someone else's, is `409`, as a rename was.
+
+  A claim that finds its stand-in already replaced by a concurrent claim from the
+  same installation is repeated as the installation's current user.
+- **Nameless refusals** (`D045`, `D081`, and group creation) are untouched. They are
+  what makes deleting a stand-in safe, and the foreign keys would refuse the delete
+  otherwise.
+- **Shared and scoped data.** Friends, groups and the username belong to `users.id`,
+  so a second installation sees them at once. `SharedUserTest` shows that, and that
+  both installations' sockets get the user's realtime updates. It also shows that an
+  attach touches no row of `tables`, `table_participants`, `game_series`, `games`,
+  `game_participants`, `moves` or `game_events`, that every table is still `CHESS`,
+  and that the second installation's dashboard is exactly the user's chess series.
+  Filtering lists by game type waits for a second game type, as `D082` defers it.
+- **Android.** A claim is no longer refused as taken. After it, the app asks
+  `GET /me` who it is (attaching changes its `userId`), and reopens its socket when
+  the id changed, since the old one was registered to the stand-in. The onboarding
+  text adds "If you already have a username, enter it to carry on as that player."
+  It mentions no other product.
+- **Tests.**
+  - `UsernameClaimTest` covers create, attach, attach under other casings, no
+    second user, a replaced stand-in, a named installation refused another user's
+    name, a lost account regained by typing its name, and eight simultaneous first
+    claims of one new name ending as exactly one user with all eight subjects.
+  - `UserAuthSubjectsMigrationTest` covers the backfill and the constraints.
+  - `ChessAppTest` gains `claimingANameSomeoneHasCarriesOnAsThatPlayer` and
+    `claimingANewNameKeepsTheSocketItHas`.
+  - Changed only where `D082` changed `M7.4`'s requirement:
+    - `aDifferentCasingOfTheSameNameIsNotAvailable`, `aLostAccountKeepsItsNameReserved`,
+      `exactlyOneOfTwoSimultaneousClaimsWins` and `theEndpointReportsATakenName` now
+      assert attaching;
+    - Android's refusal example is a message the server still sends.
+  - Assertions on the removed `StoredUser.authSubject`, and raw inserts into
+    `users.auth_subject`, now go through the mapping.
+- **Docs.** `D083`; a dated pointer in `D082`; `ARCHITECTURE.md` §13, §14 and §27;
+  `PRODUCT.md`; `README.md`; `database/README.md`, which also gains the missing `V10`
+  row; and `PLATFORM-REVIEW.md`'s dated note.
+
+Verified against the disposable Compose PostgreSQL (`chessgame-postgres`,
+`localhost:55432`, `TEST_DATABASE_URL` naming `chessgame_test`), with no database
+test skipped:
+
+- the focused claim, authentication, migration, schema, realtime and adversarial
+  tests (78 tests), with `UsernameClaimTest`, `M7AdversarialTest` and
+  `SharedUserTest` rerun three more times;
+- `.\gradlew.bat :server:test`: 603 tests;
+- `.\gradlew.bat :chess-app:testDebugUnitTest --tests "*ChessAppTest" --tests
+  "*ChessApiClientTest"`: 155 tests;
+- `.\gradlew.bat build`;
+- `git diff --check`.
+
+Once `main` has migrated to `V11`, a server built before `M20.4` cannot run against
+that database (`D083`, *Consequences*).

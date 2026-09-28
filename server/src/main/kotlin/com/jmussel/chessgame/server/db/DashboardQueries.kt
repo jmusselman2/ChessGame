@@ -102,7 +102,6 @@ class DashboardQueries(
                         row[UsersTable.id] to
                             StoredUser(
                                 id = row[UsersTable.id],
-                                authSubject = row[UsersTable.authSubject],
                                 username = row[UsersTable.username],
                                 lastSeenAt = row[UsersTable.lastSeenAt]?.toInstant(),
                             )

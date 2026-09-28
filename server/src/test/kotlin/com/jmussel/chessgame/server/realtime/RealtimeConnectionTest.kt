@@ -21,6 +21,7 @@ import kotlinx.serialization.json.Json
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.uuid.ExperimentalUuidApi
 
@@ -193,7 +194,7 @@ class RealtimeConnectionTest {
                 }
             session.nextMessage()
 
-            assertEquals("auth-new", users.resolveBySubject("auth-new").authSubject)
+            assertNull(users.resolveBySubject("auth-new").username, "a new installation is a nameless user")
 
             session.close()
         }

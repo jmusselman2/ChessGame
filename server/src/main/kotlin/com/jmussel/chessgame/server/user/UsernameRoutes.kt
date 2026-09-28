@@ -13,15 +13,20 @@ import io.ktor.server.routing.post
 import kotlin.uuid.ExperimentalUuidApi
 
 /**
- * Claiming a username.
+ * Claiming a username, which is how an installation says which user it is (`D082`).
  *
- * A user picks a name once (`PRODUCT.md`: username changes are outside the MVP), it is
- * unique case-insensitively, and the database has the last word on who wins a race
- * (`D007`). A name is never released, so a lost anonymous account keeps it reserved
+ * A name nobody has is taken by the caller. A name somebody has attaches the caller's
+ * installation to that user, with no verification: that is the deliberately insecure
+ * prototype claim, and it is answered exactly like taking a new name, so the reply says
+ * nothing about whether the name was in use. Either way the reply is the name as stored.
+ *
+ * A caller that already has a name keeps it (`PRODUCT.md`: username changes are outside the
+ * MVP), and claiming it again is harmless (`D083`). Names are unique case-insensitively and
+ * the database has the last word on who wins a race (`D007`). A name is never released
  * (`D008`).
  *
- * Routes must sit behind authentication: the claim is always for the calling user, never
- * for a user id the client names.
+ * Routes must sit behind authentication: the claim is always for the calling installation,
+ * never for a user id the client names.
  */
 fun Route.usernameRoutes(users: UserRepository) {
     post("/username") {
@@ -37,12 +42,15 @@ fun Route.usernameRoutes(users: UserRepository) {
             return@post
         }
 
-        when (val result = users.claimUsername(user.userId, username)) {
+        // The caller's nameless user is gone only if another claim from this installation
+        // attached it to someone meanwhile, so the claim is repeated as whoever it is now.
+        val result =
+            users.claimUsername(user.userId, username).takeUnless { it == ClaimUsernameResult.NoSuchUser }
+                ?: users.claimUsername(users.resolveBySubject(user.subject).id, username)
+
+        when (result) {
             is ClaimUsernameResult.Claimed ->
                 call.respondText(result.user.username.orEmpty(), status = HttpStatusCode.OK)
-
-            ClaimUsernameResult.Taken ->
-                call.respondText("That username is taken", status = HttpStatusCode.Conflict)
 
             is ClaimUsernameResult.AlreadyNamed ->
                 call.respondText(

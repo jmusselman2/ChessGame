@@ -2,6 +2,7 @@ package com.jmussel.chessgame.app
 
 import com.jmussel.chessgame.api.ChessApiClient
 import com.jmussel.chessgame.api.ChessServerConfig
+import com.jmussel.chessgame.api.CurrentUserDto
 import com.jmussel.chessgame.api.RealtimeMessageDto
 import com.jmussel.chessgame.api.RealtimeSource
 import com.jmussel.chessgame.api.ServerWakePolicy
@@ -140,8 +141,10 @@ class ChessAppTest {
     /**
      * One engine for both APIs, as the app has one client for both.
      *
-     * An auth path hands out [newSession], `/me` reports [username], `/username` accepts the
-     * name that was sent, `/friends` lists [friends] or accepts one, a lookup finds whoever
+     * An auth path hands out [newSession], `/me` reports [username] until a name is claimed
+     * and the claimed name after, `/username` accepts the name that was sent, or attaches to
+     * [existingName] — with its own casing and its own user id — when the name sent matches
+     * it (`D082`), `/friends` lists [friends] or accepts one, a lookup finds whoever
      * was asked for, a removal answers [removalOutcome], and `/series` opens a series on
      * [currentGameId]. The first [refusals] calls — to [refusalPath], or to anything when
      * that is null — are refused instead, which is how a failure and then a retry are
@@ -166,7 +169,9 @@ class ChessAppTest {
         refusalPath: String? = null,
         refusalStatus: HttpStatusCode = HttpStatusCode.ServiceUnavailable,
         refusalBody: String = "nope",
+        existingName: String? = null,
     ): HttpClient {
+        var claimed: String? = null
         var refused = 0
         var gameReads = 0
         var leftSeries = false
@@ -179,6 +184,9 @@ class ChessAppTest {
                 if (refusable) refused++
                 if (path.startsWith("/games/") && !path.removePrefix("/games/").contains("/")) gameReads++
                 if (!refuse && path.endsWith("/leave")) leftSeries = true
+                if (!refuse && path == "/username") {
+                    claimed = existingName?.takeIf { it.equals(sentText(request), ignoreCase = true) } ?: sentText(request)
+                }
 
                 respond(
                     content =
@@ -189,7 +197,8 @@ class ChessAppTest {
                                 request,
                                 path,
                                 Replies(
-                                    username = username,
+                                    username = claimed ?: username,
+                                    userId = if (claimed != null && claimed == existingName) "server-existing" else "server-1",
                                     friends = friends,
                                     games = games,
                                     removalOutcome = removalOutcome,
@@ -219,6 +228,7 @@ class ChessAppTest {
     /** Everything the stubbed server has to say, so one parameter carries it all. */
     private data class Replies(
         val username: String? = "Jordan",
+        val userId: String = "server-1",
         val friends: List<String> = emptyList(),
         val games: List<String> = emptyList(),
         val removalOutcome: String = "Removed",
@@ -242,8 +252,8 @@ class ChessAppTest {
     ): String =
         when {
             path.startsWith("/auth/") -> newSession
-            path == "/me" -> identity(replies.username)
-            path == "/username" -> sentText(request)
+            path == "/me" -> identity(replies.username, replies.userId)
+            path == "/username" -> replies.username.orEmpty()
             path == "/dashboard" -> dashboard(replies)
             path == "/history" -> historyOf(replies)
             path == "/friends" && request.method == HttpMethod.Get ->
@@ -387,8 +397,10 @@ class ChessAppTest {
         squares.fold(BoardUiState.newGame()) { state, square -> BoardInteraction.onSquareTapped(state, Square.parse(square)) }
 
     /** What `/me` says about a player with, or without, a name. */
-    private fun identity(username: String?): String =
-        if (username == null) """{"userId":"server-1"}""" else """{"userId":"server-1","username":"$username"}"""
+    private fun identity(
+        username: String?,
+        userId: String = "server-1",
+    ): String = if (username == null) """{"userId":"$userId"}""" else """{"userId":"$userId","username":"$username"}"""
 
     private fun user(username: String): String = """{"userId":"user-$username","username":"$username"}"""
 
@@ -644,7 +656,66 @@ class ChessAppTest {
             assertEquals(UsernameClaim.Idle, viewModel.usernameClaim)
             assertEquals("Jordan", viewModel.currentUser?.username)
             assertEquals(AppNavigation(listOf(Destination.Dashboard)), viewModel.navigation)
-            assertEquals(listOf("/auth/v1/signup", "/me", "/username"), paths.take(3))
+            // Who the installation is after a claim is asked, not assumed (`D082`).
+            assertEquals(listOf("/auth/v1/signup", "/me", "/username", "/me"), paths.take(4))
+        }
+
+    @Test
+    fun claimingANameSomeoneHasCarriesOnAsThatPlayer() =
+        runTest(dispatcher) {
+            var connections = 0
+            val countingRealtime =
+                RealtimeSource {
+                    flow {
+                        connections++
+                        awaitCancellation()
+                    }
+                }
+            val viewModel =
+                viewModel(
+                    httpClient = httpClient(existingName = "Jordan", friends = listOf("Alex")),
+                    sessionStore = InMemorySessionStore(),
+                    realtime = countingRealtime,
+                )
+            viewModel.start()
+            viewModel.startupJob?.join()
+            dispatcher.scheduler.runCurrent()
+            assertEquals(1, connections)
+
+            viewModel.claimUsername("jordan")
+            viewModel.usernameClaimJob?.join()
+            viewModel.dashboardJob?.join()
+            dispatcher.scheduler.runCurrent()
+
+            assertEquals("not refused as taken", UsernameClaim.Idle, viewModel.usernameClaim)
+            assertEquals(CurrentUserDto(userId = "server-existing", username = "Jordan"), viewModel.currentUser)
+            assertEquals(Destination.Dashboard, viewModel.navigation.current)
+            assertEquals(listOf("Alex"), viewModel.friends.friends.map { it.username })
+            assertEquals("the socket opened for the nameless account is opened again as Jordan", 2, connections)
+        }
+
+    @Test
+    fun claimingANewNameKeepsTheSocketItHas() =
+        runTest(dispatcher) {
+            var connections = 0
+            val countingRealtime =
+                RealtimeSource {
+                    flow {
+                        connections++
+                        awaitCancellation()
+                    }
+                }
+            val viewModel = viewModel(sessionStore = InMemorySessionStore(), realtime = countingRealtime)
+            viewModel.start()
+            viewModel.startupJob?.join()
+            dispatcher.scheduler.runCurrent()
+
+            viewModel.claimUsername("Jordan")
+            viewModel.usernameClaimJob?.join()
+            dispatcher.scheduler.runCurrent()
+
+            assertEquals(CurrentUserDto(userId = "server-1", username = "Jordan"), viewModel.currentUser)
+            assertEquals("still the same user, so still the same connection", 1, connections)
         }
 
     @Test
@@ -656,8 +727,8 @@ class ChessAppTest {
                         httpClient(
                             refusals = 1,
                             refusalPath = "/username",
-                            refusalStatus = HttpStatusCode.Conflict,
-                            refusalBody = "That username is taken",
+                            refusalStatus = HttpStatusCode.BadRequest,
+                            refusalBody = "A username can use letters, numbers, underscore, and hyphen only",
                         ),
                     sessionStore = InMemorySessionStore(storedSession),
                 )
@@ -669,7 +740,7 @@ class ChessAppTest {
 
             assertEquals(
                 "the server's own words are what the player reads",
-                UsernameClaim.Rejected("That username is taken"),
+                UsernameClaim.Rejected("A username can use letters, numbers, underscore, and hyphen only"),
                 viewModel.usernameClaim,
             )
             assertEquals(Destination.UsernameOnboarding, viewModel.navigation.current)

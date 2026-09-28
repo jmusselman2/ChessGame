@@ -17,6 +17,7 @@ class InitialSchemaTest {
     private val tables =
         listOf(
             "users",
+            "user_auth_subjects",
             "friendships",
             "game_series",
             "games",
@@ -359,13 +360,19 @@ class InitialSchemaTest {
         queryForString(
             dataSource,
             """
-            insert into users (auth_subject, username, username_normalized)
-            values (?, ?, lower(?))
-            returning id::text
+            with created as (
+                insert into users (username, username_normalized)
+                values (?, lower(?))
+                returning id
+            ), mapped as (
+                insert into user_auth_subjects (auth_subject, user_id)
+                select ?, id from created
+            )
+            select id::text from created
             """.trimIndent(),
+            username,
+            username,
             subject,
-            username,
-            username,
         )
 
     private fun twoUsers(dataSource: DataSource): Pair<String, String> =

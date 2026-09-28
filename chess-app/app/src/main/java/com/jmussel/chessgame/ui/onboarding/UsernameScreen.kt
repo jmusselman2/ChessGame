@@ -19,13 +19,16 @@ import androidx.compose.ui.unit.dp
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
 /**
- * Choosing a username, which is the one thing a new account has to do.
+ * Choosing a username, which is the one thing a new installation has to do.
  *
- * There is no sign-in to go with it: the account already exists and is invisible (`D006`).
- * A name is chosen once and cannot be changed later (`docs/PRODUCT.md`), which the screen
- * says before the player commits to one. Whether a name is allowed, and whether it is
- * still free, is the server's answer (`D007`), so a refusal is shown in the server's own
- * words.
+ * There is no sign-in to go with it (`D006`). A new name makes a new player; a name that
+ * already belongs to someone makes this installation that player, which is how someone
+ * gets back to their account on another phone or after reinstalling (`D082`). The screen
+ * says both before the player commits, and that a name cannot be changed later
+ * (`docs/PRODUCT.md`). It says nothing about any other app.
+ *
+ * Whether a name is allowed is the server's answer (`D007`), so a refusal is shown in the
+ * server's own words.
  */
 @Composable
 fun UsernameScreen(
@@ -66,7 +69,9 @@ fun UsernameScreen(
 }
 
 private const val HEADING = "Choose a username"
-private const val ONCE_ONLY = "This is how friends will find you, and it cannot be changed later."
+private const val ONCE_ONLY =
+    "This is how friends will find you, and it cannot be changed later. " +
+        "If you already have a username, enter it to carry on as that player."
 private const val LABEL = "Username"
 private const val CLAIM = "Claim"
 private const val CLAIMING = "Claiming…"
@@ -75,6 +80,6 @@ private const val CLAIMING = "Claiming…"
 @Composable
 private fun UsernameScreenPreview() {
     ChessGameTheme {
-        UsernameScreen(claim = UsernameClaim.Rejected("That username is taken"))
+        UsernameScreen(claim = UsernameClaim.Rejected("A username needs at least 3 characters"))
     }
 }

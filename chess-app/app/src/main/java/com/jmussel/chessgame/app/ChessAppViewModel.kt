@@ -283,10 +283,14 @@ class ChessAppViewModel(
     /**
      * Claims [requested] as this account's username and goes on to the dashboard.
      *
-     * Whether the name is allowed and whether it is still free are the server's answers
-     * (`D007`), so a refusal is shown in the server's own words and the player can try
-     * another. An empty box is not sent at all. A claim already in flight is left alone,
-     * so a second tap cannot claim twice.
+     * Whether the name is allowed is the server's answer (`D007`), so a refusal is shown in
+     * the server's own words and the player can try another. A name somebody already has is
+     * not refused: this installation becomes that player (`D082`), which is how a player
+     * gets back to their account. So who the app is afterwards is asked, not assumed, and a
+     * socket opened for the nameless account is opened again for the player it became.
+     *
+     * An empty box is not sent at all. A claim already in flight is left alone, so a second
+     * tap cannot claim twice.
      */
     fun claimUsername(requested: String) {
         if (usernameClaimJob?.isActive == true) return
@@ -297,9 +301,17 @@ class ChessAppViewModel(
                 usernameClaim = UsernameClaim.Claiming
 
                 try {
-                    val claimed = dependencies.chessApi.claimUsername(UsernameOnboarding.cleaned(requested))
+                    dependencies.chessApi.claimUsername(UsernameOnboarding.cleaned(requested))
+                    val claimedAs = dependencies.chessApi.me()
+                    val becameSomeoneElse = claimedAs.userId != currentUser?.userId
+
                     usernameClaim = UsernameClaim.Idle
-                    arriveAs(CurrentUserDto(userId = currentUser?.userId.orEmpty(), username = claimed))
+                    arriveAs(claimedAs)
+
+                    if (becameSomeoneElse && updatesJob != null) {
+                        updatesJob?.cancel()
+                        watchUpdates()
+                    }
                 } catch (refused: ChessApiException) {
                     usernameClaim = UsernameClaim.Rejected(UsernameOnboarding.messageFor(refused))
                 } catch (cancelled: CancellationException) {
