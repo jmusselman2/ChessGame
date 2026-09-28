@@ -16,10 +16,10 @@ for task-level status.
 ### Foundation
 
 - Monorepo exists.
-- `game-core` builds independently as pure Kotlin/JVM.
+- `chess-core` builds independently as pure Kotlin/JVM.
 - Android app builds and launches.
 - Ktor server builds and starts.
-- Android and server both consume `game-core`.
+- Android and server both consume `chess-core`.
 - Formatting/static-analysis tooling is configured.
 - CI verifies builds/tests/checks.
 

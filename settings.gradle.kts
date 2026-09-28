@@ -26,7 +26,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "ChessGame"
 
-// The server's Docker image builds only the JVM modules. `:android-app` needs an Android
+// The server's Docker image builds only the JVM modules. `:chess-app` needs an Android
 // SDK, and a JDK build image has no reason to carry one, so configuring it there would
 // fail the deploy before a line of server code compiled. `-PserverOnly=true` (or
 // `CHESSGAME_SERVER_ONLY=true`) leaves it out; nothing else sets either, so a normal build
@@ -36,10 +36,10 @@ val serverOnly =
         System.getenv("CHESSGAME_SERVER_ONLY").toBoolean()
 
 if (!serverOnly) {
-    include(":android-app")
-    project(":android-app").projectDir = file("android-app/app")
+    include(":chess-app")
+    project(":chess-app").projectDir = file("chess-app/app")
 }
 
-include(":game-core")
+include(":chess-core")
 
 include(":server")

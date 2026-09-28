@@ -6612,7 +6612,7 @@ Documentation only. `.\gradlew.bat build` passes.
 
 ## M20.3 — Name the chess modules for what they are: `chess-core` and `chess-app`
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M20.1
 
@@ -6653,6 +6653,57 @@ generalised (`D044`).
 - `.\gradlew.bat build`.
 - The server-only build the `Dockerfile` runs (`-PserverOnly=true`), so the beta
   deploy still builds.
+
+### Completion Note — 2026-09-28
+
+A rename only. `git mv` moved `game-core/` to `chess-core/` and `android-app/` to
+`chess-app/` (the app project is still one level down, in `chess-app/app`), and
+`settings.gradle.kts` now includes `:chess-core` and `:chess-app`. Nothing was
+extracted or generalised, and no `deck-core`, `deck-app`, `client-common` or
+shared rules module exists. The rename was not unusually disruptive, so no
+exception was needed.
+
+Updated, because they name the current paths:
+
+- `settings.gradle.kts` (including the `serverOnly` comment), both project
+  dependencies (`server` and `chess-app` on `:chess-core`);
+- the `Dockerfile` comment and `.dockerignore`, which now leaves out `chess-app/`;
+- `.github/workflows/ci.yml`'s comments (it runs `./gradlew build`, which names no
+  module);
+- `scripts/verify-beta-apk.sh`: the `:chess-app` task paths and the APK output
+  path and names, which AGP derives from the project name
+  (`chess-app/app/build/outputs/apk/release/chess-app-release[-unsigned].apk`);
+- `docs/DEVELOPMENT.md` (commands, expected modules, APK paths), `CLAUDE.md`,
+  `README.md`, `ARCHITECTURE.md` §2–§5, §7, §11, §29 and §31, `MVP.md`,
+  `AUTONOMOUS-DEVELOPMENT.md`, `FUTURE.md`'s `F3`, and the KDoc in source files
+  that named the module.
+
+Unchanged, as required: the application ID and namespace `com.jmussel.chessgame`,
+the Kotlin packages, the signing configuration, and the app name "ChessGame".
+`aapt2 dump badging` on the new release APK shows package `com.jmussel.chessgame`
+and label `ChessGame`.
+
+Kept as written, because they are historical: every earlier decision (including
+`D082`'s own text), every completion note, `evals/`,
+`docs/CODEX_EVALUATION_STATE.md`, and `docs/PLATFORM-REVIEW.md`, which describes the
+code as reviewed at `9941402`. That document gained a dated note saying the
+modules were renamed since, and its one link into the app now points at
+`chess-app/`. `evals/tools/M18DocumentationRegressionTest.ps1` reads the review's
+`game-core` row and `git ls-tree` at the reviewed revision, so it still holds. A
+repository-wide search for `game-core` and `android-app` finds nothing else
+outside those.
+
+Verified with:
+
+- `.\gradlew.bat projects`: `:chess-app` (`chess-apppp`), `:chess-core`,
+  `:server`;
+- `.\gradlew.bat build`: success, with 593 server tests run against the
+  disposable Compose PostgreSQL (`localhost:55432`) and none skipped;
+- `.\gradlew.bat --no-daemon -PserverOnly=true :server:installDist`: success; the
+  distribution carries `chess-core.jar`;
+- `docker build .`: success, with a 3.8 MB context, so `chess-app/` stays out;
+- `bash scripts/verify-beta-apk.sh`: all six checks pass against the new paths;
+- `git diff --check`: clean.
 
 ## M20.4 — A username claim attaches the installation to the shared user
 

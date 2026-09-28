@@ -2,6 +2,10 @@
 
 **Reviewed at:** `9941402`, 2026-09-08 (`M18.1`)
 
+*Module names, 2026-09-28:* this review keeps the names the code had when it was
+reviewed. `M20.3` (`D082`) has since renamed `game-core` to `chess-core` and
+`android-app` to `chess-app`. Nothing else about either module changed.
+
 ## What this document is
 
 Chess was never the product. It was the first ruleset, built to find out which
@@ -104,7 +108,7 @@ prove*, where that is worked out.
 
 **The Android client's local replay.** `OnlineGame.replayOf` rebuilds the game
 from the server's move list to preview legal destinations
-([OnlineGame.kt:155](../android-app/app/src/main/java/com/jmussel/chessgame/ui/game/OnlineGame.kt:155)),
+([OnlineGame.kt:155](../chess-app/app/src/main/java/com/jmussel/chessgame/ui/game/OnlineGame.kt)),
 and nine Android files import `game-core`. This is why Android looks more
 chess-coupled than the server: the client runs a full copy of the rules. It works
 because both players may see everything. It is chess-specific in the strongest

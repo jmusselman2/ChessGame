@@ -19,7 +19,7 @@ WORKDIR /workspace
 # the context to what the build actually reads.
 COPY . .
 
-# -PserverOnly leaves :android-app out of the build. It needs an Android SDK, which a JDK
+# -PserverOnly leaves :chess-app out of the build. It needs an Android SDK, which a JDK
 # build image has no reason to carry, and configuring it would fail the deploy before a
 # line of server code compiled. See settings.gradle.kts.
 #

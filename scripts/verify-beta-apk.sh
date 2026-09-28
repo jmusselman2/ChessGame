@@ -30,11 +30,11 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 BETA_URL=https://chessgame-hit7.onrender.com
-OUT=android-app/app/build/outputs/apk/release
+OUT=chess-app/app/build/outputs/apk/release
 # AGP names an unsigned release APK differently, which is itself a signal: the file that
 # appears says whether the build was signed.
-UNSIGNED=$OUT/android-app-release-unsigned.apk
-APK=$OUT/android-app-release.apk
+UNSIGNED=$OUT/chess-app-release-unsigned.apk
+APK=$OUT/chess-app-release.apk
 WORK=$(mktemp -d)
 KEYSTORE="$WORK/throwaway.p12"
 UNPACKED="$WORK/apk"
@@ -81,7 +81,7 @@ log "1/6 The default release build is still unsigned"
 # What CI does. If this ever comes back signed, a key has reached the ordinary build,
 # and every build on every machine is publishing it.
 rm -f "$APK" "$UNSIGNED"
-"$GRADLE" :android-app:assembleRelease --console=plain -q
+"$GRADLE" :chess-app:assembleRelease --console=plain -q
 [ -f "$UNSIGNED" ] || fail "no unsigned release APK at $UNSIGNED"
 [ ! -f "$APK" ] || fail "the default build produced $APK, the name AGP uses only when it signs"
 if "$APKSIGNER" verify "$UNSIGNED" >/dev/null 2>&1; then
@@ -94,7 +94,7 @@ keytool -genkeypair -keystore "$KEYSTORE" -storetype PKCS12 \
   -keyalg RSA -keysize 2048 -validity 1 -alias "$ALIAS" \
   -dname "CN=ChessGame Throwaway, O=Verification, C=US" \
   -storepass "$PASSWORD" -keypass "$PASSWORD" >/dev/null 2>&1
-"$GRADLE" :android-app:assembleRelease --console=plain -q \
+"$GRADLE" :chess-app:assembleRelease --console=plain -q \
   "-PchessServerUrl=$BETA_URL" \
   "-PchessKeystoreFile=$(native_path "$KEYSTORE")" \
   "-PchessKeystorePassword=$PASSWORD" \
@@ -135,14 +135,14 @@ case "$NSC" in *domain-config*) fail "the debug cleartext exception was packaged
 echo "points at $BETA_URL, and forbids cleartext with no domain exception"
 
 log "5/6 A keystore without its passwords fails the build"
-if "$GRADLE" :android-app:assembleRelease --dry-run --console=plain -q \
+if "$GRADLE" :chess-app:assembleRelease --dry-run --console=plain -q \
   "-PchessKeystoreFile=$(native_path "$KEYSTORE")" >/dev/null 2>&1; then
   fail "a keystore with no password configured a build instead of stopping it"
 fi
 echo "stopped, as it should be"
 
 log "6/6 A keystore path that points at nothing fails the build"
-if "$GRADLE" :android-app:assembleRelease --dry-run --console=plain -q \
+if "$GRADLE" :chess-app:assembleRelease --dry-run --console=plain -q \
   "-PchessKeystoreFile=$(native_path "$WORK/absent.p12")" \
   "-PchessKeystorePassword=$PASSWORD" \
   "-PchessKeyAlias=$ALIAS" \
@@ -153,7 +153,7 @@ echo "stopped, as it should be"
 
 log "Leaving the release APK as CI leaves it"
 rm -f "$APK" "$UNSIGNED"
-"$GRADLE" :android-app:assembleRelease --console=plain -q
+"$GRADLE" :chess-app:assembleRelease --console=plain -q
 [ -f "$UNSIGNED" ] || fail "the unsigned release APK was not rebuilt"
 echo "unsigned again"
 

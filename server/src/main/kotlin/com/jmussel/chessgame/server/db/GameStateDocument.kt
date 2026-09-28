@@ -16,7 +16,7 @@ import kotlinx.serialization.Serializable
 /**
  * How a chess position is stored in a `jsonb` column.
  *
- * This is a persistence DTO and lives in the server, not in `game-core`: the domain types
+ * This is a persistence DTO and lives in the server, not in `chess-core`: the domain types
  * stay free of serialization concerns, and the stored shape can change without changing
  * the rules.
  *

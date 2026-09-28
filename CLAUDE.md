@@ -82,15 +82,15 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 
 ## Core Architecture Rules
 
-- `game-core` is a pure Kotlin/JVM module shared by Android and the Ktor server.
-- `game-core` must remain independent of Android, Jetpack Compose, Ktor, PostgreSQL, Supabase database APIs, HTTP, WebSockets, and UI state.
-- Do not migrate `game-core` to Kotlin Multiplatform unless a concrete non-JVM client requirement exists.
+- `chess-core` (formerly `game-core`, renamed by `M20.3`) is a pure Kotlin/JVM module shared by Android and the Ktor server.
+- `chess-core` must remain independent of Android, Jetpack Compose, Ktor, PostgreSQL, Supabase database APIs, HTTP, WebSockets, and UI state.
+- Do not migrate `chess-core` to Kotlin Multiplatform unless a concrete non-JVM client requirement exists.
 - The Ktor server is authoritative for multiplayer game state.
 - Android may pre-validate moves using the shared game core, but may not directly modify canonical game state.
 - Android must not directly read or write canonical game tables through Supabase database APIs.
 - Canonical game operations go through Ktor.
 - Commands represent requested actions.
-- The server validates and applies commands using `game-core`.
+- The server validates and applies commands using `chess-core`.
 - Every accepted game-state mutation increments the game version.
 - Persist current canonical state directly, plus active move history and append-only audit events.
 - Do not implement full event sourcing.
@@ -99,8 +99,9 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - Do not add speculative deck-building abstractions during the chess MVP.
 - ChessGame and the Deck Builder are separate Android apps in this one repository.
   They share one Ktor server, one database and one shared user (`D082`, which
-  settled `M20.1`). Each has its own pure-JVM rules module: `chess-core` (today's
-  `game-core`, renamed by `M20.3`) and `deck-core`. A chess app never depends on
+  settled `M20.1`). Each has its own pure-JVM rules module: `chess-core` (formerly
+  `game-core`, renamed by `M20.3`) and `deck-core`. The ChessGame app is
+  `chess-app` (formerly `android-app`). A chess app never depends on
   `deck-core`, a Deck Builder app never depends on `chess-core`, and the two rules
   modules never depend on each other. The server may depend on both. It dispatches
   on `game_type` with an explicit `when`. No generic `GameRules`, `GameEngine`,

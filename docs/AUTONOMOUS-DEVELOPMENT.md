@@ -109,7 +109,7 @@ one first.
     - unnecessary abstractions,
     - duplicated game rules,
     - Android/client-authoritative behavior,
-    - persistence concerns leaking into `game-core`,
+    - persistence concerns leaking into `chess-core`,
     - missing concurrency protection,
     - silent product-behavior changes.
 15. Update `docs/BACKLOG.md` (set the task `DONE` — unless its acceptance
@@ -137,7 +137,7 @@ one first.
 Authoritative commands live in `docs/DEVELOPMENT.md`.
 
 - **Narrow, while iterating:** the specific module test task, e.g.
-  `./gradlew :game-core:test`.
+  `./gradlew :chess-core:test`.
 - **Single aggregate gate, before marking a task `DONE`:** `./gradlew build`.
   This one command runs ktlintCheck, all module unit tests, Android lint, the
   Android APKs, and the server distribution. It is also exactly what CI runs.

@@ -116,7 +116,7 @@ No dependency outside this tier. The most value to players for the cost.
 - **Source:** `PRODUCT.md`
 - **Value:** Medium
 - **Effort:** Small–medium. Compose only; legality already comes from
-  `game-core`.
+  `chess-core`.
 - **Depends on:** nothing.
 - **Open decisions:** none.
 

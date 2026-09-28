@@ -8,7 +8,7 @@ build/
 **/build/
 
 # The Android app, which -PserverOnly leaves out of the server build anyway
-android-app/
+chess-app/
 local.properties
 *.apk
 *.aab

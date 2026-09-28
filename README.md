@@ -7,7 +7,7 @@ The long-term goal is not to remain a chess application. Chess is being used to 
 ## Current Stack
 
 - **Android:** Kotlin + Jetpack Compose
-- **Shared game logic:** pure Kotlin/JVM `game-core`
+- **Shared game logic:** pure Kotlin/JVM `chess-core`
 - **Backend:** Kotlin + Ktor
 - **Database:** PostgreSQL 18 locally/CI; beta on `ChessGame Dev`'s PostgreSQL
 - **Persistence:** JetBrains Exposed + HikariCP; Flyway + SQL migrations
@@ -22,8 +22,8 @@ The long-term goal is not to remain a chess application. Chess is being used to 
 .
 ├── CLAUDE.md
 ├── README.md
-├── game-core/
-├── android-app/
+├── chess-core/             -- chess rules, pure Kotlin/JVM
+├── chess-app/              -- the ChessGame Android app
 ├── server/
 ├── database/
 │   ├── README.md
@@ -121,9 +121,10 @@ The multi-game architecture decision `M20.1` was signed off on 2026-09-26 as
 - they share one Ktor server, one database and one user account;
 - each has its own pure-JVM rules module.
 
-It is not part of the fresh M1-M19 independent evaluation. The next production
-work is `M20.3`, which renames `game-core` to `chess-core`, then `M20.4`, the
-prototype username claim.
+It is not part of the fresh M1-M19 independent evaluation. `M20.3` renamed the
+chess modules `chess-core` and `chess-app` (formerly `game-core` and
+`android-app`). The next production work is `M20.4`, the prototype username
+claim.
 
 The N >= 3 continuation flow moved out of the backlog to `F37` in
 `docs/FUTURE.md`, because it needs a real Deck Builder ruleset. Work outside the
@@ -143,10 +144,10 @@ Single aggregate verification (also what CI runs):
 Common narrower commands:
 
 ```bash
-./gradlew :game-core:test
+./gradlew :chess-core:test
 ./gradlew :server:test
 ./gradlew :server:run          # then GET http://localhost:8080/health
-./gradlew :android-app:assembleDebug
+./gradlew :chess-app:assembleDebug
 ./gradlew ktlintCheck
 ```
 

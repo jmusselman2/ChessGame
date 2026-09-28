@@ -19,7 +19,7 @@ date.
 
 Verified during bootstrap:
 
-- JDK: 24 for `game-core`, `server`, and CI
+- JDK: 24 for `chess-core`, `server`, and CI
 - Android Studio local runtime: bundled JDK 25
 - Gradle: 9.5.0
 - Kotlin: 2.2.10
@@ -68,7 +68,7 @@ module it runs:
 
 - `ktlintCheck` (the ktlint plugin wires it into `check`, and `build` depends on
   `check`),
-- `game-core` unit tests,
+- `chess-core` unit tests,
 - `server` unit tests and the server distribution (`distZip`/`distTar`),
 - Android debug + release unit tests,
 - Android lint,
@@ -80,7 +80,7 @@ This is what CI runs, with `--continue` added:
 
 The flag changes reporting, not the verdict. Without it Gradle stops at the
 first failing task, so on a red commit whether `:server:test` or
-`:android-app:testDebugUnitTest` actually executes depends on scheduling, and
+`:chess-app:testDebugUnitTest` actually executes depends on scheduling, and
 the same commit can report a different set of failures from one run to the next
 — which makes the number of outstanding failures impossible to read off a
 single run. With it, every independent task runs and the run reports the
@@ -143,11 +143,11 @@ Review `git diff` after auto-formatting.
 
 Windows:
 
-    .\gradlew.bat :game-core:test
+    .\gradlew.bat :chess-core:test
 
 Linux/macOS/CI:
 
-    ./gradlew :game-core:test
+    ./gradlew :chess-core:test
 
 Status: VERIFIED
 
@@ -155,30 +155,30 @@ Status: VERIFIED
 
 Windows:
 
-    .\gradlew.bat :android-app:testDebugUnitTest
+    .\gradlew.bat :chess-app:testDebugUnitTest
 
 Linux/macOS/CI:
 
-    ./gradlew :android-app:testDebugUnitTest
+    ./gradlew :chess-app:testDebugUnitTest
 
 Status: VERIFIED (2026-08-25)
 
 Host-side JVM unit tests for the Android module. Do not rely on Android manual
-testing for chess-rule correctness — that belongs in `game-core` tests.
+testing for chess-rule correctness — that belongs in `chess-core` tests.
 
 ### Android Device Tests (instrumented)
 
-The Compose UI tests under `android-app/app/src/androidTest` run on a device or
+The Compose UI tests under `chess-app/app/src/androidTest` run on a device or
 emulator. Neither `build` nor CI runs them (`D073`). `build` does not even compile
 them, so compile them after changing them or anything they use:
 
-    .\gradlew.bat :android-app:assembleDebugAndroidTest
+    .\gradlew.bat :chess-app:assembleDebugAndroidTest
 
 Run them on one device. `ANDROID_SERIAL` picks it when more than one is attached:
 
     $env:ANDROID_SERIAL = "28311FDH200L1Z"
     $env:SUPABASE_ANON_KEY = "<publishable key>"
-    .\gradlew.bat :android-app:connectedDebugAndroidTest `
+    .\gradlew.bat :chess-app:connectedDebugAndroidTest `
       "-PchessServerUrl=https://chessgame-hit7.onrender.com" `
       "-PchessVersionCode=<higher than the installed build>" `
       "-PchessVersionName=<anything>"
@@ -220,7 +220,7 @@ What they cover:
 - `LocalDrawClaimUiTest` and the `M5*` tests are the earlier local-game screen tests.
 
 **Checking rotation by hand.** Install a debug build as above with
-`:android-app:installDebug` instead of `connectedDebugAndroidTest`, which keeps the
+`:chess-app:installDebug` instead of `connectedDebugAndroidTest`, which keeps the
 app installed. Turn auto-rotate on. Rotate the phone by hand, not through `adb`, then
 check:
 
@@ -244,11 +244,11 @@ Screenshots and layout dumps for the record:
 
 Windows:
 
-    .\gradlew.bat :android-app:assembleDebug
+    .\gradlew.bat :chess-app:assembleDebug
 
 Linux/macOS/CI:
 
-    ./gradlew :android-app:assembleDebug
+    ./gradlew :chess-app:assembleDebug
 
 Status: VERIFIED (2026-08-25)
 
@@ -258,11 +258,11 @@ Produces the debug APK without running lint or release tasks.
 
 Windows:
 
-    .\gradlew.bat :android-app:build
+    .\gradlew.bat :chess-app:build
 
 Linux/macOS/CI:
 
-    ./gradlew :android-app:build
+    ./gradlew :chess-app:build
 
 Status: VERIFIED (2026-08-25)
 
@@ -436,7 +436,7 @@ unauthenticated one with `401`. It never touches the beta database — that is
 
 Two things about the build worth knowing before changing it:
 
-- **`-PserverOnly=true` leaves `:android-app` out.** `settings.gradle.kts` reads
+- **`-PserverOnly=true` leaves `:chess-app` out.** `settings.gradle.kts` reads
   it (and `CHESSGAME_SERVER_ONLY`). Without it the build image would need an
   Android SDK and would fail at configuration time. Nothing else sets either, so
   `./gradlew build` and CI are unaffected — which also means CI does **not**
@@ -471,11 +471,11 @@ Use `adb reverse` and point the build at `localhost` instead:
 Windows:
 
     $env:SUPABASE_ANON_KEY = "<publishable key>"
-    .\gradlew.bat :android-app:assembleDebug "-PchessServerUrl=http://localhost:8080"
+    .\gradlew.bat :chess-app:assembleDebug "-PchessServerUrl=http://localhost:8080"
 
 Linux/macOS:
 
-    SUPABASE_ANON_KEY=<publishable key>       ./gradlew :android-app:assembleDebug -PchessServerUrl=http://localhost:8080
+    SUPABASE_ANON_KEY=<publishable key>       ./gradlew :chess-app:assembleDebug -PchessServerUrl=http://localhost:8080
 
 `chessServerUrl` follows the same pattern as `supabaseAnonKey`: a Gradle
 property, a `gradle.properties` entry, or the `CHESS_SERVER_URL` environment
@@ -495,8 +495,8 @@ Status: VERIFIED
 
 Expected modules:
 
-- `:android-app`
-- `:game-core`
+- `:chess-app`
+- `:chess-core`
 - `:server`
 
 ## Local PostgreSQL
@@ -736,7 +736,7 @@ tests — `SupabaseLiveAuthTest` (the two auth calls) and `AppStartupLiveTest`
 
     $env:SUPABASE_ANON_KEY = "<publishable key>"
     $env:SUPABASE_URL = "https://rkwymrtqayyyfahfgmbm.supabase.co"
-    .\gradlew.bat :android-app:testDebugUnitTest --rerun-tasks
+    .\gradlew.bat :chess-app:testDebugUnitTest --rerun-tasks
 
 Status: VERIFIED (2026-08-28, `M14.6`)
 
@@ -762,7 +762,7 @@ A beta build is an ordinary release build pointed at the deployed HTTPS endpoint
 through the same `chessServerUrl` input a development build uses (`D034`) — the
 address is build configuration, never a literal in application source:
 
-    .\gradlew.bat :android-app:assembleRelease `
+    .\gradlew.bat :chess-app:assembleRelease `
       "-PchessServerUrl=https://chessgame-hit7.onrender.com" `
       "-PsupabaseAnonKey=<publishable key>"
 
@@ -847,7 +847,7 @@ The workflow runs a single aggregate step:
 
     ./gradlew build
 
-`build` covers ktlintCheck, `game-core` tests, `server` tests + distribution,
+`build` covers ktlintCheck, `chess-core` tests, `server` tests + distribution,
 Android debug/release unit tests, Android lint, and the Android APKs. If a
 future need arises to split CI into parallel jobs, keep `./gradlew build` as the
 union of what those jobs run.
@@ -1241,7 +1241,7 @@ Gradle property, `gradle.properties`, or the matching `CHESS_KEYSTORE_*` /
 `CHESS_KEY_*` environment variable. None of them is ever committed, and `*.jks`,
 `*.keystore`, and `keystore.properties` are git-ignored.
 
-    .\gradlew.bat :android-app:assembleRelease `
+    .\gradlew.bat :chess-app:assembleRelease `
       "-PchessServerUrl=https://chessgame-hit7.onrender.com" `
       "-PsupabaseAnonKey=<publishable key>" `
       "-PchessKeystoreFile=$HOME\keys\chessgame-beta.p12" `
@@ -1250,9 +1250,9 @@ Gradle property, `gradle.properties`, or the matching `CHESS_KEYSTORE_*` /
       "-PchessKeyPassword=<key password>" `
       "-PchessVersionName=0.1.3-beta" "-PchessVersionCode=4"
 
-The signed APK is `android-app/app/build/outputs/apk/release/android-app-release.apk`.
+The signed APK is `chess-app/app/build/outputs/apk/release/chess-app-release.apk`.
 Without the keystore properties the same command produces
-`android-app-release-**unsigned**.apk` instead — that is what `./gradlew build`
+`chess-app-release-**unsigned**.apk` instead — that is what `./gradlew build`
 and CI build, and it cannot be installed. The differing filename is the quickest
 way to tell which one you have.
 

@@ -78,7 +78,7 @@ sealed interface CommandResult {
  * → validate expected version
  * → validate the game is still running
  * → validate turn
- * → run game-core
+ * → run chess-core
  * → persist in one transaction, incrementing the version
  * ```
  *
@@ -147,7 +147,7 @@ class GameCommandService(
      *
      * Only the player to move may claim, as in standard chess: the claim is about the
      * position they are being asked to play from. The server decides whether the claim is
-     * real — `game-core` answers from the position's own history, not from anything the
+     * real — `chess-core` answers from the position's own history, not from anything the
      * client asserts (`D019`).
      */
     fun claimDraw(
@@ -228,7 +228,7 @@ class GameCommandService(
     /**
      * Takes back [userId]'s latest move in [gameId].
      *
-     * The rule is `D016` exactly, and `game-core` is what applies it: only the player who
+     * The rule is `D016` exactly, and `chess-core` is what applies it: only the player who
      * made the latest move may take it back, only while the opponent has not answered, and
      * never once the game has ended (`D017`). The undone move leaves the history, so the
      * previous move becomes takeable-back again by whoever made it.

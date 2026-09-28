@@ -34,7 +34,7 @@ Do not build a universal board-game engine during the chess MVP.
 | Build              | Gradle Kotlin DSL                                                       |
 | Repository         | Monorepo                                                                |
 
-`game-core` starts as Kotlin/JVM because both current consumers are JVM-based: Android and the Ktor server.
+`chess-core` starts as Kotlin/JVM because both current consumers are JVM-based: Android and the Ktor server.
 
 The shared Supabase development project currently provides anonymous
 authentication only. The application schema is applied to disposable local/CI
@@ -56,7 +56,7 @@ Do not introduce Kotlin Multiplatform until a concrete non-JVM consumer exists.
 │ ViewModels / screen state                                   │
 │ Repositories / API client                                   │
 │        │                                                    │
-│        └──── uses game-core locally for rules/UX            │
+│        └──── uses chess-core locally for rules/UX           │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                  HTTPS + WebSocket
@@ -70,7 +70,7 @@ Do not introduce Kotlin Multiplatform until a concrete non-JVM consumer exists.
 │ Concurrency / transactions                                  │
 │ Realtime publication                                        │
 │        │                                                    │
-│        └──── uses the same game-core                        │
+│        └──── uses the same chess-core                       │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                        ▼
@@ -90,8 +90,8 @@ Recommended high-level layout:
 
 ```text
 .
-├── game-core/
-├── android-app/
+├── chess-core/
+├── chess-app/
 ├── server/
 ├── database/
 │   └── migrations/
@@ -101,28 +101,29 @@ Recommended high-level layout:
 Allowed dependencies:
 
 ```text
-android-app ──→ game-core
-server      ──→ game-core
+chess-app ──→ chess-core
+server    ──→ chess-core
 ```
 
 Forbidden dependencies:
 
 ```text
-game-core ──→ android-app
-game-core ──→ server
-game-core ──→ database
-game-core ──→ Supabase
+chess-core ──→ chess-app
+chess-core ──→ server
+chess-core ──→ database
+chess-core ──→ Supabase
 ```
 
 ### Multi-game layout (`D082`)
 
 ChessGame and the Deck Builder are separate Android apps in this one repository.
-They share one Ktor server, one database and one deployment. The repository
-moves toward this layout:
+They share one Ktor server, one database and one deployment. `M20.3` renamed the
+chess modules: `game-core` is `chess-core` and `android-app` is `chess-app`. The
+repository moves toward this layout:
 
 ```text
-chess-core      pure JVM: chess rules      — today's game-core, renamed by M20.3
-chess-app       the ChessGame app          — today's android-app, renamed by M20.3
+chess-core      pure JVM: chess rules      — exists (formerly game-core, M20.3)
+chess-app       the ChessGame app          — exists (formerly android-app, M20.3)
 deck-core       pure JVM: Deck Builder rules — created with real Deck Builder rules
 deck-app        the Deck Builder app       — created with real Deck Builder rules
 client-common   code both clients share    — extracted once deck-app exists
@@ -157,19 +158,19 @@ This document describes the intended structure, not how much of it is built.
 task, and this section deliberately does not restate it: the snapshot that used
 to live here was pinned to a single commit and went stale as the work passed it.
 
-What is durable is the shape. Every module the diagram above names exists and is
-exercised by `./gradlew build` — `game-core`, the Ktor command/query surface with
+What is durable is the shape. Every module the first diagram above names exists and is
+exercised by `./gradlew build` — `chess-core`, the Ktor command/query surface with
 PostgreSQL persistence and realtime publication, and an Android application wired
 end to end from `MainActivity` through `ChessApp`. `docs/PLATFORM-REVIEW.md`
 reviews what building all of it proved about the boundaries described here, and
 `M18`'s completion note in `docs/BACKLOG.md` says where that leaves the project.
 
-## 5. `game-core`
+## 5. `chess-core`
 
-`game-core` contains pure chess rules and state. It is the chess rules module, not
-a generic engine, and `M20.3` renames it `chess-core` (`D082`). The Deck Builder's
-rules will live beside it in `deck-core`, under the same restrictions, and neither
-module depends on the other.
+`chess-core` contains pure chess rules and state. It is the chess rules module, not
+a generic engine, which is why `M20.3` renamed it from `game-core` (`D082`). The
+Deck Builder's rules will live beside it in `deck-core`, under the same
+restrictions, and neither module depends on the other.
 
 Implemented concrete chess concepts include:
 
@@ -186,7 +187,7 @@ CastlingRights
 DrawRuleState
 ```
 
-`game-core` must not depend on:
+`chess-core` must not depend on:
 
 - Android,
 - Compose,
@@ -225,7 +226,7 @@ Realtime connection
 Database transaction
 ```
 
-Keep them in the Android/server application layers rather than `game-core`.
+Keep them in the Android/server application layers rather than `chess-core`.
 
 They are also the **shared platform** for both products (`D082`): users and
 identity, usernames, friends, groups, tables, participants, series, and the
@@ -238,7 +239,7 @@ games, series and history stay tied to their game type and product.
 
 The Android client is untrusted.
 
-Android may use `game-core` to pre-validate a move and provide immediate UX feedback, but it does not decide the canonical result.
+Android may use `chess-core` to pre-validate a move and provide immediate UX feedback, but it does not decide the canonical result.
 
 One named exception exists, and only one: the server does not verify that two
 users are friends when a series is created (`D046`). The invite UI is the gate
@@ -271,7 +272,7 @@ authenticate
 → validate participant
 → validate expected version
 → validate command
-→ execute through game-core
+→ execute through chess-core
 → persist atomically
 → increment version
 → publish update
@@ -403,7 +404,7 @@ This is local only.
 
 The Android app holds the latest server-confirmed game state in memory.
 
-It may use `game-core` for:
+It may use `chess-core` for:
 
 - legal move display,
 - selection behavior,
@@ -1038,7 +1039,7 @@ Prefer feature-oriented Android organization.
 Example:
 
 ```text
-android-app/
+chess-app/
 ├── onboarding/
 ├── dashboard/
 ├── friends/
@@ -1060,7 +1061,7 @@ Compose UI
 Do not introduce heavyweight Clean Architecture ceremony merely for pattern compliance.
 
 The online game state must be separate from local pass-and-play state. Android
-may use `game-core` for board rendering, legal-move previews, and deterministic
+may use `chess-core` for board rendering, legal-move previews, and deterministic
 UX, but an online board changes only when an authenticated server response is
 accepted or canonical state is reloaded. Every command carries the currently
 loaded expected version.
@@ -1197,7 +1198,8 @@ and the review confirms they were right to.
 `D082` (2026-09-26) decides where the second game goes. It is a separate app
 (`deck-app`) with its own rules module (`deck-core`), on this repository's one
 server, one database and shared users (§4, §13, §30). It changes none of the above:
-the only rename it makes is `game-core` → `chess-core`, and anything shared is
+the only renames it makes are `game-core` → `chess-core` and
+`android-app` → `chess-app` (done by `M20.3`), and anything shared is
 still extracted from two implementations, not one.
 
 Do not add future deck-building mechanics yet.

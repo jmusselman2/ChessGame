@@ -13,7 +13,7 @@ application {
 }
 
 dependencies {
-    implementation(project(":game-core"))
+    implementation(project(":chess-core"))
 
     implementation(libs.ktor.server.core)
     implementation(libs.ktor.server.netty)

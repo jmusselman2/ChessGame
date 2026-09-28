@@ -190,7 +190,7 @@ class MakeMoveTest {
                 com.jmussel.chessgame.core.chess.ChessRules
                     .applyMove(ChessGame.newGame(), Move.of("e2", "e4"))
 
-            assertEquals(expected, applied.game, "the server ran game-core, it did not take the client's word")
+            assertEquals(expected, applied.game, "the server ran chess-core, it did not take the client's word")
             assertEquals(expected, fixture.game().game, "and it persisted that")
         }
     }
