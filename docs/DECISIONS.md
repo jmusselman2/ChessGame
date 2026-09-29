@@ -107,6 +107,12 @@ Any earlier planning language that treated Kotlin Multiplatform as an MVP requir
 **Date:** 2026-08-21  
 **Status:** Accepted
 
+**Amended 2026-09-29 by `D084`:** server authority applies to games that need
+coordination across devices. A game whose players are all on one device
+(pass-and-play, or against the computer) is device-authoritative and governed by
+`D084`; it never goes through Ktor. Everything below still holds for remotely
+coordinated games.
+
 ### Decision
 
 Canonical multiplayer game state changes are validated and committed by the Ktor server.
@@ -2183,6 +2189,12 @@ and every token Supabase issues carries one, so requiring it costs nothing real.
 only for module names. `game-core` becomes `chess-core` and `android-app` becomes
 `chess-app` (`M20.3`). Nothing is extracted or generalised, and the rest of this
 decision governs `D082` unchanged.
+
+**Superseded in part 2026-09-29 by `D086`:** only "No engine interface". The AI
+opponent establishes one chess-specific seam for choosing the computer's move,
+`ChessEngine`, in `chess-ai`. It is not a rules engine and not a cross-ruleset
+abstraction. The prohibition on a generic `GameEngine` or any other cross-ruleset
+engine abstraction stands, and so does the rest of this decision.
 
 ### Decision
 
@@ -4657,6 +4669,11 @@ Keeping `MVP.md` binding keeps scope where the precedence order already puts it.
 
 **Relates to:** `D041`, `M17.7`, `docs/PRODUCT.md` *Game Screen*, `docs/DEVELOPMENT.md`
 
+**Superseded in part 2026-09-29 by `D084`:** only local-game lifetime and
+persistence. "A local game in progress survives rotation, and only rotation" no
+longer holds: local games are saved on the device and resumable (`M21.1`). The
+layout rules are unchanged.
+
 ### Decision
 
 - **Landscape is supported.** The game screens (the local game and the online game,
@@ -5515,6 +5532,12 @@ actions**. That is the chess AI opponent (`F7`), the Deck Builder's scripted ene
 (`F26`, `D051`), and AI players in the Deck Builder (`F29`). Each lists it as a
 prerequisite.
 
+*Consequence noted 2026-09-29 (`D086`):* the chess AI opponent is now entirely
+device-authoritative (`D084`), scheduled as `M21`. It produces no audited server
+actions, so it no longer needs this migration. Point 12 still applies to every
+future non-user participant that does produce server-audited actions, including
+`F26` and `F29`.
+
 ### Former `M20.2` moves to the Deck Builder's future work
 
 "N ≥ 3 resignation and continue-among-remainder" is not ChessGame work. Chess is an
@@ -5718,3 +5741,278 @@ nameless-caller refusals (`D045`, `D081`) are built on that.
 - `V11` drops `users.auth_subject`. A server built before `M20.4` cannot run against
   a database it has migrated, so rolling `main` back past `M20.4` also needs the
   column restored from `user_auth_subjects`.
+
+---
+
+## D084 — Games Whose Players Are All on This Device Are Stored on the Device
+
+**Date:** 2026-09-29
+
+**Status:** Accepted
+
+**Amends:** `D004` — server authority applies to games that need coordination across
+devices.
+
+**Supersedes in part:** `D073`, only "a local game in progress survives rotation, and
+only rotation".
+
+**Relates to:** `D029`, `D044`, `D061`, `D072`, `D085`, `D086`, `M21`
+
+### Decision
+
+**Who is authoritative depends on where the players are.**
+
+- A game that needs coordination with a participant on another device is
+  **server-authoritative**, as before (`D004`): friend games go through Ktor and
+  PostgreSQL.
+- A game whose players are all on this device is **device-authoritative**. In
+  ChessGame that is pass-and-play and a game against the computer (`D086`). Its
+  canonical store is on the device, and it never goes through Ktor or PostgreSQL.
+
+This is a project rule, not a convenience for the AI opponent.
+
+**Local games are saved.** Pass-and-play and computer games are persisted in
+`chess-app`, so pass-and-play becomes resumable: closing the app, Back, or losing the
+process no longer ends it.
+
+**One unfinished local game at a time**, of either kind.
+
+- Opening the matching local-play entry resumes it.
+- Starting any other local game while one is unfinished asks for confirmation. On
+  confirmation the unfinished game is deleted and the new one is created.
+- A game abandoned this way is not kept in history.
+
+**Finished local games are kept** and can be opened later, read-only:
+
+- a list of finished local games, newest first, with enough to identify each one;
+- its result and its move history;
+- the board reviewed move by move.
+
+There is no local series, standing, win/loss statistic, account, friend or rating.
+
+**Local games work without the server.** Reaching them does not depend on server
+startup. When startup fails (no network, a server still asleep at the time limit,
+or a server that is down), the app still offers the unfinished local game, new local
+games and local history, alongside the existing retry. Online features stay
+unavailable until startup succeeds.
+
+**Local games stay on this installation.** The local-game database is excluded from
+Android cloud backup and device transfer. A local game does not follow the player to
+another device, and it is lost when the app is uninstalled.
+
+**Storage shape.** Two tables, no more:
+
+- `local_games`: one row per game with its canonical current or final state and
+  what identifies it: id; kind (`PASS_AND_PLAY` or `COMPUTER`); status (`ACTIVE` or
+  `COMPLETED`); created and completed times; the serialised chess state; the result
+  and termination reason once finished; and, for a computer game, the human's colour
+  and the difficulty.
+- `local_moves`: the ordered move history, one row per ply. Each row holds the game
+  id, the ply, the move and its recorded `positionBefore`, which is everything
+  needed to rebuild the core `MoveRecord`.
+
+There is no `local_series`, `local_users`, `local_participants` or statistics table,
+and the schema is not generalised beyond what ChessGame needs (`D044`). This is the
+server's model (one canonical game record, ordered move records), but not its
+delete-and-rewrite-the-whole-history write.
+
+**Writes append and truncate** (`D061`):
+
+- a move appends its record and updates the game's state;
+- an undo removes the latest record and restores the state from its recorded prior
+  position;
+- a two-move takeback (`D086`) removes the computer's reply and the human move
+  before it, and restores the position before the human move.
+
+Every change touching both the state and the history runs in one SQLDelight
+transaction. A committed database never holds a board that disagrees with its move
+history.
+
+**Restoring never replays moves through the rules.** The stored state and the stored
+move records, with their recorded prior positions, rebuild `ChessGame(state,
+history)` directly (`D029`, and `D061`'s principle). SQLDelight models and
+persistence DTOs stay in `chess-app`, out of `chess-core`.
+
+### Rationale
+
+`D004` exists to coordinate players who are on different devices. Where every
+player holds the same phone there is nothing to coordinate, and routing the game
+through a server would add a cold start, a network dependency and server concepts
+that assume every seat is a user (`StoredGame`, `DashboardQueries`,
+`HistoryQueries`, `SeriesService.play`) for no gain. Pass-and-play already ran
+entirely on the device; it was only not saved.
+
+One unfinished game keeps the entry points simple and needs no local list of games
+in progress. Keeping finished games is cheap, and a player can look back at them.
+Excluding the database from backup keeps "stored on this device" literally true.
+
+### Alternatives Considered
+
+- **Store AI games on the server.** Rejected. It would need computer seats in the
+  server's user-shaped chess model, authorisation for moves the human's phone sends
+  for the computer, the `D082` point 12 audit change, and dashboard, history and API
+  changes, all to support a game only one phone plays.
+- **Play locally, upload finished games.** Rejected for now: it adds a second way to
+  create a game, plus identity, idempotency and replay validation.
+- **One table with the history as a serialised column.** Rejected by the owner in
+  favour of a move table, which appends and truncates naturally.
+- **Keep pass-and-play unsaved.** Rejected: the store exists anyway.
+
+### Consequences
+
+- `CLAUDE.md`, `ARCHITECTURE.md` §3, §7, §11 and §29, and `PRODUCT.md` describe the
+  two kinds of authority.
+- `M21.1` builds the store, moves pass-and-play onto it, adds the offline entry and
+  local history, excludes the database from backup, and corrects the manifest
+  comment that says the app is useless offline.
+
+---
+
+## D085 — SQLDelight Is the Standard for Relational On-Device Storage
+
+**Date:** 2026-09-29
+
+**Status:** Accepted
+
+**Relates to:** `D084`, `F36`
+
+### Decision
+
+New structured, relational storage inside an Android or JVM client uses
+**SQLDelight** by default, not Room.
+
+- It does not mean that all client state belongs in SQLDelight. DataStore stays for
+  preferences and settings.
+- Room is not introduced unless a later decision supersedes this one with a
+  documented reason.
+- It implies no move to Kotlin Multiplatform. `CLAUDE.md`'s module and platform
+  rules are unchanged.
+
+### Rationale
+
+The owner's choice. SQLDelight is SQL-first: the schema and queries are written as
+SQL, and typed Kotlin is generated from them. Its migrations are explicit, and the
+data model stays visible. That matches the project's preference for explicit
+database structure, the same direction as `F36` (jOOQ on the server).
+
+### Alternatives Considered
+
+- **Room.** The conventional Android choice. Rejected by the owner in favour of SQL
+  written as SQL.
+- **DataStore or a JSON file.** Rejected for games: history, review and the
+  one-unfinished-game rule want queries and transactions.
+
+### Consequences
+
+- `M21.1` adds SQLDelight to the version catalog and `chess-app`.
+
+---
+
+## D086 — The AI Opponent Is a Local Game with a Swappable Chess Engine
+
+**Date:** 2026-09-29
+
+**Status:** Accepted
+
+**Supersedes in part:** `D044`, only "No engine interface", and only for one
+chess-specific seam, `ChessEngine`. `D044`'s prohibition on a generic `GameEngine`
+or any other cross-ruleset engine abstraction stands.
+
+**Relates to:** `D014`, `D044`, `D082` point 12, `D084`, `D085`, `M21`
+
+### Decision
+
+The AI opponent (formerly `F7`) is a `D084` local game. The server takes no part in
+creating it, its moves, undo, history, its end, or Play again. Point 12 of `D082`
+stays valid, and a dated note under it records that this game no longer needs the
+audit migration.
+
+**`chess-ai`** is a new pure Kotlin/JVM module:
+
+- It depends on `chess-core` only, and has no Android dependency.
+- It is used only by `chess-app`, never by the server or any `deck-*` module.
+- It holds the chess-specific `ChessEngine` interface and the project's own engine.
+  A future engine that needs native or platform code (for example Stockfish through
+  the NDK) lives outside `chess-ai` and implements the same interface.
+
+`ChessEngine` chooses a computer's chess move. It is not a rules engine, a ruleset
+abstraction or a platform abstraction, and it is not a step toward a generic
+`GameEngine`. It exists for three reasons:
+
+- the app's tests need deterministic fake engines;
+- choosing moves should be replaceable separately from the rules;
+- a later engine can use the same seam.
+
+**The first engine** takes legal moves from `chess-core` and uses alpha-beta search
+with material plus simple positional evaluation. It has **three difficulty levels**.
+`M21.2` sets and tests the search depths and time budgets.
+
+**The engine contract:**
+
+- On an unfinished position with a legal move, it returns a legal move.
+- It settles on a legal fallback before searching deeper, so a spent budget still
+  yields a legal move.
+- It can be cancelled, and cancelling applies no move.
+- It runs off the main thread.
+- Any randomness it uses is seedable.
+- It is never asked to move in a finished game.
+
+**Colours.** The first game against the computer gives the human a random colour.
+After a game, **Play again** creates a new local game at the same difficulty with the
+colours swapped (`D014`'s alternation, applied locally). The finished game stays in
+local history. There is no automatic rematch and no series.
+
+**Takeback.** Games against the computer replace the multiplayer undo rule ("the
+latest unanswered move") with a takeback:
+
+- After the computer has replied, Undo takes back the reply and the human move
+  before it, returning the player to their previous turn. It can be repeated back to
+  the player's first move.
+- After the human has moved but before the computer replies, Undo cancels the search
+  and takes back the human move alone.
+- A move that ended the game is final, whoever made it. Undo is then unavailable.
+
+It is built from the ordinary recorded-position undo, applied once or twice.
+`chess-core`'s undo semantics do not change.
+
+**Stale engine results.** Cancelling is not enough: a search can finish at the moment
+it is cancelled. Before applying an engine's move, the app checks that it still
+belongs to the current game and position. A stale result never changes a game after
+a takeback, a new game, leaving or replacing the game, a newer search, or the end of
+the game.
+
+**The computer's turn.** The human cannot make or begin a move during it. Reopening
+an unfinished game on the computer's turn starts exactly one valid search.
+
+**Draws and resignation.** The human may resign, with the usual confirmation, and may
+make any legally available draw claim. The computer never resigns, never offers a
+draw and never claims an optional draw. Automatic draws apply as in every game.
+
+### Rationale
+
+The owner decided that the engine runs on the phone and the server is not involved,
+which `D084` makes a general rule. The owner also wants the project's engine to be
+replaceable by another, which needs one interface. Keeping it chess-specific keeps
+`D044`'s actual concern, a speculative cross-game abstraction, intact.
+
+Against an engine that replies at once, the multiplayer undo window would never be
+open, so games against the computer need a takeback rule of their own. It is stated
+here rather than inherited by accident.
+
+### Alternatives Considered
+
+- **Stockfish now.** Rejected for the first engine: native builds for each ABI, and
+  GPL obligations for the distributed app. The interface leaves it possible later.
+- **Engine code in `chess-core`.** Rejected: `chess-core` holds the rules and ships on
+  the server, which never needs an engine.
+- **Automatic rematches with a local series.** Rejected by the owner in favour of Play
+  again.
+
+### Consequences
+
+- `M21.2` creates `chess-ai`. `M21.3` adds "Play the computer" to the local entry
+  points, including the offline entry (`D084`).
+- `CLAUDE.md`'s product rules gain the takeback, and its architecture rules gain
+  `chess-ai`.
+- `F7` leaves `docs/FUTURE.md` and `docs/MVP.md`'s non-MVP list. Its ID is retired
+  (`D072`).

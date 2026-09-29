@@ -85,10 +85,13 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - `chess-core` (formerly `game-core`, renamed by `M20.3`) is a pure Kotlin/JVM module shared by Android and the Ktor server.
 - `chess-core` must remain independent of Android, Jetpack Compose, Ktor, PostgreSQL, Supabase database APIs, HTTP, WebSockets, and UI state.
 - Do not migrate `chess-core` to Kotlin Multiplatform unless a concrete non-JVM client requirement exists.
-- The Ktor server is authoritative for multiplayer game state.
-- Android may pre-validate moves using the shared game core, but may not directly modify canonical game state.
+- The Ktor server is authoritative for remotely coordinated game state: any game that needs coordination across devices (`D004`, as amended by `D084`).
+- Android may pre-validate moves using the shared game core, but may not directly modify canonical server game state.
 - Android must not directly read or write canonical game tables through Supabase database APIs.
-- Canonical game operations go through Ktor.
+- Canonical operations on remotely coordinated games go through Ktor.
+- Games whose players are all on this device (pass-and-play, against the computer) are the one exception (`D084`). They are device-authoritative, stored on the device, and never use Ktor or PostgreSQL. They stay reachable when server startup fails, and they are excluded from Android backup.
+- SQLDelight is the default for new structured relational on-device storage (`D085`). Do not introduce Room without a decision that supersedes it. DataStore stays for preferences.
+- `chess-ai` is a chess-specific, pure Kotlin/JVM module. It depends only on `chess-core`, and only `chess-app` uses it (`D086`). Its `ChessEngine` interface chooses a computer's chess move. Do not generalise it into a cross-game engine abstraction.
 - Commands represent requested actions.
 - The server validates and applies commands using `chess-core`.
 - Every accepted game-state mutation increments the game version.
@@ -129,7 +132,7 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - `lastSeenAt` is tracked internally.
 - A pair may have more than one active game series at a time (`D053`, superseding `D011`; was: one active series per friend pair). "Play" against a friend with an existing series offers opening it or starting another.
 - Initial colors are random.
-- Automatic rematches are the default.
+- Automatic rematches are the default in a series. A game against the computer has no series: it offers Play again, with colours swapped (`D086`).
 - Rematch colors alternate (the two-seat case of the general seat-rotation rule, `D050`).
 - Removing a friend affects the friends list only (`D053`, superseding `D013`; was: it disabled the next rematch and closed the series after the current game). It does not end a series, alter a game, or touch table/group membership. A series ends only when a participant explicitly leaves it.
 - Groups are MVP (`D076`, superseding `D049`'s "deck-builder only"). Any member of a group may Play any other member, friend or not. Membership mirrors friendship: immediate, no owner, and leaving is the only exit.
@@ -137,6 +140,8 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - Once the opponent moves, the prior move is locked.
 - If the opponent undoes their move, the previous player's move becomes undoable again.
 - A game-ending move is immediately final and cannot be undone.
+- In a game against the computer, Undo is a takeback instead (`D086`). It takes back the computer's reply and the human move before it, repeatably. If the computer has not replied yet, it takes back the pending human move alone. A game-ending move is still final.
+- At most one local game (pass-and-play or against the computer) is unfinished at a time. Replacing it deletes it. Finished local games are kept for review, with no local series or statistics (`D084`).
 - Resignation is immediately final after confirmation.
 - The next game is created automatically after a normally completed game when the series remains active.
 - Threefold repetition and the fifty-move rule are claimable draws.

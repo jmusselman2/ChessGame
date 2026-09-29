@@ -37,6 +37,9 @@ These are the four things `D062` asks every standalone document to state:
 **IDs are stable.** Each item keeps its `F` number while it is here. An item that
 leaves keeps its ID in the git history, and the number is never given out again.
 
+**Scheduled items.** `F7` (AI opponent) was scheduled on 2026-09-28 as backlog
+milestone `M21`, under `D084`–`D086`. Its ID is retired.
+
 **Order.** The project owner's triage on 2026-09-23: value to players against
 cost, with every item after the items it depends on. The value ratings in *At a
 Glance* come from the same triage. `F1`–`F32` were numbered in this order that
@@ -55,7 +58,6 @@ this order, not the numbers. `MVP.md` lists the same items by topic.
 | `F4`  | Turning automatic rematches off by hand     | Series and Statistics | S             | Medium             |
 | `F5`  | Username changes                            | Identity and Accounts | M             | Medium             |
 | `F6`  | Detailed profiles                           | Social                | M             | Medium             |
-| `F7`  | AI opponent                                 | Chess Play            | L             | Medium–high        |
 | `F8`  | Custom themes                               | Presentation          | S–M           | Low                |
 | `F9`  | Elaborate animations                        | Presentation          | M             | Low                |
 | `F10` | Clocks                                      | Chess Play            | L             | Low–medium         |
@@ -149,18 +151,6 @@ No dependency outside this tier. The most value to players for the cost.
 
 No unfinished dependency. Worth doing, but each costs more or does less for
 players than tier 1.
-
-### F7 — AI opponent
-
-- **Source:** `MVP.md`
-- **Value:** Medium–high
-- **Effort:** Large
-- **Depends on:** the audit change `D082` point 12 requires. `game_events.actor_id`
-  references `users`, so a `COMPUTER` participant cannot be recorded as the actor
-  of its moves. The change is made before the AI opponent produces audited
-  actions. Non-user participants themselves exist (`M19.7`, `D051`).
-- **Open decisions:** which engine, and where it runs. A server-side engine is a
-  hosting cost.
 
 ### F8 — Custom themes
 

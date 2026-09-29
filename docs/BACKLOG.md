@@ -6846,3 +6846,237 @@ test skipped:
 
 Once `main` has migrated to `V11`, a server built before `M20.4` cannot run against
 that database (`D083`, *Consequences*).
+
+---
+
+# M21 — AI Opponent and Local Game Persistence
+
+Formerly [`F7`](FUTURE.md) ("AI opponent"). The project owner scheduled it on
+2026-09-28; `F7`'s ID is retired (`D072`). It is governed by
+[`D084`](DECISIONS.md#d084--games-whose-players-are-all-on-this-device-are-stored-on-the-device)
+(games whose players are all on this device are stored on the device),
+[`D085`](DECISIONS.md#d085--sqldelight-is-the-standard-for-relational-on-device-storage)
+(SQLDelight) and
+[`D086`](DECISIONS.md#d086--the-ai-opponent-is-a-local-game-with-a-swappable-chess-engine)
+(the AI opponent). It is post-MVP work and does not change the MVP's definition of
+done.
+
+The server, the database and online chess are deliberately unchanged. Nothing in
+this milestone touches Ktor, PostgreSQL, `game_events` or any server query.
+
+`M21.2` does not depend on `M21.1`, but lowest-number-first selection takes
+`M21.1` first.
+
+## M21.1 — SQLDelight local game storage, resumable pass-and-play, and past local games
+
+**Status:** TODO
+
+**Depends on:** None
+
+### Objective
+
+Add the project's SQLDelight local-game store (`D084`, `D085`) to `chess-app` and move
+the existing pass-and-play game onto it. Pass-and-play becomes resumable, finished
+local games can be reviewed, and all of it works when server startup fails.
+
+### Acceptance Criteria
+
+- **Storage.**
+  - SQLDelight is added through the version catalog, with the database in
+    `chess-app` and schema versioning and migrations from the first version.
+  - The tables are `local_games` and `local_moves`, shaped as in `D084`, and nothing
+    else.
+  - SQLDelight models and persistence DTOs stay out of `chess-core`.
+- **One unfinished game.** At most one `ACTIVE` local game exists, of any kind, and
+  any number of `COMPLETED` ones. The repository enforces this, and so does a database
+  constraint where that is straightforward. The repository owns the replacement flow.
+- **Writes append and truncate.**
+  - A move appends its record and updates the state.
+  - An undo removes the latest record and restores the recorded prior position.
+  - Each change touching state and history is one SQLDelight transaction.
+  - The whole history is never rewritten.
+- **Restoring** rebuilds `ChessGame(state, history)` from the stored state and move
+  records. It never replays moves through the rules (`D029`, `D061`).
+- **Pass-and-play.**
+  - `ChessAppViewModel.localGame` / `LocalGameUiState` load from and save to the
+    store.
+  - "Local game" resumes the unfinished pass-and-play game, and Back leaves it
+    saved.
+  - Starting a new local game while one is unfinished asks for confirmation, then
+    deletes the unfinished game and creates the new one. The deleted game is not kept
+    in history.
+  - A game that ends changes from `ACTIVE` to `COMPLETED` and is kept.
+- **Past local games.**
+  - A simple screen lists finished local games, newest first, each with its kind,
+    date and result (plus the difficulty and the human's colour for a computer game,
+    once `M21.3` adds them).
+  - Opening one shows a read-only review of the board and the moves, stepped ply by
+    ply.
+  - There are no series, standings or statistics.
+- **Offline entry.**
+  - When startup fails (no network, a server still asleep at the time limit, or a
+    server that is down), the app still offers the unfinished local game, a new
+    pass-and-play game and Past local games, alongside the existing retry.
+  - Online features stay unavailable until startup succeeds.
+  - Reaching local games never waits on the server.
+- **Not backed up.** The local-game database is excluded from Android cloud backup and
+  from device transfer, in both `backup_rules.xml` and `data_extraction_rules.xml`.
+- **Manifest.** The comment in `AndroidManifest.xml` that says "The Chess server is
+  authoritative for every game, so the app is useless offline." is corrected.
+- **Tests — storage and repository:**
+  - save and load a new game, and a game after ordinary moves;
+  - round trips with castling, en passant and promotion;
+  - repetition counts and draw-claim availability survive restoring;
+  - undo after reloading;
+  - the repository is recreated, as after process death;
+  - a move and its history append are atomic;
+  - an undo's state restore and history truncation are atomic;
+  - only one `ACTIVE` game can exist;
+  - a replaced unfinished game is deleted, not kept in history;
+  - a finished game is kept, several finished games coexist, and they come back
+    newest first;
+  - review rebuilds every recorded ply;
+  - the backup and data-extraction rules name the database file.
+- **Tests — view model and UI:**
+  - "Local game" resumes the active pass-and-play game;
+  - Back does not discard it;
+  - a new game asks before replacing it;
+  - a finished game appears in Past local games and is read-only;
+  - a failed startup still reaches the unfinished local game, a new local game and
+    Past local games;
+  - pass-and-play otherwise behaves as before.
+- `PRODUCT.md` and `ARCHITECTURE.md` describe what was built. `DEVELOPMENT.md` gains
+  any command or note SQLDelight needs.
+
+### Verification
+
+- The storage tests and the `chess-app` unit tests.
+- `.\gradlew.bat build`.
+- `git diff --check`.
+
+## M21.2 — `chess-ai`: the `ChessEngine` interface and the project's Kotlin engine
+
+**Status:** TODO
+
+**Depends on:** None
+
+### Objective
+
+Create `chess-ai` (`D086`): a pure Kotlin/JVM module holding the chess-specific
+`ChessEngine` interface and the project's first engine, independent of any Android
+code.
+
+### Acceptance Criteria
+
+- **The module.**
+  - `chess-ai` is in `settings.gradle.kts`, applies the Kotlin/JVM plugin only, and
+    depends on `chess-core` only.
+  - ktlint and its tests run in `./gradlew build`.
+  - Nothing but `chess-app` will depend on it.
+- **The interface.** `ChessEngine` is chess-specific. Its contract is `D086`'s:
+  - a legal move for any unfinished position with a legal move;
+  - a legal fallback settled before searching deeper;
+  - cancellable, and cancellation applies no move;
+  - runs off the main thread;
+  - seedable randomness;
+  - never asked to move in a finished game.
+- **The engine.**
+  - Alpha-beta search over `chess-core`'s legal moves.
+  - Material plus simple positional evaluation.
+  - Three difficulty levels.
+  - A time budget.
+  - This task chooses and records the depths and budgets.
+- **Tests:**
+  - it never returns an illegal move;
+  - a position with only one legal move;
+  - promotion positions;
+  - mate in one found at the levels expected to find it;
+  - the higher levels take an obviously hanging queen;
+  - deterministic under a fixed seed;
+  - normal completion respects the budget;
+  - cancellation ends without a move to apply;
+  - it is not invoked on a finished game.
+
+  Tests do not pin one exact move where several are reasonable.
+- `ARCHITECTURE.md` §4 lists `chess-ai` as built, and `DEVELOPMENT.md` gains its test
+  command.
+
+### Verification
+
+- `.\gradlew.bat :chess-ai:test`.
+- `.\gradlew.bat build`.
+- `git diff --check`.
+
+## M21.3 — Play the computer
+
+**Status:** TODO
+
+**Depends on:** M21.1, M21.2
+
+### Objective
+
+Add the AI opponent (`D086`) on top of `M21.1`'s store and `M21.2`'s engine.
+
+### Acceptance Criteria
+
+- **Entry.**
+  - "Play the computer" sits next to the local-game entry, including the offline
+    entry.
+  - It resumes an unfinished computer game.
+  - Starting it while another local game is unfinished asks for confirmation first,
+    as `M21.1` does.
+  - A new game asks for the difficulty, and the human's colour is random for the
+    first game.
+- **Game screen.**
+  - It reuses the local chess UI where that fits.
+  - The board is fixed to the human's colour, and the opponent shows as "Computer
+    (level)" or equivalent.
+  - The human can move only on their own turn.
+- **The computer's turn.**
+  - The search runs off the main thread, and exactly one valid search owns each
+    computer turn.
+  - Leaving the screen cancels work that no longer needs to run.
+  - Resuming a game on the computer's turn starts exactly one search.
+  - A stale, cancelled or superseded result is discarded and never changes a game.
+- **Storage.**
+  - Games are saved through `M21.1`'s store, with `kind = COMPUTER`, the difficulty
+    and the human's colour.
+  - Every accepted move, human or computer, is saved in one transaction.
+- **Takeback, exactly as `D086`:**
+  - after a reply, it takes back the reply and the human move before it;
+  - while the computer is thinking, it cancels the search and takes back the human
+    move alone;
+  - it can be repeated back to the player's first move;
+  - it is unavailable once the game has ended.
+- **Draws and resignation, as `D086`.** The human may resign and make legal draw
+  claims. The computer never resigns, offers or claims a draw.
+- **Game end.**
+  - The game becomes `COMPLETED` and stays in Past local games, showing the
+    computer, difficulty, human colour, result and moves.
+  - The screen offers Play again or leaving. Play again keeps the difficulty, swaps
+    colours, creates a new independent game with no series, and keeps the previous
+    one.
+  - There are no AI statistics or series grouping.
+- **Tests, with a deterministic fake `ChessEngine`:**
+  - a human move triggers exactly one reply;
+  - a game-ending human move triggers no engine call;
+  - a game-ending computer move completes the game;
+  - input is disabled on the computer's turn;
+  - two-move takeback after a reply;
+  - one-move takeback while the computer is thinking;
+  - a cancelled search cannot apply its result;
+  - replacing the game stops an old search from changing the new one;
+  - takeback is unavailable after the game ends;
+  - reopening on the computer's turn starts exactly one search;
+  - a finished computer game is kept in history;
+  - Play again keeps the previous game, keeps the difficulty and swaps colours;
+  - the one-unfinished-game confirmation works both ways between computer and
+    pass-and-play;
+  - pass-and-play is unaffected.
+- `PRODUCT.md`'s "Playing the computer" describes what was built.
+
+### Verification
+
+- The `chess-app` unit tests for the computer game.
+- `.\gradlew.bat build`.
+- `git diff --check`.

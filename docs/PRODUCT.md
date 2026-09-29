@@ -279,6 +279,9 @@ Alex may undo `Nc6`.
 
 If Alex undoes `Nc6`, Jordan's `Nf3` becomes the latest unanswered move again and may be undone.
 
+A game against the computer uses a takeback instead (`D086`, see *Playing the
+Computer*).
+
 ### Final Moves
 
 A game-ending move is immediately final.
@@ -420,7 +423,9 @@ Layout (`D073`), decided by the window's size, not the device's orientation:
 - **A window too short for either** keeps a full-size board and scrolls the whole
   screen.
 - The game screens have their own Back instead of the app's top row.
-- Rotating keeps a local game in progress. Closing the app does not.
+- Rotating keeps a local game in progress. *Decided, lands with `M21.1`:* closing the
+  app, Back, or losing the process keeps it too, because local games are saved (see
+  *Local Games*). Until then, closing the app ends it.
 
 Interaction:
 
@@ -433,13 +438,55 @@ tap piece
 
 Drag-and-drop is not required for MVP.
 
+## Local Games
+
+*Decided 2026-09-29 (`D084`). Built by `M21.1`; games against the computer join in
+`M21.3`.*
+
+A local game is one whose players are all on this phone: pass-and-play, or a game
+against the computer. It never uses the server.
+
+- **Saved.** A local game survives closing the app, Back and a restart of the
+  phone, and picks up where it left off.
+- **One unfinished local game at a time**, of either kind. Its entry resumes it.
+  Starting a different local game while one is unfinished asks first. Confirming
+  deletes the unfinished game, and it is not kept.
+- **Past local games.** Finished local games are kept and listed newest first. Each
+  opens read-only, with its result and moves, and the board can be stepped through
+  move by move. There are no series, standings or statistics for local games.
+- **Works offline.** Local games do not wait on the server. If the app cannot reach
+  it at startup, local games, new local games and past local games are still
+  available next to Retry. Online play needs the server as before.
+- **Stays on this phone.** Local games are not backed up or transferred to a new
+  phone, and uninstalling the app deletes them.
+
+## Playing the Computer
+
+*Decided 2026-09-29 (`D086`). Built by `M21.3`.*
+
+- **Starting.** "Play the computer" sits next to the local game, including when
+  offline. A new game asks for one of three difficulty levels. The player's colour is
+  random for the first game.
+- **The board** stays turned to the player's colour, and the opponent shows as
+  "Computer" with its level. The player cannot move while the computer is thinking.
+- **Takeback.** After the computer has replied, Undo takes back its reply and the
+  player's move before it, returning the player to their previous turn. It can be
+  repeated back to the player's first move. If the computer has not replied yet, Undo
+  stops it and takes back the player's move alone. A game-ending move is still
+  final, whoever made it.
+- **Draws and resignation.** The player may resign, with the usual confirmation, and
+  may claim any draw they are entitled to. The computer never resigns, offers a draw,
+  or claims one. Automatic draws apply as in every game.
+- **After the game.** The finished game is kept in past local games. **Play again**
+  starts a new game at the same level with the colours swapped. There is no automatic
+  rematch and no series.
+
 ## Deferred Features
 
 Do not initially build the features below. The complete list of what is not in the
 MVP is `docs/MVP.md`'s *Explicitly Not Required for MVP*, and `docs/FUTURE.md`
 holds what is known about each item (`D072`).
 
-- AI opponent,
 - ratings,
 - matchmaking,
 - public games,

@@ -174,11 +174,14 @@ about each item, and what is still to decide, is in `docs/FUTURE.md` under the
 same `F` number (`D072`). The two lists hold the same items; changing one means
 changing both.
 
+Scheduled beyond the MVP: the AI opponent (formerly `F7`) and saved local games are
+backlog milestone `M21` (`D084`–`D086`). They are post-MVP work and do not change
+the MVP's definition of done.
+
 ### Chess Play
 
 - `F2` draw offers by agreement (`D019`)
 - `F3` drag-and-drop moves (`PRODUCT.md`)
-- `F7` AI opponent
 - `F10` clocks
 - `F11` dead-position detection by search (`D038`)
 

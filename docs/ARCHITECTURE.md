@@ -26,6 +26,7 @@ Do not build a universal board-game engine during the chess MVP.
 | Backend            | Kotlin + Ktor                                                           |
 | Database           | PostgreSQL 18 locally/CI; beta on `ChessGame Dev`'s PostgreSQL (`D035`) |
 | SQL access         | JetBrains Exposed DSL over HikariCP                                     |
+| On-device storage  | SQLDelight for local games (`D084`, `D085`; built by `M21.1`)           |
 | Migrations         | Flyway applying forward-only SQL files                                  |
 | Authentication     | Supabase anonymous auth                                                 |
 | Serialization      | Kotlin serialization + JSON                                             |
@@ -56,7 +57,9 @@ Do not introduce Kotlin Multiplatform until a concrete non-JVM consumer exists.
 │ ViewModels / screen state                                   │
 │ Repositories / API client                                   │
 │        │                                                    │
-│        └──── uses chess-core locally for rules/UX           │
+│        ├──── uses chess-core locally for rules/UX           │
+│        └──── local games: chess-core, chess-ai, SQLDelight  │
+│              (device-authoritative, D084; never the server) │
 └──────────────────────┬──────────────────────────────────────┘
                        │
                  HTTPS + WebSocket
@@ -91,6 +94,7 @@ Recommended high-level layout:
 ```text
 .
 ├── chess-core/
+├── chess-ai/      (planned, M21.2)
 ├── chess-app/
 ├── server/
 ├── database/
@@ -101,7 +105,8 @@ Recommended high-level layout:
 Allowed dependencies:
 
 ```text
-chess-app ──→ chess-core
+chess-app ──→ chess-core, chess-ai
+chess-ai  ──→ chess-core
 server    ──→ chess-core
 ```
 
@@ -112,7 +117,17 @@ chess-core ──→ chess-app
 chess-core ──→ server
 chess-core ──→ database
 chess-core ──→ Supabase
+chess-core ──→ chess-ai
+server     ──→ chess-ai
+deck-*     ──→ chess-ai
 ```
+
+`chess-ai` (`D086`) is a pure Kotlin/JVM module holding the chess-specific
+`ChessEngine` interface and the project's engine, which chooses the computer's move
+in a local game. It is not a rules engine and not a cross-game abstraction: the
+prohibition on a generic `GameEngine` stands (`D044`, which `D086` supersedes only
+for this one chess-specific seam). An engine that needs native code, such as
+Stockfish, would live in `chess-app` and implement the same interface.
 
 ### Multi-game layout (`D082`)
 
@@ -123,6 +138,7 @@ repository moves toward this layout:
 
 ```text
 chess-core      pure JVM: chess rules      — exists (formerly game-core, M20.3)
+chess-ai        pure JVM: chess engine     — planned (M21.2, D086), chess-app only
 chess-app       the ChessGame app          — exists (formerly android-app, M20.3)
 deck-core       pure JVM: Deck Builder rules — created with real Deck Builder rules
 deck-app        the Deck Builder app       — created with real Deck Builder rules
@@ -237,7 +253,12 @@ games, series and history stay tied to their game type and product.
 
 ## 7. Server Authority
 
-The Android client is untrusted.
+Server authority covers games that need coordination across devices (`D004`, as
+amended by `D084`). A game whose players are all on one device, pass-and-play or
+against the computer, is device-authoritative: it never goes through Ktor, and
+nothing in this section applies to it (§11.4).
+
+For every remotely coordinated game, the Android client is untrusted.
 
 Android may use `chess-core` to pre-validate a move and provide immediate UX feedback, but it does not decide the canonical result.
 
@@ -280,7 +301,7 @@ authenticate
 
 Android must not directly read or write canonical game tables through Supabase database APIs.
 
-Normal canonical game access goes through Ktor.
+Normal canonical access to a remotely coordinated game goes through Ktor.
 
 ## 8. Command Model
 
@@ -402,7 +423,9 @@ This is local only.
 
 ### 11.2 Local Game Snapshot
 
-The Android app holds the latest server-confirmed game state in memory.
+For an online game, the Android app holds the latest server-confirmed game state in
+memory. (This is the client's copy of a server game, not a device-authoritative local
+game, which is §11.4.)
 
 It may use `chess-core` for:
 
@@ -424,6 +447,38 @@ Canonical state survives:
 - both users being offline,
 - client crashes,
 - WebSocket disconnects.
+
+This applies to remotely coordinated games. Local games have their own canonical
+state (§11.4).
+
+### 11.4 Device-Authoritative Local Games
+
+*Decided 2026-09-29 (`D084`–`D086`). Built by `M21.1`–`M21.3`.*
+
+A game whose players are all on this device (pass-and-play, or against the
+computer) is canonical **on the device**. It never goes through Ktor or
+PostgreSQL, and it works when server startup fails.
+
+- **Storage.** A SQLDelight database in `chess-app` (`D085`), with two tables:
+  - `local_games`: the canonical current or final state, kind, status, timestamps,
+    result, and for a computer game the human's colour and the difficulty;
+  - `local_moves`: one row per ply, holding the move and its recorded
+    `positionBefore`.
+
+  There are no local series, users, participants or statistics tables.
+- **One unfinished local game** at a time, of either kind. Replacing it deletes it.
+  Finished games are kept for read-only review.
+- **Writes append and truncate** (`D061`). A move appends; an undo or a computer-game
+  takeback truncates and restores the recorded prior position. Each change touching
+  state and history is one transaction, so the stored board always matches the
+  stored history.
+- **Restoring never replays rules.** `ChessGame(state, history)` is rebuilt from the
+  stored state and move records (`D029`). Persistence models stay in `chess-app`.
+- **Excluded from backup.** The database is excluded from Android cloud backup and
+  device transfer, so local games stay on the installation that made them.
+- **The computer's moves** come from a `ChessEngine` (`chess-ai`, `D086`), run off
+  the main thread. The app discards any result that no longer matches the current
+  game and position.
 
 ## 12. Realtime Architecture
 
@@ -1081,6 +1136,18 @@ Compose UI
 ```
 
 Do not introduce heavyweight Clean Architecture ceremony merely for pattern compliance.
+
+Local games (§11.4, `D084`) follow a second flow that never reaches Ktor:
+
+```text
+Compose UI
+→ ViewModel / screen state
+→ local game repository
+→ SQLDelight (on the device)
+```
+
+The local entry points (the local game, Play the computer, and past local games)
+stay reachable when startup cannot reach the server.
 
 The online game state must be separate from local pass-and-play state. Android
 may use `chess-core` for board rendering, legal-move previews, and deterministic
