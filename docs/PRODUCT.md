@@ -423,7 +423,7 @@ Layout (`D073`), decided by the window's size, not the device's orientation:
 - **A window too short for either** keeps a full-size board and scrolls the whole
   screen.
 - The game screens have their own Back instead of the app's top row.
-- Rotating keeps a local game in progress. *Decided, lands with `M21.1`:* closing the
+- Rotating keeps a local game in progress. *Decided, lands with `M21.2`:* closing the
   app, Back, or losing the process keeps it too, because local games are saved (see
   *Local Games*). Until then, closing the app ends it.
 
@@ -440,8 +440,8 @@ Drag-and-drop is not required for MVP.
 
 ## Local Games
 
-*Decided 2026-09-29 (`D084`). Built by `M21.1`; games against the computer join in
-`M21.3`.*
+*Decided 2026-09-29 (`D084`). Built by `M21.1`–`M21.4`; games against the computer
+join in `M21.7`.*
 
 A local game is one whose players are all on this phone: pass-and-play, or a game
 against the computer. It never uses the server.
@@ -462,7 +462,7 @@ against the computer. It never uses the server.
 
 ## Playing the Computer
 
-*Decided 2026-09-29 (`D086`). Built by `M21.3`.*
+*Decided 2026-09-29 (`D086`). Built by `M21.6`–`M21.7`.*
 
 - **Starting.** "Play the computer" sits next to the local game, including when
   offline. A new game asks for one of three difficulty levels. The player's colour is

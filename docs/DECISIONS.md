@@ -4671,7 +4671,7 @@ Keeping `MVP.md` binding keeps scope where the precedence order already puts it.
 
 **Superseded in part 2026-09-29 by `D084`:** only local-game lifetime and
 persistence. "A local game in progress survives rotation, and only rotation" no
-longer holds: local games are saved on the device and resumable (`M21.1`). The
+longer holds: local games are saved on the device and resumable (`M21.2`). The
 layout rules are unchanged.
 
 ### Decision
@@ -5862,9 +5862,9 @@ Excluding the database from backup keeps "stored on this device" literally true.
 
 - `CLAUDE.md`, `ARCHITECTURE.md` §3, §7, §11 and §29, and `PRODUCT.md` describe the
   two kinds of authority.
-- `M21.1` builds the store, moves pass-and-play onto it, adds the offline entry and
-  local history, excludes the database from backup, and corrects the manifest
-  comment that says the app is useless offline.
+- `M21.1` builds the store and excludes it from backup; `M21.2` moves
+  pass-and-play onto it; `M21.3` adds local history; `M21.4` adds the offline entry
+  and corrects the manifest comment that says the app is useless offline.
 
 ---
 
@@ -5945,7 +5945,7 @@ abstraction or a platform abstraction, and it is not a step toward a generic
 
 **The first engine** takes legal moves from `chess-core` and uses alpha-beta search
 with material plus simple positional evaluation. It has **three difficulty levels**.
-`M21.2` sets and tests the search depths and time budgets.
+`M21.5` sets and tests the search depths and time budgets.
 
 **The engine contract:**
 
@@ -6010,8 +6010,9 @@ here rather than inherited by accident.
 
 ### Consequences
 
-- `M21.2` creates `chess-ai`. `M21.3` adds "Play the computer" to the local entry
-  points, including the offline entry (`D084`).
+- `M21.5` creates `chess-ai`. `M21.6` builds computer turns and takeback. `M21.7`
+  adds "Play the computer" to the local entry points, including the offline entry
+  (`D084`).
 - `CLAUDE.md`'s product rules gain the takeback, and its architecture rules gain
   `chess-ai`.
 - `F7` leaves `docs/FUTURE.md` and `docs/MVP.md`'s non-MVP list. Its ID is retired

@@ -94,7 +94,7 @@ Recommended high-level layout:
 ```text
 .
 ├── chess-core/
-├── chess-ai/      (planned, M21.2)
+├── chess-ai/      (planned, M21.5)
 ├── chess-app/
 ├── server/
 ├── database/
@@ -138,7 +138,7 @@ repository moves toward this layout:
 
 ```text
 chess-core      pure JVM: chess rules      — exists (formerly game-core, M20.3)
-chess-ai        pure JVM: chess engine     — planned (M21.2, D086), chess-app only
+chess-ai        pure JVM: chess engine     — planned (M21.5, D086), chess-app only
 chess-app       the ChessGame app          — exists (formerly android-app, M20.3)
 deck-core       pure JVM: Deck Builder rules — created with real Deck Builder rules
 deck-app        the Deck Builder app       — created with real Deck Builder rules
@@ -453,7 +453,7 @@ state (§11.4).
 
 ### 11.4 Device-Authoritative Local Games
 
-*Decided 2026-09-29 (`D084`–`D086`). Built by `M21.1`–`M21.3`.*
+*Decided 2026-09-29 (`D084`–`D086`). Built by `M21.1`–`M21.7`.*
 
 A game whose players are all on this device (pass-and-play, or against the
 computer) is canonical **on the device**. It never goes through Ktor or
