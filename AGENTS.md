@@ -32,8 +32,7 @@ Plus `database/migrations/` (Flyway `V1`–`V11`), `Dockerfile` and `render.yaml
 and `docs/`.
 
 `chess-ai`, `deck-core` and the Deck Builder app are planned (`M21`, `F26`), not
-built. The SQLDelight local-game store exists (`M21.1`), but nothing uses it yet:
-pass-and-play moves onto it in `M21.2`. `CLAUDE.md`'s rules about them bind the code
+built. Pass-and-play is saved in the SQLDelight local-game store (`M21.1`, `M21.2`). `CLAUDE.md`'s rules about them bind the code
 that will be written; you will not find it yet.
 
 ## Architecture
@@ -101,7 +100,8 @@ Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/groups`,
   `LocalGameStore` over the SQLDelight `LocalGameDatabase` generated from
   `src/main/sqldelight` (`local_games`, `local_moves`); positions as JSON in
   `LocalStateDocument`; `openLocalGameStore(context)` opens `local_games.db`, which
-  the backup rules exclude.
+  the backup rules exclude. `LocalGameSession` keeps the store in step with the game
+  on screen, and `LocalGameChange` says what a screen update did to the game.
 
 ### Outside the code
 
@@ -160,19 +160,25 @@ at most.
 
 ### A local game (pass-and-play)
 
-Entirely on the device: no network, no database.
+Entirely on the device: no network, and the device's own database, never the
+server's (`D084`).
 
-1. The top bar's "Local game" calls `ChessAppViewModel.open`, which resets
-   `localGame` to a fresh `LocalGameUiState`.
+1. The top bar's "Local game" calls `ChessAppViewModel.open`, which shows a loading
+   state while `LocalGameSession.resume` reads the unfinished pass-and-play game from
+   `LocalGameStore`, or starts a new one.
 2. A tap goes `ChessBoard` → `BoardInteraction.onSquareTapped` →
    `ChessRules.applyMove`. A promotion or a draw-entitling move stops first to
    ask the player (`D041`).
 3. `LocalGameScreen` passes the new state to `ChessAppViewModel.updateLocalGame`,
-   and Compose redraws.
+   and Compose redraws. `LocalGameChange.between` compares the old and new
+   `ChessGame`; a move, a takeback or a result is saved, in order, off the main
+   thread. A selection change saves nothing.
+4. New game asks first if the game is unfinished, then `startNewLocalGame` deletes
+   it and starts another.
 
 The board is drawn face to face and never turns: White at the bottom, Black's
 pieces upside down for the player opposite (`D087`). The game survives rotation
-(`D073`) but not process death, and Back throws it away. Persistence and resumable local games are `M21.1`.
+(`D073`), Back and process death. Past local games are `M21.3`.
 
 ## Commands
 
@@ -266,9 +272,10 @@ commit.
   driver 2.2.1 (minSdk 22). Don't "align" them; `docs/DEVELOPMENT.md` explains. Keep
   the SQL within Android 5.1's SQLite 3.8, and change the schema only through a new
   `.sqm` migration plus a new `databases/N.db` snapshot.
-- **`updateLocalGame` cannot tell a move from a selection change.** Saving local
-  games (`M21.1`) needs intent-level callbacks, not a save on every state
-  change.
+- **`updateLocalGame` gets a whole screen state, not an intent.** It saves only what
+  `LocalGameChange.between` finds changed in the `ChessGame`. A new local action must
+  produce a game that is the old one plus a move, minus moves, or with a result; any
+  other change to the game throws.
 - **Release builds forbid cleartext.** The debug build allows `10.0.2.2` and
   `localhost` only (`D033`). An emulator reaches the local server at
   `http://10.0.2.2:8080`.

@@ -275,7 +275,9 @@ What they cover:
   that the controls are in view without scrolling with two panes; that a long history
   scrolls without moving the board; and that a short window scrolls to every square and
   control.
-- `LocalGameRotationTest` recreates `MainActivity` with a local game in progress.
+- `LocalGameRotationTest` recreates `MainActivity` with a local game in progress, then
+  leaves it with Back and checks that "Local game" resumes it (`M21.2`). It deletes the
+  device's local games first.
 - `LocalDrawClaimUiTest` and the `M5*` tests are the earlier local-game screen tests.
 - `LocalGameStoreDeviceTest` saves, reopens, takes back and replaces a local game
   through SQLDelight's Android driver and the device's SQLite (`M21.1`). It needs no
@@ -294,7 +296,7 @@ check:
 4. In portrait: Back, the board, the status and the controls are in view, and the move
    list scrolls on its own.
 5. An online game, and a finished one from History, in both orientations.
-6. Back from the local game, then open it again: a new game.
+6. Back from the local game, then open it again: the same game, resumed (`D084`).
 
 Screenshots and layout dumps for the record:
 

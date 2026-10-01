@@ -7,6 +7,7 @@ import com.jmussel.chessgame.api.ServerWakePolicy
 import com.jmussel.chessgame.auth.AnonymousSession
 import com.jmussel.chessgame.auth.InMemorySessionStore
 import com.jmussel.chessgame.auth.SupabaseConfig
+import com.jmussel.chessgame.local.inMemoryLocalGameStore
 import com.jmussel.chessgame.navigation.Destination
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -124,6 +125,8 @@ class AllUsersFlowTest {
         val dependencies =
             ChessAppDependencies(
                 serverConfig = ChessServerConfig("https://chess.example"),
+                localGameStore = inMemoryLocalGameStore(),
+                localGameDispatcher = dispatcher,
                 supabaseConfig = SupabaseConfig(url = "https://supabase.example", anonKey = "publishable-key"),
                 httpClient = httpClient,
                 sessionStore =

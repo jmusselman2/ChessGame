@@ -9,6 +9,7 @@ import com.jmussel.chessgame.auth.AnonymousSession
 import com.jmussel.chessgame.auth.InMemorySessionStore
 import com.jmussel.chessgame.auth.SupabaseConfig
 import com.jmussel.chessgame.core.chess.Square
+import com.jmussel.chessgame.local.inMemoryLocalGameStore
 import com.jmussel.chessgame.ui.game.OnlineGameState
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -107,6 +108,8 @@ class StaleResponseOrderingTest {
         ChessAppViewModel(
             ChessAppDependencies(
                 serverConfig = ChessServerConfig("https://chess.example"),
+                localGameStore = inMemoryLocalGameStore(),
+                localGameDispatcher = dispatcher,
                 supabaseConfig = SupabaseConfig(url = "https://supabase.example", anonKey = "publishable-key"),
                 httpClient = stubbedServer(),
                 sessionStore = InMemorySessionStore(STORED_SESSION),

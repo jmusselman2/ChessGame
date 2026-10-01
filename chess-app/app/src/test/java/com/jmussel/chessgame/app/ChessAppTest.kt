@@ -13,12 +13,12 @@ import com.jmussel.chessgame.auth.SessionStore
 import com.jmussel.chessgame.auth.SupabaseConfig
 import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.Square
+import com.jmussel.chessgame.local.LocalGameStore
+import com.jmussel.chessgame.local.inMemoryLocalGameStore
 import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
 import com.jmussel.chessgame.ui.board.BoardInteraction
 import com.jmussel.chessgame.ui.board.BoardUiState
-import com.jmussel.chessgame.ui.board.GameControls
-import com.jmussel.chessgame.ui.board.LocalGameUiState
 import com.jmussel.chessgame.ui.dashboard.DashboardSections
 import com.jmussel.chessgame.ui.game.AfterGame
 import com.jmussel.chessgame.ui.game.OnlineGame
@@ -441,8 +441,11 @@ class ChessAppTest {
         supabaseConfig: SupabaseConfig = SupabaseConfig(url = "https://supabase.example", anonKey = "publishable-key"),
         realtime: RealtimeSource = silentRealtime,
         wakePolicy: ServerWakePolicy = impatientWake,
+        localGameStore: LocalGameStore = inMemoryLocalGameStore(),
     ) = ChessAppDependencies(
         serverConfig = ChessServerConfig("https://chess.example"),
+        localGameStore = localGameStore,
+        localGameDispatcher = dispatcher,
         supabaseConfig = supabaseConfig,
         httpClient = httpClient,
         sessionStore = sessionStore,
@@ -510,37 +513,8 @@ class ChessAppTest {
         assertEquals(Destination.Dashboard, viewModel.navigation.current)
     }
 
-    @Test
-    fun aLocalGameInProgressIsHeldByTheModelSoARecreatedScreenFindsIt() {
-        val viewModel = viewModel()
-        viewModel.restartAt(Destination.Dashboard)
-        viewModel.open(Destination.LocalGame)
-
-        val played = LocalGameUiState(boardState = localMoves("e2", "e4", "e7", "e5"))
-        viewModel.updateLocalGame(played)
-
-        // A rotation recreates the screen, which reads the game back from the model; opening
-        // the local game while it is already showing changes nothing either.
-        assertEquals(played, viewModel.localGame)
-        viewModel.open(Destination.LocalGame)
-        assertEquals(played, viewModel.localGame)
-        assertEquals(listOf("1. e2e4 e7e5"), GameControls.moveListLines(viewModel.localGame.boardState.game))
-    }
-
-    @Test
-    fun leavingTheLocalGameWithBackDiscardsItAndReopeningStartsAfresh() {
-        val viewModel = viewModel()
-        viewModel.restartAt(Destination.Dashboard)
-        viewModel.open(Destination.LocalGame)
-        viewModel.updateLocalGame(LocalGameUiState(boardState = localMoves("e2", "e4"), resigning = Side.BLACK))
-
-        assertTrue(viewModel.back())
-        assertEquals(Destination.Dashboard, viewModel.navigation.current)
-        assertEquals(LocalGameUiState(), viewModel.localGame)
-
-        viewModel.open(Destination.LocalGame)
-        assertEquals(LocalGameUiState(), viewModel.localGame)
-    }
+    // The local game's tests are in LocalGamePersistenceTest: since M21.2 it is saved on the
+    // device, so Back no longer discards it (D084 superseded D073's "Back throws it away").
 
     @Test
     fun theScreensAreBuiltFromOneSetOfDependencies() {

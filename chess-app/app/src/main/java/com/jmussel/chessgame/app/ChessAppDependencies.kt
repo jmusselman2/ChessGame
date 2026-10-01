@@ -13,6 +13,8 @@ import com.jmussel.chessgame.auth.DataStoreSessionStore
 import com.jmussel.chessgame.auth.SessionStore
 import com.jmussel.chessgame.auth.SupabaseAuthClient
 import com.jmussel.chessgame.auth.SupabaseConfig
+import com.jmussel.chessgame.local.LocalGameStore
+import com.jmussel.chessgame.local.openLocalGameStore
 import io.ktor.client.HttpClient
 import io.ktor.client.HttpClientConfig
 import io.ktor.client.engine.okhttp.OkHttp
@@ -20,6 +22,8 @@ import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.websocket.WebSockets
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -40,7 +44,7 @@ val httpRequestTimeout: Duration = 30.seconds
 
 /**
  * The long-lived objects the screens are built from: one HTTP client, the anonymous
- * session, and the connection to the Chess server.
+ * session, the connection to the Chess server, and the store for local games.
  *
  * They are made once and handed down, never built inside a composable, because a client
  * created during composition would be created again on every recomposition and never
@@ -55,8 +59,12 @@ class ChessAppDependencies(
     val supabaseConfig: SupabaseConfig,
     private val httpClient: HttpClient,
     sessionStore: SessionStore,
+    /** Where games whose players are all on this device are kept (`D084`). */
+    val localGameStore: LocalGameStore,
     realtime: RealtimeSource? = null,
     wakePolicy: ServerWakePolicy = ServerWakePolicy(),
+    /** Where the local-game store's blocking calls run. A test passes its own dispatcher. */
+    val localGameDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : AutoCloseable {
     /** Keeps one anonymous account alive across launches (`D006`). */
     val authenticator: AnonymousAuthenticator =
@@ -122,6 +130,7 @@ class ChessAppDependencies(
                 supabaseConfig = SupabaseConfig(url = BuildConfig.SUPABASE_URL, anonKey = BuildConfig.SUPABASE_ANON_KEY),
                 httpClient = defaultHttpClient(),
                 sessionStore = DataStoreSessionStore(context.applicationContext),
+                localGameStore = openLocalGameStore(context),
             )
 
         /**

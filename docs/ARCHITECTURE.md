@@ -510,6 +510,25 @@ PostgreSQL, and it works when server startup fails.
   works with AGP 9's built-in Kotlin. The Android driver stays on 2.2.1, because 2.3.0
   raised its minSdk to 23 and the app supports 22.
 
+**Pass-and-play on the store, as built by `M21.2`.** `ChessAppViewModel` owns a
+`LocalGameSession`, which holds the stored game's id and keeps the store in step with
+the screen:
+
+- **Intent from the game, not the tap.** The screen still hands back a whole
+  `LocalGameUiState` for every tap. `LocalGameChange.between(before, after)` compares
+  the two `ChessGame`s: no change (a selection or a prompt) writes nothing; one more
+  move is `recordMove`; fewer moves are `takeBack(n)`; a result with the same history
+  is `recordResult`. Anything else is a bug and throws.
+- **Ordered, off the main thread.** Every store call runs on `Dispatchers.IO` behind
+  one mutex, in the order asked, so a takeback never overtakes its move and a load
+  waits for earlier saves. Saves run in the session's own scope, not the view model's,
+  so a save made as the app closes is not cancelled with it.
+- **The store wins.** If a save fails, the session reloads the stored game onto the
+  screen.
+- **Opening.** "Local game" shows a loading state, then the unfinished pass-and-play
+  game, or a new one. Back leaves it in the store. New game deletes an unfinished game
+  after the screen has asked.
+
 ## 12. Realtime Architecture
 
 Use:

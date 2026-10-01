@@ -3,8 +3,11 @@ package com.jmussel.chessgame.ui.board
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -21,15 +24,20 @@ import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
 /**
- * Everything a local game screen shows: the game, and the resignation being asked about.
+ * Everything a local game screen shows: the game, and what is being asked about.
  *
  * Held by `ChessAppViewModel` in the app, so a rotation keeps a game in progress (`D073`).
- * It is never persisted: a local game does not survive the process.
+ * The game itself is saved on the device as it is played (`D084`, `M21.2`); the rest of
+ * this is only the screen.
  */
 data class LocalGameUiState(
     val boardState: BoardUiState = BoardUiState.newGame(),
     /** The side whose resignation is being confirmed, or `null` when none is. */
     val resigning: Side? = null,
+    /** Whether the player is being asked before an unfinished game is deleted for a new one. */
+    val confirmingNewGame: Boolean = false,
+    /** Whether the game is still being read from the device, so there is nothing to show. */
+    val loading: Boolean = false,
 )
 
 /**
@@ -45,7 +53,7 @@ fun LocalGameScreen(
 ) {
     var state by remember { mutableStateOf(LocalGameUiState(boardState = initialState)) }
 
-    LocalGameScreen(state = state, onStateChange = { state = it }, modifier = modifier)
+    LocalGameScreen(state = state, onStateChange = { state = it }, onNewGame = { state = LocalGameUiState() }, modifier = modifier)
 }
 
 /**
@@ -64,7 +72,17 @@ fun LocalGameScreen(
     onStateChange: (LocalGameUiState) -> Unit,
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
+    /** Replaces this game with a new one, once the player has been asked if they need to be. */
+    onNewGame: () -> Unit = {},
 ) {
+    if (state.loading) {
+        Column(modifier = modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            onBack?.let { GameBackButton(onClick = it) }
+            Text(text = "Loading…", style = MaterialTheme.typography.bodyMedium)
+        }
+        return
+    }
+
     val game = state.boardState
 
     fun play(next: BoardUiState) = onStateChange(state.copy(boardState = next))
@@ -126,6 +144,24 @@ fun LocalGameScreen(
                     }
                 }
             }
+
+            // A new game deletes an unfinished one, so the player is asked first (`D084`).
+            if (GameControls.canStartNewGame(game)) {
+                TextButton(
+                    onClick = {
+                        if (GameControls.newGameNeedsConfirmation(
+                                game,
+                            )
+                        ) {
+                            onStateChange(state.copy(confirmingNewGame = true))
+                        } else {
+                            onNewGame()
+                        }
+                    },
+                ) {
+                    Text(text = "New game")
+                }
+            }
         },
         moveList = {
             // The moves played so far, newest last.
@@ -140,6 +176,28 @@ fun LocalGameScreen(
             onCancel = { onStateChange(state.copy(resigning = null)) },
         )
     }
+
+    if (state.confirmingNewGame) {
+        NewGameConfirmation(
+            onConfirm = onNewGame,
+            onCancel = { onStateChange(state.copy(confirmingNewGame = false)) },
+        )
+    }
+}
+
+/** The question asked before an unfinished game is deleted for a new one (`D084`). */
+@Composable
+private fun NewGameConfirmation(
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        title = { Text(text = "Start a new game?") },
+        text = { Text(text = "This game is not finished. It will be deleted, and it is not kept.") },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(text = "Start a new game") } },
+        dismissButton = { TextButton(onClick = onCancel) { Text(text = "Keep playing") } },
+    )
 }
 
 /** The question asked before a resignation, which cannot be taken back (`D018`). */

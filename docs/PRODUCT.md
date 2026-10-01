@@ -427,9 +427,8 @@ Layout (`D073`), decided by the window's size, not the device's orientation:
 - **A window too short for either** keeps a full-size board and scrolls the whole
   screen.
 - The game screens have their own Back instead of the app's top row.
-- Rotating keeps a local game in progress. *Decided, lands with `M21.2`:* closing the
-  app, Back, or losing the process keeps it too, because local games are saved (see
-  *Local Games*). Until then, closing the app ends it.
+- Rotating keeps a local game in progress, and so do closing the app, Back and losing
+  the process, because local games are saved (see *Local Games*, `M21.2`).
 
 Interaction:
 
@@ -451,10 +450,16 @@ A local game is one whose players are all on this phone: pass-and-play, or a gam
 against the computer. It never uses the server.
 
 - **Saved.** A local game survives closing the app, Back and a restart of the
-  phone, and picks up where it left off.
-- **One unfinished local game at a time**, of either kind. Its entry resumes it.
+  phone, and picks up where it left off. Every move, Undo, resignation and draw claim
+  is saved as it happens (built by `M21.2` for pass-and-play).
+- **One unfinished local game at a time**, of either kind. Its entry resumes it:
+  "Local game" opens the unfinished pass-and-play game, or a new one when nothing is
+  unfinished. A finished game is not resumed; the entry starts a new one.
   Starting a different local game while one is unfinished asks first. Confirming
   deletes the unfinished game, and it is not kept.
+- **New game.** The pass-and-play screen offers New game once a move has been played,
+  or the game has ended. If the game is unfinished it asks first ("Start a new
+  game?"), and confirming deletes it. A finished game is kept, so nothing is asked.
 - **Past local games.** Finished local games are kept and listed newest first. Each
   opens read-only, with its result and moves, and the board can be stepped through
   move by move. There are no series, standings or statistics for local games.

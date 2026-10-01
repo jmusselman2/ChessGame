@@ -113,6 +113,18 @@ object GameControls {
     fun canResign(state: BoardUiState): Boolean = !state.game.isOver
 
     /**
+     * Whether a local game offers a new game: once a move has been played, or the game has
+     * ended. A game nobody has moved in yet is already a new game.
+     */
+    fun canStartNewGame(state: BoardUiState): Boolean = state.game.history.isNotEmpty() || state.game.isOver
+
+    /**
+     * Whether starting a new local game must ask first: it deletes the game on screen when
+     * that game is unfinished, and the deleted game is not kept (`D084`).
+     */
+    fun newGameNeedsConfirmation(state: BoardUiState): Boolean = !state.game.isOver
+
+    /**
      * The state after [side] resigns.
      *
      * Final once made (`D018`), which is why the screen asks first. On one device the side

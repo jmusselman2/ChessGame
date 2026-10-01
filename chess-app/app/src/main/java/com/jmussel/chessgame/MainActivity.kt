@@ -132,6 +132,7 @@ class MainActivity : ComponentActivity() {
                         game = viewModel.game,
                         localGame = viewModel.localGame,
                         onLocalGameChange = viewModel::updateLocalGame,
+                        onNewLocalGame = viewModel::startNewLocalGame,
                         onOpen = viewModel::open,
                         onOpenFriends = viewModel::openFriends,
                         onOpenHistory = viewModel::openHistory,

@@ -6975,7 +6975,7 @@ Verified:
 
 ## M21.2 — Pass-and-play is saved and resumes
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M21.1
 
@@ -7005,6 +7005,36 @@ app, Back and process death (`D084`).
 - The `chess-app` unit tests for the local game.
 - `.\gradlew.bat build`.
 - `git diff --check`.
+
+### Completion Note
+
+2026-10-01. `ChessAppViewModel` owns a `LocalGameSession` (`local/`), which keeps
+`M21.1`'s store in step with the game on screen. `ARCHITECTURE.md` §11.4 and
+`PRODUCT.md` describe what was built.
+
+- **Saving.** The screen still hands back whole states. `LocalGameChange.between`
+  compares the `ChessGame` before and after: a selection or prompt saves nothing, one
+  more move is `recordMove`, fewer moves are `takeBack`, a result is `recordResult`.
+  Saves run off the main thread, in order, in the session's own scope, so closing the
+  app does not cancel one. If a save fails, the stored game is put back on screen.
+- **Opening.** "Local game" shows "Loading…" and then the unfinished pass-and-play
+  game, or a new one. A finished game is kept and not resumed. Back leaves the game
+  saved.
+- **New game.** Offered once a move has been played or the game has ended. On an
+  unfinished game it asks first ("Start a new game?"), then deletes it.
+- **Superseded tests.** `ChessAppTest`'s two local-game tests asserted `D073`'s "Back
+  throws it away", which `D084` replaced. They were removed;
+  `LocalGamePersistenceTest` covers rotation and Back under the new rule.
+  `LocalGameRotationTest` (instrumented) now expects Back to keep the game.
+
+Verified:
+
+- `LocalGamePersistenceTest` (14), `LocalGameChangeTest` (6), `LocalGameSessionTest`
+  (4). With the view model's save switched off, 10 of the 14 persistence tests fail.
+- On the Pixel 7 against the beta: `LocalGameRotationTest` (recreate, then Back and
+  resume) and `LocalGameStoreDeviceTest` both pass.
+- `.\gradlew.bat build`: BUILD SUCCESSFUL. `chess-app` debug unit tests: 577, none
+  failing. `:chess-app:assembleDebugAndroidTest` compiles.
 
 ## M21.3 — Past local games
 

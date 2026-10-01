@@ -18,12 +18,15 @@ import com.jmussel.chessgame.api.SeriesOpening
 import com.jmussel.chessgame.api.ServerWakePolicy
 import com.jmussel.chessgame.api.UserSummaryDto
 import com.jmussel.chessgame.api.withServerWake
+import com.jmussel.chessgame.core.chess.ChessGame
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Square
+import com.jmussel.chessgame.local.LocalGameSession
 import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
 import com.jmussel.chessgame.ui.allusers.AllUsers
 import com.jmussel.chessgame.ui.allusers.AllUsersUiState
+import com.jmussel.chessgame.ui.board.BoardUiState
 import com.jmussel.chessgame.ui.board.LocalGameUiState
 import com.jmussel.chessgame.ui.dashboard.DashboardMessages
 import com.jmussel.chessgame.ui.dashboard.DashboardRow
@@ -122,14 +125,20 @@ class ChessAppViewModel(
         private set
 
     /**
-     * The local pass-and-play game in progress.
+     * The local pass-and-play game on screen.
      *
-     * Held here so a rotation keeps it, and for no other reason (`D073`): it is not saved,
-     * so it does not survive the process. Opening the local game starts a new one, and
-     * leaving it with Back throws it away.
+     * Saved on the device as it is played (`D084`, `M21.2`): opening the local game resumes
+     * the unfinished one, and Back, closing the app or losing the process leave it saved.
+     * Held here as well so a rotation keeps the screen exactly as it was (`D073`).
      */
     var localGame: LocalGameUiState by mutableStateOf(LocalGameUiState())
         private set
+
+    /** Keeps the saved local game in step with [localGame]. */
+    private val localGames = LocalGameSession(dependencies.localGameStore, dependencies.localGameDispatcher)
+
+    /** Reading or starting the local game, while that is under way. */
+    private var localGameJob: Job? = null
 
     /**
      * The choice Play is waiting on, when the friend already had a series (`D053`), or `null`.
@@ -1580,19 +1589,46 @@ class ChessAppViewModel(
     /**
      * Shows [destination] in front of the current screen.
      *
-     * The local game starts afresh each time it is opened; opening it while it is already
-     * showing changes nothing, the game included.
+     * Opening the local game resumes the unfinished one, or starts one when nothing is
+     * unfinished (`D084`). Opening it while it is already showing changes nothing.
      */
     fun open(destination: Destination) {
         if (destination == Destination.LocalGame && navigation.current != Destination.LocalGame) {
-            localGame = LocalGameUiState()
+            showLocalGame { localGames.resume() }
         }
         navigation = navigation.open(destination)
     }
 
-    /** Replaces the local game with [state], which the local game screen worked out. */
+    /**
+     * Replaces the local game with [state], which the local game screen worked out, and saves
+     * whatever happened to the game itself: a move, a takeback, or its end.
+     *
+     * If the save fails, the saved game is the canonical one, so the screen goes back to it.
+     */
     fun updateLocalGame(state: LocalGameUiState) {
+        val before = localGame
         localGame = state
+        if (before.loading) return
+        localGames.save(before.boardState.game, state.boardState.game) {
+            viewModelScope.launch {
+                if (navigation.current == Destination.LocalGame) showLocalGame { localGames.resume() }
+            }
+        }
+    }
+
+    /**
+     * Starts a new local game in place of the one on screen. The screen has already asked,
+     * if the game on screen was unfinished; it is deleted, not kept (`D084`).
+     */
+    fun startNewLocalGame() {
+        showLocalGame { localGames.startNew() }
+    }
+
+    /** Shows the local game [load] reads or starts, with nothing to tap until it has. */
+    private fun showLocalGame(load: suspend () -> ChessGame) {
+        localGameJob?.cancel()
+        localGame = LocalGameUiState(loading = true)
+        localGameJob = viewModelScope.launch { localGame = LocalGameUiState(boardState = BoardUiState(load())) }
     }
 
     /**
@@ -1612,8 +1648,8 @@ class ChessAppViewModel(
      */
     fun back(): Boolean {
         val previous = navigation.back() ?: return false
-        // Leaving the local game is the end of it, as it was before the game was held here.
-        if (navigation.current == Destination.LocalGame) localGame = LocalGameUiState()
+        // Leaving the local game leaves it saved; opening it again reads it back (`D084`).
+        if (navigation.current == Destination.LocalGame) localGameJob?.cancel()
         navigation = previous
         return true
     }

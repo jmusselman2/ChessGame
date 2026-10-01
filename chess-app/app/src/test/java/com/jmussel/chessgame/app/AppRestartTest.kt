@@ -9,6 +9,7 @@ import com.jmussel.chessgame.auth.AnonymousSession
 import com.jmussel.chessgame.auth.InMemorySessionStore
 import com.jmussel.chessgame.auth.SessionStore
 import com.jmussel.chessgame.auth.SupabaseConfig
+import com.jmussel.chessgame.local.inMemoryLocalGameStore
 import com.jmussel.chessgame.navigation.Destination
 import com.jmussel.chessgame.ui.game.OnlineGameState
 import io.ktor.client.HttpClient
@@ -296,6 +297,8 @@ class AppRestartTest {
             ChessAppViewModel(
                 ChessAppDependencies(
                     serverConfig = ChessServerConfig("https://chess.example"),
+                    localGameStore = inMemoryLocalGameStore(),
+                    localGameDispatcher = dispatcher,
                     supabaseConfig = SupabaseConfig(url = "https://supabase.example", anonKey = "publishable-key"),
                     httpClient = server(),
                     sessionStore = storeThatSleeps,

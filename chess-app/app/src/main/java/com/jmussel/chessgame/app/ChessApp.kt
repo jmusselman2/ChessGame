@@ -72,9 +72,10 @@ fun ChessApp(
     dashboard: DashboardUiState = DashboardUiState(),
     history: HistoryUiState = HistoryUiState(),
     game: OnlineGameState? = null,
-    /** The local game in progress, held by the view model so a rotation keeps it (`D073`). */
+    /** The local game on screen, held by the view model so a rotation keeps it (`D073`). */
     localGame: LocalGameUiState = LocalGameUiState(),
     onLocalGameChange: (LocalGameUiState) -> Unit = {},
+    onNewLocalGame: () -> Unit = {},
     onOpen: (Destination) -> Unit = {},
     onOpenFriends: () -> Unit = {},
     onOpenHistory: () -> Unit = {},
@@ -141,7 +142,8 @@ fun ChessApp(
                     onOpenGame = { row -> onOpenGame(row.gameId) },
                     onRetry = onRetryHistory,
                 )
-            Destination.LocalGame -> LocalGameScreen(state = localGame, onStateChange = onLocalGameChange, onBack = onBack)
+            Destination.LocalGame ->
+                LocalGameScreen(state = localGame, onStateChange = onLocalGameChange, onBack = onBack, onNewGame = onNewLocalGame)
             is Destination.OnlineGame ->
                 OnlineGameScreen(
                     state = game ?: OnlineGameState.Loading(destination.gameId),

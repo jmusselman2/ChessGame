@@ -1,0 +1,321 @@
+package com.jmussel.chessgame.app
+
+import com.jmussel.chessgame.api.ChessServerConfig
+import com.jmussel.chessgame.auth.InMemorySessionStore
+import com.jmussel.chessgame.auth.SupabaseConfig
+import com.jmussel.chessgame.core.chess.ChessGame
+import com.jmussel.chessgame.core.chess.ChessRules
+import com.jmussel.chessgame.core.chess.DrawClaim
+import com.jmussel.chessgame.core.chess.GameResult
+import com.jmussel.chessgame.core.chess.Move
+import com.jmussel.chessgame.core.chess.Side
+import com.jmussel.chessgame.core.chess.Square
+import com.jmussel.chessgame.core.chess.TerminationReason
+import com.jmussel.chessgame.local.LocalGameKind
+import com.jmussel.chessgame.local.LocalGameStore
+import com.jmussel.chessgame.local.inMemoryLocalGameStore
+import com.jmussel.chessgame.navigation.Destination
+import com.jmussel.chessgame.ui.board.BoardInteraction
+import com.jmussel.chessgame.ui.board.BoardUiState
+import com.jmussel.chessgame.ui.board.GameControls
+import com.jmussel.chessgame.ui.board.LocalGameUiState
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respondError
+import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Before
+import org.junit.Test
+
+/**
+ * Pass-and-play is saved on the device and resumes (`M21.2`, `D084`): through the view
+ * model, as the screen drives it, against a real local-game store.
+ *
+ * The store is SQLite in memory. Handing the same store to a second view model is the app
+ * after its process was lost: nothing but the store survives.
+ */
+class LocalGamePersistenceTest {
+    private val dispatcher = StandardTestDispatcher()
+    private val store = inMemoryLocalGameStore()
+
+    @Before
+    fun useTheTestDispatcher() {
+        Dispatchers.setMain(dispatcher)
+    }
+
+    @After
+    fun releaseTheTestDispatcher() {
+        Dispatchers.resetMain()
+    }
+
+    /** A model with no server: nothing here needs one, and any request would fail. */
+    private fun viewModel(localGameStore: LocalGameStore = store): ChessAppViewModel =
+        ChessAppViewModel(
+            ChessAppDependencies(
+                serverConfig = ChessServerConfig("https://chess.example"),
+                supabaseConfig = SupabaseConfig(url = "https://supabase.example", anonKey = "publishable-key"),
+                httpClient = HttpClient(MockEngine { respondError(HttpStatusCode.InternalServerError) }),
+                sessionStore = InMemorySessionStore(),
+                localGameStore = localGameStore,
+                localGameDispatcher = dispatcher,
+            ),
+        )
+
+    /** The model on the dashboard with the local game opened and read. */
+    private fun TestScope.openLocalGame(viewModel: ChessAppViewModel = viewModel()): ChessAppViewModel {
+        if (viewModel.navigation.current != Destination.Dashboard) viewModel.restartAt(Destination.Dashboard)
+        viewModel.open(Destination.LocalGame)
+        advanceUntilIdle()
+        assertFalse(viewModel.localGame.loading)
+        return viewModel
+    }
+
+    /** Taps [squares] on the local game's board, one tap at a time, as the screen does. */
+    private fun TestScope.tap(
+        viewModel: ChessAppViewModel,
+        vararg squares: String,
+    ) {
+        squares.forEach { square ->
+            val state = viewModel.localGame
+            viewModel.updateLocalGame(state.copy(boardState = BoardInteraction.onSquareTapped(state.boardState, Square.parse(square))))
+        }
+        advanceUntilIdle()
+    }
+
+    private fun TestScope.change(
+        viewModel: ChessAppViewModel,
+        transform: (BoardUiState) -> BoardUiState,
+    ) {
+        viewModel.updateLocalGame(LocalGameUiState(boardState = transform(viewModel.localGame.boardState)))
+        advanceUntilIdle()
+    }
+
+    private val savedGame: ChessGame?
+        get() = store.activeGame()?.game
+
+    // --- Resuming ---------------------------------------------------------------------
+
+    @Test
+    fun openingTheLocalGameWithNothingUnfinishedStartsAndSavesOne() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.restartAt(Destination.Dashboard)
+
+            viewModel.open(Destination.LocalGame)
+            // Nothing to tap until the game has been read.
+            assertTrue(viewModel.localGame.loading)
+            advanceUntilIdle()
+
+            assertEquals(ChessGame.newGame(), viewModel.localGame.boardState.game)
+            assertEquals(LocalGameKind.PASS_AND_PLAY, store.activeGame()!!.kind)
+        }
+
+    @Test
+    fun movesAreSavedAsTheyArePlayed() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+
+            tap(viewModel, "e2", "e4", "e7", "e5")
+
+            assertEquals(listOf(Move.of("e2", "e4"), Move.of("e7", "e5")), savedGame!!.moves)
+            assertEquals(viewModel.localGame.boardState.game, savedGame)
+        }
+
+    @Test
+    fun backDoesNotDiscardTheGameAndLocalGameResumesIt() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+            tap(viewModel, "e2", "e4", "e7", "e5")
+            val played = viewModel.localGame.boardState.game
+
+            assertTrue(viewModel.back())
+            assertEquals(Destination.Dashboard, viewModel.navigation.current)
+            advanceUntilIdle()
+            assertEquals(played, savedGame)
+
+            openLocalGame(viewModel)
+            assertEquals(played, viewModel.localGame.boardState.game)
+            assertEquals(listOf("1. e2e4 e7e5"), GameControls.moveListLines(viewModel.localGame.boardState.game))
+        }
+
+    @Test
+    fun theGameResumesAfterTheProcessIsLost() =
+        runTest(dispatcher) {
+            val first = openLocalGame()
+            tap(first, "e2", "e4", "e7", "e5", "g1", "f3")
+            val played = first.localGame.boardState.game
+
+            // A new model on the same store: all that survives the process.
+            val restarted = openLocalGame(viewModel())
+
+            assertEquals(played, restarted.localGame.boardState.game)
+            assertEquals(Side.BLACK, restarted.localGame.boardState.game.sideToMove)
+        }
+
+    @Test
+    fun reopeningWhileTheGameIsShowingChangesNothing() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+            tap(viewModel, "e2")
+            val selected = viewModel.localGame
+
+            // A rotation recreates the screen, which reads the game back from the model.
+            viewModel.open(Destination.LocalGame)
+            advanceUntilIdle()
+
+            assertEquals(selected, viewModel.localGame)
+            assertEquals(Square.parse("e2"), viewModel.localGame.boardState.selectedSquare)
+        }
+
+    @Test
+    fun undoIsSavedAndSurvivesRestarting() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+            tap(viewModel, "e2", "e4", "e7", "e5")
+
+            change(viewModel, GameControls::undo)
+
+            assertEquals(listOf(Move.of("e2", "e4")), savedGame!!.moves)
+            assertEquals(viewModel.localGame.boardState.game, openLocalGame(viewModel()).localGame.boardState.game)
+        }
+
+    // --- A new game -------------------------------------------------------------------
+
+    @Test
+    fun aNewGameAsksBeforeReplacingAnUnfinishedOne() {
+        val unfinished = BoardUiState(ChessRules.applyMove(ChessGame.newGame(), Move.of("e2", "e4")))
+        val finished = BoardUiState(ChessRules.resign(unfinished.game, Side.WHITE))
+
+        assertTrue(GameControls.canStartNewGame(unfinished))
+        assertTrue(GameControls.newGameNeedsConfirmation(unfinished))
+        assertTrue(GameControls.canStartNewGame(finished))
+        assertFalse(GameControls.newGameNeedsConfirmation(finished))
+        // A game nobody has moved in is already new: there is nothing to replace.
+        assertFalse(GameControls.canStartNewGame(BoardUiState.newGame()))
+    }
+
+    @Test
+    fun aConfirmedNewGameDeletesTheUnfinishedOneAndDoesNotKeepIt() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+            tap(viewModel, "e2", "e4")
+            val replaced = store.activeGame()!!.id
+
+            viewModel.updateLocalGame(viewModel.localGame.copy(confirmingNewGame = true))
+            viewModel.startNewLocalGame()
+            advanceUntilIdle()
+
+            assertEquals(ChessGame.newGame(), viewModel.localGame.boardState.game)
+            assertFalse(viewModel.localGame.confirmingNewGame)
+            assertNull(store.game(replaced))
+            assertNotEquals(replaced, store.activeGame()!!.id)
+            assertEquals(emptyList<Any>(), store.completedGames())
+        }
+
+    @Test
+    fun cancellingTheQuestionKeepsTheGame() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+            tap(viewModel, "e2", "e4")
+            val played = viewModel.localGame.boardState.game
+
+            viewModel.updateLocalGame(viewModel.localGame.copy(confirmingNewGame = true))
+            viewModel.updateLocalGame(viewModel.localGame.copy(confirmingNewGame = false))
+            advanceUntilIdle()
+
+            assertEquals(played, viewModel.localGame.boardState.game)
+            assertEquals(played, savedGame)
+        }
+
+    // --- The end of a game ------------------------------------------------------------
+
+    @Test
+    fun aGameEndingMoveSavesTheGameAsCompleted() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+            val id = store.activeGame()!!.id
+
+            tap(viewModel, "f2", "f3", "e7", "e5", "g2", "g4", "d8", "h4")
+
+            assertNull(store.activeGame())
+            val kept = store.game(id)!!
+            assertFalse(kept.isActive)
+            assertEquals(GameResult.checkmate(Side.WHITE), kept.game.result)
+            assertEquals(listOf(id), store.completedGames().map { it.id })
+        }
+
+    @Test
+    fun resignationSavesTheGameAsCompleted() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+            val id = store.activeGame()!!.id
+            tap(viewModel, "e2", "e4")
+
+            change(viewModel) { GameControls.resign(it, Side.BLACK) }
+
+            assertEquals(GameResult.resignation(Side.BLACK), store.game(id)!!.game.result)
+            assertEquals(listOf(id), store.completedGames().map { it.id })
+        }
+
+    @Test
+    fun aDrawClaimSavesTheGameAsCompleted() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+            val id = store.activeGame()!!.id
+            repeat(2) { tap(viewModel, "g1", "f3", "g8", "f6", "f3", "g1", "f6", "g8") }
+            // The last of those moves would repeat the position a third time, so it is
+            // declared rather than played, and the claim is made on it (`D041`).
+            assertEquals(
+                Move.of("f6", "g8"),
+                viewModel.localGame.boardState.declaredMove!!
+                    .move,
+            )
+
+            change(viewModel) { GameControls.claimDeclaredDraw(it, DrawClaim.THREEFOLD_REPETITION) }
+
+            val drawn = store.game(id)!!.game
+            assertEquals(TerminationReason.THREEFOLD_REPETITION_CLAIM, drawn.result!!.reason)
+            assertEquals(7, drawn.history.size)
+            assertNull(store.activeGame())
+        }
+
+    @Test
+    fun aFinishedGameOffersANewGameWithoutAskingAndIsKept() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+            val finished = store.activeGame()!!.id
+            tap(viewModel, "f2", "f3", "e7", "e5", "g2", "g4", "d8", "h4")
+            assertFalse(GameControls.newGameNeedsConfirmation(viewModel.localGame.boardState))
+
+            viewModel.startNewLocalGame()
+            advanceUntilIdle()
+
+            assertEquals(ChessGame.newGame(), viewModel.localGame.boardState.game)
+            assertEquals(listOf(finished), store.completedGames().map { it.id })
+        }
+
+    @Test
+    fun aFinishedGameIsNotResumedByTheLocalGameEntry() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+            tap(viewModel, "f2", "f3", "e7", "e5", "g2", "g4", "d8", "h4")
+            viewModel.back()
+
+            openLocalGame(viewModel)
+
+            assertEquals(ChessGame.newGame(), viewModel.localGame.boardState.game)
+            assertEquals(1, store.completedGames().size)
+        }
+}
