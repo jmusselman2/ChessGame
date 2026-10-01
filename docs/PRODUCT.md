@@ -470,6 +470,10 @@ against the computer. It never uses the server.
 - **Works offline.** Local games do not wait on the server. If the app cannot reach
   it at startup, local games, new local games and past local games are still
   available next to Retry. Online play needs the server as before.
+  Built by `M21.4`: while the startup screen shows (starting, waking the server, or
+  failed) it offers "Local game" and "Past local games". If the server answers while
+  the player is in a local game, they stay in it, and Back then goes to the
+  dashboard.
 - **Stays on this phone.** Local games are not backed up or transferred to a new
   phone, and uninstalling the app deletes them.
 

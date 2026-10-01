@@ -354,12 +354,28 @@ class ChessAppViewModel(
         currentUser = user
 
         if (user.username == null) {
-            restartAt(Destination.UsernameOnboarding)
+            arriveAt(Destination.UsernameOnboarding)
             return
         }
 
-        restartAt(Destination.Dashboard)
+        arriveAt(Destination.Dashboard)
         loadDashboard()
+    }
+
+    /**
+     * Shows [destination] with nothing behind it, as startup and onboarding hand over.
+     *
+     * Local games are reachable while startup is still running or has failed (`D084`). A
+     * player who went into one from the startup screen is not pulled out of it when startup
+     * then succeeds: [destination] goes beneath the screens they opened, so Back leads there.
+     */
+    private fun arriveAt(destination: Destination) {
+        navigation =
+            if (navigation.stack.first() == Destination.Startup && navigation.canGoBack) {
+                navigation.rebasedOn(destination)
+            } else {
+                navigation.restartAt(destination)
+            }
     }
 
     /**

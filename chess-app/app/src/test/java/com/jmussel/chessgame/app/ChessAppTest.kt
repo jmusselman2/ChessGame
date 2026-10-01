@@ -11,6 +11,9 @@ import com.jmussel.chessgame.auth.AnonymousSession
 import com.jmussel.chessgame.auth.InMemorySessionStore
 import com.jmussel.chessgame.auth.SessionStore
 import com.jmussel.chessgame.auth.SupabaseConfig
+import com.jmussel.chessgame.core.chess.ChessGame
+import com.jmussel.chessgame.core.chess.ChessRules
+import com.jmussel.chessgame.core.chess.Move
 import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.local.LocalGameStore
@@ -614,6 +617,91 @@ class ChessAppTest {
             viewModel.startupJob?.join()
 
             assertEquals("Jordan", viewModel.currentUser?.username)
+            assertEquals(AppNavigation(listOf(Destination.Dashboard)), viewModel.navigation)
+        }
+
+    /** A store holding one finished pass-and-play game and one unfinished one, after 1. e4. */
+    private fun storeWithLocalGames(): LocalGameStore =
+        inMemoryLocalGameStore().apply {
+            val finished = startGame().id
+            recordResult(finished, ChessRules.resign(ChessGame.newGame(), Side.WHITE))
+            val unfinished = startGame().id
+            recordMove(unfinished, ChessRules.applyMove(ChessGame.newGame(), Move.of("e2", "e4")))
+        }
+
+    @Test
+    fun aFailedStartupStillReachesTheUnfinishedLocalGameANewOneAndPastLocalGames() =
+        runTest(dispatcher) {
+            val store = storeWithLocalGames()
+            val viewModel =
+                viewModel(
+                    httpClient = httpClient(username = "Jordan", refusals = 100),
+                    sessionStore = InMemorySessionStore(),
+                    localGameStore = store,
+                )
+            viewModel.start()
+            viewModel.startupJob?.join()
+            assertTrue(viewModel.startup is StartupState.Failed)
+
+            // The unfinished local game.
+            viewModel.open(Destination.LocalGame)
+            dispatcher.scheduler.runCurrent()
+            assertEquals(listOf(Move.of("e2", "e4")), viewModel.localGame.boardState.game.moves)
+            assertEquals(listOf(Destination.Startup, Destination.LocalGame), viewModel.navigation.stack)
+
+            // A new local game in its place.
+            viewModel.startNewLocalGame()
+            dispatcher.scheduler.runCurrent()
+            assertEquals(ChessGame.newGame(), viewModel.localGame.boardState.game)
+            assertEquals(ChessGame.newGame(), store.activeGame()!!.game)
+
+            // Past local games, back on the startup screen.
+            assertTrue(viewModel.back())
+            assertEquals(Destination.Startup, viewModel.navigation.current)
+            viewModel.openPastLocalGames()
+            dispatcher.scheduler.runCurrent()
+            assertEquals(Destination.PastLocalGames, viewModel.navigation.current)
+            assertEquals(1, viewModel.pastLocalGames.games.size)
+
+            // Online play stays out of reach: nobody is signed in and no online screen opened.
+            assertNull(viewModel.currentUser)
+            assertTrue(viewModel.navigation.stack.none { it == Destination.Dashboard || it is Destination.OnlineGame })
+        }
+
+    @Test
+    fun localGamesDoNotWaitForAStartupStillInProgress() =
+        runTest(dispatcher) {
+            // A server that never answers: startup waits for as long as the test lets it.
+            val silentServer = HttpClient(MockEngine { awaitCancellation() })
+            val viewModel = viewModel(httpClient = silentServer, localGameStore = storeWithLocalGames())
+            viewModel.start()
+            dispatcher.scheduler.runCurrent()
+            assertEquals(StartupState.Loading, viewModel.startup)
+
+            viewModel.open(Destination.LocalGame)
+            dispatcher.scheduler.runCurrent()
+
+            assertFalse(viewModel.localGame.loading)
+            assertEquals(listOf(Move.of("e2", "e4")), viewModel.localGame.boardState.game.moves)
+            assertEquals(StartupState.Loading, viewModel.startup)
+        }
+
+    @Test
+    fun startupFinishingDuringALocalGameLeavesThePlayerInIt() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan"), localGameStore = storeWithLocalGames())
+            viewModel.start()
+            viewModel.open(Destination.LocalGame)
+
+            viewModel.startupJob?.join()
+            dispatcher.scheduler.runCurrent()
+
+            assertEquals("Jordan", viewModel.currentUser?.username)
+            assertEquals(listOf(Destination.Dashboard, Destination.LocalGame), viewModel.navigation.stack)
+            assertEquals(listOf(Move.of("e2", "e4")), viewModel.localGame.boardState.game.moves)
+
+            // Back now leads to the dashboard startup reached, not to the startup screen.
+            assertTrue(viewModel.back())
             assertEquals(AppNavigation(listOf(Destination.Dashboard)), viewModel.navigation)
         }
 
@@ -2599,6 +2687,7 @@ class ChessAppTest {
         supabaseConfig: SupabaseConfig = SupabaseConfig(url = "https://supabase.example", anonKey = "publishable-key"),
         realtime: RealtimeSource = silentRealtime,
         wakePolicy: ServerWakePolicy = impatientWake,
+        localGameStore: LocalGameStore = inMemoryLocalGameStore(),
     ) = ChessAppViewModel(
         dependencies(
             httpClient = httpClient,
@@ -2606,6 +2695,7 @@ class ChessAppTest {
             supabaseConfig = supabaseConfig,
             realtime = realtime,
             wakePolicy = wakePolicy,
+            localGameStore = localGameStore,
         ),
         wakePolicy = wakePolicy,
     ).also(models::add)

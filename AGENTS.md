@@ -120,6 +120,9 @@ Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/groups`,
 
 ### Startup and identity
 
+Local games do not wait for any of this: the startup screen offers them throughout
+(`M21.4`).
+
 1. `AppStartup.run` restores or creates the anonymous Supabase session, retrying
    while the free Render instance wakes (`withServerWake`).
 2. It calls `GET /me` with the bearer token. The server verifies the token and
@@ -265,9 +268,10 @@ commit.
 
 - **`ChessAppViewModel` is the god object.** Read it before adding state, and
   prefer a focused class it owns over another 100 lines inside it.
-- **The local game is unreachable when startup fails** today: the top bar is
-  hidden on the startup screen. `D084` requires local games to stay reachable;
-  that arrives with `M21`.
+- **Local games are reachable before startup succeeds** (`D084`, `M21.4`): the
+  startup screen offers them. So startup can finish while the player is in a local
+  screen; `arriveAt` then rebases the navigation stack rather than restarting it.
+  Anything new that navigates on startup's result must do the same.
 - **The local-game store's writes are intent-level and strict.** `recordMove` takes
   the stored game plus exactly one move, `recordResult` a result with no new move,
   `takeBack` a number of plies; anything else, or a finished game, is refused. Its

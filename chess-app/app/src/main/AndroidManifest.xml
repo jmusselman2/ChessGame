@@ -2,7 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- The Chess server is authoritative for every game, so the app is useless offline. -->
+    <!-- Online games need the Chess server, which is authoritative for them (D004). Games
+         whose players are all on this phone are stored on it and work offline (D084). -->
     <uses-permission android:name="android.permission.INTERNET" />
 
     <application

@@ -38,7 +38,7 @@ sealed interface Destination {
     /** Games that are over. */
     data object History : Destination
 
-    /** Pass-and-play on one device, which needs no account and no server. */
+    /** Pass-and-play on one device, which needs no account and no server, even to reach it (`D084`). */
     data object LocalGame : Destination
 
     /** Finished local games, kept on this device (`D084`). */
@@ -101,6 +101,15 @@ data class AppNavigation(
      * becomes the screen the player leaves the app from.
      */
     fun restartAt(destination: Destination): AppNavigation = AppNavigation(listOf(destination))
+
+    /**
+     * [destination] in place of the bottom screen, with every screen above it kept.
+     *
+     * This is how startup hands over when the player has already gone on to a local game
+     * while it ran (`D084`): they stay where they are, and Back leads to where startup
+     * arrived instead of to the startup screen.
+     */
+    fun rebasedOn(destination: Destination): AppNavigation = copy(stack = listOf(destination) + stack.drop(1))
 
     /**
      * The screen behind this one, or `null` when there is none.

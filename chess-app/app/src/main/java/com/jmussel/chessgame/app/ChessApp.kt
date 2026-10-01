@@ -6,7 +6,10 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -130,7 +133,13 @@ fun ChessApp(
         )
 
         when (val destination = navigation.current) {
-            Destination.Startup -> StartupScreen(state = startup, onRetry = onRetryStartup)
+            Destination.Startup ->
+                StartupScreen(
+                    state = startup,
+                    onRetry = onRetryStartup,
+                    onOpenLocalGame = { onOpen(Destination.LocalGame) },
+                    onOpenPastLocalGames = onOpenPastLocalGames,
+                )
             Destination.UsernameOnboarding -> UsernameScreen(claim = usernameClaim, onClaim = onClaimUsername)
             Destination.Dashboard ->
                 DashboardScreen(
@@ -274,9 +283,11 @@ internal object ShellChromeContent {
 private fun StartupScreen(
     state: StartupState,
     onRetry: () -> Unit,
+    onOpenLocalGame: () -> Unit,
+    onOpenPastLocalGames: () -> Unit,
 ) {
     Column(
-        modifier = Modifier.padding(16.dp),
+        modifier = Modifier.verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         when (state) {
@@ -303,6 +314,16 @@ private fun StartupScreen(
             // replacing this screen, look the same: there is nothing to report.
             else -> Text(text = STARTING, style = MaterialTheme.typography.titleSmall)
         }
+
+        // Games on this phone never wait for the server (`D084`): they are offered for as
+        // long as this screen is showing, whether startup is still going or has failed.
+        // Online play stays out of reach until startup succeeds.
+        if (state !is StartupState.Ready) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(text = PLAY_ON_THIS_PHONE, style = MaterialTheme.typography.bodyMedium)
+            TextButton(onClick = onOpenLocalGame) { Text(text = LOCAL_GAME) }
+            TextButton(onClick = onOpenPastLocalGames) { Text(text = PAST_LOCAL_GAMES) }
+        }
     }
 }
 
@@ -310,6 +331,8 @@ private const val BACK = "Back"
 private const val FRIENDS = "Friends"
 private const val HISTORY = "History"
 private const val LOCAL_GAME = "Local game"
+private const val PAST_LOCAL_GAMES = "Past local games"
+private const val PLAY_ON_THIS_PHONE = "Games on this phone work without the server:"
 private const val STARTING = "Starting…"
 private const val WAKING = "Waking the server…"
 private const val WAKING_DETAIL =

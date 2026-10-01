@@ -7096,7 +7096,7 @@ Verified:
 
 ## M21.4 — Local games are reachable when startup fails
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M21.2, M21.3
 
@@ -7123,6 +7123,31 @@ cannot reach it.
 - The `chess-app` startup and navigation tests.
 - `.\gradlew.bat build`.
 - `git diff --check`.
+
+### Completion Note
+
+2026-10-01. The startup screen offers "Local game" and "Past local games" in every
+state short of `Ready`: starting (once the splash lifts), waking the server, and
+failed, next to Retry. They open on top of it, so Back returns to it. If startup
+then succeeds while the player is in a local screen, `arriveAt` puts the dashboard
+(or onboarding) beneath it with `AppNavigation.rebasedOn` rather than restarting the
+stack, so the player is not pulled out of their game. The manifest comment no longer
+says the app is useless offline. `PRODUCT.md` *Local Games* and `ARCHITECTURE.md` §29
+describe what was built.
+
+Verified:
+
+- `ChessAppTest` gains 3: a failed startup reaches the unfinished local game, a new
+  one and Past local games, with no online screen and nobody signed in; a startup
+  still waiting on a silent server does not hold up the local game; startup finishing
+  during a local game leaves the player in it, with Back leading to the dashboard.
+  With `arriveAt` always restarting the stack, the last of these fails.
+- On the Pixel 7, a debug build with no Supabase key (startup fails at once): the
+  startup screen offered both entries; a game played there survived a force-stop and
+  resumed; New game asked first; a resigned game was listed under Past local games and
+  reviewed.
+- `.\gradlew.bat build`: BUILD SUCCESSFUL. `chess-app` debug unit tests: 590, none
+  failing. `:chess-app:assembleDebugAndroidTest` compiles.
 
 ## M21.5 — `chess-ai`: the `ChessEngine` interface and the project's Kotlin engine
 

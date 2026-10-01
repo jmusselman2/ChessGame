@@ -1199,12 +1199,19 @@ Local games (§11.4, `D084`) follow a second flow that never reaches Ktor:
 ```text
 Compose UI
 → ViewModel / screen state
-→ local game repository
+→ LocalGameSession → LocalGameStore
 → SQLDelight (on the device)
 ```
 
 The local entry points (the local game, Play the computer, and past local games)
-stay reachable when startup cannot reach the server.
+stay reachable when startup cannot reach the server. As built by `M21.4`: the
+startup screen offers "Local game" and "Past local games" in every state short of
+`Ready` (starting, waking the server, failed), next to Retry. They open on top of
+the startup screen, so Back returns to it. If startup succeeds while the player is
+in a local screen, the dashboard (or onboarding) replaces the startup screen
+*beneath* it (`AppNavigation.rebasedOn`) instead of replacing the whole stack:
+the player stays where they are, and Back leads to the dashboard. Online screens
+are unreachable until startup succeeds.
 
 The online game state must be separate from local pass-and-play state. Android
 may use `chess-core` for board rendering, legal-move previews, and deterministic
