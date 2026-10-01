@@ -18,10 +18,11 @@ import com.jmussel.chessgame.api.SeriesOpening
 import com.jmussel.chessgame.api.ServerWakePolicy
 import com.jmussel.chessgame.api.UserSummaryDto
 import com.jmussel.chessgame.api.withServerWake
-import com.jmussel.chessgame.core.chess.ChessGame
+import com.jmussel.chessgame.computer.ComputerGame
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.local.LocalGameSession
+import com.jmussel.chessgame.local.StoredLocalGame
 import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
 import com.jmussel.chessgame.ui.allusers.AllUsers
@@ -141,6 +142,15 @@ class ChessAppViewModel(
 
     /** Reading or starting the local game, while that is under way. */
     private var localGameJob: Job? = null
+
+    /** The stored game [localGame] shows, once it has been read or started. */
+    private var localGameId: Long? = null
+
+    /**
+     * The game against the computer (`D086`, `M21.6`): its state, the engine's turns,
+     * takeback and saving. `M21.7` gives it a screen and an entry.
+     */
+    val computerGame = ComputerGame(localGames, dependencies.chessEngine, viewModelScope, dependencies.engineDispatcher)
 
     /** Finished local games, newest first (`M21.3`). */
     var pastLocalGames: PastLocalGamesUiState by mutableStateOf(PastLocalGamesUiState())
@@ -1637,8 +1647,9 @@ class ChessAppViewModel(
     fun updateLocalGame(state: LocalGameUiState) {
         val before = localGame
         localGame = state
-        if (before.loading) return
-        localGames.save(before.boardState.game, state.boardState.game) {
+        val id = localGameId
+        if (before.loading || id == null) return
+        localGames.save(id, before.boardState.game, state.boardState.game) {
             viewModelScope.launch {
                 if (navigation.current == Destination.LocalGame) showLocalGame { localGames.resume() }
             }
@@ -1680,10 +1691,16 @@ class ChessAppViewModel(
     }
 
     /** Shows the local game [load] reads or starts, with nothing to tap until it has. */
-    private fun showLocalGame(load: suspend () -> ChessGame) {
+    private fun showLocalGame(load: suspend () -> StoredLocalGame) {
         localGameJob?.cancel()
+        localGameId = null
         localGame = LocalGameUiState(loading = true)
-        localGameJob = viewModelScope.launch { localGame = LocalGameUiState(boardState = BoardUiState(load())) }
+        localGameJob =
+            viewModelScope.launch {
+                val stored = load()
+                localGameId = stored.id
+                localGame = LocalGameUiState(boardState = BoardUiState(stored.game))
+            }
     }
 
     /**

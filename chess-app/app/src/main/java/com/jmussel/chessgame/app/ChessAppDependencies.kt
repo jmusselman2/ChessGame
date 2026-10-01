@@ -2,6 +2,8 @@ package com.jmussel.chessgame.app
 
 import android.content.Context
 import com.jmussel.chessgame.BuildConfig
+import com.jmussel.chessgame.ai.AlphaBetaEngine
+import com.jmussel.chessgame.ai.ChessEngine
 import com.jmussel.chessgame.api.ChessApiClient
 import com.jmussel.chessgame.api.ChessRealtimeClient
 import com.jmussel.chessgame.api.ChessServerConfig
@@ -25,6 +27,7 @@ import io.ktor.serialization.kotlinx.json.json
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import java.util.concurrent.TimeUnit
+import kotlin.random.Random
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -65,6 +68,13 @@ class ChessAppDependencies(
     wakePolicy: ServerWakePolicy = ServerWakePolicy(),
     /** Where the local-game store's blocking calls run. A test passes its own dispatcher. */
     val localGameDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /**
+     * Chooses the computer's moves (`D086`). Seeded afresh each launch, so games vary; a
+     * test passes a deterministic engine.
+     */
+    val chessEngine: ChessEngine = AlphaBetaEngine(seed = Random.nextLong()),
+    /** Where the engine thinks: never the main thread. */
+    val engineDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : AutoCloseable {
     /** Keeps one anonymous account alive across launches (`D006`). */
     val authenticator: AnonymousAuthenticator =

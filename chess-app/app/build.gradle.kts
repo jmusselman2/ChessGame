@@ -174,6 +174,7 @@ sqldelight {
 
 dependencies {
     implementation(project(":chess-core"))
+    implementation(project(":chess-ai"))
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.compose.material3)

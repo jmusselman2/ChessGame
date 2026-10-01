@@ -7232,7 +7232,7 @@ Verified:
 
 ## M21.6 — Computer turns and takeback
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M21.1, M21.5
 
@@ -7282,6 +7282,45 @@ the entry points and screens.
 - The `chess-app` unit tests for the computer game.
 - `.\gradlew.bat build`.
 - `git diff --check`.
+
+### Completion Note
+
+2026-10-01. `chess-app` depends on `chess-ai`. `ComputerGame` (package `computer`),
+owned by `ChessAppViewModel.computerGame`, holds a game against the computer:
+`resume`, `start(opponent)`, `update(board)` for the human's taps, `takeBack`,
+`leave`. `ChessAppDependencies` gains `chessEngine` (an `AlphaBetaEngine` seeded per
+launch) and `engineDispatcher` (`Dispatchers.Default`). `ARCHITECTURE.md` §11.4
+describes it. There is no screen or entry yet; `M21.7` adds them.
+
+- **One search per turn.** Starting a search cancels any other; leaving cancels it.
+  The engine's `isCancelled` reads the coroutine's `isActive`.
+- **Stale results.** Each search carries a turn number and its game, and its move is
+  applied only if both are still current. Cancellation alone is not relied on.
+- **Input.** On the computer's turn the board ignores the human, except a
+  resignation. Claims and resignation for the computer are refused.
+- **Takeback** is two plies after a reply and one while thinking, built from
+  `ChessRules.undoLastMove`. It is offered only in an unfinished game with a human move
+  to take back.
+- **`LocalGameSession`** now takes the stored game's id on every save, and returns the
+  stored game from `resume` and `startNew(computer)`. It also gains `resumeComputer`.
+
+Verified:
+
+- `ComputerGameTest` (15), with scripted fake engines and a real store: exactly one
+  reply per human move; the computer opens when the human is Black; a game-ending human
+  move calls no engine; a game-ending computer move completes and keeps the game with
+  its opponent; the board ignores the human while the computer thinks; leaving stops
+  the search, and reopening twice starts exactly one; two-ply takeback; repeated back to
+  the human's first move and no further; one-ply takeback while thinking; a result that
+  arrives after cancellation is discarded; replacing the game protects the new one;
+  takeback is unavailable after the end; the human may resign while the computer
+  thinks but cannot resign for it; the human may claim a draw and the computer never
+  does.
+- Mutations: without cancelling the search, the turn and game check still discards
+  every stale result (only the engine-call counts fail); without both guards, the
+  stale-result test fails as well.
+- `.\gradlew.bat build`: BUILD SUCCESSFUL. `chess-app` debug unit tests: 605, none
+  failing. `:chess-app:assembleDebugAndroidTest` compiles.
 
 ## M21.7 — Play the computer
 

@@ -134,8 +134,8 @@ isCancelled)`, returning `null` once cancelled), `Difficulty` (levels 1–3) and
 `AlphaBetaEngine`, an iterative-deepening alpha-beta search over `ChessRules` with
 material and simple positional evaluation. `D088` records its depths, budgets and
 margins. The engine blocks while it thinks; the caller puts it on a background
-thread. Only Gradle's Kotlin/JVM plugin and `chess-core` are involved; nothing
-depends on `chess-ai` until `chess-app` does in `M21.6`.
+thread. It uses Gradle's Kotlin/JVM plugin and `chess-core` and nothing else, and
+`chess-app` depends on it from `M21.6`.
 
 ### Multi-game layout (`D082`)
 
@@ -536,6 +536,28 @@ the screen:
 - **Opening.** "Local game" shows a loading state, then the unfinished pass-and-play
   game, or a new one. Back leaves it in the store. New game deletes an unfinished game
   after the screen has asked.
+
+**Games against the computer, as built by `M21.6`.** `ChessAppViewModel.computerGame` is
+a `ComputerGame` (package `computer`), which owns the game's state, its searches and its
+saves; `M21.7` gives it a screen.
+
+- **Searches.** Whenever the computer is to move, one search starts on
+  `ChessAppDependencies.engineDispatcher` (`Dispatchers.Default`), and starting one
+  cancels any other. The engine polls the coroutine's `isActive`. Leaving the game
+  cancels the search; resuming on the computer's turn starts exactly one.
+- **Stale results.** Every search carries a turn number and the game it was asked
+  about. Its move is applied only if both are still current, so a result that arrives
+  as it is cancelled, after a takeback, a new game or the game's end, changes nothing.
+- **Input.** On the computer's turn the board ignores the human, except a resignation.
+  A draw claim is only ever the human's.
+- **Takeback** undoes two plies after a reply, or one while the computer is thinking,
+  with `ChessRules.undoLastMove`, and is saved as a store takeback. It is offered while
+  the game is unfinished and has a human move to take back.
+- **Saving** goes through `LocalGameSession.save(id, …)` like pass-and-play. The
+  session takes the stored game's id on every call rather than remembering one, so the
+  two kinds of local game cannot write to each other's.
+- **The engine** is `ChessAppDependencies.chessEngine`, an `AlphaBetaEngine` seeded
+  afresh each launch. Tests pass scripted engines.
 
 **Past local games, as built by `M21.3`.** `Destination.PastLocalGames` lists
 `LocalGameStore.completedGames()`; `Destination.PastLocalGame(id)` reviews one. Both

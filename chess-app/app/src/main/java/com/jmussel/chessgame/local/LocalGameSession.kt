@@ -12,8 +12,9 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
- * The view model's way to the local-game [store] (`D084`): the pass-and-play game on
- * screen, kept in step with its record (`M21.2`), and the finished games (`M21.3`).
+ * The view model's way to the local-game [store] (`D084`): the game on screen, kept in
+ * step with its record (`M21.2`, and `M21.6` against the computer), and the finished
+ * games (`M21.3`).
  *
  * The view model shows the game; this keeps the store in step with it. Every store call
  * runs on [io], one at a time and in the order it was asked for, so a takeback is never
@@ -30,28 +31,28 @@ class LocalGameSession(
     private val saves = CoroutineScope(SupervisorJob() + io)
     private val lock = Mutex()
 
-    /** The stored game on screen, once one has been loaded or started. Written on [io]. */
-    @Volatile
-    private var gameId: Long? = null
-
     /**
      * The unfinished pass-and-play game, or a new one when nothing is unfinished: what
      * opening the local game shows.
      */
-    suspend fun resume(): ChessGame =
+    suspend fun resume(): StoredLocalGame =
         serial {
             val active = store.activeGame()
-            // Games against the computer arrive with `M21.6`; `M21.7` decides how their entry
-            // and this one meet when either is unfinished.
+            // `M21.7` decides how this entry and the computer's meet when the other kind of
+            // game is unfinished; until then nothing reaches here with one.
             check(active == null || active.kind == LocalGameKind.PASS_AND_PLAY) { "The unfinished local game is not pass-and-play" }
-            (active ?: store.startGame()).also { gameId = it.id }.game
+            active ?: store.startGame()
         }
 
+    /** The unfinished game against the computer, or `null` when there is none (`M21.6`). */
+    suspend fun resumeComputer(): StoredLocalGame? = serial { store.activeGame()?.takeIf { it.kind == LocalGameKind.COMPUTER } }
+
     /**
-     * A new pass-and-play game. The unfinished game, if there is one, is deleted: the screen
-     * has already asked the player (`D084`).
+     * A new local game: against [computer], or pass-and-play when it is `null`. The
+     * unfinished game, if there is one, is deleted: the screen has already asked the player
+     * (`D084`).
      */
-    suspend fun startNew(): ChessGame = serial { store.startGame().also { gameId = it.id }.game }
+    suspend fun startNew(computer: ComputerOpponent? = null): StoredLocalGame = serial { store.startGame(computer) }
 
     /** Every finished local game, newest first, once the saves asked for before are done. */
     suspend fun completedGames(): List<LocalGameSummary> = serial { store.completedGames() }
@@ -60,19 +61,19 @@ class LocalGameSession(
     suspend fun game(id: Long): StoredLocalGame? = serial { store.game(id) }
 
     /**
-     * Saves the change from [before] to [after] in the game on screen, if the game changed.
+     * Saves the change from [before] to [after] in the stored game [id], if the game changed.
      *
      * Returns at once; the write follows in order. If it fails, the store still holds the
      * game as it was, and [onFailure] is called, off the main thread, so the caller can show
      * that instead.
      */
     fun save(
+        id: Long,
         before: ChessGame,
         after: ChessGame,
         onFailure: () -> Unit,
     ) {
         val change = LocalGameChange.between(before, after) ?: return
-        val id = gameId ?: return
         // Undispatched, so the save takes its place in the lock's queue before this returns.
         saves.launch(start = CoroutineStart.UNDISPATCHED) {
             try {

@@ -100,6 +100,9 @@ Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/groups`,
   `ChessBoard`, `BoardRendering`, `GameLayout`. `LocalGameScreen` is
   pass-and-play.
 - `ui/game/OnlineGame.kt` and `OnlineGameScreen.kt` — the online game.
+- `computer/ComputerGame.kt` — a game against the computer below the screen
+  (`D086`): one engine search per computer turn, stale results discarded, takeback,
+  saving. `ChessAppViewModel.computerGame` owns it.
 - `ui/localhistory/` — Past local games: the list, and `LocalGameReview`, a
   read-only ply-by-ply review built from the stored positions.
 - `local/` — the device-authoritative store for local games (`D084`, `D085`).
@@ -277,6 +280,10 @@ commit.
   startup screen offers them. So startup can finish while the player is in a local
   screen; `arriveAt` then rebases the navigation stack rather than restarting it.
   Anything new that navigates on startup's result must do the same.
+- **A computer search's result is applied only if its turn and game are still
+  current.** Anything that changes the game on screen outside `ComputerGame`'s own
+  paths must go through them (or call `stopSearching`), or a search started earlier
+  could still land on it.
 - **The local-game store's writes are intent-level and strict.** `recordMove` takes
   the stored game plus exactly one move, `recordResult` a result with no new move,
   `takeBack` a number of plies; anything else, or a finished game, is refused. Its

@@ -24,15 +24,16 @@ class LocalGameSessionTest {
     @Test
     fun savesRunInTheOrderTheyWereAskedFor() =
         runTest(dispatcher) {
-            val start = session.resume()
+            val stored = session.resume()
+            val start = stored.game
             val one = start.play("e2e4")
             val two = one.play("e7e5")
             val undone = ChessRules.undoLastMove(two)
 
             // All three are asked for before any of them has run.
-            session.save(start, one) {}
-            session.save(one, two) {}
-            session.save(two, undone) {}
+            session.save(stored.id, start, one) {}
+            session.save(stored.id, one, two) {}
+            session.save(stored.id, two, undone) {}
             advanceUntilIdle()
 
             assertEquals(undone, store.activeGame()!!.game)
@@ -41,12 +42,13 @@ class LocalGameSessionTest {
     @Test
     fun aChangeOnlyToTheScreenWritesNothing() =
         runTest(dispatcher) {
-            val start = session.resume()
+            val stored = session.resume()
+            val start = stored.game
             // Any statement at all would now fail.
             driver.failOn = ""
             var failed = false
 
-            session.save(start, start) { failed = true }
+            session.save(stored.id, start, start) { failed = true }
             advanceUntilIdle()
 
             assertFalse(failed)
@@ -55,31 +57,33 @@ class LocalGameSessionTest {
     @Test
     fun aFailedSaveLeavesTheStoredGameAndSaysSo() =
         runTest(dispatcher) {
-            val start = session.resume()
+            val stored = session.resume()
+            val start = stored.game
             val one = start.play("e2e4")
-            session.save(start, one) {}
+            session.save(stored.id, start, one) {}
             advanceUntilIdle()
 
             driver.failOn = "UPDATE local_games"
             var failed = false
-            session.save(one, one.play("e7e5")) { failed = true }
+            session.save(stored.id, one, one.play("e7e5")) { failed = true }
             advanceUntilIdle()
 
             assertTrue(failed)
             driver.failOn = null
             assertEquals(one, store.activeGame()!!.game)
             // Resuming shows the stored game, which is the canonical one.
-            assertEquals(one, session.resume())
+            assertEquals(one, session.resume().game)
         }
 
     @Test
     fun resumingWaitsForTheSavesAskedForBeforeIt() =
         runTest(dispatcher) {
-            val start = session.resume()
+            val stored = session.resume()
+            val start = stored.game
             val one = start.play("e2e4")
 
-            session.save(start, one) {}
+            session.save(stored.id, start, one) {}
 
-            assertEquals(one, session.resume())
+            assertEquals(one, session.resume().game)
         }
 }
