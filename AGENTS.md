@@ -96,6 +96,8 @@ Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/groups`,
   `ChessBoard`, `BoardRendering`, `GameLayout`. `LocalGameScreen` is
   pass-and-play.
 - `ui/game/OnlineGame.kt` and `OnlineGameScreen.kt` — the online game.
+- `ui/localhistory/` — Past local games: the list, and `LocalGameReview`, a
+  read-only ply-by-ply review built from the stored positions.
 - `local/` — the device-authoritative store for local games (`D084`, `D085`).
   `LocalGameStore` over the SQLDelight `LocalGameDatabase` generated from
   `src/main/sqldelight` (`local_games`, `local_moves`); positions as JSON in
@@ -178,7 +180,9 @@ server's (`D084`).
 
 The board is drawn face to face and never turns: White at the bottom, Black's
 pieces upside down for the player opposite (`D087`). The game survives rotation
-(`D073`), Back and process death. Past local games are `M21.3`.
+(`D073`), Back and process death. Finished games are listed under History → "Past
+local games" and reviewed read-only (`ChessAppViewModel.openPastLocalGames`,
+`openPastLocalGame`).
 
 ## Commands
 

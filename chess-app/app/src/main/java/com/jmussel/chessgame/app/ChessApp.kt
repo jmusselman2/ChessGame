@@ -41,6 +41,10 @@ import com.jmussel.chessgame.ui.groups.GroupsScreen
 import com.jmussel.chessgame.ui.groups.GroupsUiState
 import com.jmussel.chessgame.ui.history.HistoryScreen
 import com.jmussel.chessgame.ui.history.HistoryUiState
+import com.jmussel.chessgame.ui.localhistory.LocalGameReview
+import com.jmussel.chessgame.ui.localhistory.LocalGameReviewScreen
+import com.jmussel.chessgame.ui.localhistory.PastLocalGamesScreen
+import com.jmussel.chessgame.ui.localhistory.PastLocalGamesUiState
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import com.jmussel.chessgame.ui.onboarding.UsernameScreen
 import com.jmussel.chessgame.ui.series.PlayOffer
@@ -76,6 +80,12 @@ fun ChessApp(
     localGame: LocalGameUiState = LocalGameUiState(),
     onLocalGameChange: (LocalGameUiState) -> Unit = {},
     onNewLocalGame: () -> Unit = {},
+    /** Finished local games, and the one being looked back at (`M21.3`). */
+    pastLocalGames: PastLocalGamesUiState = PastLocalGamesUiState(),
+    localReview: LocalGameReview? = null,
+    onOpenPastLocalGames: () -> Unit = {},
+    onOpenPastLocalGame: (Long) -> Unit = {},
+    onStepLocalReview: (Int) -> Unit = {},
     onOpen: (Destination) -> Unit = {},
     onOpenFriends: () -> Unit = {},
     onOpenHistory: () -> Unit = {},
@@ -141,7 +151,11 @@ fun ChessApp(
                     state = history,
                     onOpenGame = { row -> onOpenGame(row.gameId) },
                     onRetry = onRetryHistory,
+                    onOpenPastLocalGames = onOpenPastLocalGames,
                 )
+            Destination.PastLocalGames ->
+                PastLocalGamesScreen(state = pastLocalGames, onOpenGame = { game -> onOpenPastLocalGame(game.id) })
+            is Destination.PastLocalGame -> LocalGameReviewScreen(review = localReview, onStep = onStepLocalReview, onBack = onBack)
             Destination.LocalGame ->
                 LocalGameScreen(state = localGame, onStateChange = onLocalGameChange, onBack = onBack, onNewGame = onNewLocalGame)
             is Destination.OnlineGame ->
@@ -227,7 +241,12 @@ internal object ShellChromeContent {
      */
     fun hasChrome(navigation: AppNavigation): Boolean =
         when (navigation.current) {
-            Destination.Startup, Destination.UsernameOnboarding, Destination.LocalGame, is Destination.OnlineGame -> false
+            Destination.Startup,
+            Destination.UsernameOnboarding,
+            Destination.LocalGame,
+            is Destination.PastLocalGame,
+            is Destination.OnlineGame,
+            -> false
             else -> true
         }
 

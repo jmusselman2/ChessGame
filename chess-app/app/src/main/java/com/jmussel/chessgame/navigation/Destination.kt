@@ -41,6 +41,14 @@ sealed interface Destination {
     /** Pass-and-play on one device, which needs no account and no server. */
     data object LocalGame : Destination
 
+    /** Finished local games, kept on this device (`D084`). */
+    data object PastLocalGames : Destination
+
+    /** One finished local game, read-only, identified as the device's store identifies it. */
+    data class PastLocalGame(
+        val gameId: Long,
+    ) : Destination
+
     /** One server-owned game, identified the way the server identifies it. */
     data class OnlineGame(
         val gameId: String,

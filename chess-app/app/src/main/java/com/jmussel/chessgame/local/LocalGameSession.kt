@@ -12,7 +12,8 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
- * The pass-and-play game on screen and its record in the [store] (`D084`, `M21.2`).
+ * The view model's way to the local-game [store] (`D084`): the pass-and-play game on
+ * screen, kept in step with its record (`M21.2`), and the finished games (`M21.3`).
  *
  * The view model shows the game; this keeps the store in step with it. Every store call
  * runs on [io], one at a time and in the order it was asked for, so a takeback is never
@@ -51,6 +52,12 @@ class LocalGameSession(
      * has already asked the player (`D084`).
      */
     suspend fun startNew(): ChessGame = serial { store.startGame().also { gameId = it.id }.game }
+
+    /** Every finished local game, newest first, once the saves asked for before are done. */
+    suspend fun completedGames(): List<LocalGameSummary> = serial { store.completedGames() }
+
+    /** The local game with [id], or `null` when there is none. */
+    suspend fun game(id: Long): StoredLocalGame? = serial { store.game(id) }
 
     /**
      * Saves the change from [before] to [after] in the game on screen, if the game changed.

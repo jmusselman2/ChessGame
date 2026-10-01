@@ -35,12 +35,17 @@ fun HistoryScreen(
     state: HistoryUiState = HistoryUiState(loaded = true),
     onOpenGame: (HistoryGameRow) -> Unit = {},
     onRetry: () -> Unit = {},
+    onOpenPastLocalGames: () -> Unit = {},
 ) {
     Column(
         modifier = modifier.verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text(text = HISTORY, style = MaterialTheme.typography.titleSmall)
+
+        // Local games are kept on this device, not by the server, so they have a list of
+        // their own (`D084`). It is offered whether or not the server answers.
+        TextButton(onClick = onOpenPastLocalGames) { Text(text = PAST_LOCAL_GAMES) }
 
         state.message?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium) }
 
@@ -87,6 +92,7 @@ private fun SeriesSection(
 }
 
 private const val HISTORY = "HISTORY"
+private const val PAST_LOCAL_GAMES = "Past local games"
 private const val NOTHING_YET = "Games you finish will appear here."
 private const val LOADING = "Loading…"
 private const val RETRY = "Try again"

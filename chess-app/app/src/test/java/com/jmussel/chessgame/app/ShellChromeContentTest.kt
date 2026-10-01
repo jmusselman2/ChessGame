@@ -31,7 +31,7 @@ class ShellChromeContentTest {
 
     @Test
     fun theGameScreensHaveNoTopRowBecauseTheyDrawTheirOwnBack() {
-        listOf(Destination.LocalGame, Destination.OnlineGame("game-1")).forEach { destination ->
+        listOf(Destination.LocalGame, Destination.PastLocalGame(1), Destination.OnlineGame("game-1")).forEach { destination ->
             assertFalse(destination.toString(), ShellChromeContent.hasChrome(dashboard.open(destination)))
         }
     }
@@ -39,7 +39,7 @@ class ShellChromeContentTest {
     @Test
     fun everyOtherScreenAfterStartupHasTheTopRow() {
         assertTrue(ShellChromeContent.hasChrome(dashboard))
-        listOf(Destination.Friends, Destination.AllUsers, Destination.History).forEach { destination ->
+        listOf(Destination.Friends, Destination.AllUsers, Destination.History, Destination.PastLocalGames).forEach { destination ->
             assertTrue(destination.toString(), ShellChromeContent.hasChrome(dashboard.open(destination)))
         }
     }

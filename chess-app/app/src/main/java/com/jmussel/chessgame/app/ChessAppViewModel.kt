@@ -43,6 +43,8 @@ import com.jmussel.chessgame.ui.groups.Groups
 import com.jmussel.chessgame.ui.groups.GroupsUiState
 import com.jmussel.chessgame.ui.history.HistoryMessages
 import com.jmussel.chessgame.ui.history.HistoryUiState
+import com.jmussel.chessgame.ui.localhistory.LocalGameReview
+import com.jmussel.chessgame.ui.localhistory.PastLocalGamesUiState
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import com.jmussel.chessgame.ui.onboarding.UsernameOnboarding
 import com.jmussel.chessgame.ui.series.PlayOffer
@@ -139,6 +141,17 @@ class ChessAppViewModel(
 
     /** Reading or starting the local game, while that is under way. */
     private var localGameJob: Job? = null
+
+    /** Finished local games, newest first (`M21.3`). */
+    var pastLocalGames: PastLocalGamesUiState by mutableStateOf(PastLocalGamesUiState())
+        private set
+
+    /** The finished local game being looked back at, or `null` while it is being read. */
+    var localReview: LocalGameReview? by mutableStateOf(null)
+        private set
+
+    /** Reading past local games, or one of them, while that is under way. */
+    private var pastLocalGamesJob: Job? = null
 
     /**
      * The choice Play is waiting on, when the friend already had a series (`D053`), or `null`.
@@ -1622,6 +1635,32 @@ class ChessAppViewModel(
      */
     fun startNewLocalGame() {
         showLocalGame { localGames.startNew() }
+    }
+
+    /** Opens the list of finished local games and reads it from the device. */
+    fun openPastLocalGames() {
+        open(Destination.PastLocalGames)
+        pastLocalGamesJob?.cancel()
+        pastLocalGames = PastLocalGamesUiState(games = pastLocalGames.games, loading = true)
+        pastLocalGamesJob =
+            viewModelScope.launch { pastLocalGames = PastLocalGamesUiState(games = localGames.completedGames(), loading = false) }
+    }
+
+    /** Opens the finished local game [id] read-only, at its final position. */
+    fun openPastLocalGame(id: Long) {
+        open(Destination.PastLocalGame(id))
+        pastLocalGamesJob?.cancel()
+        localReview = null
+        pastLocalGamesJob =
+            viewModelScope.launch {
+                // Only a finished game is reviewed; an unfinished one is played, not looked back at.
+                localReview = localGames.game(id)?.takeUnless { it.isActive }?.let(::LocalGameReview)
+            }
+    }
+
+    /** Shows the game under review at [ply]. */
+    fun stepLocalReview(ply: Int) {
+        localReview = localReview?.at(ply)
     }
 
     /** Shows the local game [load] reads or starts, with nothing to tap until it has. */

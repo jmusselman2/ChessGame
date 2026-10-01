@@ -463,6 +463,10 @@ against the computer. It never uses the server.
 - **Past local games.** Finished local games are kept and listed newest first. Each
   opens read-only, with its result and moves, and the board can be stepped through
   move by move. There are no series, standings or statistics for local games.
+  Built by `M21.3`: History offers "Past local games", whose lines read like
+  "Pass-and-play • 1 Oct 2026 • White won by checkmate". A game opens at its final
+  position; Start, Previous, Next and End step through it, and nothing on the board
+  can be tapped. A pass-and-play game is shown face to face, as it was played.
 - **Works offline.** Local games do not wait on the server. If the app cannot reach
   it at startup, local games, new local games and past local games are still
   available next to Retry. Online play needs the server as before.

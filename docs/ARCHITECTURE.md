@@ -529,6 +529,14 @@ the screen:
   game, or a new one. Back leaves it in the store. New game deletes an unfinished game
   after the screen has asked.
 
+**Past local games, as built by `M21.3`.** `Destination.PastLocalGames` lists
+`LocalGameStore.completedGames()`; `Destination.PastLocalGame(id)` reviews one. Both
+read through `LocalGameSession`, so they come after any save still in flight.
+`LocalGameReview` (`ui/localhistory`) is the review: the game at ply `p` is
+`ChessGame(history[p].positionBefore, history.take(p))`, and the last ply is the stored
+game itself. Stepping reads the recorded positions and never replays a move. An
+unfinished game is not reviewed.
+
 ## 12. Realtime Architecture
 
 Use:

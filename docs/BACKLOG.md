@@ -7038,7 +7038,7 @@ Verified:
 
 ## M21.3 — Past local games
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M21.1
 
@@ -7066,6 +7066,33 @@ Let the player look back at finished local games (`D084`).
 - The `chess-app` unit tests for the history screen.
 - `.\gradlew.bat build`.
 - `git diff --check`.
+
+### Completion Note
+
+2026-10-01. History offers "Past local games" (`Destination.PastLocalGames`), which
+lists finished local games newest first: kind, date (the device's medium format) and
+result. A game opens read-only (`Destination.PastLocalGame(id)`) at its final position,
+with Start, Previous, Next and End. `LocalGameReview` (`ui/localhistory`) builds the
+game at each ply from the stored `positionBefore` records and never replays a move. A
+pass-and-play game is drawn face to face (`D087`); a computer game will be drawn from
+the human's side. An unfinished game is not reviewed. Reads go through
+`LocalGameSession`, so a game finished a moment ago is already listed.
+
+This entry needs the server to have started, like the rest of History; `M21.4` adds
+the offline entry.
+
+Verified:
+
+- `PastLocalGamesTest` (6): the review at every ply equals a test-side replay of that
+  many moves, through castling, en passant and a capturing promotion. Wording, bounds,
+  orientation.
+- `LocalGamePersistenceTest` gains 4: listed newest first with an unfinished game left
+  out; a game just finished is listed; opening is read-only and steps; an unfinished game
+  is not reviewed. `ShellChromeContentTest` covers the new destinations.
+- `PastLocalGamesUiTest` (instrumented, 2) passed on the Pixel 7: the list opens the
+  tapped game; the review's buttons step and a board tap changes nothing.
+- `.\gradlew.bat build`: BUILD SUCCESSFUL. `chess-app` debug unit tests: 587, none
+  failing.
 
 ## M21.4 — Local games are reachable when startup fails
 

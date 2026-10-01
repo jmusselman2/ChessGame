@@ -318,4 +318,106 @@ class LocalGamePersistenceTest {
             assertEquals(ChessGame.newGame(), viewModel.localGame.boardState.game)
             assertEquals(1, store.completedGames().size)
         }
+
+    // --- Past local games (M21.3) -----------------------------------------------------
+
+    /** Plays fool's mate in the open local game, which finishes it, and returns its id. */
+    private fun TestScope.finishAGame(viewModel: ChessAppViewModel): Long {
+        if (viewModel.navigation.current != Destination.LocalGame) openLocalGame(viewModel)
+        viewModel.startNewLocalGame()
+        advanceUntilIdle()
+        val id = store.activeGame()!!.id
+        tap(viewModel, "f2", "f3", "e7", "e5", "g2", "g4", "d8", "h4")
+        return id
+    }
+
+    @Test
+    fun finishedGamesAreListedNewestFirst() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+            val finished = (1..3).map { finishAGame(viewModel) }
+            // An unfinished game is not a past game.
+            viewModel.startNewLocalGame()
+            advanceUntilIdle()
+            tap(viewModel, "e2", "e4")
+            viewModel.back()
+
+            viewModel.restartAt(Destination.History)
+            viewModel.openPastLocalGames()
+            assertTrue(viewModel.pastLocalGames.loading)
+            advanceUntilIdle()
+
+            assertEquals(Destination.PastLocalGames, viewModel.navigation.current)
+            assertFalse(viewModel.pastLocalGames.loading)
+            assertEquals(finished.reversed(), viewModel.pastLocalGames.games.map { it.id })
+            assertTrue(viewModel.pastLocalGames.games.all { it.kind == LocalGameKind.PASS_AND_PLAY })
+        }
+
+    @Test
+    fun aGameJustFinishedAppearsInPastLocalGames() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+            // The list is read straight after the game-ending move, before anything else runs.
+            viewModel.startNewLocalGame()
+            advanceUntilIdle()
+            val id = store.activeGame()!!.id
+            listOf("f2", "f3", "e7", "e5", "g2", "g4", "d8", "h4").forEach { square ->
+                val state = viewModel.localGame
+                viewModel.updateLocalGame(state.copy(boardState = BoardInteraction.onSquareTapped(state.boardState, Square.parse(square))))
+            }
+            viewModel.openPastLocalGames()
+            advanceUntilIdle()
+
+            assertEquals(listOf(id), viewModel.pastLocalGames.games.map { it.id })
+            assertEquals(
+                GameResult.checkmate(Side.WHITE),
+                viewModel.pastLocalGames.games
+                    .single()
+                    .result,
+            )
+        }
+
+    @Test
+    fun aFinishedGameOpensReadOnlyAtItsEndAndStepsThroughItsMoves() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+            val id = finishAGame(viewModel)
+            val kept = store.game(id)!!
+            viewModel.restartAt(Destination.History)
+            viewModel.openPastLocalGames()
+            advanceUntilIdle()
+
+            viewModel.openPastLocalGame(id)
+            assertNull(viewModel.localReview)
+            advanceUntilIdle()
+
+            val review = viewModel.localReview!!
+            assertEquals(Destination.PastLocalGame(id), viewModel.navigation.current)
+            assertEquals(kept.game, review.game)
+            assertEquals(4, review.ply)
+            assertTrue(review.faceToFace)
+
+            viewModel.stepLocalReview(1)
+            assertEquals(listOf(Move.of("f2", "f3")), viewModel.localReview!!.game.moves)
+            viewModel.stepLocalReview(0)
+            assertEquals(ChessGame.newGame(), viewModel.localReview!!.game)
+
+            // Looking back changes nothing that was kept.
+            assertEquals(kept, store.game(id))
+            assertTrue(viewModel.back())
+            assertEquals(Destination.PastLocalGames, viewModel.navigation.current)
+        }
+
+    @Test
+    fun anUnfinishedGameIsNotReviewed() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+            tap(viewModel, "e2", "e4")
+            val unfinished = store.activeGame()!!.id
+
+            viewModel.openPastLocalGame(unfinished)
+            advanceUntilIdle()
+
+            assertNull(viewModel.localReview)
+        }
 }
