@@ -1,6 +1,7 @@
 package com.jmussel.chessgame.ui.board
 
 import com.jmussel.chessgame.core.chess.Board
+import com.jmussel.chessgame.core.chess.ChessGame
 import com.jmussel.chessgame.core.chess.Piece
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Side
@@ -53,6 +54,15 @@ object BoardRendering {
         orientation: Side,
         faceToFace: Boolean,
     ): Boolean = faceToFace && piece.side != orientation
+
+    /**
+     * The squares [game]'s latest move left and reached, for the last-move highlight, or none
+     * before the first move.
+     *
+     * Read from `chess-core`'s active move history, so after an Undo it is the move that is
+     * now latest. A castle is the king's two squares, as `chess-core` records it.
+     */
+    fun lastMoveSquares(game: ChessGame): Set<Square> = game.lastMove?.let { setOf(it.from, it.to) } ?: emptySet()
 
     /** Whether [square] is one of the light squares. `a1` is dark. */
     fun isLight(square: Square): Boolean = (square.file + square.rank) % 2 == 1

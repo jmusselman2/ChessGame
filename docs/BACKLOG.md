@@ -6869,7 +6869,8 @@ this milestone touches Ktor, PostgreSQL, `game_events` or any server query.
 *Split 2026-09-30:* the three tasks first scheduled became seven, before any work
 began, so each has a single testable outcome and leaves the app working. The
 acceptance criteria and tests are the original ones, moved, not rewritten. `M21.8`,
-the face-to-face pass-and-play board (`D087`), was added the same day.
+the face-to-face pass-and-play board (`D087`), was added the same day, and `M21.9`,
+pass-and-play's missing last-move highlight, after it.
 
 | Task    | Outcome                                             | Depends on   |
 | ------- | --------------------------------------------------- | ------------ |
@@ -6881,6 +6882,7 @@ the face-to-face pass-and-play board (`D087`), was added the same day.
 | `M21.6` | Computer turns and takeback in the view model       | M21.1, M21.5 |
 | `M21.7` | Play the computer: entry, difficulty, Play again    | M21.4, M21.6 |
 | `M21.8` | Pass-and-play drawn face to face (DONE)             | M5.5         |
+| `M21.9` | Pass-and-play highlights the last move (DONE)       | M5.5         |
 
 `M21.5` depends on nothing, but lowest-number-first selection takes `M21.1`–`M21.4`
 first.
@@ -7260,4 +7262,43 @@ with `kotlinc`. This session built and checked everything:
 - CI's "Make Gradle wrapper executable" (`chmod +x gradlew`) step is removed, since
   `gradlew` is committed executable. The removal is to be confirmed by the first CI
   run on `claude-autopilot` after this lands.
+- `git diff --check`: clean.
+
+## M21.9 — Pass-and-play highlights the last move
+
+**Status:** DONE
+
+**Depends on:** M5.5
+
+A defect, found 2026-09-30 and filed here as the next free M21 ID, after `M21.8`.
+
+### Objective
+
+`PRODUCT.md`'s *Game Screen* lists a last-move highlight. Online games had one, but
+the pass-and-play screen never passed `lastMove` to `ChessBoard`, so it never showed
+one. That has been true since `M5.5`, before `M21.8`.
+
+### Acceptance Criteria
+
+- The pass-and-play board highlights the from and to squares of the latest move, read
+  from `chess-core`'s active move history, not worked out in Compose.
+- After Undo it highlights the move that is now latest, and nothing once no move is
+  left.
+- Online games are unchanged.
+- Tests: no highlight at the start, the from and to squares after a move, and the
+  previous move after Undo.
+
+### Completion Note
+
+2026-10-01. `BoardRendering.lastMoveSquares` reads the latest move's from and to squares
+from `ChessGame.lastMove`, which is the active move history. `LocalGameScreen` passes
+them to `ChessBoard` as `lastMove`, which already drew the tint. `LastMoveHighlightTest`
+(5 tests) covers the start, a move, a reply, Undo back to the previous move, and Undo of
+the only move.
+
+- `.\gradlew.bat build`: BUILD SUCCESSFUL. `chess-app` debug unit tests: 531, none
+  failing. The first run failed only `SilentSocketTest.aPeerThatStopsAnsweringWithoutClosingIsNoticed`,
+  a realtime keepalive test with a fixed time budget, on a run that took 19m50s with
+  other JVMs busy. This change does not touch it, and it passed on the rerun.
+- Not checked on a device.
 - `git diff --check`: clean.
