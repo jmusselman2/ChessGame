@@ -19,6 +19,11 @@ flyway = "13.4.0"
 kotlinxSerialization = "1.11.0"
 datastore = "1.1.7"
 kotlinxCoroutines = "1.11.0"
+sqldelight = "2.4.0"
+# The Android driver stays on 2.2.1, the last release supporting minSdk 22 (2.3.0 raised it
+# to 23). Its runtime API is unchanged in 2.4.0 apart from additions, and the plugin, which
+# needs 2.4.0 to work with AGP 9's built-in Kotlin, brings runtime 2.4.0. See M21.1.
+sqldelightAndroidDriver = "2.2.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -63,6 +68,8 @@ flyway-core = { module = "org.flywaydb:flyway-core", version.ref = "flyway" }
 flyway-postgresql = { module = "org.flywaydb:flyway-database-postgresql", version.ref = "flyway" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
+sqldelight-android-driver = { module = "app.cash.sqldelight:android-driver", version.ref = "sqldelightAndroidDriver" }
+sqldelight-sqlite-driver = { module = "app.cash.sqldelight:sqlite-driver", version.ref = "sqldelight" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
@@ -70,3 +77,4 @@ kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "ko
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 ktlint = { id = "org.jlleitschuh.gradle.ktlint", version.ref = "ktlintGradle" }
+sqldelight = { id = "app.cash.sqldelight", version.ref = "sqldelight" }

@@ -31,8 +31,9 @@ Plus `database/migrations/` (Flyway `V1`–`V11`), `Dockerfile` and `render.yaml
 (the beta deploy), `scripts/` (beta verification), `evals/` (evaluator reports)
 and `docs/`.
 
-`chess-ai`, `deck-core`, the Deck Builder app and SQLDelight local storage are
-planned (`M21`, `F26`), not built. `CLAUDE.md`'s rules about them bind the code
+`chess-ai`, `deck-core` and the Deck Builder app are planned (`M21`, `F26`), not
+built. The SQLDelight local-game store exists (`M21.1`), but nothing uses it yet:
+pass-and-play moves onto it in `M21.2`. `CLAUDE.md`'s rules about them bind the code
 that will be written; you will not find it yet.
 
 ## Architecture
@@ -96,6 +97,11 @@ Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/groups`,
   `ChessBoard`, `BoardRendering`, `GameLayout`. `LocalGameScreen` is
   pass-and-play.
 - `ui/game/OnlineGame.kt` and `OnlineGameScreen.kt` — the online game.
+- `local/` — the device-authoritative store for local games (`D084`, `D085`).
+  `LocalGameStore` over the SQLDelight `LocalGameDatabase` generated from
+  `src/main/sqldelight` (`local_games`, `local_moves`); positions as JSON in
+  `LocalStateDocument`; `openLocalGameStore(context)` opens `local_games.db`, which
+  the backup rules exclude.
 
 ### Outside the code
 
@@ -252,6 +258,14 @@ commit.
 - **The local game is unreachable when startup fails** today: the top bar is
   hidden on the startup screen. `D084` requires local games to stay reachable;
   that arrives with `M21`.
+- **The local-game store's writes are intent-level and strict.** `recordMove` takes
+  the stored game plus exactly one move, `recordResult` a result with no new move,
+  `takeBack` a number of plies; anything else, or a finished game, is refused. Its
+  calls block: run them off the main thread.
+- **Two SQLDelight versions on purpose.** Plugin and runtime 2.4.0 (AGP 9), Android
+  driver 2.2.1 (minSdk 22). Don't "align" them; `docs/DEVELOPMENT.md` explains. Keep
+  the SQL within Android 5.1's SQLite 3.8, and change the schema only through a new
+  `.sqm` migration plus a new `databases/N.db` snapshot.
 - **`updateLocalGame` cannot tell a move from a selection change.** Saving local
   games (`M21.1`) needs intent-level callbacks, not a save on every state
   change.

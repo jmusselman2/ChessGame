@@ -6889,7 +6889,7 @@ first.
 
 ## M21.1 — The local game store
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** None
 
@@ -6942,6 +6942,36 @@ yet; `M21.2` moves pass-and-play onto it.
 - The storage tests.
 - `.\gradlew.bat build`.
 - `git diff --check`.
+
+### Completion Note
+
+2026-10-01. `com.jmussel.chessgame.local`: `LocalGameStore` over the SQLDelight
+`LocalGameDatabase` (`LocalGames.sq`, `LocalMoves.sq`), `LocalStateDocument` for
+positions, and `openLocalGameStore(context)` for `local_games.db`. Nothing calls it yet;
+`M21.2` does. `ARCHITECTURE.md` §11.4 describes what was built.
+
+- **Constraints.** A unique partial index allows one `ACTIVE` row. `CHECK`s tie status
+  to completion and kind to the computer's colour and difficulty (an integer level;
+  `M21.5` defines the levels). Moves are keyed `(game_id, ply)` with foreign keys on.
+- **Versioning.** Schema version 1, kept as `src/main/sqldelight/databases/1.db`.
+  `verifySqlDelightMigration` runs in `check`.
+- **Versions.** SQLDelight plugin and runtime 2.4.0, the first that works with AGP 9's
+  built-in Kotlin; the Android driver is pinned to 2.2.1, because 2.3.0 raised its
+  minSdk to 23 and the app supports 22. Runtime 2.4.0 only adds to 2.2.1's API. The
+  plugin cannot be declared in the root build (`DEVELOPMENT.md`).
+- **Backup.** Both rules files exclude the database and its `-journal`, `-wal` and
+  `-shm` files, in Auto Backup, cloud backup and device transfer.
+
+Verified:
+
+- `LocalGameStoreTest` (21) and `LocalGameBackupRulesTest` (3), on the JVM against a
+  real SQLite file. Removing `recordMove`'s or `takeBack`'s transaction fails exactly
+  its atomicity test, so those tests catch a non-atomic write.
+- `LocalGameStoreDeviceTest` passed on the Pixel 7 (Android 16) through the Android
+  driver. It was not run on Android 5.1: the Fire HD 8 is used only when the owner asks,
+  and no API 22 emulator image is installed.
+- `.\gradlew.bat build`: BUILD SUCCESSFUL. `chess-app` debug unit tests: 555, none
+  failing. `:chess-app:assembleDebugAndroidTest` compiles.
 
 ## M21.2 — Pass-and-play is saved and resumes
 

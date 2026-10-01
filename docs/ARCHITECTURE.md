@@ -480,6 +480,36 @@ PostgreSQL, and it works when server startup fails.
   the main thread. The app discards any result that no longer matches the current
   game and position.
 
+**The store, as built by `M21.1`** (package `com.jmussel.chessgame.local`):
+
+- **Schema.** `LocalGames.sq` and `LocalMoves.sq` under `src/main/sqldelight` generate
+  `LocalGameDatabase`. The schema is versioned from version 1: each released version's
+  schema is kept as `src/main/sqldelight/databases/N.db`, and
+  `verifySqlDelightMigration`, part of `check`, proves the `.sqm` migrations turn each
+  one into the current schema. A change to the tables is a new `N.sqm` and a new
+  snapshot, never an edit to a released one.
+- **Constraints in the database, too.** A unique partial index allows one `ACTIVE`
+  row. `CHECK`s tie the status to the completion time and result, and the kind to the
+  computer's colour and difficulty. `local_moves` is keyed by `(game_id, ply)` and
+  references its game; foreign keys are switched on for every connection.
+- **`LocalGameStore`** is the only way in. `startGame` deletes any unfinished game and
+  creates the new one in one transaction. `recordMove` appends one record and updates
+  the state, and completes the game if the move ended it. `recordResult` completes a
+  game ended by resignation or a claim. `takeBack(plies)` truncates and restores the
+  position recorded before the first removed ply. Each refuses a finished game, and a
+  move or result that does not follow from the stored position. `activeGame`, `game`
+  and `completedGames` (newest first) read. Calls block, so callers run them off the
+  main thread.
+- **Positions are JSON** (`LocalStateDocument`, the server's `GameStateDocument`
+  shape), keeping the repetition counts and halfmove clock, so a restored game offers
+  the same draw claims. Moves are coordinate notation (`e7e8q`).
+- **The file** is `local_games.db` (`LOCAL_GAME_DATABASE_NAME`), opened by
+  `openLocalGameStore(context)`. `backup_rules.xml` and `data_extraction_rules.xml`
+  exclude it and its `-journal`, `-wal` and `-shm` files.
+- **Versions.** The SQLDelight plugin and runtime are 2.4.0, the first release that
+  works with AGP 9's built-in Kotlin. The Android driver stays on 2.2.1, because 2.3.0
+  raised its minSdk to 23 and the app supports 22.
+
 ## 12. Realtime Architecture
 
 Use:

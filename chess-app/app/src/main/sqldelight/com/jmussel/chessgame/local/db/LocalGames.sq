@@ -1,0 +1,62 @@
+-- One row per local game: a game whose players are all on this device (D084).
+--
+-- `state` is the canonical current position, or the final one once the game has ended,
+-- as JSON (LocalStateDocument). The result is also kept in its own columns, so the list
+-- of finished games needs no JSON. Times are milliseconds since the epoch.
+CREATE TABLE local_games (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    kind TEXT NOT NULL CHECK (kind IN ('PASS_AND_PLAY', 'COMPUTER')),
+    status TEXT NOT NULL CHECK (status IN ('ACTIVE', 'COMPLETED')),
+    created_at INTEGER NOT NULL,
+    completed_at INTEGER,
+    state TEXT NOT NULL,
+    outcome TEXT,
+    termination_reason TEXT,
+    human_side TEXT CHECK (human_side IN ('WHITE', 'BLACK')),
+    difficulty INTEGER,
+    CHECK (
+        (status = 'ACTIVE' AND completed_at IS NULL AND outcome IS NULL AND termination_reason IS NULL) OR
+        (status = 'COMPLETED' AND completed_at IS NOT NULL AND outcome IS NOT NULL AND termination_reason IS NOT NULL)
+    ),
+    CHECK (
+        (kind = 'PASS_AND_PLAY' AND human_side IS NULL AND difficulty IS NULL) OR
+        (kind = 'COMPUTER' AND human_side IS NOT NULL AND difficulty IS NOT NULL)
+    )
+);
+
+-- At most one unfinished local game, of either kind (D084).
+CREATE UNIQUE INDEX local_games_one_active ON local_games (status) WHERE status = 'ACTIVE';
+
+insert:
+INSERT INTO local_games (kind, status, created_at, state, human_side, difficulty)
+VALUES (:kind, 'ACTIVE', :createdAt, :state, :humanSide, :difficulty);
+
+lastInsertId:
+SELECT last_insert_rowid();
+
+active:
+SELECT * FROM local_games WHERE status = 'ACTIVE';
+
+byId:
+SELECT * FROM local_games WHERE id = :id;
+
+updateState:
+UPDATE local_games SET state = :state WHERE id = :id AND status = 'ACTIVE';
+
+complete:
+UPDATE local_games
+SET state = :state,
+    status = 'COMPLETED',
+    completed_at = :completedAt,
+    outcome = :outcome,
+    termination_reason = :terminationReason
+WHERE id = :id AND status = 'ACTIVE';
+
+deleteActive:
+DELETE FROM local_games WHERE status = 'ACTIVE';
+
+completed:
+SELECT id, kind, created_at, completed_at, outcome, termination_reason, human_side, difficulty
+FROM local_games
+WHERE status = 'COMPLETED'
+ORDER BY completed_at DESC, id DESC;

@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.sqldelight)
 }
 
 // The Supabase URL is public and has a sensible default; the publishable key is
@@ -156,6 +157,21 @@ android {
     }
 }
 
+// Games whose players are all on this device are stored on it (`D084`), in SQLDelight
+// (`D085`). The schema is versioned from the first version: each released version's
+// schema is kept in `src/main/sqldelight/databases` (`N.db`, made by
+// `generateDebugLocalGameDatabaseSchema`), and `verifySqlDelightMigration`, part of
+// `check`, proves that the `.sqm` migrations turn each one into the current schema.
+sqldelight {
+    databases {
+        create("LocalGameDatabase") {
+            packageName.set("com.jmussel.chessgame.local.db")
+            schemaOutputDirectory.set(file("src/main/sqldelight/databases"))
+            verifyMigrations.set(true)
+        }
+    }
+}
+
 dependencies {
     implementation(project(":chess-core"))
     implementation(platform(libs.androidx.compose.bom))
@@ -173,7 +189,9 @@ dependencies {
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.client.websockets)
     implementation(libs.ktor.serialization.kotlinx.json)
+    implementation(libs.sqldelight.android.driver)
     testImplementation(libs.ktor.client.mock)
+    testImplementation(libs.sqldelight.sqlite.driver)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))

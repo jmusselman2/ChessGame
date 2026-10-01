@@ -29,6 +29,8 @@ Verified during bootstrap:
 - Android targetSdk: 37
 - Ktor: 3.5.2
 - ktlint Gradle plugin: 14.2.0
+- SQLDelight: 2.4.0 (plugin and runtime); Android driver 2.2.1, the last supporting
+  minSdk 22 (see **The local-game database**)
 - PostgreSQL: 18.6 (Docker `postgres:18-alpine`, host port 55432 — see **Local PostgreSQL**)
 
 Use the Gradle wrapper committed to the repository.
@@ -183,6 +185,46 @@ Status: VERIFIED (2026-08-25)
 Host-side JVM unit tests for the Android module. Do not rely on Android manual
 testing for chess-rule correctness — that belongs in `chess-core` tests.
 
+### The local-game database (SQLDelight)
+
+Status: VERIFIED (2026-10-01, `M21.1`)
+
+Pass-and-play and computer games are stored on the device in SQLDelight (`D084`,
+`D085`). The schema is the `.sq` files in `chess-app/app/src/main/sqldelight`; the
+Kotlin is generated into `build/` on every build and is never committed.
+
+The store's tests run on the JVM against a real SQLite file, through SQLDelight's JDBC
+driver, as part of the Android unit tests:
+
+    .\gradlew.bat :chess-app:testDebugUnitTest --tests "com.jmussel.chessgame.local.*"
+
+`LocalGameStoreDeviceTest` runs the same store through the Android driver on a device
+(see **Android Device Tests**); it deletes the database before and after.
+
+**Changing the schema.** Released schemas are kept as
+`src/main/sqldelight/databases/N.db`, starting with `1.db`, and
+`verifySqlDelightMigration` (part of `check`, so of `build`) proves that the
+migrations turn each one into the current `.sq` schema. To change it:
+
+1. Edit the `CREATE` statements in the `.sq` files.
+2. Add `N.sqm` in the same package directory, with the statements that turn version
+   `N` into the new one. The schema version becomes `N + 1`.
+3. Run `.\gradlew.bat :chess-app:generateDebugLocalGameDatabaseSchema` to write the new
+   snapshot, and commit it with the change.
+
+Never edit a released `.sqm` or `N.db`. Keep the SQL within what Android 5.1's SQLite
+(3.8) supports: no `UPSERT`, window functions, `STRICT` tables or `RENAME COLUMN`.
+
+**Why two SQLDelight versions.** The plugin must be 2.4.0, the first release that works
+with AGP 9's built-in Kotlin (2.2.1 fails with "KotlinSourceSet with name 'main' not
+found"). The Android driver from 2.3.0 on declares minSdk 23, which the manifest merger
+refuses for this app. Driver 2.2.1 runs on runtime 2.4.0, whose API only added to
+2.2.1's. Raising minSdk to 23 would drop Android 5.1 devices; that is the owner's call.
+
+The plugin is applied in `chess-app` only. Declaring it in the root build's `plugins`
+block, even with `apply false`, fails configuration with "Cannot find a version of
+'org.jetbrains:annotations' that satisfies the version constraints".
+
 ### Android Device Tests (instrumented)
 
 The Compose UI tests under `chess-app/app/src/androidTest` run on a device or
@@ -235,6 +277,9 @@ What they cover:
   control.
 - `LocalGameRotationTest` recreates `MainActivity` with a local game in progress.
 - `LocalDrawClaimUiTest` and the `M5*` tests are the earlier local-game screen tests.
+- `LocalGameStoreDeviceTest` saves, reopens, takes back and replaces a local game
+  through SQLDelight's Android driver and the device's SQLite (`M21.1`). It needs no
+  server.
 
 **Checking rotation by hand.** Install a debug build as above with
 `:chess-app:installDebug` instead of `connectedDebugAndroidTest`, which keeps the
