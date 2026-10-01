@@ -170,6 +170,21 @@ Linux/macOS/CI:
 
 Status: VERIFIED
 
+### Engine Tests
+
+Windows:
+
+    .\gradlew.bat :chess-ai:test
+
+Linux/macOS/CI:
+
+    ./gradlew :chess-ai:test
+
+Status: VERIFIED (2026-10-01, `M21.5`)
+
+The computer opponent's engine (`D086`, `D088`). The budget test prints how long each
+level took; add `-i` to see it. It takes about a minute, most of it Hard's searches.
+
 ### Android Unit Tests
 
 Windows:

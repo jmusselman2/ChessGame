@@ -19,10 +19,13 @@ production code.
 
 ## What exists today
 
-Three Gradle modules (`settings.gradle.kts`):
+Four Gradle modules (`settings.gradle.kts`):
 
 - `chess-core` — pure Kotlin/JVM chess rules. No I/O and no dependencies outside
   the module.
+- `chess-ai` — pure Kotlin/JVM: the computer opponent's `ChessEngine` and the
+  project's `AlphaBetaEngine` (`D086`, `D088`). Depends on `chess-core` only; only
+  `chess-app` may use it.
 - `server` — Ktor + Exposed on PostgreSQL. Authoritative for every online game.
 - `chess-app` — the Android app (Jetpack Compose); source under
   `chess-app/app/src/main/java/com/jmussel/chessgame/`.
@@ -31,9 +34,10 @@ Plus `database/migrations/` (Flyway `V1`–`V11`), `Dockerfile` and `render.yaml
 (the beta deploy), `scripts/` (beta verification), `evals/` (evaluator reports)
 and `docs/`.
 
-`chess-ai`, `deck-core` and the Deck Builder app are planned (`M21`, `F26`), not
-built. Pass-and-play is saved in the SQLDelight local-game store (`M21.1`, `M21.2`). `CLAUDE.md`'s rules about them bind the code
-that will be written; you will not find it yet.
+Pass-and-play is saved in the SQLDelight local-game store (`M21.1`, `M21.2`).
+Games against the computer are `M21.6`–`M21.7`. `deck-core` and the Deck Builder app
+are planned (`F26`), not built; `CLAUDE.md`'s rules about them bind the code that
+will be written, and you will not find it yet.
 
 ## Architecture
 
@@ -201,6 +205,7 @@ location not found".
 ./gradlew check                     # build without packaging
 ./gradlew ktlintCheck               # formatting; ktlintFormat fixes it (review the diff)
 ./gradlew :chess-core:test          # rules tests — start here for any rules change
+./gradlew :chess-ai:test            # the engine (about a minute)
 ./gradlew :chess-app:testDebugUnitTest
 ./gradlew :server:test              # database tests are no-ops without TEST_DATABASE_URL
 

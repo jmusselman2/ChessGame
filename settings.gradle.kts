@@ -42,4 +42,7 @@ if (!serverOnly) {
 
 include(":chess-core")
 
+// The computer opponent's engine (D086). Pure JVM, used only by :chess-app.
+include(":chess-ai")
+
 include(":server")

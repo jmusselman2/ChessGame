@@ -7151,7 +7151,7 @@ Verified:
 
 ## M21.5 — `chess-ai`: the `ChessEngine` interface and the project's Kotlin engine
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** None
 
@@ -7201,6 +7201,34 @@ code.
 - `.\gradlew.bat :chess-ai:test`.
 - `.\gradlew.bat build`.
 - `git diff --check`.
+
+### Completion Note
+
+2026-10-01. New module `chess-ai` (Kotlin/JVM plugin, `chess-core` only, in
+`settings.gradle.kts` for every build including `-PserverOnly`). It holds
+`ChessEngine`, `Difficulty` (levels 1–3, `ofLevel`) and `AlphaBetaEngine`:
+iterative deepening from a legal fallback, alpha-beta over `ChessRules`, captures and
+promotions ordered first, and material plus simple positional evaluation. `D088`
+records the levels: depth 1, 2 and 3; budgets 0.5, 1.5 and 3 s; random choice within
+150, 30 and 0 centipawns of the best, seeded by the engine's seed and the position.
+
+- **Cancellation.** `chooseMove` polls `isCancelled` at every node and returns `null`
+  once it is true. There is no coroutine dependency; `M21.6` adapts it.
+- **Speed.** One `ChessRules.applyMove` costs about 0.4 ms on a desktop JVM, so depth 4
+  took 2.7–7.3 s there and was left out. The measurements are in `D088`. A faster
+  `chess-core` would let the engine look further.
+
+Verified:
+
+- `AlphaBetaEngineTest` (13): legal moves through whole games at every level and two
+  seeds; the one legal move; promotion before the pawn is lost (a queen at Hard); mate
+  in one, both colours, at every level; Medium and Hard take a free queen and do not
+  give the queen for a guarded knight; the same move per seed and position; Easy
+  varies with the seed; each level within budget (desktop: Easy 4–17 ms, Medium
+  0.1–0.3 s, Hard 0.5–1.4 s); a spent budget still yields a legal move; cancellation
+  returns `null`; a finished game is refused.
+- `-PserverOnly=true :server:installDist` still configures (dry run).
+- `.\gradlew.bat build`: BUILD SUCCESSFUL.
 
 ## M21.6 — Computer turns and takeback
 

@@ -103,7 +103,7 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - Canonical operations on remotely coordinated games go through Ktor.
 - Games whose players are all on this device (pass-and-play, against the computer) are the one exception (`D084`). They are device-authoritative, stored on the device, and never use Ktor or PostgreSQL. They stay reachable when server startup fails, and they are excluded from Android backup.
 - SQLDelight is the default for new structured relational on-device storage (`D085`). Do not introduce Room without a decision that supersedes it. DataStore stays for preferences.
-- `chess-ai` is planned (`D086`); the module does not exist yet. It will be a chess-specific, pure Kotlin/JVM module. It depends only on `chess-core`, and only `chess-app` uses it (`D086`). Its `ChessEngine` interface chooses a computer's chess move. Do not generalise it into a cross-game engine abstraction.
+- `chess-ai` (`D086`, built by `M21.5`) is a chess-specific, pure Kotlin/JVM module. It depends only on `chess-core`, and only `chess-app` uses it (`D086`). Its `ChessEngine` interface chooses a computer's chess move. Do not generalise it into a cross-game engine abstraction.
 - Commands represent requested actions.
 - The server validates and applies commands using `chess-core`.
 - Every accepted game-state mutation increments the game version.

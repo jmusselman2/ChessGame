@@ -94,7 +94,7 @@ Recommended high-level layout:
 ```text
 .
 ├── chess-core/
-├── chess-ai/      (planned, M21.5)
+├── chess-ai/
 ├── chess-app/
 ├── server/
 ├── database/
@@ -128,6 +128,14 @@ in a local game. It is not a rules engine and not a cross-game abstraction: the
 prohibition on a generic `GameEngine` stands (`D044`, which `D086` supersedes only
 for this one chess-specific seam). An engine that needs native code, such as
 Stockfish, would live in `chess-app` and implement the same interface.
+
+As built by `M21.5`: `chess-ai` holds `ChessEngine` (`chooseMove(state, difficulty,
+isCancelled)`, returning `null` once cancelled), `Difficulty` (levels 1–3) and
+`AlphaBetaEngine`, an iterative-deepening alpha-beta search over `ChessRules` with
+material and simple positional evaluation. `D088` records its depths, budgets and
+margins. The engine blocks while it thinks; the caller puts it on a background
+thread. Only Gradle's Kotlin/JVM plugin and `chess-core` are involved; nothing
+depends on `chess-ai` until `chess-app` does in `M21.6`.
 
 ### Multi-game layout (`D082`)
 

@@ -6088,3 +6088,71 @@ decision in one pure function keeps it testable without Compose.
   Pixel 7, `M21.8`). Turned about its outline, every piece is within 1.5% of its
   upright height. `ChessBoard` finds the outline from the glyph's path at the text's
   size; this is drawing only, and no chess rule is involved.
+
+---
+
+## D088 — The First Engine's Three Levels
+
+**Date:** 2026-10-01
+
+**Status:** Accepted
+
+**Relates to:** `D086`, `M21.5`
+
+### Decision
+
+`chess-ai`'s `AlphaBetaEngine` plays the three levels `D086` asks for like this:
+
+| Level  | Stored as | Deepest search | Time budget | Chooses among moves within |
+| ------ | --------- | -------------- | ----------- | -------------------------- |
+| Easy   | 1         | 1 ply          | 0.5 s       | 150 centipawns of the best |
+| Medium | 2         | 2 plies        | 1.5 s       | 30 centipawns              |
+| Hard   | 3         | 3 plies        | 3 s         | 0 (the best)               |
+
+- It deepens one ply at a time from a legal fallback, and plays the result of the
+  deepest search it finished. Reaching the deepest search, the budget or a forced mate
+  ends it.
+- Among the moves within the level's margin it chooses at random, from a `Random`
+  seeded with the engine's seed and the position. One seed always plays the same move
+  in the same position.
+- The evaluation is material (100, 320, 330, 500, 900) plus simple positional terms:
+  pawn advance and centre, central minor pieces and queen, rooks on the seventh, and a
+  sheltered king that comes to the centre in the endgame.
+- A local game stores the level number (`local_games.difficulty`, `M21.1`), not the
+  settings, so the settings can change without a migration.
+
+### Rationale
+
+The search goes through `ChessRules` and nothing else, so it cannot play an illegal
+move and keeps no second copy of the rules. That is also its cost: one
+`ChessRules.applyMove` takes about 0.4 ms on a desktop JVM, because each one checks
+legality and whether the game has ended. Measured on that machine (`M21.5`), a full
+search took:
+
+| Depth | Opening    | Middlegame |
+| ----- | ---------- | ---------- |
+| 1     | 13 ms      | 22 ms      |
+| 2     | 0.1–0.4 s  | 0.1–0.7 s  |
+| 3     | 0.6–1.0 s  | 0.9–1.6 s  |
+| 4     | 2.7–7.3 s  | 4.9–6.4 s  |
+
+The second figure in a range is with a margin, which needs exact scores for more
+moves. A phone is slower still. Depth 4 would leave the player waiting several
+seconds a move even on a desktop, so Hard stops at 3, and its budget lets a slow phone
+fall back to depth 2 instead of stalling. Easy's wide margin and one-ply view make it
+take hanging material but blunder freely. Medium sees an immediate recapture.
+
+### Alternatives Considered
+
+- **A faster move generator inside `chess-ai`.** Rejected for now: it would be a
+  second implementation of the rules. Making `chess-core` itself faster would help the
+  server too, but it is a separate change to a module every game depends on.
+- **Quiescence search.** Deferred for the same cost reason: every capture searched
+  costs a full `applyMove`.
+
+### Consequences
+
+- `AlphaBetaEngine.settingsFor` holds the table. A test checks each level against its
+  budget, and that Medium and Hard take a free queen and do not give one away.
+- `M21.6` runs the engine off the main thread and maps `local_games.difficulty`
+  through `Difficulty.ofLevel`.
