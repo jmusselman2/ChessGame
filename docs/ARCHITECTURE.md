@@ -559,6 +559,16 @@ saves; `M21.7` gives it a screen.
 - **The engine** is `ChessAppDependencies.chessEngine`, an `AlphaBetaEngine` seeded
   afresh each launch. Tests pass scripted engines.
 
+**Playing the computer, as built by `M21.7`.** `Destination.ComputerGame` shows
+`ComputerGameScreen` (package `computer`), which reuses the local game's board,
+prompts and controls. `ComputerGame.open` resumes the unfinished computer game or
+sets `ComputerSetup`: `ConfirmReplacing` when a pass-and-play game is unfinished, then
+`ChooseDifficulty`. The first game's colour comes from `chooseSide` (random); Play
+again swaps it and keeps the level. The other way round, `LocalGameSession.resume`
+returns nothing when the unfinished game is against the computer, and the
+pass-and-play screen asks (`LocalGameUiState.replacingComputerGame`) before
+`startNewLocalGame` deletes it.
+
 **Past local games, as built by `M21.3`.** `Destination.PastLocalGames` lists
 `LocalGameStore.completedGames()`; `Destination.PastLocalGame(id)` reviews one. Both
 read through `LocalGameSession`, so they come after any save still in flight.

@@ -24,7 +24,7 @@ class LocalGameSessionTest {
     @Test
     fun savesRunInTheOrderTheyWereAskedFor() =
         runTest(dispatcher) {
-            val stored = session.resume()
+            val stored = session.resume()!!
             val start = stored.game
             val one = start.play("e2e4")
             val two = one.play("e7e5")
@@ -42,7 +42,7 @@ class LocalGameSessionTest {
     @Test
     fun aChangeOnlyToTheScreenWritesNothing() =
         runTest(dispatcher) {
-            val stored = session.resume()
+            val stored = session.resume()!!
             val start = stored.game
             // Any statement at all would now fail.
             driver.failOn = ""
@@ -57,7 +57,7 @@ class LocalGameSessionTest {
     @Test
     fun aFailedSaveLeavesTheStoredGameAndSaysSo() =
         runTest(dispatcher) {
-            val stored = session.resume()
+            val stored = session.resume()!!
             val start = stored.game
             val one = start.play("e2e4")
             session.save(stored.id, start, one) {}
@@ -72,18 +72,18 @@ class LocalGameSessionTest {
             driver.failOn = null
             assertEquals(one, store.activeGame()!!.game)
             // Resuming shows the stored game, which is the canonical one.
-            assertEquals(one, session.resume().game)
+            assertEquals(one, session.resume()!!.game)
         }
 
     @Test
     fun resumingWaitsForTheSavesAskedForBeforeIt() =
         runTest(dispatcher) {
-            val stored = session.resume()
+            val stored = session.resume()!!
             val start = stored.game
             val one = start.play("e2e4")
 
             session.save(stored.id, start, one) {}
 
-            assertEquals(one, session.resume().game)
+            assertEquals(one, session.resume()!!.game)
         }
 }

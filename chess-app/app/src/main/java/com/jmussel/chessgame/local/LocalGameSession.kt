@@ -33,16 +33,21 @@ class LocalGameSession(
 
     /**
      * The unfinished pass-and-play game, or a new one when nothing is unfinished: what
-     * opening the local game shows.
+     * opening the local game shows. `null` when the unfinished game is against the
+     * computer, which only the player may decide to replace (`D084`).
      */
-    suspend fun resume(): StoredLocalGame =
+    suspend fun resume(): StoredLocalGame? =
         serial {
             val active = store.activeGame()
-            // `M21.7` decides how this entry and the computer's meet when the other kind of
-            // game is unfinished; until then nothing reaches here with one.
-            check(active == null || active.kind == LocalGameKind.PASS_AND_PLAY) { "The unfinished local game is not pass-and-play" }
-            active ?: store.startGame()
+            when {
+                active == null -> store.startGame()
+                active.kind == LocalGameKind.PASS_AND_PLAY -> active
+                else -> null
+            }
         }
+
+    /** The unfinished local game of either kind, or `null` when there is none. */
+    suspend fun active(): StoredLocalGame? = serial { store.activeGame() }
 
     /** The unfinished game against the computer, or `null` when there is none (`M21.6`). */
     suspend fun resumeComputer(): StoredLocalGame? = serial { store.activeGame()?.takeIf { it.kind == LocalGameKind.COMPUTER } }

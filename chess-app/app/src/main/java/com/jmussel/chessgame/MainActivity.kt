@@ -16,6 +16,7 @@ import com.jmussel.chessgame.app.ChessApp
 import com.jmussel.chessgame.app.ChessAppDependencies
 import com.jmussel.chessgame.app.ChessAppViewModel
 import com.jmussel.chessgame.app.LaunchSplash
+import com.jmussel.chessgame.computer.ComputerGameActions
 import com.jmussel.chessgame.ui.allusers.AllUsersActions
 import com.jmussel.chessgame.ui.dashboard.DashboardActions
 import com.jmussel.chessgame.ui.friends.FriendsActions
@@ -115,6 +116,17 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
+                val computerActions =
+                    remember(viewModel) {
+                        ComputerGameActions(
+                            onUpdate = viewModel.computerGame::update,
+                            onTakeBack = viewModel.computerGame::takeBack,
+                            onConfirmReplacing = viewModel.computerGame::confirmReplacing,
+                            onChoose = viewModel.computerGame::choose,
+                            onPlayAgain = viewModel.computerGame::playAgain,
+                        )
+                    }
+
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     ChessApp(
                         navigation = viewModel.navigation,
@@ -138,6 +150,11 @@ class MainActivity : ComponentActivity() {
                         onOpenPastLocalGames = viewModel::openPastLocalGames,
                         onOpenPastLocalGame = viewModel::openPastLocalGame,
                         onStepLocalReview = viewModel::stepLocalReview,
+                        computerGame = viewModel.computerGame.state,
+                        computerSetup = viewModel.computerGame.setup,
+                        computerLoading = viewModel.computerGame.loading,
+                        computerActions = computerActions,
+                        onOpenComputerGame = viewModel::openComputerGame,
                         onOpen = viewModel::open,
                         onOpenFriends = viewModel::openFriends,
                         onOpenHistory = viewModel::openHistory,

@@ -2,7 +2,7 @@ package com.jmussel.chessgame.app
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -19,6 +19,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.jmussel.chessgame.computer.ComputerGameActions
+import com.jmussel.chessgame.computer.ComputerGameScreen
+import com.jmussel.chessgame.computer.ComputerGameUiState
+import com.jmussel.chessgame.computer.ComputerSetup
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.navigation.AppNavigation
@@ -89,6 +93,12 @@ fun ChessApp(
     onOpenPastLocalGames: () -> Unit = {},
     onOpenPastLocalGame: (Long) -> Unit = {},
     onStepLocalReview: (Int) -> Unit = {},
+    /** The game against the computer (`M21.7`). */
+    computerGame: ComputerGameUiState? = null,
+    computerSetup: ComputerSetup? = null,
+    computerLoading: Boolean = false,
+    computerActions: ComputerGameActions = ComputerGameActions(),
+    onOpenComputerGame: () -> Unit = {},
     onOpen: (Destination) -> Unit = {},
     onOpenFriends: () -> Unit = {},
     onOpenHistory: () -> Unit = {},
@@ -129,6 +139,7 @@ fun ChessApp(
             onOpen = onOpen,
             onOpenFriends = onOpenFriends,
             onOpenHistory = onOpenHistory,
+            onOpenComputerGame = onOpenComputerGame,
             onBack = onBack,
         )
 
@@ -138,6 +149,7 @@ fun ChessApp(
                     state = startup,
                     onRetry = onRetryStartup,
                     onOpenLocalGame = { onOpen(Destination.LocalGame) },
+                    onOpenComputerGame = onOpenComputerGame,
                     onOpenPastLocalGames = onOpenPastLocalGames,
                 )
             Destination.UsernameOnboarding -> UsernameScreen(claim = usernameClaim, onClaim = onClaimUsername)
@@ -161,6 +173,14 @@ fun ChessApp(
                     onOpenGame = { row -> onOpenGame(row.gameId) },
                     onRetry = onRetryHistory,
                     onOpenPastLocalGames = onOpenPastLocalGames,
+                )
+            Destination.ComputerGame ->
+                ComputerGameScreen(
+                    state = computerGame,
+                    setup = computerSetup,
+                    loading = computerLoading,
+                    actions = computerActions,
+                    onBack = onBack,
                 )
             Destination.PastLocalGames ->
                 PastLocalGamesScreen(state = pastLocalGames, onOpenGame = { game -> onOpenPastLocalGame(game.id) })
@@ -204,23 +224,27 @@ private fun ShellChrome(
     onOpen: (Destination) -> Unit,
     onOpenFriends: () -> Unit,
     onOpenHistory: () -> Unit,
+    onOpenComputerGame: () -> Unit,
     onBack: () -> Unit,
 ) {
     if (!ShellChromeContent.hasChrome(navigation)) return
 
-    Row(
+    // A flow row, so a narrow window moves the player's name to a line of its own rather
+    // than squeezing it out (`M21.7` added a fourth entry).
+    FlowRow(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        itemVerticalAlignment = Alignment.CenterVertically,
     ) {
         if (navigation.canGoBack) {
             TextButton(onClick = onBack) { Text(text = BACK) }
-            return@Row
+            return@FlowRow
         }
 
         TextButton(onClick = onOpenFriends) { Text(text = FRIENDS) }
         TextButton(onClick = onOpenHistory) { Text(text = HISTORY) }
         TextButton(onClick = { onOpen(Destination.LocalGame) }) { Text(text = LOCAL_GAME) }
+        TextButton(onClick = onOpenComputerGame) { Text(text = PLAY_THE_COMPUTER) }
 
         // At the far end, where an account conventionally sits. Plain text for now: it
         // becomes the way into user settings (`F35`), and until then it must not look
@@ -253,6 +277,7 @@ internal object ShellChromeContent {
             Destination.Startup,
             Destination.UsernameOnboarding,
             Destination.LocalGame,
+            Destination.ComputerGame,
             is Destination.PastLocalGame,
             is Destination.OnlineGame,
             -> false
@@ -284,6 +309,7 @@ private fun StartupScreen(
     state: StartupState,
     onRetry: () -> Unit,
     onOpenLocalGame: () -> Unit,
+    onOpenComputerGame: () -> Unit,
     onOpenPastLocalGames: () -> Unit,
 ) {
     Column(
@@ -322,6 +348,7 @@ private fun StartupScreen(
             Spacer(modifier = Modifier.height(8.dp))
             Text(text = PLAY_ON_THIS_PHONE, style = MaterialTheme.typography.bodyMedium)
             TextButton(onClick = onOpenLocalGame) { Text(text = LOCAL_GAME) }
+            TextButton(onClick = onOpenComputerGame) { Text(text = PLAY_THE_COMPUTER) }
             TextButton(onClick = onOpenPastLocalGames) { Text(text = PAST_LOCAL_GAMES) }
         }
     }
@@ -331,6 +358,7 @@ private const val BACK = "Back"
 private const val FRIENDS = "Friends"
 private const val HISTORY = "History"
 private const val LOCAL_GAME = "Local game"
+private const val PLAY_THE_COMPUTER = "Play the computer"
 private const val PAST_LOCAL_GAMES = "Past local games"
 private const val PLAY_ON_THIS_PHONE = "Games on this phone work without the server:"
 private const val STARTING = "Starting…"

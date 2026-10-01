@@ -35,7 +35,7 @@ Plus `database/migrations/` (Flyway `V1`–`V11`), `Dockerfile` and `render.yaml
 and `docs/`.
 
 Pass-and-play is saved in the SQLDelight local-game store (`M21.1`, `M21.2`).
-Games against the computer are `M21.6`–`M21.7`. `deck-core` and the Deck Builder app
+Games against the computer are played from "Play the computer" (`M21.6`, `M21.7`). `deck-core` and the Deck Builder app
 are planned (`F26`), not built; `CLAUDE.md`'s rules about them bind the code that
 will be written, and you will not find it yet.
 
@@ -100,9 +100,10 @@ Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/groups`,
   `ChessBoard`, `BoardRendering`, `GameLayout`. `LocalGameScreen` is
   pass-and-play.
 - `ui/game/OnlineGame.kt` and `OnlineGameScreen.kt` — the online game.
-- `computer/ComputerGame.kt` — a game against the computer below the screen
-  (`D086`): one engine search per computer turn, stale results discarded, takeback,
-  saving. `ChessAppViewModel.computerGame` owns it.
+- `computer/` — playing the computer (`D086`). `ComputerGame`: the entry questions
+  (`ComputerSetup`), one engine search per computer turn, stale results discarded,
+  takeback, Play again and saving; `ChessAppViewModel.computerGame` owns it.
+  `ComputerGameScreen` draws it with the local game's board and prompts.
 - `ui/localhistory/` — Past local games: the list, and `LocalGameReview`, a
   read-only ply-by-ply review built from the stored positions.
 - `local/` — the device-authoritative store for local games (`D084`, `D085`).

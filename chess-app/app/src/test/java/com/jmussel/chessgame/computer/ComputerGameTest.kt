@@ -60,7 +60,10 @@ class ComputerGameTest {
         }
     }
 
-    private fun TestScope.computerGame(engine: ChessEngine): ComputerGame = ComputerGame(session, engine, this, dispatcher)
+    private fun TestScope.computerGame(
+        engine: ChessEngine,
+        side: Side = Side.WHITE,
+    ): ComputerGame = ComputerGame(session, engine, this, dispatcher, chooseSide = { side })
 
     /** The human's tap on [squares], as the board works them out. */
     private fun ComputerGame.tap(vararg squares: String) {
@@ -348,5 +351,97 @@ class ComputerGameTest {
 
             assertTrue(game.state!!.game.isOver)
             assertNull(store.activeGame())
+        }
+
+    // --- Play the computer: entry, level, Play again (M21.7) --------------------------
+
+    @Test
+    fun withNothingUnfinishedTheEntryAsksForALevelAndTheColourIsChosenForTheFirstGame() =
+        runTest(dispatcher) {
+            val game = computerGame(ScriptedEngine("e2e4"), side = Side.BLACK)
+
+            game.open()
+            advanceUntilIdle()
+            assertEquals(ComputerSetup.ChooseDifficulty, game.setup)
+            assertNull(game.state)
+
+            game.choose(Difficulty.HARD)
+            advanceUntilIdle()
+
+            assertNull(game.setup)
+            assertEquals(ComputerOpponent(Side.BLACK, Difficulty.HARD.level), game.state!!.opponent)
+            assertEquals(ComputerOpponent(Side.BLACK, 3), store.activeGame()!!.computer)
+            // The computer had White, so it has opened.
+            assertEquals(1, game.moves.size)
+        }
+
+    @Test
+    fun theEntryResumesAnUnfinishedGameAgainstTheComputer() =
+        runTest(dispatcher) {
+            val first = started(ScriptedEngine("e7e5"), difficulty = 1)
+            first.tap("e2", "e4")
+            advanceUntilIdle()
+
+            val reopened = computerGame(ScriptedEngine())
+            reopened.open()
+            advanceUntilIdle()
+
+            assertNull(reopened.setup)
+            assertEquals(first.state!!.id, reopened.state!!.id)
+            assertEquals(listOf(Move.of("e2", "e4"), Move.of("e7", "e5")), reopened.moves)
+        }
+
+    @Test
+    fun anUnfinishedPassAndPlayGameIsOnlyReplacedOnceThePlayerAgrees() =
+        runTest(dispatcher) {
+            val passAndPlay = store.startGame()
+            store.recordMove(passAndPlay.id, ChessRules.applyMove(passAndPlay.game, Move.of("e2", "e4")))
+            val game = computerGame(ScriptedEngine())
+
+            game.open()
+            advanceUntilIdle()
+            assertEquals(ComputerSetup.ConfirmReplacing, game.setup)
+            // A level cannot be chosen before the question is answered.
+            game.choose(Difficulty.EASY)
+            advanceUntilIdle()
+            assertEquals(passAndPlay.id, store.activeGame()!!.id)
+
+            game.confirmReplacing()
+            assertEquals(ComputerSetup.ChooseDifficulty, game.setup)
+            game.choose(Difficulty.EASY)
+            advanceUntilIdle()
+
+            assertNull(store.game(passAndPlay.id))
+            assertEquals(emptyList<Any>(), store.completedGames())
+            assertEquals(LocalGameKind.COMPUTER, store.activeGame()!!.kind)
+        }
+
+    @Test
+    fun playAgainKeepsThePreviousGameAndTheLevelAndSwapsColours() =
+        runTest(dispatcher) {
+            val game = started(ScriptedEngine("e7e5", "d2d4"), difficulty = 2)
+            game.tap("e2", "e4")
+            advanceUntilIdle()
+            // Play again is offered only once the game has ended.
+            game.playAgain()
+            advanceUntilIdle()
+            assertEquals(2, game.moves.size)
+
+            game.update(GameControls.resign(game.state!!.boardState, Side.WHITE))
+            advanceUntilIdle()
+            val finished = game.state!!
+
+            game.playAgain()
+            advanceUntilIdle()
+
+            val again = game.state!!
+            assertTrue(again.id != finished.id)
+            assertEquals(ComputerOpponent(Side.BLACK, 2), again.opponent)
+            // The computer now has White and has opened; the new game owes nothing to the old.
+            assertEquals(listOf(Move.of("d2", "d4")), again.game.moves)
+            val kept = store.game(finished.id)!!
+            assertEquals(finished.game, kept.game)
+            assertEquals(ComputerOpponent(Side.WHITE, 2), kept.computer)
+            assertEquals(listOf(finished.id), store.completedGames().map { it.id })
         }
 }

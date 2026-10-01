@@ -21,6 +21,21 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
+import kotlin.random.Random
+
+/** A level's name: `"Easy"`, `"Medium"` or `"Hard"`. */
+fun difficultyName(difficulty: Int): String =
+    Difficulty
+        .ofLevel(difficulty)
+        .name
+        .lowercase()
+        .replaceFirstChar { it.uppercase() }
+
+/** How the computer is named on screen and in past local games: `"Computer (Medium)"`. */
+fun computerLabel(difficulty: Int): String = "Computer (${difficultyName(difficulty)})"
+
+/** `"You played White"`. */
+fun humanSideLabel(side: Side): String = if (side == Side.WHITE) "You played White" else "You played Black"
 
 /** A game against the computer as the screen shows it (`D086`). */
 data class ComputerGameUiState(
@@ -53,6 +68,15 @@ data class ComputerGameUiState(
         get() = !game.isOver && game.history.any { it.positionBefore.sideToMove == humanSide }
 }
 
+/** What "Play the computer" asks before a new game starts (`M21.7`). */
+sealed interface ComputerSetup {
+    /** A pass-and-play game is unfinished, and a new game would delete it (`D084`). */
+    data object ConfirmReplacing : ComputerSetup
+
+    /** Which of the three levels to play (`D086`, `D088`). */
+    data object ChooseDifficulty : ComputerSetup
+}
+
 /**
  * The logic of a game against the computer (`D086`, `M21.6`): whose turn it is, running the
  * engine, discarding stale results, takeback, and saving. The screen (`M21.7`) shows
@@ -78,9 +102,15 @@ class ComputerGame(
     private val engine: ChessEngine,
     private val scope: CoroutineScope,
     private val engineDispatcher: CoroutineDispatcher,
+    /** The human's colour in a new game from the entry: random (`D086`). Tests choose. */
+    private val chooseSide: () -> Side = { if (Random.nextBoolean()) Side.WHITE else Side.BLACK },
 ) {
     /** The game on screen, or `null` before one has been read or started. */
     var state: ComputerGameUiState? by mutableStateOf(null)
+        private set
+
+    /** What is being asked before a new game starts, or `null` when nothing is. */
+    var setup: ComputerSetup? by mutableStateOf(null)
         private set
 
     /** Whether the game is being read or started, so there is nothing to show yet. */
@@ -104,6 +134,51 @@ class ComputerGame(
                 null
             }
         }
+
+    /**
+     * What "Play the computer" does (`M21.7`): resumes the unfinished game against the
+     * computer, or asks for a level for a new one, first asking before an unfinished
+     * pass-and-play game is replaced.
+     */
+    fun open() {
+        stopSearching()
+        load?.cancel()
+        state = null
+        setup = null
+        loading = true
+        load =
+            scope.launch {
+                val active = session.active()
+                loading = false
+                when {
+                    active == null -> setup = ComputerSetup.ChooseDifficulty
+                    active.computer == null -> setup = ComputerSetup.ConfirmReplacing
+                    else -> display(active)
+                }
+            }
+    }
+
+    /** The player agreed to replace the unfinished pass-and-play game; now the level. */
+    fun confirmReplacing() {
+        if (setup == ComputerSetup.ConfirmReplacing) setup = ComputerSetup.ChooseDifficulty
+    }
+
+    /** Starts a new game at [difficulty], the human's colour chosen at random (`D086`). */
+    fun choose(difficulty: Difficulty) {
+        if (setup != ComputerSetup.ChooseDifficulty) return
+        setup = null
+        start(ComputerOpponent(chooseSide(), difficulty.level))
+    }
+
+    /**
+     * After a finished game: a new, independent game at the same level with the colours
+     * swapped (`D086`). The finished game stays in past local games; there is no series.
+     */
+    fun playAgain() {
+        val finished = state ?: return
+        if (!finished.game.isOver) return
+        start(finished.opponent.copy(humanSide = finished.humanSide.opposite))
+    }
 
     /** Starts a new game against [opponent] in place of any unfinished local game (`D084`). */
     fun start(opponent: ComputerOpponent) = show { session.startNew(opponent) }
@@ -163,18 +238,21 @@ class ComputerGame(
     private fun show(read: suspend () -> StoredLocalGame?) {
         stopSearching()
         load?.cancel()
+        setup = null
         loading = true
         load =
             scope.launch {
                 val stored = read()
                 loading = false
-                state =
-                    stored?.let {
-                        val opponent = checkNotNull(it.computer) { "Game ${it.id} is not against the computer" }
-                        ComputerGameUiState(it.id, opponent, BoardUiState(it.game, orientation = opponent.humanSide))
-                    }
-                thinkIfItsTheComputersTurn()
+                if (stored == null) state = null else display(stored)
             }
+    }
+
+    /** Shows [stored], and lets the computer think if it is to move. */
+    private fun display(stored: StoredLocalGame) {
+        val opponent = checkNotNull(stored.computer) { "Game ${stored.id} is not against the computer" }
+        state = ComputerGameUiState(stored.id, opponent, BoardUiState(stored.game, orientation = opponent.humanSide))
+        thinkIfItsTheComputersTurn()
     }
 
     /** Shows [next] and saves what it changed. */

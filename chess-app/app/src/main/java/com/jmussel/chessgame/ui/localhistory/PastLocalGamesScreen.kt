@@ -96,7 +96,7 @@ fun LocalGameReviewScreen(
             )
         },
         controls = {
-            Text(text = PastLocalGames.kindLabel(review.stored.kind))
+            Text(text = PastLocalGames.opponentLabel(review.stored.computer))
             Text(text = GameControls.statusFor(game))
             Text(text = review.position, style = MaterialTheme.typography.bodySmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

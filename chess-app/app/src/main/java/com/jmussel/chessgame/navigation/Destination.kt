@@ -41,6 +41,9 @@ sealed interface Destination {
     /** Pass-and-play on one device, which needs no account and no server, even to reach it (`D084`). */
     data object LocalGame : Destination
 
+    /** A game against the computer, on this device and without the server (`D086`). */
+    data object ComputerGame : Destination
+
     /** Finished local games, kept on this device (`D084`). */
     data object PastLocalGames : Destination
 

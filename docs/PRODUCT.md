@@ -498,6 +498,17 @@ against the computer. It never uses the server.
   starts a new game at the same level with the colours swapped. There is no automatic
   rematch and no series.
 
+*As built by `M21.7`:* "Play the computer" is in the top row next to "Local game", and
+on the startup screen while the server is unavailable. With nothing unfinished it asks
+for Easy, Medium or Hard; if a pass-and-play game is unfinished it first asks whether
+to delete it, and "Local game" asks the same way about an unfinished game against the
+computer. The game screen says "Computer (Medium) • You played Black", shows "The
+computer is thinking…" while it is, and offers Undo, any draw the player may claim,
+and Resign. A finished game offers Play again and Leave. Past local games list it as
+"Computer (Medium) • You played Black • date • result", and review it from the
+player's side with every piece upright. When the top row does not fit on one line, the
+player's name moves to a line of its own.
+
 ## Deferred Features
 
 Do not initially build the features below. The complete list of what is not in the

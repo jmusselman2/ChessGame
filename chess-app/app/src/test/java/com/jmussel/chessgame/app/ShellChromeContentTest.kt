@@ -31,7 +31,8 @@ class ShellChromeContentTest {
 
     @Test
     fun theGameScreensHaveNoTopRowBecauseTheyDrawTheirOwnBack() {
-        listOf(Destination.LocalGame, Destination.PastLocalGame(1), Destination.OnlineGame("game-1")).forEach { destination ->
+        val gameScreens = listOf(Destination.LocalGame, Destination.ComputerGame, Destination.PastLocalGame(1), Destination.OnlineGame("g"))
+        gameScreens.forEach { destination ->
             assertFalse(destination.toString(), ShellChromeContent.hasChrome(dashboard.open(destination)))
         }
     }

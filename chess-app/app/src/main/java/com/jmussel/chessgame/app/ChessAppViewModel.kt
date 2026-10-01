@@ -1664,6 +1664,17 @@ class ChessAppViewModel(
         showLocalGame { localGames.startNew() }
     }
 
+    /**
+     * "Play the computer" (`M21.7`): resumes the unfinished game against the computer, or
+     * asks for a level, first asking before an unfinished pass-and-play game is replaced.
+     * Opening it while it is already showing changes nothing.
+     */
+    fun openComputerGame() {
+        if (navigation.current == Destination.ComputerGame) return
+        computerGame.open()
+        open(Destination.ComputerGame)
+    }
+
     /** Opens the list of finished local games and reads it from the device. */
     fun openPastLocalGames() {
         open(Destination.PastLocalGames)
@@ -1691,13 +1702,15 @@ class ChessAppViewModel(
     }
 
     /** Shows the local game [load] reads or starts, with nothing to tap until it has. */
-    private fun showLocalGame(load: suspend () -> StoredLocalGame) {
+    private fun showLocalGame(load: suspend () -> StoredLocalGame?) {
         localGameJob?.cancel()
         localGameId = null
         localGame = LocalGameUiState(loading = true)
         localGameJob =
             viewModelScope.launch {
-                val stored = load()
+                // Nothing to show means a game against the computer is unfinished, and the
+                // player is asked before it is replaced (`D084`).
+                val stored = load() ?: return@launch run { localGame = LocalGameUiState(replacingComputerGame = true) }
                 localGameId = stored.id
                 localGame = LocalGameUiState(boardState = BoardUiState(stored.game))
             }
@@ -1722,6 +1735,8 @@ class ChessAppViewModel(
         val previous = navigation.back() ?: return false
         // Leaving the local game leaves it saved; opening it again reads it back (`D084`).
         if (navigation.current == Destination.LocalGame) localGameJob?.cancel()
+        // Leaving a game against the computer stops it thinking; opening it again resumes it.
+        if (navigation.current == Destination.ComputerGame) computerGame.leave()
         navigation = previous
         return true
     }

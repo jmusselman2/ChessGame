@@ -7324,7 +7324,7 @@ Verified:
 
 ## M21.7 — Play the computer
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M21.4, M21.6
 
@@ -7367,6 +7367,43 @@ game screen and Play again, on top of `M21.6`.
 - The `chess-app` unit tests for the computer game's screens.
 - `.\gradlew.bat build`.
 - `git diff --check`.
+
+### Completion Note
+
+2026-10-01. "Play the computer" is in the top row next to "Local game" and on the
+startup screen (`M21.4`). `ChessAppViewModel.openComputerGame` opens
+`Destination.ComputerGame`. `ComputerGame.open` resumes an unfinished computer game,
+or asks: first whether to delete an unfinished pass-and-play game
+(`ComputerSetup.ConfirmReplacing`), then the level (`ChooseDifficulty`). The first
+game's colour is random. "Local game" asks the same question the other way round
+(`LocalGameUiState.replacingComputerGame`). `ComputerGameScreen` reuses the local
+board, prompts and controls: the board is fixed to the human's colour with upright
+pieces, the header reads "Computer (Medium) • You played Black", and a finished game
+offers Play again (same level, colours swapped, a new game, the old one kept) and
+Leave. Past local games show the level and colour. `PRODUCT.md` *Playing the Computer*
+and `ARCHITECTURE.md` §11.4 describe what was built.
+
+- **Top row.** With a fourth entry the player's name no longer fitted on a 411 dp
+  screen and was squeezed to nothing. The row is now a `FlowRow`, so the name moves to
+  a second line when it must.
+
+Verified:
+
+- `ComputerGameTest` gains 4: with nothing unfinished the entry asks for a level and
+  the chosen colour is used; the entry resumes an unfinished computer game; an
+  unfinished pass-and-play game is replaced only after the player agrees; Play again
+  keeps the previous game and the level and swaps colours, and is not offered before
+  the end. `LocalGamePersistenceTest` gains 3: "Local game" asks before replacing an
+  unfinished computer game, and keeping it goes back; "Play the computer" asks before
+  replacing pass-and-play; a finished computer game shows its level and colour in
+  Past local games and is reviewed from the human's side. The existing pass-and-play
+  tests pass unchanged.
+- On an emulator (API 36, 411 dp wide) against the beta: the top row, the level
+  choice, a random Black, the computer's opening and reply, a two-ply Undo,
+  resignation, Play again as White, and the finished game in Past local games. The
+  Pixel 7 had dropped off USB, so this was not repeated there.
+- `.\gradlew.bat build`: BUILD SUCCESSFUL. `chess-app` debug unit tests: 612, none
+  failing. `:chess-app:assembleDebugAndroidTest` compiles.
 
 ## M21.8 — Face-to-face pass-and-play board
 
