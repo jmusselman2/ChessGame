@@ -8,6 +8,17 @@ Chess is the first ruleset, not the permanent product goal. The long-term goal i
 
 Build chess concretely. Do not prematurely design a universal board-game framework.
 
+## Codebase Map
+
+`AGENTS.md` is the working map of the code, shared with every other coding agent:
+what each module owns, the key flows (startup and identity, an online move,
+realtime, rematch, a local game), the build and test commands, and the sharp
+edges. It describes and does not bind; this file and the documents below win
+where it disagrees. Update it in the same change that makes it wrong. It is
+imported here:
+
+@AGENTS.md
+
 ## Required Reading
 
 Before making architectural or product-behavior changes, read:
@@ -76,7 +87,8 @@ that needs to bind becomes a decision in `docs/DECISIONS.md` (see `D044`).
 reason: they are nonbinding analysis, and `D061`, and `D069` and `D070`, are their binding
 outcomes. `docs/FUTURE.md` is absent because it is nonbinding detail for items
 whose scope `docs/MVP.md` already binds (`D072`). Standalone analysis documents
-in general carry no precedence of their own (`D062`).
+in general carry no precedence of their own (`D062`). `AGENTS.md` is absent too:
+it is a descriptive map of the code that defers to every document above.
 
 If a lower-precedence document conflicts with a higher-precedence document, do not silently reconcile them. Follow the higher-precedence document and update the stale lower-precedence document when appropriate.
 
