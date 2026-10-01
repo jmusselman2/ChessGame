@@ -135,7 +135,11 @@ work (`D072`).
 
 Use the committed Gradle wrapper. Verified commands are in `docs/DEVELOPMENT.md`.
 
-Single aggregate verification (also what CI runs):
+Before the first build, follow **Prerequisites** in `docs/DEVELOPMENT.md`: a JDK to
+start the wrapper, and the Android SDK's location in `ANDROID_HOME` or
+`local.properties`.
+
+Single aggregate verification (also what CI runs; on Windows, `.\gradlew.bat build`):
 
 ```bash
 ./gradlew build

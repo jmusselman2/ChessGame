@@ -1,10 +1,12 @@
 package com.jmussel.chessgame.ui.board
 
+import com.jmussel.chessgame.core.chess.Piece
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.core.chess.StandardPosition
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -78,12 +80,41 @@ class BoardOrientationTest {
     }
 
     @Test
-    fun passAndPlayTurnsTheBoardToWhoeverIsToMove() {
+    fun passAndPlayKeepsWhiteAtTheBottomWhoeverIsToMove() {
         val afterWhite = tap(BoardUiState.newGame(), "e2", "e4")
         val afterBlack = tap(afterWhite, "e7", "e5")
 
-        assertEquals(Side.BLACK, afterWhite.orientation)
+        assertEquals(Side.WHITE, afterWhite.orientation)
         assertEquals(Side.WHITE, afterBlack.orientation)
+    }
+
+    @Test
+    fun aMoveOrAnUndoLeavesATurnedBoardWhereItWas() {
+        val fromBlack = BoardUiState.newGame().copy(orientation = Side.BLACK)
+        val played = tap(fromBlack, "e2", "e4")
+
+        assertEquals(Side.BLACK, played.orientation)
+        assertEquals(Side.BLACK, GameControls.undo(played).orientation)
+    }
+
+    @Test
+    fun faceToFaceTheSideAtTheTopIsDrawnUpsideDown() {
+        val white = Piece(Side.WHITE, PieceType.KING)
+        val black = Piece(Side.BLACK, PieceType.KING)
+
+        assertFalse(BoardRendering.isUpsideDown(white, Side.WHITE, faceToFace = true))
+        assertTrue(BoardRendering.isUpsideDown(black, Side.WHITE, faceToFace = true))
+        assertTrue(BoardRendering.isUpsideDown(white, Side.BLACK, faceToFace = true))
+        assertFalse(BoardRendering.isUpsideDown(black, Side.BLACK, faceToFace = true))
+    }
+
+    @Test
+    fun aBoardThatIsNotFaceToFaceDrawsEveryPieceUpright() {
+        Side.entries.forEach { bottom ->
+            BoardRendering.squares(start, bottom).mapNotNull { it.piece }.forEach { piece ->
+                assertFalse(BoardRendering.isUpsideDown(piece, bottom, faceToFace = false))
+            }
+        }
     }
 
     @Test

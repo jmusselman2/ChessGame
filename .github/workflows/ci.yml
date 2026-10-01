@@ -48,9 +48,6 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Make Gradle wrapper executable
-        run: chmod +x gradlew
-
       # `build` is the single aggregate verification command. It runs, across
       # every module: ktlintCheck (wired into `check`), all JVM unit tests
       # (chess-core, server), Android debug + release unit tests, Android lint,

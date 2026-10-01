@@ -65,7 +65,8 @@ for task-level status.
 ### Android Local Game
 
 - Chess board renders.
-- Board orientation follows player color.
+- Board orientation follows player color; pass-and-play is fixed with White at the
+  bottom and Black's pieces upside down (`D087`).
 - Piece selection works.
 - Legal moves are highlighted.
 - Move submission works.

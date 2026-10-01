@@ -196,13 +196,13 @@ class DeclaredDrawClaimTest {
     }
 
     @Test
-    fun theBoardStillFacesTheDeclaringPlayerWhileTheyDecide() {
+    fun theBoardStaysPutWhileTheDeclaringPlayerDecides() {
         val before = beforeTheThirdOccurrence()
         val declared = tap(before, "f6", "g8")
 
-        assertEquals(Side.BLACK, before.orientation)
-        assertEquals(Side.BLACK, declared.orientation)
-        assertEquals(Side.BLACK, GameControls.claimDeclaredDraw(declared, DrawClaim.THREEFOLD_REPETITION).orientation)
+        assertEquals(Side.WHITE, before.orientation)
+        assertEquals(Side.WHITE, declared.orientation)
+        assertEquals(Side.WHITE, GameControls.claimDeclaredDraw(declared, DrawClaim.THREEFOLD_REPETITION).orientation)
     }
 
     @Test

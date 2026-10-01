@@ -132,7 +132,7 @@ class GameControlsTest {
     }
 
     @Test
-    fun undoingTakesTheMoveBackAndTurnsTheBoard() {
+    fun undoingTakesTheMoveBackAndLeavesTheBoardWhereItWas() {
         val played = tap(BoardUiState.newGame(), "e2", "e4")
         val restored = GameControls.undo(played)
 

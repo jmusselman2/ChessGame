@@ -91,7 +91,7 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - Canonical operations on remotely coordinated games go through Ktor.
 - Games whose players are all on this device (pass-and-play, against the computer) are the one exception (`D084`). They are device-authoritative, stored on the device, and never use Ktor or PostgreSQL. They stay reachable when server startup fails, and they are excluded from Android backup.
 - SQLDelight is the default for new structured relational on-device storage (`D085`). Do not introduce Room without a decision that supersedes it. DataStore stays for preferences.
-- `chess-ai` is a chess-specific, pure Kotlin/JVM module. It depends only on `chess-core`, and only `chess-app` uses it (`D086`). Its `ChessEngine` interface chooses a computer's chess move. Do not generalise it into a cross-game engine abstraction.
+- `chess-ai` is planned (`D086`); the module does not exist yet. It will be a chess-specific, pure Kotlin/JVM module. It depends only on `chess-core`, and only `chess-app` uses it (`D086`). Its `ChessEngine` interface chooses a computer's chess move. Do not generalise it into a cross-game engine abstraction.
 - Commands represent requested actions.
 - The server validates and applies commands using `chess-core`.
 - Every accepted game-state mutation increments the game version.
@@ -103,7 +103,8 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - ChessGame and the Deck Builder are separate Android apps in this one repository.
   They share one Ktor server, one database and one shared user (`D082`, which
   settled `M20.1`). Each has its own pure-JVM rules module: `chess-core` (formerly
-  `game-core`, renamed by `M20.3`) and `deck-core`. The ChessGame app is
+  `game-core`, renamed by `M20.3`) and `deck-core`, which is planned (`F26`) and
+  not yet created, like the Deck Builder app itself. The ChessGame app is
   `chess-app` (formerly `android-app`). A chess app never depends on
   `deck-core`, a Deck Builder app never depends on `chess-core`, and the two rules
   modules never depend on each other. The server may depend on both. It dispatches

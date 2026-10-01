@@ -410,7 +410,11 @@ Display:
 
 Board orientation:
 
-- own side at the bottom.
+- own side at the bottom, in online games and against the computer.
+- **Pass-and-play is face to face (`D087`).** The board never moves: White stays at
+  the bottom all game, and Black's pieces are drawn upside down so they face the
+  player sitting across the phone, as on a real board between two people. Only the
+  pieces turn; the status and controls read from the bottom.
 
 Layout (`D073`), decided by the window's size, not the device's orientation:
 

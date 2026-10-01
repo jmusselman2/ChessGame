@@ -1005,6 +1005,8 @@ bottom, reversing both ranks and files; square shades and identities are
 unaffected. `BoardUiState.orientation` carries it, and because pass-and-play on
 one device changes who is at the board every move, the board turns to the side
 to move after each move; `BoardInteraction.flipBoard` also turns it by hand.
+*Superseded 2026-09-30 by `D087` (`M21.8`): pass-and-play no longer turns; White
+stays at the bottom and Black's pieces are drawn upside down.*
 When a player has a fixed colour in a multiplayer game the same field will hold
 that colour. Verified locally with
 `.\gradlew.bat :android-app:testDebugUnitTest` (11 new `BoardOrientationTest`
@@ -6866,7 +6868,8 @@ this milestone touches Ktor, PostgreSQL, `game_events` or any server query.
 
 *Split 2026-09-30:* the three tasks first scheduled became seven, before any work
 began, so each has a single testable outcome and leaves the app working. The
-acceptance criteria and tests are the original ones, moved, not rewritten.
+acceptance criteria and tests are the original ones, moved, not rewritten. `M21.8`,
+the face-to-face pass-and-play board (`D087`), was added the same day.
 
 | Task    | Outcome                                             | Depends on   |
 | ------- | --------------------------------------------------- | ------------ |
@@ -6877,6 +6880,7 @@ acceptance criteria and tests are the original ones, moved, not rewritten.
 | `M21.5` | `chess-ai`: the `ChessEngine` interface and engine  | None         |
 | `M21.6` | Computer turns and takeback in the view model       | M21.1, M21.5 |
 | `M21.7` | Play the computer: entry, difficulty, Play again    | M21.4, M21.6 |
+| `M21.8` | Pass-and-play drawn face to face (DONE)             | M5.5         |
 
 `M21.5` depends on nothing, but lowest-number-first selection takes `M21.1`–`M21.4`
 first.
@@ -6986,6 +6990,8 @@ Let the player look back at finished local games (`D084`).
   and result. `M21.7` adds the difficulty and the human's colour for a computer game.
 - Opening one shows a read-only review of the board and the moves, stepped ply by
   ply.
+- A pass-and-play game is reviewed on the same face-to-face board it was played on
+  (`D087`, `M21.8`).
 - There are no series, standings or statistics.
 - **Tests:**
   - finished games are listed newest first;
@@ -7158,8 +7164,8 @@ game screen and Play again, on top of `M21.6`.
     first game.
 - **Game screen.**
   - It reuses the local chess UI where that fits.
-  - The board is fixed to the human's colour, and the opponent shows as "Computer
-    (level)" or equivalent.
+  - The board is fixed to the human's colour, every piece is upright (not face to
+    face, `D087`), and the opponent shows as "Computer (level)" or equivalent.
 - **Game end.**
   - The finished game stays in Past local games, showing the computer, difficulty,
     human colour, result and moves.
@@ -7180,3 +7186,78 @@ game screen and Play again, on top of `M21.6`.
 - The `chess-app` unit tests for the computer game's screens.
 - `.\gradlew.bat build`.
 - `git diff --check`.
+
+## M21.8 — Face-to-face pass-and-play board
+
+**Status:** DONE
+
+**Depends on:** M5.5
+
+First filed as `M21.4` on its branch; renumbered because the M21 split (seven tasks,
+`M21.1`–`M21.7`) took that ID.
+
+### Objective
+
+Draw pass-and-play as a real board between two people across the table (`D087`,
+asked for by the project owner on 2026-09-30).
+
+### Acceptance Criteria
+
+- The pass-and-play board never moves: White is at the bottom for the whole game,
+  through moves, Undo, declared moves and draw claims.
+- Black's pieces are drawn upside down on the pass-and-play board. White's are
+  upright.
+- Online games are unchanged, and every piece in them is upright.
+- `M21.3`'s past pass-and-play review uses the same face-to-face board.
+- A game against the computer (`M21.7`) is fixed to the human's colour with every
+  piece upright.
+- Tests: the board keeps its orientation through a move and an Undo; the side not
+  at the bottom is upside down only on a face-to-face board.
+- `PRODUCT.md`, `MVP.md` and `D087` describe the behaviour.
+
+### Completion Note
+
+2026-09-30. `BoardInteraction.applyMove` and `GameControls.undo` keep the
+orientation. `BoardRendering.isUpsideDown` decides which pieces turn, and
+`ChessBoard(faceToFace = true)` rotates them 180°. The tests that asserted the
+turning board now assert the fixed one (`D087`, *Consequences*). `gradlew` is
+committed executable (it was `100644`).
+
+The first session had no Android SDK, so it compiled only the pure-Kotlin files
+with `kotlinc`. This session built and checked everything:
+
+- `.\gradlew.bat build`: BUILD SUCCESSFUL. `chess-app` debug unit tests: 526, none
+  failing. The six affected classes hold 70 of them: `BoardOrientationTest` 14,
+  `DeclaredDrawClaimTest` 19, `GameControlsTest` 23, `LocalGameTest` 8,
+  `M5AdversarialTest` 3 and `M5IndependentReevaluationTest` 3.
+- `.\gradlew.bat :chess-app:assembleDebugAndroidTest`: BUILD SUCCESSFUL.
+- `:chess-app:connectedDebugAndroidTest` on a Pixel 7 (Android 16, API 36), for
+  `GameLayoutUiTest` (9), `LocalDrawClaimUiTest` (3), `M5LocalUiAdversarialTest` (2)
+  and `M5IndependentUiReevaluationTest` (1): 15 tests, 15 passed, none skipped.
+  `LocalGameRotationTest` was not run.
+- By eye, on the Pixel 7 with `:chess-app:installDebug` against the beta server:
+  pass-and-play at the start, after 1. e4, after 1... e5, after Undo, in landscape,
+  and after 1. e4 d5 2. Nc3 dxe4. The board never turned. White stayed at the
+  bottom, every Black piece was upside down, and every White piece was upright. An
+  online game between the Pixel 7 (White) and a Kindle Fire HD 8 (Black, API 22),
+  after 1. e4 e5, had every piece upright on both, each with its own colour at the
+  bottom.
+- **Centring needed a fix.** Turned about its text box, an upside-down glyph sat
+  up to 4.9% of a square higher than the same glyph upright. By piece, upright
+  against upside down: bishop 4.86%, king 2.87%, rook 2.48%, queen 1.69%, knight
+  0.69%, pawn 0.30%. That was measured from the ink of each piece in a screenshot
+  of the starting position. `ChessBoard` now turns an upside-down glyph about the
+  vertical middle of its outline, taken from the glyph's path at the text's size.
+  After the fix the differences are 1.48% or less (rook 1.48%, king 1.09%, the
+  rest 0.69% or less). `D087`'s last consequence says so.
+- Clean clone: a fresh `git clone` of this branch, with no `local.properties` and
+  no `ANDROID_HOME`, failed `.\gradlew.bat build` with "SDK location not found".
+  Nothing in `README.md` or `DEVELOPMENT.md` said to provide one. With
+  `ANDROID_HOME` set and nothing else, it passed: BUILD SUCCESSFUL, 134 tasks.
+  `DEVELOPMENT.md`'s *Prerequisites* now names the SDK location, the JDK that starts the wrapper (Gradle
+  provisions JDK 25 and 24 itself), and that Docker is optional for `build`.
+  `README.md` points to it.
+- CI's "Make Gradle wrapper executable" (`chmod +x gradlew`) step is removed, since
+  `gradlew` is committed executable. The removal is to be confirmed by the first CI
+  run on `claude-autopilot` after this lands.
+- `git diff --check`: clean.

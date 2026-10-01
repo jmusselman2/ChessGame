@@ -37,12 +37,29 @@ Use the Gradle wrapper committed to the repository.
 
 Expected:
 
-- JDK compatible with the selected Kotlin/Android/Ktor versions
-- Android Studio
-- Android SDK
-- Git
-- Docker (for the disposable local PostgreSQL — see **Local PostgreSQL**)
-- Gradle wrapper committed to repository
+- Git.
+- A JDK 17 or newer to start the Gradle wrapper, through `JAVA_HOME` or `java` on
+  `PATH`. Android Studio's bundled JDK (`<Android Studio>\jbr`) will do. Gradle finds
+  or downloads the rest itself: JDK 25 for its daemon
+  (`gradle/gradle-daemon-jvm.properties`) and JDK 24 for `chess-core` and `server`
+  (`jvmToolchain(24)`).
+- The Android SDK, usually installed by Android Studio. Gradle must be told where it
+  is, or `build` fails with "SDK location not found". Either set `ANDROID_HOME`, or
+  put a `local.properties` at the repository root, which Git ignores:
+
+      sdk.dir=C\:\\Users\\<you>\\AppData\\Local\\Android\\Sdk
+
+  Opening the project in Android Studio writes that file for you.
+- Docker, only for the disposable local PostgreSQL (see **Local PostgreSQL**).
+  Without `TEST_DATABASE_URL` the database-backed server tests are skipped, and
+  `build` still passes.
+- The Gradle wrapper committed to the repository. `gradlew` is committed
+  executable (`100755`), so a fresh Linux or macOS checkout should need no `chmod`.
+  CI no longer runs one. Its first run after `M21.8` lands confirms this.
+
+Status: VERIFIED (2026-09-30, `M21.8`). On a fresh clone with no `local.properties`
+and no `ANDROID_HOME`, `.\gradlew.bat build` failed with "SDK location not found".
+With `ANDROID_HOME` set and nothing else, it passed.
 
 Keep these versions synchronized with `gradle/libs.versions.toml`, Android build
 configuration, `compose.yaml`, and CI.

@@ -1,5 +1,9 @@
 package com.jmussel.chessgame.ui.board
 
+import android.graphics.Paint
+import android.graphics.Path
+import android.graphics.RectF
+import android.graphics.Typeface
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,14 +18,21 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -45,6 +56,9 @@ private val DestinationMarker = Color(0x9925691E)
 /** How much of a square's width a piece glyph fills. */
 private const val GLYPH_SCALE = 0.72f
 
+/** The turn, in degrees, that stands a piece on its head. */
+private const val UPSIDE_DOWN = 180f
+
 /** Marker sizes, as fractions of a square. */
 private const val DOT_SCALE = 0.28f
 private const val CAPTURE_RING_SCALE = 0.86f
@@ -64,9 +78,10 @@ fun squareTag(square: Square): String = "square-$square"
  *
  * Everything shown comes from `chess-core` through [BoardRendering]; this composable holds
  * no chess rules of its own. The board is drawn with [orientation]'s own side at the
- * bottom. [selectedSquare] is highlighted, [lastMove] marks the move just played, and
- * tapping any square calls [onSquareClick] — deciding what a tap means belongs to
- * [BoardInteraction].
+ * bottom, and on a [faceToFace] board the other side's pieces are drawn upside down, for a
+ * player sitting across from the device (`D087`). [selectedSquare] is highlighted,
+ * [lastMove] marks the move just played, and tapping any square calls [onSquareClick] —
+ * deciding what a tap means belongs to [BoardInteraction].
  */
 @Composable
 fun ChessBoard(
@@ -77,6 +92,7 @@ fun ChessBoard(
     legalDestinations: Set<Square> = emptySet(),
     lastMove: Set<Square> = emptySet(),
     orientation: Side = Side.WHITE,
+    faceToFace: Boolean = false,
     onSquareClick: (Square) -> Unit = {},
 ) {
     val cellSize = side / Square.FILES
@@ -107,6 +123,7 @@ fun ChessBoard(
                         isSelected = square.square == selectedSquare,
                         isLegalDestination = square.square in legalDestinations,
                         isLastMove = square.square in lastMove,
+                        isUpsideDown = square.piece?.let { BoardRendering.isUpsideDown(it, orientation, faceToFace) } == true,
                         onClick = { onSquareClick(square.square) },
                         modifier =
                             Modifier
@@ -127,6 +144,7 @@ private fun SquareCell(
     isSelected: Boolean,
     isLegalDestination: Boolean,
     isLastMove: Boolean,
+    isUpsideDown: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -142,11 +160,24 @@ private fun SquareCell(
         contentAlignment = Alignment.Center,
     ) {
         square.piece?.let { piece ->
+            // Kept for every piece, not only upside-down ones: a capture can turn the same glyph
+            // over without laying the text out again.
+            var turnAbout by remember { mutableStateOf(TransformOrigin.Center) }
             Text(
                 text = BoardRendering.glyphFor(piece.type).toString(),
                 color = if (piece.side == Side.WHITE) WhitePiece else BlackPiece,
                 fontSize = glyphSize,
                 textAlign = TextAlign.Center,
+                onTextLayout = { layout -> turnAbout = inkCentre(layout) },
+                modifier =
+                    if (isUpsideDown) {
+                        Modifier.graphicsLayer {
+                            rotationZ = UPSIDE_DOWN
+                            transformOrigin = turnAbout
+                        }
+                    } else {
+                        Modifier
+                    },
             )
         }
 
@@ -169,6 +200,33 @@ private fun SquareCell(
             }
         }
     }
+}
+
+/**
+ * The point an upside-down glyph turns about: half-way across its text box, and level with
+ * the middle of its drawn outline.
+ *
+ * A glyph's outline does not sit in the middle of its text box, so turning it about the box
+ * put it up to 5% of a square higher or lower than the same glyph upright (measured on a
+ * Pixel 7, `M21.8`). Turning it about the outline's middle leaves the outline at the height
+ * an upright glyph's would have. Across, the outline was already within 1% of the middle.
+ */
+private fun inkCentre(layout: TextLayoutResult): TransformOrigin {
+    val input = layout.layoutInput
+    val text = input.text.text
+    val height = layout.size.height
+    if (text.isEmpty() || height == 0) return TransformOrigin.Center
+
+    val paint = Paint()
+    paint.textSize = with(input.density) { input.style.fontSize.toPx() }
+    paint.typeface = Typeface.DEFAULT
+    val outline = Path()
+    paint.getTextPath(text, 0, text.length, 0f, 0f, outline)
+    val ink = RectF()
+    outline.computeBounds(ink, true)
+    if (ink.isEmpty) return TransformOrigin.Center
+
+    return TransformOrigin(0.5f, (layout.firstBaseline + ink.centerY()) / height)
 }
 
 /**

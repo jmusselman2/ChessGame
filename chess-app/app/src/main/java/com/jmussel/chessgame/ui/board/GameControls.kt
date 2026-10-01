@@ -56,7 +56,7 @@ object GameControls {
             selectedSquare = null,
             pendingPromotion = null,
             declaredMove = null,
-            orientation = game.sideToMove,
+            orientation = state.orientation,
         )
     }
 

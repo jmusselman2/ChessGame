@@ -114,7 +114,7 @@ class GameLayoutUiTest {
     }
 
     @Test
-    fun theLocalBoardTurnsAfterAMoveAndTapsFollowIt() {
+    fun theLocalBoardStaysPutAfterAMoveAndTapsStillLand() {
         showLocalGame(LocalGameUiState())
 
         listOf(TWO_PANE_VIEWPORTS.first(), ONE_COLUMN_VIEWPORTS.first()).forEach { window ->
@@ -126,8 +126,8 @@ class GameLayoutUiTest {
             composeRule.tapSquareAt(Square.parse("e4"), Side.WHITE)
             composeRule.onNodeWithText("1. e2e4").assertExists()
 
-            // Black now plays from the bottom: e7 is where Black's own second rank is drawn.
-            composeRule.tapSquareAt(Square.parse("e7"), Side.BLACK)
+            // The board does not turn for Black (`D087`): e7 is still drawn with White at the bottom.
+            composeRule.tapSquareAt(Square.parse("e7"), Side.WHITE)
             composeRule.onNodeWithTag(squareTag(Square.parse("e7"))).assertIsSelected()
         }
     }

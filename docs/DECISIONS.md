@@ -6017,3 +6017,74 @@ here rather than inherited by accident.
   `chess-ai`.
 - `F7` leaves `docs/FUTURE.md` and `docs/MVP.md`'s non-MVP list. Its ID is retired
   (`D072`).
+
+---
+
+## D087 — Pass-and-Play Is Drawn Face to Face
+
+**Date:** 2026-09-30
+
+**Status:** Accepted
+
+**Supersedes in part:** `M5.5`'s pass-and-play behaviour, where the board turned to
+the side to move after every move and every Undo. `PRODUCT.md`'s "own side at the
+bottom" stands for online games and games against the computer.
+
+**Relates to:** `D073`, `D084`, `D086`, `M5.5`, `M21.3`, `M21.7`
+
+### Decision
+
+A pass-and-play board is drawn as a physical board on a table between two players
+sitting opposite each other:
+
+- **The board never moves.** White is at the bottom for the whole game. Playing a
+  move, taking one back, declaring a move or claiming a draw leaves the orientation
+  as it is.
+- **The far side's pieces are upside down.** Black's pieces are drawn turned 180°,
+  so they face the player across the device. White's are upright.
+- **Only the pieces turn.** The status, the controls and the move list still read
+  from the bottom of the screen.
+
+A game against the computer is not face to face: nobody sits opposite. Its board is
+fixed to the human's colour, as `M21.7` already says, and every piece is upright.
+Online games are unchanged: the board shows the player's own colour at the bottom,
+and every piece is upright.
+
+`BoardUiState.orientation` carries the orientation, and nothing in the interaction
+layer changes it any more. `ChessBoard(faceToFace = true)` asks for upside-down
+pieces, and `BoardRendering.isUpsideDown` decides which ones: on a face-to-face
+board, the side that is not at the bottom.
+
+### Rationale
+
+The project owner asked for it (2026-09-30). A board that turns every move moves
+the squares under both players' eyes and hands. That makes the position harder to
+follow, and it doesn't fit a phone lying flat between two people. Keeping the
+decision in one pure function keeps it testable without Compose.
+
+### Alternatives Considered
+
+- **Keep turning the board.** Rejected by the owner.
+- **Also turn the controls for the player at the top.** Deferred. It is a layout
+  change to `GameLayout` (`D073`), not a board change, and the owner asked only for
+  the board and pieces.
+- **Upside-down pieces against the computer too.** Rejected: the computer has no
+  seat across the table.
+
+### Consequences
+
+- `BoardInteraction.applyMove` and `GameControls.undo` keep the current orientation
+  instead of setting it to the side to move.
+- The pass-and-play screen passes `faceToFace = true` to `ChessBoard`. Online games
+  and, once built, games against the computer do not.
+- `M21.3`'s past pass-and-play games are reviewed on the same face-to-face board.
+- The tests that asserted the turning board, some of them written by the
+  independent evaluator (`M5AdversarialTest`, `M5IndependentReevaluationTest`,
+  `M5IndependentUiReevaluationTest`), now assert the fixed board. The requirement
+  they checked changed; their other assertions are unchanged.
+- An upside-down glyph turns about the middle of its drawn outline, not of its text
+  box. A glyph's outline is not centred in its text box, so turning it about the box
+  put it up to 4.9% of a square higher than the same glyph upright (measured on a
+  Pixel 7, `M21.8`). Turned about its outline, every piece is within 1.5% of its
+  upright height. `ChessBoard` finds the outline from the glyph's path at the text's
+  size; this is drawing only, and no chess rule is involved.

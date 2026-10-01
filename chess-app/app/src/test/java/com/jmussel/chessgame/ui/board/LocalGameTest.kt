@@ -54,15 +54,18 @@ class LocalGameTest {
     }
 
     @Test
-    fun theBoardTurnsToWhoeverIsToMoveThroughoutTheGame() {
+    fun theBoardNeverTurnsThroughoutTheGame() {
         var state = BoardUiState.newGame()
 
         assertEquals(Side.WHITE, state.orientation)
 
         state = tap(state, "e2", "e4")
-        assertEquals(Side.BLACK, state.orientation)
+        assertEquals(Side.WHITE, state.orientation)
 
         state = tap(state, "e7", "e5")
+        assertEquals(Side.WHITE, state.orientation)
+
+        state = GameControls.undo(state)
         assertEquals(Side.WHITE, state.orientation)
     }
 

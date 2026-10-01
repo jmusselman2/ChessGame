@@ -27,7 +27,7 @@ class M5IndependentReevaluationTest {
 
             movesByDestination.forEach { (squares, moves) ->
                 val (from, to) = squares
-                val initial = BoardUiState(game = game, orientation = game.sideToMove)
+                val initial = BoardUiState(game = game)
                 val selected = BoardInteraction.onSquareTapped(initial, from)
 
                 assertEquals("position $positionIndex did not select $from", from, selected.selectedSquare)
@@ -193,7 +193,8 @@ class M5IndependentReevaluationTest {
         assertNull(state.pendingPromotion)
         assertNull(state.declaredMove)
         assertTrue(BoardInteraction.legalDestinations(state).isEmpty())
-        assertEquals(state.game.sideToMove, state.orientation)
+        // The local board never turns (`D087`).
+        assertEquals(Side.WHITE, state.orientation)
     }
 
     private fun board(vararg pieces: Pair<String, Piece>): Board =

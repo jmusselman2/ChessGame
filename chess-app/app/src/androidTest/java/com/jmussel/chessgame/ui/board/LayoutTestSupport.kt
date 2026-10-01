@@ -220,7 +220,7 @@ fun longGame(plies: Int): BoardUiState {
             val moves = ChessRules.legalMoves(game)
             game = ChessRules.applyMove(game, moves[random.nextInt(moves.size)])
         }
-        if (!game.isOver) return BoardUiState(game = game, orientation = game.sideToMove)
+        if (!game.isOver) return BoardUiState(game = game)
     }
     error("No seed below 1000 gave an unfinished game of $plies plies")
 }

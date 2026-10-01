@@ -42,6 +42,18 @@ object BoardRendering {
         orientation: Side = Side.WHITE,
     ): List<BoardSquare> = rows(board, orientation).flatten()
 
+    /**
+     * Whether [piece] is drawn upside down, so it faces the player across the board.
+     *
+     * Only a [faceToFace] board does this — pass-and-play, where the second player sits
+     * opposite (`D087`) — and only for the side at the top, the one [orientation] is not.
+     */
+    fun isUpsideDown(
+        piece: Piece,
+        orientation: Side,
+        faceToFace: Boolean,
+    ): Boolean = faceToFace && piece.side != orientation
+
     /** Whether [square] is one of the light squares. `a1` is dark. */
     fun isLight(square: Square): Boolean = (square.file + square.rank) % 2 == 1
 

@@ -50,7 +50,8 @@ fun LocalGameScreen(
 
 /**
  * Pass-and-play on one device: the board and whose turn it is, both read straight from
- * `chess-core`.
+ * `chess-core`. The board is drawn face to face and never turns, like a board on a table
+ * between the two players (`D087`).
  *
  * Nothing here is canonical and nothing here is sent anywhere — this is the local game,
  * kept separate from server-owned state (`docs/ARCHITECTURE.md`). Tapping a square goes
@@ -78,6 +79,7 @@ fun LocalGameScreen(
                 selectedSquare = game.selectedSquare,
                 legalDestinations = BoardInteraction.legalDestinations(game),
                 orientation = game.orientation,
+                faceToFace = true,
                 onSquareClick = { square -> play(BoardInteraction.onSquareTapped(game, square)) },
             )
         },

@@ -42,7 +42,7 @@ class M5AdversarialTest {
         assertEquals(Piece(Side.WHITE, PieceType.PAWN), captured.board.pieceAt(Square.parse("d6")))
         assertTrue(captured.board.isEmpty(Square.parse("d5")))
         assertEquals(Move.of("e5", "d6"), captured.game.moves.last())
-        assertEquals(Side.BLACK, captured.orientation)
+        assertEquals(Side.WHITE, captured.orientation)
         assertNull(captured.selectedSquare)
     }
 

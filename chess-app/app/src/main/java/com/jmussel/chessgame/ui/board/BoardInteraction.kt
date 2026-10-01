@@ -52,10 +52,10 @@ data class BoardUiState(
     /**
      * Whose side of the board is drawn at the bottom.
      *
-     * Pass-and-play on one device means the player at the board changes every move, so the
-     * board turns to the side to move and each of them sees their own pieces nearest.
-     * Once a player has a fixed colour in a multiplayer game, this is set to that colour
-     * instead.
+     * Pass-and-play is played face to face across one device, like a board on a table, so
+     * the board never turns: White stays at the bottom, and Black's pieces are drawn upside
+     * down for the player sitting opposite (`D087`). Playing a move or taking one back
+     * keeps this as it is.
      */
     val orientation: Side = Side.WHITE,
 ) {
@@ -198,7 +198,7 @@ object BoardInteraction {
             game = played,
             selectedSquare = null,
             pendingPromotion = null,
-            orientation = played.sideToMove,
+            orientation = state.orientation,
         )
     }
 
