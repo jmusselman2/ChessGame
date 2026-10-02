@@ -6851,7 +6851,7 @@ that database (`D083`, *Consequences*).
 
 ---
 
-# M21 — AI Opponent and Local Game Persistence
+# M21 — AI Opponent, Local Game Persistence, and Game-Screen Polish
 
 Formerly [`F7`](FUTURE.md) ("AI opponent"). The project owner scheduled it on
 2026-09-28; `F7`'s ID is retired (`D072`). It is governed by
@@ -6863,8 +6863,12 @@ Formerly [`F7`](FUTURE.md) ("AI opponent"). The project owner scheduled it on
 (the AI opponent). It is post-MVP work and does not change the MVP's definition of
 done.
 
-The server, the database and online chess are deliberately unchanged. Nothing in
-this milestone touches Ktor, PostgreSQL, `game_events` or any server query.
+The server, the database and the chess rules are deliberately unchanged. `M21.1`–
+`M21.13` add device-authoritative local games and the AI opponent; `M21.15`–
+`M21.18` add Android presentation and clarity work across local and online game
+screens. Nothing in this milestone touches Ktor, PostgreSQL, `game_events` or any
+server query, and the polish does not change automatic-rematch, retry, undo or draw
+semantics.
 
 *Split 2026-09-30:* the three tasks first scheduled became seven, before any work
 began, so each has a single testable outcome and leaves the app working. The
@@ -6888,6 +6892,10 @@ pass-and-play's missing last-move highlight, after it.
 | `M21.12` | The app shows the four levels; levels migrated     | M21.10, M21.11 |
 | `M21.13` | One unfinished local game of each kind             | M21.12         |
 | `M21.14` | View model tests answer HTTP on the test thread    | None           |
+| `M21.15` | Reconnect, waiting and game-refresh states         |                |
+| `M21.16` | Clearer game-end screens                           |                |
+| `M21.17` | Consistent move feedback on every playable board   |                |
+| `M21.18` | Explain Undo and draw claims                       |                |
 
 `M21.5` depends on nothing, but lowest-number-first selection takes `M21.1`–`M21.4`
 first.
@@ -6903,6 +6911,14 @@ playing pass-and-play, and the other way round (`D090`). `M21.13` allows one
 unfinished local game of each kind. It follows `M21.12`, so its schema migration comes
 after `M21.12`'s, and like the rest of `M21` it touches neither the server nor its
 database.
+
+*Added 2026-10-02 (game-screen polish):* the project owner scheduled `M21.15`–
+`M21.18` to make connection state, game endings, move feedback, Undo and draw claims
+clearer. This is Android presentation and explanation work. It preserves `D016`'s
+unilateral unanswered-move Undo, `D019`'s claimable draws, `D022`'s canonical HTTPS
+reload, `D037`'s safe-read-only wake retries and `D014`/`D015`'s automatic rematches.
+It adds no command retry, draw offer, opponent approval or manual online rematch, and
+it changes no chess rule, server API or database.
 
 ## M21.1 — The local game store
 
@@ -7920,3 +7936,183 @@ that set `Dispatchers.Main` and use a `MockEngine` (`ChessAppTest`, `AllUsersFlo
 - `.\gradlew.bat build`: BUILD SUCCESSFUL. Unit tests: `chess-app` 635, `chess-ai` 20,
   `chess-core` 394, `server` 603, none failing.
 - `git diff --check`: clean.
+
+## M21.15 — Reconnect, waiting, and game-refresh states
+
+**Status:** TODO
+
+**Depends on:** M12.3, M17.10, M21.4
+
+### Objective
+
+Tell the player whether an online game is loading for the first time, refreshing from
+the server, waiting for a sleeping server or reconnecting its realtime updates, and
+give them a safe way to try again without ever resending a game command.
+
+### Acceptance Criteria
+
+- **The states say what is happening.** An online game distinguishes:
+  - an initial load, before any canonical board has arrived;
+  - a refresh of the canonical game already on screen;
+  - realtime reconnecting after the socket drops; and
+  - waiting for the server during `D037`'s safe-read wake policy.
+- **A refresh does not blank the board.** Once a canonical game has been shown, its
+  board, last move and move list remain visible while a refresh or reconnect is in
+  progress. A short status says which operation is running.
+- **Recovery is clear.** A failed initial load or safe read offers Try again. A
+  reconnect that has not recovered offers a way to retry it now; the automatic
+  backoff remains in place (`D042`). Success clears the transient status after the
+  canonical HTTPS refresh has landed.
+- **Commands are never retried by the client.** Move, Undo, Claim Draw and Resign
+  remain one-attempt commands (`D037`). If a command's response is lost, the screen
+  explains that its outcome is unknown and offers **Refresh game**, never a button
+  that repeats the command.
+- Startup keeps its existing Starting, Waking and Failed states and its offline local
+  entries (`M21.4`). The same waiting language is used when an in-game safe read is
+  waiting through a cold server.
+- **Tests:** model and Compose UI tests cover initial loading; foreground refresh;
+  socket loss, backoff and recovery; cold-server waiting; a failed safe read and its
+  retry; a lost command response offering refresh without a second command; and the
+  last canonical board staying visible throughout refresh and reconnect.
+
+### Verification
+
+- The targeted `chess-app` connection-state and online-game unit and Compose UI tests.
+- `.\gradlew.bat :chess-app:testDebugUnitTest`.
+- `.\gradlew.bat :chess-app:assembleDebugAndroidTest`.
+- `.\gradlew.bat build`.
+- `git diff --check`.
+
+## M21.16 — Clearer game-end screens
+
+**Status:** TODO
+
+**Depends on:** M13.2, M13.5, M21.3, M21.7, M21.9, M21.10
+
+### Objective
+
+Make a finished game's outcome, final position and applicable next step immediately
+clear without changing how the game or its series ended.
+
+### Acceptance Criteria
+
+- Every finished game prominently says who won, or that it was drawn, and gives the
+  authoritative termination reason in player-facing words: checkmate, resignation,
+  stalemate, insufficient material, threefold repetition, the fifty-move rule,
+  fivefold repetition or the seventy-five-move rule.
+- The final board and move list remain visible. When a move ended the game, its from
+  and to squares remain the last-move highlight. A resignation or draw claim keeps the
+  last move that was actually played and does not invent a final move.
+- **Online:** while the dashboard is being checked, the screen explains that it is
+  finding the automatically created next game. An active series offers the server's
+  next game; an ended series offers return to the dashboard. No control requests,
+  confirms or creates a rematch (`D014`, `D015`).
+- **Computer:** the end state clearly offers Play again, New game, Review and Leave.
+  Play again and New game keep their existing `D086`/`D089` behavior.
+- **Pass-and-play:** the end state clearly offers New game and Review. Review opens
+  the completed game in `M21.3`'s existing saved-local-game review at its final ply.
+- **Online review boundary:** the documents specify ply-by-ply review only for saved
+  local games. A dedicated online ply-review flow remains an open product decision
+  and is not invented here; the completed online board stays read-only with its move
+  list unless a later decision schedules that feature.
+- **Tests:** cover every termination reason above; a move ending a game versus
+  resignation and a draw claim; the automatic next-game lookup and ended-series path;
+  Play again and New game for the computer; and Review/New game for pass-and-play.
+
+### Verification
+
+- The targeted `chess-app` game-end, online-game, computer-game and local-history unit
+  and Compose UI tests.
+- `.\gradlew.bat :chess-app:testDebugUnitTest`.
+- `.\gradlew.bat :chess-app:assembleDebugAndroidTest`.
+- `.\gradlew.bat build`.
+- `git diff --check`.
+
+## M21.17 — Consistent move feedback on every playable board
+
+**Status:** TODO
+
+**Depends on:** M5.4, M5.5, M5.6, M21.7, M21.9
+
+### Objective
+
+Make the move the player is considering, the move just played and a king in check
+unmistakable on online, pass-and-play and computer boards, using the shared board UI.
+
+### Acceptance Criteria
+
+- Every playable board distinguishes the selected square, an empty legal destination,
+  a legal capture, both squares of the last move and the checked king's square.
+- Overlapping feedback has one shared drawing order: the ordinary square is lowest,
+  then the last-move treatment, then the checked-king treatment, then the selected
+  treatment; legal-destination dots and capture rings remain visible above square
+  treatments. Styling may use reversible colors, outlines or shapes, but no category
+  may be distinguishable by color alone.
+- The existing textual Check status remains. The visual check indicator comes from
+  the authoritative online `inCheck` value or `chess-core` for local games; Compose
+  does not acquire its own chess rule.
+- Promotion continues to stop before the move is submitted. Queen, Rook, Bishop and
+  Knight are all prominent choices, and each choice exposes its piece name to
+  accessibility services rather than only a chess glyph.
+- Existing orientation rules remain: online and computer boards face the player;
+  pass-and-play stays face to face (`D087`). Exact colors and theme styling remain
+  reversible implementation choices.
+- **Tests:** shared rendering tests cover each feedback category and the overlap order;
+  online, pass-and-play and computer tests supply the right checked king and last move;
+  promotion UI tests find all four choices by accessible name; and portrait and wide
+  layouts keep every prompt and marker visible.
+
+### Verification
+
+- The targeted `chess-app` board-rendering and game-screen unit and Compose UI tests,
+  including portrait and wide-window cases.
+- `.\gradlew.bat :chess-app:testDebugUnitTest`.
+- `.\gradlew.bat :chess-app:assembleDebugAndroidTest`.
+- `.\gradlew.bat build`.
+- `git diff --check`.
+
+## M21.18 — Explain Undo and draw claims
+
+**Status:** TODO
+
+**Depends on:** M5.6, M21.6, M21.7
+
+### Objective
+
+Name exactly what Undo or a draw claim will do at the point where it is offered,
+including whether another person has to respond.
+
+### Acceptance Criteria
+
+- **Pass-and-play:** the action identifies the side whose latest move will be undone,
+  for example **Undo White's move**. It continues to use
+  `ChessRules.undoableSide`; the screen does not infer the side independently.
+- **Online:** the action says it undoes the player's own latest unanswered move. Its
+  supporting text says no opponent approval is needed and that the option is available
+  only until the opponent responds. It disappears when the canonical game says the
+  move is no longer undoable (`D016`).
+- **Computer:** while the computer is thinking, the action says it takes back the
+  pending human move. After the reply, it says it takes back the human move and the
+  computer reply. Both remain the existing `D086` takeback, not multiplayer Undo.
+- Every draw-claim action names threefold repetition or the fifty-move rule and says
+  that a valid claim ends the game immediately. Online copy explicitly says this is
+  not a draw offer and needs no opponent response; no agreement or approval flow is
+  added (`D019`).
+- A prospective local claim still binds to the exact declared move and, when claimed,
+  ends the game without playing that move (`D038`, `D041`). Its explanation says so.
+- Explanatory copy is visible at the action's decision point, not available only as an
+  accessibility description. Existing server and `chess-core` eligibility remain the
+  only sources of whether an action is offered.
+- **Tests:** cover White and Black pass-and-play Undo; online availability before and
+  after an opponent response; both computer takeback shapes; both draw-claim rules in
+  local and online play; declared-move claims; and the absence of opponent approval,
+  draw-offer and command-retry controls.
+
+### Verification
+
+- The targeted `chess-app` controls, online-game, computer-game and declared-claim unit
+  and Compose UI tests.
+- `.\gradlew.bat :chess-app:testDebugUnitTest`.
+- `.\gradlew.bat :chess-app:assembleDebugAndroidTest`.
+- `.\gradlew.bat build`.
+- `git diff --check`.
