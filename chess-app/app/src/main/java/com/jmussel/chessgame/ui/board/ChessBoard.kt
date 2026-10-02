@@ -25,13 +25,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
@@ -44,13 +52,17 @@ import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.core.chess.StandardPosition
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
+import androidx.compose.ui.graphics.Path as ComposePath
 
 private val LightSquare = Color(0xFFF0D9B5)
 private val DarkSquare = Color(0xFFB58863)
 private val WhitePiece = Color(0xFFFFFFFF)
 private val BlackPiece = Color(0xFF2B2B2B)
 private val SelectedSquare = Color(0x8046A5FF)
+private val SelectedOutline = Color(0xFF1565C0)
 private val LastMoveSquare = Color(0x66FFD54F)
+private val LastMoveCorner = Color(0xCC8D6E00)
+private val CheckGlow = Color(0xE6D32F2F)
 private val DestinationMarker = Color(0x9925691E)
 
 /** How much of a square's width a piece glyph fills. */
@@ -63,6 +75,8 @@ private const val UPSIDE_DOWN = 180f
 private const val DOT_SCALE = 0.28f
 private const val CAPTURE_RING_SCALE = 0.86f
 private const val CAPTURE_RING_WIDTH = 0.07f
+private const val LAST_MOVE_CORNER = 0.24f
+private const val SELECTED_OUTLINE_WIDTH = 0.08f
 
 /** The test tag on the whole board. */
 const val CHESS_BOARD_TAG = "chessBoard"
@@ -79,9 +93,14 @@ fun squareTag(square: Square): String = "square-$square"
  * Everything shown comes from `chess-core` through [BoardRendering]; this composable holds
  * no chess rules of its own. The board is drawn with [orientation]'s own side at the
  * bottom, and on a [faceToFace] board the other side's pieces are drawn upside down, for a
- * player sitting across from the device (`D087`). [selectedSquare] is highlighted,
- * [lastMove] marks the move just played, and tapping any square calls [onSquareClick] —
+ * player sitting across from the device (`D087`). Tapping any square calls [onSquareClick] —
  * deciding what a tap means belongs to [BoardInteraction].
+ *
+ * Every playable board marks the same things the same way (`M21.17`): [lastMove], the
+ * [checkedKing], the [selectedSquare], and the [legalDestinations] as dots and capture
+ * rings above them. [BoardRendering.feedbackFor] decides which apply and in what order;
+ * each has its own shape as well as its colour, and each square says what it shows to a
+ * screen reader.
  */
 @Composable
 fun ChessBoard(
@@ -91,6 +110,8 @@ fun ChessBoard(
     selectedSquare: Square? = null,
     legalDestinations: Set<Square> = emptySet(),
     lastMove: Set<Square> = emptySet(),
+    /** The king in check, from `chess-core` or the server's `inCheck`, never worked out here. */
+    checkedKing: Square? = null,
     orientation: Side = Side.WHITE,
     faceToFace: Boolean = false,
     onSquareClick: (Square) -> Unit = {},
@@ -120,9 +141,7 @@ fun ChessBoard(
                         square = square,
                         cellSize = cellSize,
                         glyphSize = glyphSize,
-                        isSelected = square.square == selectedSquare,
-                        isLegalDestination = square.square in legalDestinations,
-                        isLastMove = square.square in lastMove,
+                        feedback = BoardRendering.feedbackFor(square, selectedSquare, legalDestinations, lastMove, checkedKing),
                         isUpsideDown = square.piece?.let { BoardRendering.isUpsideDown(it, orientation, faceToFace) } == true,
                         onClick = { onSquareClick(square.square) },
                         modifier =
@@ -141,9 +160,7 @@ private fun SquareCell(
     square: BoardSquare,
     cellSize: Dp,
     glyphSize: TextUnit,
-    isSelected: Boolean,
-    isLegalDestination: Boolean,
-    isLastMove: Boolean,
+    feedback: SquareFeedback,
     isUpsideDown: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -152,11 +169,12 @@ private fun SquareCell(
         modifier =
             modifier
                 .testTag(squareTag(square.square))
-                .semantics { selected = isSelected }
-                .background(if (square.isLight) LightSquare else DarkSquare)
+                .semantics {
+                    selected = SquareHighlight.SELECTED in feedback.highlights
+                    feedback.description?.let { stateDescription = it }
+                }.background(if (square.isLight) LightSquare else DarkSquare)
                 .clickable(onClick = onClick)
-                .then(if (isLastMove) Modifier.background(LastMoveSquare) else Modifier)
-                .then(if (isSelected) Modifier.background(SelectedSquare) else Modifier),
+                .drawBehind { feedback.highlights.forEach { highlight(it) } },
         contentAlignment = Alignment.Center,
     ) {
         square.piece?.let { piece ->
@@ -181,23 +199,72 @@ private fun SquareCell(
             )
         }
 
-        if (isLegalDestination) {
-            // A dot marks an empty destination; a ring around the piece marks a capture.
-            if (square.piece == null) {
+        // Drawn after the piece and the square treatments, so neither hides it: a dot marks an
+        // empty destination, and a ring around the piece marks a capture.
+        when (feedback.destination) {
+            DestinationMark.MOVE ->
                 Box(
                     modifier =
                         Modifier
                             .size(cellSize * DOT_SCALE)
                             .background(DestinationMarker, CircleShape),
                 )
-            } else {
+
+            DestinationMark.CAPTURE ->
                 Box(
                     modifier =
                         Modifier
                             .size(cellSize * CAPTURE_RING_SCALE)
                             .border(cellSize * CAPTURE_RING_WIDTH, DestinationMarker, CircleShape),
                 )
+
+            null -> Unit
+        }
+    }
+}
+
+/**
+ * Draws one square treatment (`M21.17`). Each has a shape of its own, so they can be told
+ * apart without their colours: corner triangles for the last move, a glow for a check, an
+ * outline for the selected square.
+ */
+private fun DrawScope.highlight(highlight: SquareHighlight) {
+    when (highlight) {
+        SquareHighlight.LAST_MOVE -> {
+            drawRect(LastMoveSquare)
+            val corner = size.minDimension * LAST_MOVE_CORNER
+            listOf(
+                Offset(0f, 0f) to Offset(1f, 1f),
+                Offset(size.width, 0f) to Offset(-1f, 1f),
+                Offset(0f, size.height) to Offset(1f, -1f),
+                Offset(size.width, size.height) to Offset(-1f, -1f),
+            ).forEach { (at, inwards) ->
+                val triangle =
+                    ComposePath().apply {
+                        moveTo(at.x, at.y)
+                        lineTo(at.x + inwards.x * corner, at.y)
+                        lineTo(at.x, at.y + inwards.y * corner)
+                        close()
+                    }
+                drawPath(triangle, LastMoveCorner)
             }
+        }
+
+        SquareHighlight.CHECK ->
+            drawCircle(
+                brush = Brush.radialGradient(listOf(CheckGlow, Color.Transparent), center = center, radius = size.minDimension / 2),
+                radius = size.minDimension / 2,
+            )
+
+        SquareHighlight.SELECTED -> {
+            drawRect(SelectedSquare)
+            val width = size.minDimension * SELECTED_OUTLINE_WIDTH
+            drawRect(
+                color = SelectedOutline,
+                topLeft = Offset(width / 2, width / 2),
+                size = Size(size.width - width, size.height - width),
+                style = Stroke(width = width),
+            )
         }
     }
 }
@@ -245,9 +312,11 @@ fun PromotionChoice(
 ) {
     val glyphSize = with(LocalDensity.current) { PROMOTION_GLYPH.toSp() }
 
+    // Named for a screen reader, which would otherwise have only a chess glyph to read (`M21.17`).
+    val name = BoardRendering.nameFor(type)
     Button(
         onClick = onClick,
-        modifier = modifier.size(PROMOTION_BUTTON),
+        modifier = modifier.size(PROMOTION_BUTTON).semantics { contentDescription = name },
         contentPadding = PaddingValues(0.dp),
     ) {
         Text(text = BoardRendering.glyphFor(type).toString(), fontSize = glyphSize, lineHeight = glyphSize)

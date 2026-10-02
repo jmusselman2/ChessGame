@@ -92,6 +92,7 @@ fun LocalGameReviewScreen(
                 board = game.state.board,
                 side = side,
                 lastMove = BoardRendering.lastMoveSquares(game),
+                checkedKing = BoardRendering.checkedKing(game),
                 orientation = review.orientation,
                 faceToFace = review.faceToFace,
             )

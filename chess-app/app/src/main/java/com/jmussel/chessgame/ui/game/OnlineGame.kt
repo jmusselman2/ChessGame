@@ -12,6 +12,7 @@ import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.ui.ServerWaiting
+import com.jmussel.chessgame.ui.board.BoardRendering
 import com.jmussel.chessgame.ui.board.GameEndings
 import com.jmussel.chessgame.ui.board.PendingPromotion
 
@@ -257,6 +258,15 @@ object OnlineGame {
 
         return setOfNotNull(Square.parseOrNull(move.from), Square.parseOrNull(move.to))
     }
+
+    /**
+     * The square of the king in check, for the board's check marker (`M21.17`), or `null`.
+     *
+     * Whether there is a check is the server's `inCheck` (`D004`); this only finds the king it
+     * is about, the side to move's, on the board the server sent.
+     */
+    fun checkedKing(game: GameViewDto): Square? =
+        if (game.inCheck) BoardRendering.kingSquare(boardFrom(game.board), sideNamed(game.sideToMove)) else null
 
     /**
      * The game replayed from the moves the server listed, for previewing where a piece may

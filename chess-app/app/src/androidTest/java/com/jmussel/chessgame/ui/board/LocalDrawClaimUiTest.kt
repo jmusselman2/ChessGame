@@ -31,7 +31,7 @@ class LocalDrawClaimUiTest {
         composeRule.onNodeWithText("Playing f6g8", substring = true).assertExists()
         composeRule.onNodeWithText("Claim draw (threefold repetition)").performClick()
 
-        composeRule.onNodeWithText("Draw — THREEFOLD_REPETITION_CLAIM").assertExists()
+        composeRule.onNodeWithText("Drawn by threefold repetition").assertExists()
         composeRule.onNodeWithText("Claim draw (threefold repetition)").assertDoesNotExist()
         composeRule.onNodeWithText("Playing f6g8", substring = true).assertDoesNotExist()
         composeRule.onNodeWithText("4. f3g1 f6g8").assertDoesNotExist()

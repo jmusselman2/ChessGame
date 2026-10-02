@@ -179,6 +179,7 @@ private fun Game(
                 selectedSquare = state.selected,
                 legalDestinations = OnlineGame.legalDestinations(state),
                 lastMove = OnlineGame.lastMoveSquares(game),
+                checkedKing = OnlineGame.checkedKing(game),
                 orientation = OnlineGame.sideOf(game),
                 onSquareClick = onSquareTapped,
             )

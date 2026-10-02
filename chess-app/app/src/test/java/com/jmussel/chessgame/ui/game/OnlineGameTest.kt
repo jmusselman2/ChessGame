@@ -215,6 +215,22 @@ class OnlineGameTest {
         assertTrue(OnlineGame.unreachableMessage().contains("connection"))
     }
 
+    // --- Move feedback (`M21.17`) --------------------------------------------------------
+
+    @Test
+    fun theCheckedKingIsTheServersCheckOnTheSideToMove() {
+        // 1. e4 f6 2. Qh5+: Black is in check.
+        val rows = listOf("rnbqkbnr", "ppppp.pp", ".....p..", ".......Q", "....P...", "........", "PPPP.PPP", "RNB.KBNR")
+        val checked = game(yourSide = "BLACK", sideToMove = "BLACK", board = rows, inCheck = true, lastMove = MoveDto("d1", "h5"))
+
+        assertEquals(Square.parse("e8"), OnlineGame.checkedKing(checked))
+        assertEquals(setOf(Square.parse("d1"), Square.parse("h5")), OnlineGame.lastMoveSquares(checked))
+        assertNull(
+            "the server decides whether there is a check, not the board",
+            OnlineGame.checkedKing(game(yourSide = "BLACK", sideToMove = "BLACK", board = rows, inCheck = false)),
+        )
+    }
+
     // --- A finished game (`M21.16`) ------------------------------------------------------
 
     @Test

@@ -99,6 +99,7 @@ fun LocalGameScreen(
                 selectedSquare = game.selectedSquare,
                 legalDestinations = BoardInteraction.legalDestinations(game),
                 lastMove = BoardRendering.lastMoveSquares(game.game),
+                checkedKing = BoardRendering.checkedKing(game.game),
                 orientation = game.orientation,
                 faceToFace = true,
                 onSquareClick = { square -> play(BoardInteraction.onSquareTapped(game, square)) },

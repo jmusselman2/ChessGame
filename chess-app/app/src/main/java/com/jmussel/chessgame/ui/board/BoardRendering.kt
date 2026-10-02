@@ -2,6 +2,7 @@ package com.jmussel.chessgame.ui.board
 
 import com.jmussel.chessgame.core.chess.Board
 import com.jmussel.chessgame.core.chess.ChessGame
+import com.jmussel.chessgame.core.chess.ChessRules
 import com.jmussel.chessgame.core.chess.Piece
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Side
@@ -13,6 +14,52 @@ data class BoardSquare(
     val piece: Piece?,
     val isLight: Boolean,
 )
+
+/**
+ * A treatment of a whole square that marks a move in progress or just played (`M21.17`).
+ *
+ * Declared in drawing order, lowest first: the ordinary square, then the last move, then a
+ * king in check, then the selected square. Each has a shape as well as a colour, so none is
+ * told apart by colour alone, and a [description] for a screen reader.
+ */
+enum class SquareHighlight(
+    val description: String,
+) {
+    /** Either square of the move just played: a tint and a triangle in each corner. */
+    LAST_MOVE("last move"),
+
+    /** The king of the side to move, while it is in check: a glow behind the king. */
+    CHECK("king in check"),
+
+    /** The piece being moved: a tint and an outline around the square. */
+    SELECTED("selected"),
+}
+
+/**
+ * Where the selected piece may go (`M21.17`), drawn above every [SquareHighlight] so it is
+ * never hidden by one.
+ */
+enum class DestinationMark(
+    val description: String,
+) {
+    /** An empty square the piece may move to: a dot. */
+    MOVE("legal move"),
+
+    /** A square whose piece may be captured: a ring around it. */
+    CAPTURE("legal capture"),
+}
+
+/** Everything a square shows besides its shade and its piece, in drawing order (`M21.17`). */
+data class SquareFeedback(
+    /** The square treatments that apply, lowest first. */
+    val highlights: List<SquareHighlight> = emptyList(),
+    /** The destination mark on top of them, if the selected piece may go here. */
+    val destination: DestinationMark? = null,
+) {
+    /** What a screen reader says about it, such as `"last move, legal capture"`, or `null` for nothing. */
+    val description: String?
+        get() = (highlights.map { it.description } + listOfNotNull(destination?.description)).joinToString(", ").ifEmpty { null }
+}
 
 /**
  * Turns a `chess-core` [Board] into the rows a chess board is drawn from.
@@ -64,6 +111,48 @@ object BoardRendering {
      */
     fun lastMoveSquares(game: ChessGame): Set<Square> = game.lastMove?.let { setOf(it.from, it.to) } ?: emptySet()
 
+    /**
+     * The square of the king that is in check in [game], or `null` when none is.
+     *
+     * Whether there is a check is `chess-core`'s answer (`ChessRules.isInCheck`); this only
+     * finds the king it is about, which is the side to move's. A checkmated king stays marked.
+     */
+    fun checkedKing(game: ChessGame): Square? =
+        if (ChessRules.isInCheck(game.state)) kingSquare(game.state.board, game.sideToMove) else null
+
+    /** Where [side]'s king stands on [board], or `null` when it is not there. */
+    fun kingSquare(
+        board: Board,
+        side: Side,
+    ): Square? = board.squaresOf(side, PieceType.KING).firstOrNull()
+
+    /**
+     * What [square] shows (`M21.17`): which highlights apply, in the shared drawing order, and
+     * the destination mark, a dot on an empty square or a ring around a piece to capture.
+     */
+    fun feedbackFor(
+        square: BoardSquare,
+        selected: Square?,
+        legalDestinations: Set<Square>,
+        lastMove: Set<Square>,
+        checkedKing: Square?,
+    ): SquareFeedback {
+        val applies =
+            mapOf(
+                SquareHighlight.LAST_MOVE to (square.square in lastMove),
+                SquareHighlight.CHECK to (square.square == checkedKing),
+                SquareHighlight.SELECTED to (square.square == selected),
+            )
+        val destination =
+            when {
+                square.square !in legalDestinations -> null
+                square.piece == null -> DestinationMark.MOVE
+                else -> DestinationMark.CAPTURE
+            }
+
+        return SquareFeedback(highlights = SquareHighlight.entries.filter { applies.getValue(it) }, destination = destination)
+    }
+
     /** Whether [square] is one of the light squares. `a1` is dark. */
     fun isLight(square: Square): Boolean = (square.file + square.rank) % 2 == 1
 
@@ -82,6 +171,9 @@ object BoardRendering {
             PieceType.KNIGHT -> '♞'
             PieceType.PAWN -> '♟'
         }
+
+    /** A piece's name, `"Queen"`, for a screen reader and wherever a glyph alone is not enough. */
+    fun nameFor(type: PieceType): String = type.name.lowercase().replaceFirstChar { it.uppercase() }
 
     /** The file letters, left to right, as [orientation] sees them. */
     fun fileLabels(orientation: Side = Side.WHITE): List<String> {

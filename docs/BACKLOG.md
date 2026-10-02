@@ -8162,7 +8162,7 @@ clear without changing how the game or its series ended.
 
 ## M21.17 — Consistent move feedback on every playable board
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M5.4, M5.5, M5.6, M21.7, M21.9
 
@@ -8202,6 +8202,63 @@ unmistakable on online, pass-and-play and computer boards, using the shared boar
 - `.\gradlew.bat :chess-app:assembleDebugAndroidTest`.
 - `.\gradlew.bat build`.
 - `git diff --check`.
+
+### Completion Note
+
+2026-10-02. Android only; no rule, server or orientation change.
+
+- **One model.** `BoardRendering.feedbackFor` returns a square's `SquareFeedback`:
+  - its `SquareHighlight`s, filtered from the enum in its declared order: `LAST_MOVE`,
+    then `CHECK`, then `SELECTED`;
+  - its `DestinationMark`: `MOVE` (a dot) or `CAPTURE` (a ring).
+
+  `ChessBoard` draws the highlights in `drawBehind` in that order over the ordinary
+  square, then the piece, then the mark on top.
+- **Shapes, not only colours.** Each category has its own shape:
+  - last move: a tint and a triangle in each corner;
+  - check: a red glow behind the king;
+  - selected: a tint and an outline;
+  - an empty destination: a dot;
+  - a capture: a ring.
+
+  Each square also gets `stateDescription`, for example "last move, legal capture"
+  or "king in check, selected".
+- **Check.** It comes from the rules or the server, never from Compose:
+  - `BoardRendering.checkedKing(game)` uses `ChessRules.isInCheck` and then finds that
+    side's king. A checkmated king stays marked.
+  - `OnlineGame.checkedKing(game)` uses the server's `inCheck`.
+
+  The pass-and-play, computer, online and review boards all pass it. The Check status
+  text is unchanged.
+- **Promotion.** `PromotionChoice` is named for accessibility ("Queen", "Rook",
+  "Bishop", "Knight", from `BoardRendering.nameFor`) as well as showing its glyph. The
+  prompt still comes before anything is sent.
+- **Orientation.** Unchanged: online and the computer face the player, and
+  pass-and-play stays face to face (`D087`).
+- **Tests.**
+  - `SquareFeedbackTest` (new) covers:
+    - an ordinary square, and each category alone;
+    - all five together in the shared order, which is also the enum order;
+    - a capture on a last-move square;
+    - no king marked without check, the checked king in pass-and-play, a checkmated
+      king, and the computer's checking move;
+    - the four promotion names.
+  - `OnlineGameTest` checks that the server's `inCheck`, not the board, decides the
+    marked king.
+  - `MoveFeedbackUiTest` (Compose, new) reads each square's description on each board:
+    - pass-and-play's selection, move, capture and last move, in two-pane and
+      one-column windows;
+    - pass-and-play's checked king that is also selected;
+    - the computer's checked king and last move;
+    - the online game's check, last move, selection and destination;
+    - all four promotion choices found by name and inside the window in both layouts,
+      locally and online.
+- **Also fixed:** `LocalDrawClaimUiTest` still expected `M21.16`'s old wording ("Draw —
+  THREEFOLD_REPETITION_CLAIM"), which `M21.16` missed because CI does not run
+  `androidTest`. It now expects "Drawn by threefold repetition".
+- **Device run.** On the `ChessPlayerM5Api36` emulator (Android 16): `MoveFeedbackUiTest` 6/6, `GameLayoutUiTest` 9/9, `GameEndUiTest` 4/4, both M5 UI tests, `LocalDrawClaimUiTest` 3/3 after the wording fix, `OnlineGameConnectionUiTest` 7/7, `LocalGameRotationTest`, `LocalGameStoreDeviceTest` and `ExampleInstrumentedTest`. `OnlineGameLayoutUiTest` was cut short when the emulator process was stopped at its 2-hour limit (one test failed with no message, one skipped). The Pixel 7 had dropped off USB, so it was not run again. Its tap geometry is unchanged by this task, and `GameLayoutUiTest`'s every-square tap test passed on the new board.
+- `.\gradlew.bat build`: BUILD SUCCESSFUL. Unit tests: `chess-app` 678, `chess-ai` 20, `chess-core` 394, `server` 603, none failing.
+  `git diff --check`: clean.
 
 ## M21.18 — Explain Undo and draw claims
 

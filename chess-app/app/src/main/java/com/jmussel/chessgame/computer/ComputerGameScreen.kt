@@ -114,6 +114,7 @@ private fun Game(
                 selectedSquare = board.selectedSquare.takeIf { state.humansTurn },
                 legalDestinations = if (state.humansTurn) BoardInteraction.legalDestinations(board) else emptySet(),
                 lastMove = BoardRendering.lastMoveSquares(board.game),
+                checkedKing = BoardRendering.checkedKing(board.game),
                 orientation = state.humanSide,
                 onSquareClick = { square -> if (state.humansTurn) actions.onUpdate(BoardInteraction.onSquareTapped(board, square)) },
             )

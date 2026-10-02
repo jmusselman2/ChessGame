@@ -98,7 +98,10 @@ Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/groups`,
 - `ui/board/` is shared by the local and the online game: `BoardInteraction`
   (what a tap means), `GameControls` (undo, claims, resign, status, move list),
   `ChessBoard`, `BoardRendering`, `GameLayout`. `LocalGameScreen` is
-  pass-and-play.
+  pass-and-play. `BoardRendering.feedbackFor` decides each square's marks: last
+  move, then check, then selection, with destination dots and rings on top. Every
+  board passes the checked king, from `chess-core` locally and from the server's
+  `inCheck` online (`M21.17`).
 - `ui/game/OnlineGame.kt` and `OnlineGameScreen.kt` — the online game.
 - `computer/` — playing the computer (`D086`). `ComputerGame`: the questions before a
   new game (`ComputerSetup`, from the entry or from New game, which keeps the game
