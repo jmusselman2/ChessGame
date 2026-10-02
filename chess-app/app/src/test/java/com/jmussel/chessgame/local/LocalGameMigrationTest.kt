@@ -11,6 +11,7 @@ import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.local.db.LocalGameDatabase
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -19,9 +20,10 @@ import java.sql.DriverManager
 import java.util.Properties
 
 /**
- * Local games saved before the four levels (`D089`, `M21.12`): a database at schema version
- * 1, as an installed app has it, is opened by the current app, which migrates it to version
- * 2. Hard moves from level 3 to 4; levels 1 and 2 keep their numbers.
+ * Local games saved by the first schema version, as an installed app has them, opened by the
+ * current app, which migrates the database to the current version: Hard moves from level 3
+ * to 4, levels 1 and 2 keep their numbers (`D089`, `M21.12`), and an unfinished game of one
+ * kind may then be kept beside one of the other (`D090`, `M21.13`).
  *
  * The version-1 database is the committed snapshot `1.db`, with games written into it in
  * SQL, as the app of that version wrote them.
@@ -96,7 +98,7 @@ class LocalGameMigrationTest {
 
         val store = openStore()
 
-        assertEquals(2L, userVersion())
+        assertEquals(LocalGameDatabase.Schema.version, userVersion())
         val listed = store.completedGames().sortedBy { it.createdAt }
         assertEquals(listOf(1, 2, 4, null), listed.map { it.computer?.difficulty })
         assertEquals(
@@ -117,10 +119,43 @@ class LocalGameMigrationTest {
             file.delete()
             versionOneDatabase(Triple("COMPUTER", "ACTIVE", old))
 
-            val resumed = openStore().activeGame()!!
+            val resumed = openStore().activeGame(LocalGameKind.COMPUTER)!!
 
             assertEquals(difficulty, Difficulty.ofLevel(resumed.computer!!.difficulty))
             assertEquals(ChessRules.applyMove(ChessGame.newGame(), Move.of("e2", "e4")).state, resumed.game.state)
+        }
+    }
+
+    @Test
+    fun anUnfinishedGameAndItsMoveSurviveAndAGameOfTheOtherKindCanStartBesideIt() {
+        versionOneDatabase(Triple("COMPUTER", "ACTIVE", 3))
+        DriverManager.getConnection("jdbc:sqlite:${file.path}").use { connection ->
+            connection
+                .prepareStatement("INSERT INTO local_moves (game_id, ply, move, position_before) VALUES (1, 1, 'e2e4', ?)")
+                .use { insert ->
+                    insert.setString(1, LocalStateDocument.encode(ChessGame.newGame().state))
+                    insert.executeUpdate()
+                }
+        }
+
+        val store = openStore()
+
+        val computer = store.activeGame(LocalGameKind.COMPUTER)!!
+        assertEquals(Difficulty.HARD.level, computer.computer!!.difficulty)
+        assertEquals(ChessRules.applyMove(ChessGame.newGame(), Move.of("e2", "e4")), computer.game)
+        val passAndPlay = store.startGame()
+        assertEquals(computer, store.activeGame(LocalGameKind.COMPUTER))
+        assertEquals(passAndPlay, store.activeGame(LocalGameKind.PASS_AND_PLAY))
+
+        val queries = LocalGameDatabase(drivers.last()).localGamesQueries
+        assertThrows(Exception::class.java) {
+            queries.insert(
+                kind = LocalGameKind.COMPUTER.name,
+                createdAt = 0,
+                state = LocalStateDocument.encode(ChessGame.newGame().state),
+                humanSide = Side.BLACK.name,
+                difficulty = 1,
+            )
         }
     }
 

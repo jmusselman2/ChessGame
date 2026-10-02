@@ -32,30 +32,18 @@ class LocalGameSession(
     private val lock = Mutex()
 
     /**
-     * The unfinished pass-and-play game, or a new one when nothing is unfinished: what
-     * opening the local game shows. `null` when the unfinished game is against the
-     * computer, which only the player may decide to replace (`D084`).
+     * The unfinished pass-and-play game, or a new one when there is none: what opening the
+     * local game shows, whatever the game against the computer is doing (`D090`).
      */
-    suspend fun resume(): StoredLocalGame? =
-        serial {
-            val active = store.activeGame()
-            when {
-                active == null -> store.startGame()
-                active.kind == LocalGameKind.PASS_AND_PLAY -> active
-                else -> null
-            }
-        }
-
-    /** The unfinished local game of either kind, or `null` when there is none. */
-    suspend fun active(): StoredLocalGame? = serial { store.activeGame() }
+    suspend fun resume(): StoredLocalGame = serial { store.activeGame(LocalGameKind.PASS_AND_PLAY) ?: store.startGame() }
 
     /** The unfinished game against the computer, or `null` when there is none (`M21.6`). */
-    suspend fun resumeComputer(): StoredLocalGame? = serial { store.activeGame()?.takeIf { it.kind == LocalGameKind.COMPUTER } }
+    suspend fun resumeComputer(): StoredLocalGame? = serial { store.activeGame(LocalGameKind.COMPUTER) }
 
     /**
      * A new local game: against [computer], or pass-and-play when it is `null`. The
-     * unfinished game, if there is one, is deleted: the screen has already asked the player
-     * (`D084`).
+     * unfinished game of the same kind, if there is one, is deleted: the screen has already
+     * asked the player (`D084`). The other kind's game is left alone (`D090`).
      */
     suspend fun startNew(computer: ComputerOpponent? = null): StoredLocalGame = serial { store.startGame(computer) }
 

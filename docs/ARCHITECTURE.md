@@ -486,8 +486,7 @@ PostgreSQL, and it works when server startup fails.
 - **One unfinished local game of each kind** (`D090`, built by `M21.13`): a
   pass-and-play game and a game against the computer may both be unfinished. The
   unique partial index is per kind, and starting a game replaces, deleting it, only
-  its own kind's unfinished game. Until `M21.13` lands, the store keeps one of either
-  kind (`D084`), as described below. Finished games are kept for read-only review.
+  its own kind's unfinished game. Finished games are kept for read-only review.
 - **Writes append and truncate** (`D061`). A move appends; an undo or a computer-game
   takeback truncates and restores the recorded prior position. Each change touching
   state and history is one transaction, so the stored board always matches the
@@ -503,6 +502,15 @@ PostgreSQL, and it works when server startup fails.
   `local_games.difficulty` (`D089`). Schema version 2's `1.sqm` (`M21.12`) moved
   stored Hard games from 3 to 4 when the new Medium took 3; it changes data only, so
   the version-2 snapshot `2.db` has the same tables as `1.db`.
+- **One unfinished game per kind, as built by `M21.13`.** Schema version 3's `2.sqm`
+  drops `local_games_one_active`, on `(status)`, and creates
+  `local_games_one_active_per_kind`, on `(kind)`, both `WHERE status = 'ACTIVE'`; no
+  row changes. The queries `activeOfKind`, `deleteActiveOfKind` and
+  `deleteForActiveOfKind` take the kind. `LocalGameStore.activeGame(kind)` reads one
+  kind, and `startGame` deletes only its own kind's unfinished game, with its moves.
+  `LocalGameSession.resume()` always returns a pass-and-play game, and
+  `resumeComputer()` reads only the computer's. Neither entry has a question about the
+  other kind any more.
 
 **The store, as built by `M21.1`** (package `com.jmussel.chessgame.local`):
 
@@ -513,11 +521,11 @@ PostgreSQL, and it works when server startup fails.
   one into the current schema. A change to the tables is a new `N.sqm` and a new
   snapshot, never an edit to a released one.
 - **Constraints in the database, too.** A unique partial index allows one `ACTIVE`
-  row. `CHECK`s tie the status to the completion time and result, and the kind to the
+  row (one of each kind since `M21.13`). `CHECK`s tie the status to the completion time and result, and the kind to the
   computer's colour and difficulty. `local_moves` is keyed by `(game_id, ply)` and
   references its game; foreign keys are switched on for every connection.
-- **`LocalGameStore`** is the only way in. `startGame` deletes any unfinished game and
-  creates the new one in one transaction. `recordMove` appends one record and updates
+- **`LocalGameStore`** is the only way in. `startGame` deletes the unfinished game (of
+  its own kind since `M21.13`) and creates the new one in one transaction. `recordMove` appends one record and updates
   the state, and completes the game if the move ended it. `recordResult` completes a
   game ended by resignation or a claim. `takeBack(plies)` truncates and restores the
   position recorded before the first removed ply. Each refuses a finished game, and a

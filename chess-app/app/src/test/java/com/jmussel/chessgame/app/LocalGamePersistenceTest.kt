@@ -1,5 +1,6 @@
 package com.jmussel.chessgame.app
 
+import com.jmussel.chessgame.ai.ChessEngine
 import com.jmussel.chessgame.ai.Difficulty
 import com.jmussel.chessgame.api.ChessServerConfig
 import com.jmussel.chessgame.auth.InMemorySessionStore
@@ -9,6 +10,7 @@ import com.jmussel.chessgame.core.chess.ChessGame
 import com.jmussel.chessgame.core.chess.ChessRules
 import com.jmussel.chessgame.core.chess.DrawClaim
 import com.jmussel.chessgame.core.chess.GameResult
+import com.jmussel.chessgame.core.chess.GameState
 import com.jmussel.chessgame.core.chess.Move
 import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.Square
@@ -74,8 +76,29 @@ class LocalGamePersistenceTest {
                 sessionStore = InMemorySessionStore(),
                 localGameStore = localGameStore,
                 localGameDispatcher = dispatcher,
+                chessEngine = FirstLegalMove,
+                engineDispatcher = dispatcher,
             ),
         )
+
+    /** A computer that plays its first legal move in coordinate order, on the test's thread. */
+    private object FirstLegalMove : ChessEngine {
+        override fun chooseMove(
+            state: GameState,
+            difficulty: Difficulty,
+            isCancelled: () -> Boolean,
+        ): Move = ChessRules.legalMoves(state).minBy { it.toString() }
+    }
+
+    /** The human's move in the game against the computer, if it is their turn: their first legal one. */
+    private fun TestScope.playTheComputer(viewModel: ChessAppViewModel) {
+        val state = viewModel.computerGame.state!!
+        if (state.humansTurn) {
+            val move = ChessRules.legalMoves(state.game).minBy { it.toString() }
+            viewModel.computerGame.update(BoardUiState(ChessRules.applyMove(state.game, move), orientation = state.humanSide))
+        }
+        advanceUntilIdle()
+    }
 
     /** The model on the dashboard with the local game opened and read. */
     private fun TestScope.openLocalGame(viewModel: ChessAppViewModel = viewModel()): ChessAppViewModel {
@@ -107,7 +130,7 @@ class LocalGamePersistenceTest {
     }
 
     private val savedGame: ChessGame?
-        get() = store.activeGame()?.game
+        get() = store.activeGame(LocalGameKind.PASS_AND_PLAY)?.game
 
     // --- Resuming ---------------------------------------------------------------------
 
@@ -123,7 +146,7 @@ class LocalGamePersistenceTest {
             advanceUntilIdle()
 
             assertEquals(ChessGame.newGame(), viewModel.localGame.boardState.game)
-            assertEquals(LocalGameKind.PASS_AND_PLAY, store.activeGame()!!.kind)
+            assertEquals(LocalGameKind.PASS_AND_PLAY, store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.kind)
         }
 
     @Test
@@ -215,7 +238,7 @@ class LocalGamePersistenceTest {
         runTest(dispatcher) {
             val viewModel = openLocalGame()
             tap(viewModel, "e2", "e4")
-            val replaced = store.activeGame()!!.id
+            val replaced = store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.id
 
             viewModel.updateLocalGame(viewModel.localGame.copy(confirmingNewGame = true))
             viewModel.startNewLocalGame()
@@ -224,7 +247,7 @@ class LocalGamePersistenceTest {
             assertEquals(ChessGame.newGame(), viewModel.localGame.boardState.game)
             assertFalse(viewModel.localGame.confirmingNewGame)
             assertNull(store.game(replaced))
-            assertNotEquals(replaced, store.activeGame()!!.id)
+            assertNotEquals(replaced, store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.id)
             assertEquals(emptyList<Any>(), store.completedGames())
         }
 
@@ -249,11 +272,11 @@ class LocalGamePersistenceTest {
     fun aGameEndingMoveSavesTheGameAsCompleted() =
         runTest(dispatcher) {
             val viewModel = openLocalGame()
-            val id = store.activeGame()!!.id
+            val id = store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.id
 
             tap(viewModel, "f2", "f3", "e7", "e5", "g2", "g4", "d8", "h4")
 
-            assertNull(store.activeGame())
+            assertNull(store.activeGame(LocalGameKind.PASS_AND_PLAY))
             val kept = store.game(id)!!
             assertFalse(kept.isActive)
             assertEquals(GameResult.checkmate(Side.WHITE), kept.game.result)
@@ -264,7 +287,7 @@ class LocalGamePersistenceTest {
     fun resignationSavesTheGameAsCompleted() =
         runTest(dispatcher) {
             val viewModel = openLocalGame()
-            val id = store.activeGame()!!.id
+            val id = store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.id
             tap(viewModel, "e2", "e4")
 
             change(viewModel) { GameControls.resign(it, Side.BLACK) }
@@ -277,7 +300,7 @@ class LocalGamePersistenceTest {
     fun aDrawClaimSavesTheGameAsCompleted() =
         runTest(dispatcher) {
             val viewModel = openLocalGame()
-            val id = store.activeGame()!!.id
+            val id = store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.id
             repeat(2) { tap(viewModel, "g1", "f3", "g8", "f6", "f3", "g1", "f6", "g8") }
             // The last of those moves would repeat the position a third time, so it is
             // declared rather than played, and the claim is made on it (`D041`).
@@ -292,14 +315,14 @@ class LocalGamePersistenceTest {
             val drawn = store.game(id)!!.game
             assertEquals(TerminationReason.THREEFOLD_REPETITION_CLAIM, drawn.result!!.reason)
             assertEquals(7, drawn.history.size)
-            assertNull(store.activeGame())
+            assertNull(store.activeGame(LocalGameKind.PASS_AND_PLAY))
         }
 
     @Test
     fun aFinishedGameOffersANewGameWithoutAskingAndIsKept() =
         runTest(dispatcher) {
             val viewModel = openLocalGame()
-            val finished = store.activeGame()!!.id
+            val finished = store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.id
             tap(viewModel, "f2", "f3", "e7", "e5", "g2", "g4", "d8", "h4")
             assertFalse(GameControls.newGameNeedsConfirmation(viewModel.localGame.boardState))
 
@@ -330,7 +353,7 @@ class LocalGamePersistenceTest {
         if (viewModel.navigation.current != Destination.LocalGame) openLocalGame(viewModel)
         viewModel.startNewLocalGame()
         advanceUntilIdle()
-        val id = store.activeGame()!!.id
+        val id = store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.id
         tap(viewModel, "f2", "f3", "e7", "e5", "g2", "g4", "d8", "h4")
         return id
     }
@@ -364,7 +387,7 @@ class LocalGamePersistenceTest {
             // The list is read straight after the game-ending move, before anything else runs.
             viewModel.startNewLocalGame()
             advanceUntilIdle()
-            val id = store.activeGame()!!.id
+            val id = store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.id
             listOf("f2", "f3", "e7", "e5", "g2", "g4", "d8", "h4").forEach { square ->
                 val state = viewModel.localGame
                 viewModel.updateLocalGame(state.copy(boardState = BoardInteraction.onSquareTapped(state.boardState, Square.parse(square))))
@@ -417,7 +440,7 @@ class LocalGamePersistenceTest {
         runTest(dispatcher) {
             val viewModel = openLocalGame()
             tap(viewModel, "e2", "e4")
-            val unfinished = store.activeGame()!!.id
+            val unfinished = store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.id
 
             viewModel.openPastLocalGame(unfinished)
             advanceUntilIdle()
@@ -425,55 +448,116 @@ class LocalGamePersistenceTest {
             assertNull(viewModel.localReview)
         }
 
-    // --- Between pass-and-play and the computer (M21.7) -------------------------------
+    // --- One unfinished game of each kind (M21.13, D090) ------------------------------
 
     @Test
-    fun theLocalGameEntryAsksBeforeReplacingAnUnfinishedComputerGame() =
+    fun theLocalGameEntryLeavesAnUnfinishedComputerGameAlone() =
         runTest(dispatcher) {
             val computer = store.startGame(ComputerOpponent(Side.WHITE, 2))
-            store.recordMove(computer.id, ChessRules.applyMove(computer.game, Move.of("e2", "e4")))
+            val played = ChessRules.applyMove(computer.game, Move.of("e2", "e4"))
+            store.recordMove(computer.id, played)
             val viewModel = viewModel()
             viewModel.restartAt(Destination.Dashboard)
 
             viewModel.open(Destination.LocalGame)
             advanceUntilIdle()
-            assertTrue(viewModel.localGame.replacingComputerGame)
-            assertEquals(computer.id, store.activeGame()!!.id)
 
-            // Keeping it goes back and leaves it as it was.
-            assertTrue(viewModel.back())
-            assertEquals(computer.id, store.activeGame()!!.id)
-
-            viewModel.open(Destination.LocalGame)
-            advanceUntilIdle()
-            viewModel.startNewLocalGame()
-            advanceUntilIdle()
-
-            assertFalse(viewModel.localGame.replacingComputerGame)
-            assertEquals(LocalGameKind.PASS_AND_PLAY, store.activeGame()!!.kind)
-            assertNull(store.game(computer.id))
-            assertEquals(emptyList<Any>(), store.completedGames())
+            assertEquals(ChessGame.newGame(), viewModel.localGame.boardState.game)
+            assertEquals(LocalGameKind.PASS_AND_PLAY, store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.kind)
+            assertEquals(computer.id, store.activeGame(LocalGameKind.COMPUTER)!!.id)
+            assertEquals(played, store.activeGame(LocalGameKind.COMPUTER)!!.game)
         }
 
     @Test
-    fun playTheComputerAsksBeforeReplacingAnUnfinishedPassAndPlayGame() =
+    fun playTheComputerGoesStraightToTheLevelChoiceAndKeepsPassAndPlay() =
         runTest(dispatcher) {
             val viewModel = openLocalGame()
             tap(viewModel, "e2", "e4")
-            val passAndPlay = store.activeGame()!!.id
+            val passAndPlay = store.activeGame(LocalGameKind.PASS_AND_PLAY)!!
             viewModel.back()
 
             viewModel.openComputerGame()
             advanceUntilIdle()
             assertEquals(Destination.ComputerGame, viewModel.navigation.current)
-            assertEquals(ComputerSetup.ConfirmReplacing, viewModel.computerGame.setup)
+            assertEquals(ComputerSetup.ChooseDifficulty, viewModel.computerGame.setup)
 
-            viewModel.computerGame.confirmReplacing()
             viewModel.computerGame.choose(Difficulty.EASY)
             advanceUntilIdle()
 
-            assertNull(store.game(passAndPlay))
-            assertEquals(ComputerOpponent(viewModel.computerGame.state!!.humanSide, 2), store.activeGame()!!.computer)
+            assertEquals(passAndPlay, store.activeGame(LocalGameKind.PASS_AND_PLAY))
+            assertEquals(ComputerOpponent(viewModel.computerGame.state!!.humanSide, 2), store.activeGame(LocalGameKind.COMPUTER)!!.computer)
+        }
+
+    @Test
+    fun switchingBetweenTheTwoEntriesResumesBothGamesWhereTheyWere() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.restartAt(Destination.Dashboard)
+
+            // A game against the computer, with a move each.
+            viewModel.openComputerGame()
+            advanceUntilIdle()
+            viewModel.computerGame.choose(Difficulty.MEDIUM)
+            advanceUntilIdle()
+            playTheComputer(viewModel)
+            val computerGame = viewModel.computerGame.state!!.game
+            assertTrue(computerGame.moves.size >= 2)
+            viewModel.back()
+
+            // Pass-and-play, with a move.
+            viewModel.open(Destination.LocalGame)
+            advanceUntilIdle()
+            tap(viewModel, "e2", "e4")
+            viewModel.back()
+
+            viewModel.openComputerGame()
+            advanceUntilIdle()
+            assertNull(viewModel.computerGame.setup)
+            assertEquals(computerGame, viewModel.computerGame.state!!.game)
+            viewModel.back()
+
+            viewModel.open(Destination.LocalGame)
+            advanceUntilIdle()
+            assertEquals(listOf(Move.of("e2", "e4")), viewModel.localGame.boardState.game.moves)
+        }
+
+    @Test
+    fun newGameOfOneKindDeletesOnlyThatKindsGame() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.restartAt(Destination.Dashboard)
+            viewModel.openComputerGame()
+            advanceUntilIdle()
+            viewModel.computerGame.choose(Difficulty.EASY)
+            advanceUntilIdle()
+            playTheComputer(viewModel)
+            val firstComputerGame = store.activeGame(LocalGameKind.COMPUTER)!!
+            viewModel.back()
+            openLocalGame(viewModel)
+            tap(viewModel, "e2", "e4")
+            val firstPassAndPlay = store.activeGame(LocalGameKind.PASS_AND_PLAY)!!
+
+            // New game on pass-and-play leaves the computer game.
+            viewModel.startNewLocalGame()
+            advanceUntilIdle()
+            assertNull(store.game(firstPassAndPlay.id))
+            assertEquals(ChessGame.newGame(), store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.game)
+            assertEquals(firstComputerGame, store.activeGame(LocalGameKind.COMPUTER))
+            tap(viewModel, "d2", "d4")
+            val secondPassAndPlay = store.activeGame(LocalGameKind.PASS_AND_PLAY)!!
+            viewModel.back()
+
+            // New game against the computer leaves pass-and-play.
+            viewModel.openComputerGame()
+            advanceUntilIdle()
+            viewModel.computerGame.newGame()
+            viewModel.computerGame.confirmNewGame()
+            viewModel.computerGame.choose(Difficulty.HARD)
+            advanceUntilIdle()
+            assertNull(store.game(firstComputerGame.id))
+            assertEquals(4, store.activeGame(LocalGameKind.COMPUTER)!!.computer!!.difficulty)
+            assertEquals(secondPassAndPlay, store.activeGame(LocalGameKind.PASS_AND_PLAY))
+            assertEquals(emptyList<Any>(), store.completedGames())
         }
 
     @Test
@@ -491,7 +575,7 @@ class LocalGamePersistenceTest {
             assertNull(viewModel.computerGame.setup)
 
             viewModel.computerGame.newGame()
-            viewModel.computerGame.confirmReplacing()
+            viewModel.computerGame.confirmNewGame()
             assertEquals(ComputerSetup.ChooseDifficulty, viewModel.computerGame.setup)
             assertTrue(viewModel.back())
             assertNull(viewModel.computerGame.setup)
@@ -500,7 +584,7 @@ class LocalGamePersistenceTest {
 
             assertTrue(viewModel.back())
             assertEquals(Destination.Dashboard, viewModel.navigation.current)
-            assertEquals(game.id, store.activeGame()!!.id)
+            assertEquals(game.id, store.activeGame(LocalGameKind.COMPUTER)!!.id)
         }
 
     @Test

@@ -121,7 +121,7 @@ class MainActivity : ComponentActivity() {
                         ComputerGameActions(
                             onUpdate = viewModel.computerGame::update,
                             onTakeBack = viewModel.computerGame::takeBack,
-                            onConfirmReplacing = viewModel.computerGame::confirmReplacing,
+                            onConfirmNewGame = viewModel.computerGame::confirmNewGame,
                             onChoose = viewModel.computerGame::choose,
                             onPlayAgain = viewModel.computerGame::playAgain,
                             onNewGame = viewModel.computerGame::newGame,

@@ -1,0 +1,5 @@
+-- One unfinished local game of each kind (D090, M21.13), in place of one of either kind
+-- (D084). No row changes: a database with at most one unfinished game already has at most
+-- one of each kind.
+DROP INDEX local_games_one_active;
+CREATE UNIQUE INDEX local_games_one_active_per_kind ON local_games (kind) WHERE status = 'ACTIVE';

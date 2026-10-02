@@ -1628,8 +1628,9 @@ class ChessAppViewModel(
     /**
      * Shows [destination] in front of the current screen.
      *
-     * Opening the local game resumes the unfinished one, or starts one when nothing is
-     * unfinished (`D084`). Opening it while it is already showing changes nothing.
+     * Opening the local game resumes the unfinished pass-and-play game, or starts one when
+     * there is none, whatever the game against the computer is doing (`D090`). Opening it
+     * while it is already showing changes nothing.
      */
     fun open(destination: Destination) {
         if (destination == Destination.LocalGame && navigation.current != Destination.LocalGame) {
@@ -1657,8 +1658,9 @@ class ChessAppViewModel(
     }
 
     /**
-     * Starts a new local game in place of the one on screen. The screen has already asked,
-     * if the game on screen was unfinished; it is deleted, not kept (`D084`).
+     * Starts a new pass-and-play game in place of the one on screen. The screen has already
+     * asked, if the game on screen was unfinished; it is deleted, not kept (`D084`). An
+     * unfinished game against the computer is untouched (`D090`).
      */
     fun startNewLocalGame() {
         showLocalGame { localGames.startNew() }
@@ -1666,8 +1668,8 @@ class ChessAppViewModel(
 
     /**
      * "Play the computer" (`M21.7`): resumes the unfinished game against the computer, or
-     * asks for a level, first asking before an unfinished pass-and-play game is replaced.
-     * Opening it while it is already showing changes nothing.
+     * asks for a level, whatever the pass-and-play game is doing (`D090`). Opening it while
+     * it is already showing changes nothing.
      */
     fun openComputerGame() {
         if (navigation.current == Destination.ComputerGame) return
@@ -1702,15 +1704,13 @@ class ChessAppViewModel(
     }
 
     /** Shows the local game [load] reads or starts, with nothing to tap until it has. */
-    private fun showLocalGame(load: suspend () -> StoredLocalGame?) {
+    private fun showLocalGame(load: suspend () -> StoredLocalGame) {
         localGameJob?.cancel()
         localGameId = null
         localGame = LocalGameUiState(loading = true)
         localGameJob =
             viewModelScope.launch {
-                // Nothing to show means a game against the computer is unfinished, and the
-                // player is asked before it is replaced (`D084`).
-                val stored = load() ?: return@launch run { localGame = LocalGameUiState(replacingComputerGame = true) }
+                val stored = load()
                 localGameId = stored.id
                 localGame = LocalGameUiState(boardState = BoardUiState(stored.game))
             }

@@ -42,11 +42,11 @@ class LocalGameStoreDeviceTest {
         }
 
         val reopened = openLocalGameStore(context)
-        assertEquals(game, reopened.activeGame()!!.game)
+        assertEquals(game, reopened.activeGame(LocalGameKind.PASS_AND_PLAY)!!.game)
         assertEquals(ChessRules.undoLastMove(game), reopened.takeBack(id))
 
         reopened.startGame()
         assertNull(reopened.game(id))
-        assertEquals(ChessGame.newGame(), openLocalGameStore(context).activeGame()!!.game)
+        assertEquals(ChessGame.newGame(), openLocalGameStore(context).activeGame(LocalGameKind.PASS_AND_PLAY)!!.game)
     }
 }

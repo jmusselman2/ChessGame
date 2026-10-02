@@ -30,5 +30,5 @@ SELECT position_before FROM local_moves WHERE game_id = :gameId AND ply = :keep 
 truncate:
 DELETE FROM local_moves WHERE game_id = :gameId AND ply > :keep;
 
-deleteForActive:
-DELETE FROM local_moves WHERE game_id IN (SELECT id FROM local_games WHERE status = 'ACTIVE');
+deleteForActiveOfKind:
+DELETE FROM local_moves WHERE game_id IN (SELECT id FROM local_games WHERE status = 'ACTIVE' AND kind = :kind);

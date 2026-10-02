@@ -24,8 +24,8 @@ CREATE TABLE local_games (
     )
 );
 
--- At most one unfinished local game, of either kind (D084).
-CREATE UNIQUE INDEX local_games_one_active ON local_games (status) WHERE status = 'ACTIVE';
+-- At most one unfinished local game of each kind (D090).
+CREATE UNIQUE INDEX local_games_one_active_per_kind ON local_games (kind) WHERE status = 'ACTIVE';
 
 insert:
 INSERT INTO local_games (kind, status, created_at, state, human_side, difficulty)
@@ -34,8 +34,8 @@ VALUES (:kind, 'ACTIVE', :createdAt, :state, :humanSide, :difficulty);
 lastInsertId:
 SELECT last_insert_rowid();
 
-active:
-SELECT * FROM local_games WHERE status = 'ACTIVE';
+activeOfKind:
+SELECT * FROM local_games WHERE status = 'ACTIVE' AND kind = :kind;
 
 byId:
 SELECT * FROM local_games WHERE id = :id;
@@ -52,8 +52,8 @@ SET state = :state,
     termination_reason = :terminationReason
 WHERE id = :id AND status = 'ACTIVE';
 
-deleteActive:
-DELETE FROM local_games WHERE status = 'ACTIVE';
+deleteActiveOfKind:
+DELETE FROM local_games WHERE status = 'ACTIVE' AND kind = :kind;
 
 completed:
 SELECT id, kind, created_at, completed_at, outcome, termination_reason, human_side, difficulty

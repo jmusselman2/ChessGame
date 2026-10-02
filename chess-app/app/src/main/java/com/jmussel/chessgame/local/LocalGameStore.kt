@@ -59,9 +59,11 @@ data class LocalGameSummary(
  * The canonical store for games whose players are all on this device: pass-and-play and
  * games against the computer (`D084`). Nothing here goes near the server.
  *
- * - **One unfinished game.** At most one game is `ACTIVE`, of either kind. [startGame]
- *   replaces it, deleting it outright, so a replaced game is never kept in history. A
- *   unique partial index enforces the same rule in the database.
+ * - **One unfinished game of each kind** (`D090`). At most one pass-and-play game and one
+ *   game against the computer are `ACTIVE`, side by side. [startGame] replaces only the
+ *   unfinished game of its own kind, deleting it outright, so a replaced game is never kept
+ *   in history; the other kind's game is untouched. A unique partial index on the kind
+ *   enforces the same rule in the database.
  * - **Finished games are kept**, newest first ([completedGames]).
  * - **Writes append and truncate.** A move appends one record and updates the state; a
  *   takeback removes records from the end and restores the position recorded before the
@@ -81,8 +83,9 @@ class LocalGameStore(
     private val games = database.localGamesQueries
     private val moves = database.localMovesQueries
 
-    /** The unfinished local game, or `null` when there is none. */
-    fun activeGame(): StoredLocalGame? = games.transactionWithResult { games.active().executeAsOneOrNull()?.let(::restore) }
+    /** The unfinished local game of [kind], or `null` when there is none. */
+    fun activeGame(kind: LocalGameKind): StoredLocalGame? =
+        games.transactionWithResult { games.activeOfKind(kind.name).executeAsOneOrNull()?.let(::restore) }
 
     /** The local game with [id], finished or not, or `null` when there is none. */
     fun game(id: Long): StoredLocalGame? = games.transactionWithResult { games.byId(id).executeAsOneOrNull()?.let(::restore) }
@@ -107,19 +110,21 @@ class LocalGameStore(
      * Starts a new local game from the standard position, against [computer] or, when it is
      * `null`, pass-and-play.
      *
-     * An unfinished game is deleted first, with its moves, in the same transaction: there is
-     * only ever one, and a replaced game is not kept (`D084`). Asking the player before
-     * replacing it is the caller's job.
+     * The unfinished game of the same kind is deleted first, with its moves, in the same
+     * transaction: there is only ever one of each kind, and a replaced game is not kept
+     * (`D084`, `D090`). The other kind's unfinished game is left as it is. Asking the player
+     * before replacing a game is the caller's job.
      */
     fun startGame(computer: ComputerOpponent? = null): StoredLocalGame =
         games.transactionWithResult {
-            moves.deleteForActive()
-            games.deleteActive()
+            val kind = if (computer == null) LocalGameKind.PASS_AND_PLAY else LocalGameKind.COMPUTER
+            moves.deleteForActiveOfKind(kind.name)
+            games.deleteActiveOfKind(kind.name)
 
             val game = ChessGame.newGame()
             val createdAt = now()
             games.insert(
-                kind = (if (computer == null) LocalGameKind.PASS_AND_PLAY else LocalGameKind.COMPUTER).name,
+                kind = kind.name,
                 createdAt = createdAt,
                 state = LocalStateDocument.encode(game.state),
                 humanSide = computer?.humanSide?.name,

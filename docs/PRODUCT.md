@@ -459,8 +459,6 @@ against the computer. It never uses the server.
   none; "Play the computer" opens the unfinished game against the computer, or asks
   for a level. A finished game is not resumed; the entry starts a new one. Neither
   entry asks about or deletes the other kind's game.
-  *Until `M21.13` lands*, as `D084` built it: one unfinished game of either kind, and
-  starting the other kind asks first, then deletes it.
 - **New game.** The pass-and-play screen offers New game once a move has been played,
   or the game has ended. If the game is unfinished it asks first ("Start a new
   game?"), and confirming deletes it. A finished game is kept, so nothing is asked.
@@ -538,7 +536,7 @@ Medium now reads Very Easy or Easy, the same engine renamed, and one at the old 
 is still Hard. On a slow phone the computer may take a little longer than its time
 budget to finish looking one move ahead, rather than answer without looking.
 
-*Decided 2026-10-02 (`D090`), lands with `M21.13`:* "Play the computer" no longer asks
+*Decided 2026-10-02 (`D090`), built by `M21.13`:* "Play the computer" no longer asks
 about an unfinished pass-and-play game, and "Local game" no longer asks about an
 unfinished game against the computer. One of each can be kept, and the player can
 switch between them freely. New game still deletes only the game on screen.

@@ -27,14 +27,13 @@ import com.jmussel.chessgame.ui.board.GameControls
 import com.jmussel.chessgame.ui.board.GameLayout
 import com.jmussel.chessgame.ui.board.NewGameConfirmation
 import com.jmussel.chessgame.ui.board.PromotionPrompt
-import com.jmussel.chessgame.ui.board.ReplaceUnfinishedGame
 import com.jmussel.chessgame.ui.board.ResignConfirmation
 
 /** What the computer game's screen can ask of [ComputerGame]. */
 data class ComputerGameActions(
     val onUpdate: (BoardUiState) -> Unit = {},
     val onTakeBack: () -> Unit = {},
-    val onConfirmReplacing: () -> Unit = {},
+    val onConfirmNewGame: () -> Unit = {},
     val onChoose: (Difficulty) -> Unit = {},
     val onPlayAgain: () -> Unit = {},
     val onNewGame: () -> Unit = {},
@@ -66,13 +65,6 @@ fun ComputerGameScreen(
             (if (fromGame) actions.onKeepGame else onBack)?.let { GameBackButton(onClick = it) }
             when {
                 loading || setup == null -> Text(text = "Loading…", style = MaterialTheme.typography.bodyMedium)
-                setup == ComputerSetup.ConfirmReplacing ->
-                    ReplaceUnfinishedGame(
-                        question = "Your pass-and-play game is not finished. A game against the computer deletes it, and it is not kept.",
-                        confirm = "Delete it and play the computer",
-                        onConfirm = actions.onConfirmReplacing,
-                        onKeep = onBack,
-                    )
                 else -> DifficultyChoice(onChoose = actions.onChoose, onKeepGame = actions.onKeepGame.takeIf { fromGame })
             }
         }
@@ -81,7 +73,7 @@ fun ComputerGameScreen(
 
     Game(state = state, actions = actions, modifier = modifier, onBack = onBack)
 
-    if (setup == ComputerSetup.ConfirmNewGame) NewGameConfirmation(onConfirm = actions.onConfirmReplacing, onCancel = actions.onKeepGame)
+    if (setup == ComputerSetup.ConfirmNewGame) NewGameConfirmation(onConfirm = actions.onConfirmNewGame, onCancel = actions.onKeepGame)
 }
 
 /** The four levels, weakest first (`D089`); [onKeepGame] goes back to the game New game left. */

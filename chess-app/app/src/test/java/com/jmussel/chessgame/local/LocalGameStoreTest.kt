@@ -82,8 +82,8 @@ class LocalGameStoreTest {
 
         val started = store.startGame()
 
-        assertEquals(started, store.activeGame())
-        assertEquals(ChessGame.newGame(), store.activeGame()!!.game)
+        assertEquals(started, store.activeGame(LocalGameKind.PASS_AND_PLAY))
+        assertEquals(ChessGame.newGame(), store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.game)
         assertEquals(LocalGameKind.PASS_AND_PLAY, started.kind)
         assertTrue(started.isActive)
         assertNull(started.computer)
@@ -96,7 +96,7 @@ class LocalGameStoreTest {
 
         val played = store.playAndRecord(id, ChessGame.newGame(), "e2e4", "e7e5", "g1f3", "b8c6", "f1b5")
 
-        val restored = store.activeGame()!!.game
+        val restored = store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.game
         assertEquals(played, restored)
         assertEquals(played.history, restored.history)
         assertEquals(5, restored.history.size)
@@ -109,7 +109,7 @@ class LocalGameStoreTest {
 
         val played = store.playAndRecord(id, ChessGame.newGame(), "e2e4", "e7e5", "g1f3", "b8c6", "f1c4", "f8c5", "e1g1")
 
-        val restored = openStore().activeGame()!!.game
+        val restored = openStore().activeGame(LocalGameKind.PASS_AND_PLAY)!!.game
         assertEquals(played, restored)
         assertEquals(Piece(Side.WHITE, PieceType.KING), restored.state.board.pieceAt(Square.parse("g1")))
         assertEquals(Piece(Side.WHITE, PieceType.ROOK), restored.state.board.pieceAt(Square.parse("f1")))
@@ -124,14 +124,14 @@ class LocalGameStoreTest {
 
         // The en passant target is part of the stored position before the capture...
         val beforeCapture = store.playAndRecord(id, ChessGame.newGame(), "e2e4", "a7a6", "e4e5", "d7d5")
-        val restoredBeforeCapture = openStore().activeGame()!!.game
+        val restoredBeforeCapture = openStore().activeGame(LocalGameKind.PASS_AND_PLAY)!!.game
         assertEquals(Square.parse("d6"), restoredBeforeCapture.state.enPassantTarget)
 
         // ...so the capture is legal in the restored game, and the capture itself round trips.
         assertTrue(ChessRules.isLegal(restoredBeforeCapture, Move.of("e5", "d6")))
         val played = store.playAndRecord(id, beforeCapture, "e5d6")
 
-        val restored = openStore().activeGame()!!.game
+        val restored = openStore().activeGame(LocalGameKind.PASS_AND_PLAY)!!.game
         assertEquals(played, restored)
         assertNull(restored.state.board.pieceAt(Square.parse("d5")))
         assertEquals(Move.of("e5", "d6"), restored.lastMove)
@@ -145,7 +145,7 @@ class LocalGameStoreTest {
         val played =
             store.playAndRecord(id, ChessGame.newGame(), "a2a4", "b7b5", "a4b5", "a7a6", "b5a6", "c8b7", "a6b7", "b8c6", "b7a8q")
 
-        val restored = openStore().activeGame()!!.game
+        val restored = openStore().activeGame(LocalGameKind.PASS_AND_PLAY)!!.game
         assertEquals(played, restored)
         assertEquals(Move.of("b7", "a8", PieceType.QUEEN), restored.lastMove)
         assertEquals(Piece(Side.WHITE, PieceType.QUEEN), restored.state.board.pieceAt(Square.parse("a8")))
@@ -160,7 +160,7 @@ class LocalGameStoreTest {
         val played = store.playAndRecord(id, ChessGame.newGame(), *shuffle, *shuffle)
         assertEquals(setOf(DrawClaim.THREEFOLD_REPETITION), ChessRules.availableDrawClaims(played))
 
-        val restored = openStore().activeGame()!!.game
+        val restored = openStore().activeGame(LocalGameKind.PASS_AND_PLAY)!!.game
         assertEquals(played.state.drawRuleState, restored.state.drawRuleState)
         assertEquals(setOf(DrawClaim.THREEFOLD_REPETITION), ChessRules.availableDrawClaims(restored))
         // Each recorded prior position keeps its own counts too, so an undo restores them.
@@ -175,7 +175,7 @@ class LocalGameStoreTest {
 
         val started = store.startGame(ComputerOpponent(humanSide = Side.BLACK, difficulty = 2))
 
-        val restored = openStore().activeGame()!!
+        val restored = openStore().activeGame(LocalGameKind.COMPUTER)!!
         assertEquals(LocalGameKind.COMPUTER, restored.kind)
         assertEquals(ComputerOpponent(Side.BLACK, 2), restored.computer)
         assertEquals(started, restored)
@@ -188,12 +188,12 @@ class LocalGameStoreTest {
         val id = openStore().let { store -> store.startGame().id.also { store.playAndRecord(it, ChessGame.newGame(), "e2e4", "e7e5") } }
 
         val reloaded = openStore()
-        val before = reloaded.activeGame()!!.game
+        val before = reloaded.activeGame(LocalGameKind.PASS_AND_PLAY)!!.game
         val undone = reloaded.takeBack(id)
 
         assertEquals(ChessRules.undoLastMove(before), undone)
-        assertEquals(undone, openStore().activeGame()!!.game)
-        assertEquals(listOf(Move.of("e2", "e4")), openStore().activeGame()!!.game.moves)
+        assertEquals(undone, openStore().activeGame(LocalGameKind.PASS_AND_PLAY)!!.game)
+        assertEquals(listOf(Move.of("e2", "e4")), openStore().activeGame(LocalGameKind.PASS_AND_PLAY)!!.game.moves)
     }
 
     @Test
@@ -205,7 +205,7 @@ class LocalGameStoreTest {
         val takenBack = store.takeBack(id, plies = 2)
 
         assertEquals(ChessRules.undoLastMove(ChessRules.undoLastMove(played)), takenBack)
-        assertEquals(takenBack, openStore().activeGame()!!.game)
+        assertEquals(takenBack, openStore().activeGame(LocalGameKind.COMPUTER)!!.game)
         assertEquals(Side.WHITE, takenBack.sideToMove)
     }
 
@@ -218,7 +218,7 @@ class LocalGameStoreTest {
         store.takeBack(id)
         assertEquals(ChessGame.newGame(), store.takeBack(id))
         assertThrows(IllegalArgumentException::class.java) { store.takeBack(id) }
-        assertEquals(ChessGame.newGame(), store.activeGame()!!.game)
+        assertEquals(ChessGame.newGame(), store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.game)
     }
 
     @Test
@@ -232,7 +232,7 @@ class LocalGameStoreTest {
         // A move from some other position would leave the history disagreeing with the board.
         assertThrows(IllegalArgumentException::class.java) { store.recordMove(id, ChessGame.newGame().play("d2d4", "d7d5")) }
 
-        assertEquals(oneMove, store.activeGame()!!.game)
+        assertEquals(oneMove, store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.game)
     }
 
     // --- Atomicity --------------------------------------------------------------------
@@ -249,14 +249,14 @@ class LocalGameStoreTest {
         driver.failOn = "UPDATE local_games"
         assertThrows(SimulatedFailure::class.java) { store.recordMove(id, played.play("e7e5")) }
 
-        val restored = openStore().activeGame()!!.game
+        val restored = openStore().activeGame(LocalGameKind.PASS_AND_PLAY)!!.game
         assertEquals(played, restored)
         assertEquals(1, restored.history.size)
 
         // And with the failure gone, the same move saves normally.
         driver.failOn = null
         store.recordMove(id, played.play("e7e5"))
-        assertEquals(played.play("e7e5"), openStore().activeGame()!!.game)
+        assertEquals(played.play("e7e5"), openStore().activeGame(LocalGameKind.PASS_AND_PLAY)!!.game)
     }
 
     @Test
@@ -270,7 +270,7 @@ class LocalGameStoreTest {
         driver.failOn = "UPDATE local_games"
         assertThrows(SimulatedFailure::class.java) { store.takeBack(id) }
 
-        assertEquals(played, openStore().activeGame()!!.game)
+        assertEquals(played, openStore().activeGame(LocalGameKind.PASS_AND_PLAY)!!.game)
     }
 
     @Test
@@ -283,39 +283,103 @@ class LocalGameStoreTest {
         driver.failOn = "INSERT INTO local_games"
         assertThrows(SimulatedFailure::class.java) { store.startGame() }
 
-        val restored = openStore().activeGame()!!
+        val restored = openStore().activeGame(LocalGameKind.PASS_AND_PLAY)!!
         assertEquals(first.id, restored.id)
         assertEquals(played, restored.game)
     }
 
-    // --- One unfinished game ----------------------------------------------------------
+    // --- One unfinished game of each kind (D090) -----------------------------------------
 
     @Test
-    fun onlyOneGameIsEverUnfinished() {
+    fun oneUnfinishedGameOfEachKindStandSideBySide() {
         val store = openStore()
-        store.startGame()
-        val second = store.startGame(ComputerOpponent(Side.WHITE, 3))
+        val passAndPlay = store.startGame()
+        val computer = store.startGame(ComputerOpponent(Side.WHITE, 3))
 
-        assertEquals(second, store.activeGame())
-        assertEquals(1L, countRows("SELECT count(*) FROM local_games WHERE status = 'ACTIVE'"))
+        assertEquals(passAndPlay, store.activeGame(LocalGameKind.PASS_AND_PLAY))
+        assertEquals(computer, store.activeGame(LocalGameKind.COMPUTER))
+        assertEquals(2L, countRows("SELECT count(*) FROM local_games WHERE status = 'ACTIVE'"))
     }
 
     @Test
-    fun theDatabaseRefusesASecondUnfinishedGame() {
+    fun startingAComputerGameLeavesPassAndPlayAndItsMovesUntouched() {
+        val store = openStore()
+        val passAndPlay = store.startGame()
+        val played = store.playAndRecord(passAndPlay.id, ChessGame.newGame(), "e2e4", "e7e5")
+
+        store.startGame(ComputerOpponent(Side.BLACK, 1))
+        store.startGame(ComputerOpponent(Side.WHITE, 2))
+
+        val kept = openStore().activeGame(LocalGameKind.PASS_AND_PLAY)!!
+        assertEquals(passAndPlay.id, kept.id)
+        assertEquals(played, kept.game)
+        assertEquals(2L, countRows("SELECT count(*) FROM local_moves WHERE game_id = ${passAndPlay.id}"))
+    }
+
+    @Test
+    fun startingPassAndPlayLeavesTheComputerGameAndItsMovesUntouched() {
+        val store = openStore()
+        val computer = store.startGame(ComputerOpponent(Side.WHITE, 4))
+        val played = store.playAndRecord(computer.id, ChessGame.newGame(), "d2d4", "d7d5")
+
+        store.startGame()
+        store.startGame()
+
+        val kept = openStore().activeGame(LocalGameKind.COMPUTER)!!
+        assertEquals(computer.id, kept.id)
+        assertEquals(played, kept.game)
+        assertEquals(2L, countRows("SELECT count(*) FROM local_moves WHERE game_id = ${computer.id}"))
+    }
+
+    @Test
+    fun startingAGameReplacesOnlyItsOwnKindsUnfinishedGameWithItsMoves() {
+        val store = openStore()
+        val oldComputer = store.startGame(ComputerOpponent(Side.WHITE, 1))
+        store.playAndRecord(oldComputer.id, ChessGame.newGame(), "e2e4")
+        val passAndPlay = store.startGame()
+        store.playAndRecord(passAndPlay.id, ChessGame.newGame(), "c2c4")
+
+        val newComputer = store.startGame(ComputerOpponent(Side.BLACK, 2))
+
+        assertNull(store.game(oldComputer.id))
+        assertEquals(0L, countRows("SELECT count(*) FROM local_moves WHERE game_id = ${oldComputer.id}"))
+        assertEquals(newComputer, store.activeGame(LocalGameKind.COMPUTER))
+        assertEquals(passAndPlay.id, store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.id)
+        assertEquals(1L, countRows("SELECT count(*) FROM local_moves WHERE game_id = ${passAndPlay.id}"))
+    }
+
+    @Test
+    fun theDatabaseRefusesASecondUnfinishedGameOfOneKindAndAcceptsOneOfEach() {
         val driver = openDriver()
         openStore(driver).startGame()
-
         val queries = LocalGameDatabase(driver).localGamesQueries
-        assertThrows(Exception::class.java) {
+
+        fun insert(computer: ComputerOpponent?) =
             queries.insert(
-                kind = LocalGameKind.PASS_AND_PLAY.name,
+                kind = (if (computer == null) LocalGameKind.PASS_AND_PLAY else LocalGameKind.COMPUTER).name,
                 createdAt = 0,
                 state = LocalStateDocument.encode(ChessGame.newGame().state),
-                humanSide = null,
-                difficulty = null,
+                humanSide = computer?.humanSide?.name,
+                difficulty = computer?.difficulty?.toLong(),
             )
-        }
-        assertEquals(1L, countRows("SELECT count(*) FROM local_games"))
+
+        assertThrows(Exception::class.java) { insert(null) }
+        insert(ComputerOpponent(Side.WHITE, 1))
+        assertThrows(Exception::class.java) { insert(ComputerOpponent(Side.BLACK, 2)) }
+        assertEquals(2L, countRows("SELECT count(*) FROM local_games"))
+    }
+
+    @Test
+    fun finishingOneKindLeavesTheOtherUnfinished() {
+        val store = openStore()
+        val passAndPlay = store.startGame()
+        val computer = store.startGame(ComputerOpponent(Side.WHITE, 3))
+
+        store.recordResult(computer.id, ChessRules.resign(ChessGame.newGame(), Side.WHITE))
+
+        assertNull(store.activeGame(LocalGameKind.COMPUTER))
+        assertEquals(passAndPlay, store.activeGame(LocalGameKind.PASS_AND_PLAY))
+        assertEquals(listOf(computer.id), store.completedGames().map { it.id })
     }
 
     @Test
@@ -330,7 +394,7 @@ class LocalGameStoreTest {
         assertNull(store.game(replaced.id))
         assertEquals(emptyList<LocalGameSummary>(), store.completedGames())
         assertEquals(0L, countRows("SELECT count(*) FROM local_moves"))
-        assertEquals(ChessGame.newGame(), store.activeGame()!!.game)
+        assertEquals(ChessGame.newGame(), store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.game)
     }
 
     // --- Completion -------------------------------------------------------------------
@@ -342,7 +406,7 @@ class LocalGameStoreTest {
 
         val mated = store.playAndRecord(id, ChessGame.newGame(), "f2f3", "e7e5", "g2g4", "d8h4")
 
-        assertNull(store.activeGame())
+        assertNull(store.activeGame(LocalGameKind.PASS_AND_PLAY))
         val kept = openStore().game(id)!!
         assertFalse(kept.isActive)
         assertEquals(mated, kept.game)
@@ -363,7 +427,7 @@ class LocalGameStoreTest {
         val repeated = store.playAndRecord(claimed, ChessGame.newGame(), *shuffle, *shuffle)
         store.recordResult(claimed, ChessRules.claimDraw(repeated, DrawClaim.THREEFOLD_REPETITION))
 
-        assertNull(store.activeGame())
+        assertNull(store.activeGame(LocalGameKind.PASS_AND_PLAY))
         assertEquals(GameResult.resignation(Side.BLACK), store.game(resigned)!!.game.result)
         val drawn = store.game(claimed)!!.game
         assertEquals(TerminationReason.THREEFOLD_REPETITION_CLAIM, drawn.result!!.reason)
@@ -397,7 +461,7 @@ class LocalGameStoreTest {
         assertEquals(finished.reversed(), listed.map { it.id })
         assertEquals(listOf(LocalGameKind.PASS_AND_PLAY, LocalGameKind.COMPUTER, LocalGameKind.PASS_AND_PLAY), listed.map { it.kind })
         assertTrue(listed.zipWithNext().all { (newer, older) -> newer.completedAt > older.completedAt })
-        assertEquals(unfinished, store.activeGame()!!.id)
+        assertEquals(unfinished, store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.id)
     }
 
     // --- Support ----------------------------------------------------------------------

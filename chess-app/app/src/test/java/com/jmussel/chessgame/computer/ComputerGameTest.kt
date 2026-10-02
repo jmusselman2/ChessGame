@@ -99,7 +99,7 @@ class ComputerGameTest {
             assertEquals(listOf(Move.of("e2", "e4"), Move.of("e7", "e5")), game.moves)
             assertFalse(game.state!!.thinking)
             assertTrue(game.state!!.humansTurn)
-            assertEquals(game.state!!.game, store.activeGame()!!.game)
+            assertEquals(game.state!!.game, store.activeGame(LocalGameKind.COMPUTER)!!.game)
         }
 
     @Test
@@ -142,7 +142,7 @@ class ComputerGameTest {
             advanceUntilIdle()
 
             assertEquals(GameResult.checkmate(Side.WHITE), game.state!!.game.result)
-            assertNull(store.activeGame())
+            assertNull(store.activeGame(LocalGameKind.COMPUTER))
             val kept = store.completedGames().single()
             assertEquals(id, kept.id)
             assertEquals(LocalGameKind.COMPUTER, kept.kind)
@@ -179,7 +179,7 @@ class ComputerGameTest {
             game.leave()
             advanceUntilIdle()
             assertEquals(0, engine.calls)
-            assertEquals(listOf(Move.of("e2", "e4")), store.activeGame()!!.game.moves)
+            assertEquals(listOf(Move.of("e2", "e4")), store.activeGame(LocalGameKind.COMPUTER)!!.game.moves)
 
             // Opened twice in quick succession, as a recreated screen might.
             val reopened = computerGame(engine)
@@ -209,7 +209,7 @@ class ComputerGameTest {
 
             assertEquals(listOf(Move.of("e2", "e4"), Move.of("e7", "e5")), game.moves)
             assertTrue(game.state!!.humansTurn)
-            assertEquals(game.state!!.game, store.activeGame()!!.game)
+            assertEquals(game.state!!.game, store.activeGame(LocalGameKind.COMPUTER)!!.game)
             assertEquals(2, engine.calls)
         }
 
@@ -230,7 +230,7 @@ class ComputerGameTest {
             game.takeBack()
             advanceUntilIdle()
             assertEquals(listOf(Move.of("e2", "e4")), game.moves)
-            assertEquals(game.state!!.game, store.activeGame()!!.game)
+            assertEquals(game.state!!.game, store.activeGame(LocalGameKind.COMPUTER)!!.game)
         }
 
     @Test
@@ -247,7 +247,7 @@ class ComputerGameTest {
             assertEquals(ChessGame.newGame(), game.state!!.game)
             assertFalse(game.state!!.thinking)
             assertEquals(0, engine.calls)
-            assertEquals(ChessGame.newGame(), store.activeGame()!!.game)
+            assertEquals(ChessGame.newGame(), store.activeGame(LocalGameKind.COMPUTER)!!.game)
         }
 
     @Test
@@ -263,7 +263,7 @@ class ComputerGameTest {
 
             assertEquals(1, engine.calls)
             assertEquals(ChessGame.newGame(), game.state!!.game)
-            assertEquals(ChessGame.newGame(), store.activeGame()!!.game)
+            assertEquals(ChessGame.newGame(), store.activeGame(LocalGameKind.COMPUTER)!!.game)
         }
 
     @Test
@@ -281,8 +281,8 @@ class ComputerGameTest {
             val replacement = game.state!!
             assertEquals(ChessGame.newGame(), replacement.game)
             assertEquals(1, replacement.opponent.difficulty)
-            assertEquals(replacement.id, store.activeGame()!!.id)
-            assertEquals(ChessGame.newGame(), store.activeGame()!!.game)
+            assertEquals(replacement.id, store.activeGame(LocalGameKind.COMPUTER)!!.id)
+            assertEquals(ChessGame.newGame(), store.activeGame(LocalGameKind.COMPUTER)!!.game)
             assertEquals(emptyList<Any>(), store.completedGames())
         }
 
@@ -350,7 +350,7 @@ class ComputerGameTest {
             advanceUntilIdle()
 
             assertTrue(game.state!!.game.isOver)
-            assertNull(store.activeGame())
+            assertNull(store.activeGame(LocalGameKind.COMPUTER))
         }
 
     // --- Play the computer: entry, level, Play again (M21.7) --------------------------
@@ -370,7 +370,7 @@ class ComputerGameTest {
 
             assertNull(game.setup)
             assertEquals(ComputerOpponent(Side.BLACK, Difficulty.HARD.level), game.state!!.opponent)
-            assertEquals(ComputerOpponent(Side.BLACK, 4), store.activeGame()!!.computer)
+            assertEquals(ComputerOpponent(Side.BLACK, 4), store.activeGame(LocalGameKind.COMPUTER)!!.computer)
             // The computer had White, so it has opened.
             assertEquals(1, game.moves.size)
         }
@@ -392,28 +392,25 @@ class ComputerGameTest {
         }
 
     @Test
-    fun anUnfinishedPassAndPlayGameIsOnlyReplacedOnceThePlayerAgrees() =
+    fun anUnfinishedPassAndPlayGameIsNotAskedAboutAndIsKept() =
         runTest(dispatcher) {
             val passAndPlay = store.startGame()
-            store.recordMove(passAndPlay.id, ChessRules.applyMove(passAndPlay.game, Move.of("e2", "e4")))
+            val played = ChessRules.applyMove(passAndPlay.game, Move.of("e2", "e4"))
+            store.recordMove(passAndPlay.id, played)
             val game = computerGame(ScriptedEngine())
 
+            // One unfinished game of each kind (D090): straight to the level choice.
             game.open()
             advanceUntilIdle()
-            assertEquals(ComputerSetup.ConfirmReplacing, game.setup)
-            // A level cannot be chosen before the question is answered.
-            game.choose(Difficulty.EASY)
-            advanceUntilIdle()
-            assertEquals(passAndPlay.id, store.activeGame()!!.id)
-
-            game.confirmReplacing()
             assertEquals(ComputerSetup.ChooseDifficulty, game.setup)
             game.choose(Difficulty.EASY)
             advanceUntilIdle()
 
-            assertNull(store.game(passAndPlay.id))
+            val kept = store.activeGame(LocalGameKind.PASS_AND_PLAY)!!
+            assertEquals(passAndPlay.id, kept.id)
+            assertEquals(played, kept.game)
+            assertEquals(game.state!!.id, store.activeGame(LocalGameKind.COMPUTER)!!.id)
             assertEquals(emptyList<Any>(), store.completedGames())
-            assertEquals(LocalGameKind.COMPUTER, store.activeGame()!!.kind)
         }
 
     @Test
@@ -478,14 +475,14 @@ class ComputerGameTest {
             LEVEL_CHOICES.forEach { (difficulty, _) ->
                 if (game.state != null) {
                     game.newGame()
-                    game.confirmReplacing()
+                    game.confirmNewGame()
                 }
                 assertEquals(ComputerSetup.ChooseDifficulty, game.setup)
                 game.choose(difficulty)
                 advanceUntilIdle()
 
                 assertEquals(difficulty, game.state!!.difficulty)
-                assertEquals(difficulty.level, store.activeGame()!!.computer!!.difficulty)
+                assertEquals(difficulty.level, store.activeGame(LocalGameKind.COMPUTER)!!.computer!!.difficulty)
             }
         }
 
@@ -514,8 +511,8 @@ class ComputerGameTest {
             advanceUntilIdle()
             assertEquals(1, engine.calls)
             assertEquals(listOf(Move.of("e2", "e4"), Move.of("e7", "e5")), game.moves)
-            assertEquals(thinking.id, store.activeGame()!!.id)
-            assertEquals(game.state!!.game, store.activeGame()!!.game)
+            assertEquals(thinking.id, store.activeGame(LocalGameKind.COMPUTER)!!.id)
+            assertEquals(game.state!!.game, store.activeGame(LocalGameKind.COMPUTER)!!.game)
         }
 
     @Test
@@ -527,11 +524,11 @@ class ComputerGameTest {
             val old = game.state!!
 
             game.newGame()
-            game.confirmReplacing()
+            game.confirmNewGame()
             assertEquals(ComputerSetup.ChooseDifficulty, game.setup)
             // Nothing is deleted until a level is chosen.
             assertEquals(old, game.state)
-            assertEquals(old.id, store.activeGame()!!.id)
+            assertEquals(old.id, store.activeGame(LocalGameKind.COMPUTER)!!.id)
 
             game.choose(Difficulty.HARD)
             advanceUntilIdle()
@@ -543,7 +540,7 @@ class ComputerGameTest {
             assertEquals(ChessGame.newGame(), replacement.game)
             assertNull(store.game(old.id))
             assertEquals(emptyList<Any>(), store.completedGames())
-            assertEquals(replacement.id, store.activeGame()!!.id)
+            assertEquals(replacement.id, store.activeGame(LocalGameKind.COMPUTER)!!.id)
         }
 
     @Test
@@ -554,7 +551,7 @@ class ComputerGameTest {
             advanceUntilIdle()
 
             game.newGame()
-            game.confirmReplacing()
+            game.confirmNewGame()
             game.choose(Difficulty.EASY)
             advanceUntilIdle()
 
@@ -573,14 +570,14 @@ class ComputerGameTest {
             val kept = game.state!!
 
             game.newGame()
-            game.confirmReplacing()
+            game.confirmNewGame()
             assertTrue(game.keepGame())
             advanceUntilIdle()
 
             assertNull(game.setup)
             assertEquals(kept, game.state)
-            assertEquals(kept.id, store.activeGame()!!.id)
-            assertEquals(kept.game, store.activeGame()!!.game)
+            assertEquals(kept.id, store.activeGame(LocalGameKind.COMPUTER)!!.id)
+            assertEquals(kept.game, store.activeGame(LocalGameKind.COMPUTER)!!.game)
             // With the choice gone, no level can start a game.
             game.choose(Difficulty.EASY)
             advanceUntilIdle()
@@ -609,7 +606,7 @@ class ComputerGameTest {
             assertEquals(ComputerOpponent(Side.WHITE, Difficulty.MEDIUM.level), next.opponent)
             assertEquals(finished.game, store.game(finished.id)!!.game)
             assertEquals(listOf(finished.id), store.completedGames().map { it.id })
-            assertEquals(next.id, store.activeGame()!!.id)
+            assertEquals(next.id, store.activeGame(LocalGameKind.COMPUTER)!!.id)
         }
 
     @Test
@@ -634,7 +631,7 @@ class ComputerGameTest {
             engine.whileThinking = {
                 engine.whileThinking = {}
                 game.newGame()
-                game.confirmReplacing()
+                game.confirmNewGame()
                 game.choose(Difficulty.EASY)
             }
             game.tap("e2", "e4")
@@ -645,8 +642,8 @@ class ComputerGameTest {
             assertEquals(ComputerOpponent(Side.WHITE, Difficulty.EASY.level), replacement.opponent)
             assertEquals(ChessGame.newGame(), replacement.game)
             assertFalse(replacement.thinking)
-            assertEquals(replacement.id, store.activeGame()!!.id)
-            assertEquals(ChessGame.newGame(), store.activeGame()!!.game)
+            assertEquals(replacement.id, store.activeGame(LocalGameKind.COMPUTER)!!.id)
+            assertEquals(ChessGame.newGame(), store.activeGame(LocalGameKind.COMPUTER)!!.game)
             assertEquals(emptyList<Any>(), store.completedGames())
         }
 }

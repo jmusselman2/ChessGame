@@ -74,12 +74,10 @@ data class ComputerGameUiState(
 /**
  * What is asked before a new game against the computer starts: from "Play the computer"
  * (`M21.7`), or from New game on the game screen (`M21.10`), where the game stays in
- * [ComputerGame.state] behind the question until a level is chosen.
+ * [ComputerGame.state] behind the question until a level is chosen. An unfinished
+ * pass-and-play game is never asked about: it is kept beside this one (`D090`).
  */
 sealed interface ComputerSetup {
-    /** A pass-and-play game is unfinished, and a new game would delete it (`D084`). */
-    data object ConfirmReplacing : ComputerSetup
-
     /** New game on an unfinished game against the computer, which it would delete (`D084`, `D089`). */
     data object ConfirmNewGame : ComputerSetup
 
@@ -147,8 +145,8 @@ class ComputerGame(
 
     /**
      * What "Play the computer" does (`M21.7`): resumes the unfinished game against the
-     * computer, or asks for a level for a new one, first asking before an unfinished
-     * pass-and-play game is replaced.
+     * computer, or asks for a level for a new one. An unfinished pass-and-play game plays no
+     * part: it stays as it is (`D090`).
      */
     fun open() {
         stopSearching()
@@ -158,19 +156,15 @@ class ComputerGame(
         loading = true
         load =
             scope.launch {
-                val active = session.active()
+                val unfinished = session.resumeComputer()
                 loading = false
-                when {
-                    active == null -> setup = ComputerSetup.ChooseDifficulty
-                    active.computer == null -> setup = ComputerSetup.ConfirmReplacing
-                    else -> display(active)
-                }
+                if (unfinished == null) setup = ComputerSetup.ChooseDifficulty else display(unfinished)
             }
     }
 
-    /** The player agreed to delete the unfinished game, of either kind; now the level. */
-    fun confirmReplacing() {
-        if (setup == ComputerSetup.ConfirmReplacing || setup == ComputerSetup.ConfirmNewGame) setup = ComputerSetup.ChooseDifficulty
+    /** The player agreed New game should delete the unfinished game; now the level. */
+    fun confirmNewGame() {
+        if (setup == ComputerSetup.ConfirmNewGame) setup = ComputerSetup.ChooseDifficulty
     }
 
     /**
@@ -215,7 +209,10 @@ class ComputerGame(
         start(finished.opponent.copy(humanSide = finished.humanSide.opposite))
     }
 
-    /** Starts a new game against [opponent] in place of any unfinished local game (`D084`). */
+    /**
+     * Starts a new game against [opponent] in place of any unfinished game against the
+     * computer, which is deleted (`D084`). A pass-and-play game is untouched (`D090`).
+     */
     fun start(opponent: ComputerOpponent) = show { session.startNew(opponent) }
 
     /** Stops thinking, as the player leaves the game. Reopening it starts again. */

@@ -16,6 +16,7 @@ import com.jmussel.chessgame.core.chess.ChessRules
 import com.jmussel.chessgame.core.chess.Move
 import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.Square
+import com.jmussel.chessgame.local.LocalGameKind
 import com.jmussel.chessgame.local.LocalGameStore
 import com.jmussel.chessgame.local.inMemoryLocalGameStore
 import com.jmussel.chessgame.navigation.AppNavigation
@@ -653,7 +654,7 @@ class ChessAppTest {
             viewModel.startNewLocalGame()
             dispatcher.scheduler.runCurrent()
             assertEquals(ChessGame.newGame(), viewModel.localGame.boardState.game)
-            assertEquals(ChessGame.newGame(), store.activeGame()!!.game)
+            assertEquals(ChessGame.newGame(), store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.game)
 
             // Past local games, back on the startup screen.
             assertTrue(viewModel.back())

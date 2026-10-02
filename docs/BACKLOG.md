@@ -7760,7 +7760,7 @@ first, and the choice from the entry and from New game draws it. `difficultyName
 
 ## M21.13 — One unfinished local game of each kind
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M21.12
 
@@ -7829,3 +7829,38 @@ asking.
 - The emulator check.
 - `.\gradlew.bat build`.
 - `git diff --check`.
+
+### Completion Note
+
+2026-10-02. Schema version 3: `2.sqm` drops `local_games_one_active` and creates
+`local_games_one_active_per_kind` on `(kind) WHERE status = 'ACTIVE'`; the snapshot `3.db`
+is committed and `verifySqlDelightMigration` passes. The queries are `activeOfKind`,
+`deleteActiveOfKind` and `deleteForActiveOfKind`. `LocalGameStore.activeGame(kind)` reads
+one kind, and `startGame` deletes only its own kind's unfinished game, with its moves.
+`LocalGameSession.resume()` is non-null and always pass-and-play, `resumeComputer()` reads
+only the computer game, and `active()` is gone. `ComputerGame.open()` resumes or shows the
+level choice; `ComputerSetup.ConfirmReplacing`, `LocalGameUiState.replacingComputerGame`,
+both screen branches and `ReplaceUnfinishedGame` are removed, and `confirmReplacing()` is
+`confirmNewGame()` (`onConfirmNewGame` on the screen).
+
+- Tests: the store (one of each kind side by side; starting either kind leaves the other
+  and its moves; starting replaces only its own kind, with its moves; the database refuses
+  a second of one kind and accepts one of each; finishing one leaves the other); the
+  migration (a version-1 database with an unfinished game and a move reaches version 3
+  with the move kept and Hard at 4, takes a pass-and-play game beside it, and still refuses
+  a second computer game); the session (`resume()` with a computer game unfinished;
+  `resumeComputer()` ignores pass-and-play); `ComputerGame` (no question, and the
+  pass-and-play game is kept); the view model (both entries leave the other kind alone;
+  switching resumes both where they were; New game on each kind deletes only that kind).
+  The `D084` cross-kind tests were rewritten for `D090`; other tests changed only for
+  `activeGame(kind)`, including `LocalGameStoreDeviceTest` (compiled, not run). The view
+  model tests now give the view model a deterministic engine on the test dispatcher.
+- **Emulator check** (`ChessPlayerM5Api36`, Android 16): a debug build of `f0ad1ad`
+  (`versionCode` 5) under a throwaway username `m2113emu` left a game against the computer
+  unfinished at 1. h4 e5 2. c4. This code's debug build (`versionCode` 6) installed over it
+  with `adb install -r`. "Local game" opened a new pass-and-play game with no question;
+  after 1. e4 there, "Play the computer" resumed 1. h4 e5 2. c4, and "Local game" again
+  showed 1. e4.
+- `.\gradlew.bat build`: BUILD SUCCESSFUL. Unit tests: `chess-app` 635, `chess-ai` 20,
+  `chess-core` 394, `server` 603, none failing.
+- `git diff --check`: clean.

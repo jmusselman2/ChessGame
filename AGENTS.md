@@ -110,8 +110,9 @@ Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/groups`,
   read-only ply-by-ply review built from the stored positions.
 - `local/` — the device-authoritative store for local games (`D084`, `D085`).
   `LocalGameStore` over the SQLDelight `LocalGameDatabase` generated from
-  `src/main/sqldelight` (`local_games`, `local_moves`; schema version 2, whose `1.sqm`
-  moved stored Hard from level 3 to 4 for `D089`'s four levels); positions as JSON in
+  `src/main/sqldelight` (`local_games`, `local_moves`; schema version 3: `1.sqm` moved
+  stored Hard from level 3 to 4 for `D089`'s four levels, and `2.sqm` made the
+  unfinished-game index one per kind for `D090`); positions as JSON in
   `LocalStateDocument`; `openLocalGameStore(context)` opens `local_games.db`, which
   the backup rules exclude. `LocalGameSession` keeps the store in step with the game
   on screen, and `LocalGameChange` says what a screen update did to the game.
@@ -181,7 +182,8 @@ server's (`D084`).
 
 1. The top bar's "Local game" calls `ChessAppViewModel.open`, which shows a loading
    state while `LocalGameSession.resume` reads the unfinished pass-and-play game from
-   `LocalGameStore`, or starts a new one.
+   `LocalGameStore`, or starts a new one. An unfinished game against the computer is
+   kept beside it, untouched: one unfinished game of each kind (`D090`, `M21.13`).
 2. A tap goes `ChessBoard` → `BoardInteraction.onSquareTapped` →
    `ChessRules.applyMove`. A promotion or a draw-entitling move stops first to
    ask the player (`D041`).
@@ -292,6 +294,10 @@ commit.
   the stored game plus exactly one move, `recordResult` a result with no new move,
   `takeBack` a number of plies; anything else, or a finished game, is refused. Its
   calls block: run them off the main thread.
+- **One unfinished local game per kind** (`D090`). `activeGame(kind)` reads one kind,
+  and `startGame` deletes only its own kind's unfinished game. Code that should affect
+  "the" unfinished game must say which kind it means; the database refuses a second
+  unfinished game of one kind.
 - **Two SQLDelight versions on purpose.** Plugin and runtime 2.4.0 (AGP 9), Android
   driver 2.2.1 (minSdk 22). Don't "align" them; `docs/DEVELOPMENT.md` explains. Keep
   the SQL within Android 5.1's SQLite 3.8, and change the schema only through a new

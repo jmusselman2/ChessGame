@@ -38,11 +38,6 @@ data class LocalGameUiState(
     val confirmingNewGame: Boolean = false,
     /** Whether the game is still being read from the device, so there is nothing to show. */
     val loading: Boolean = false,
-    /**
-     * Whether a game against the computer is unfinished, so starting pass-and-play would
-     * delete it: the player is asked first (`D084`).
-     */
-    val replacingComputerGame: Boolean = false,
 )
 
 /**
@@ -84,19 +79,6 @@ fun LocalGameScreen(
         Column(modifier = modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             onBack?.let { GameBackButton(onClick = it) }
             Text(text = "Loading…", style = MaterialTheme.typography.bodyMedium)
-        }
-        return
-    }
-
-    if (state.replacingComputerGame) {
-        Column(modifier = modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            onBack?.let { GameBackButton(onClick = it) }
-            ReplaceUnfinishedGame(
-                question = "Your game against the computer is not finished. A pass-and-play game deletes it, and it is not kept.",
-                confirm = "Delete it and play pass-and-play",
-                onConfirm = onNewGame,
-                onKeep = onBack,
-            )
         }
         return
     }
@@ -200,24 +182,6 @@ fun LocalGameScreen(
             onConfirm = onNewGame,
             onCancel = { onStateChange(state.copy(confirmingNewGame = false)) },
         )
-    }
-}
-
-/**
- * The question asked before a local game of the other kind replaces the unfinished one
- * (`D084`): [confirm] deletes it, and keeping it goes back.
- */
-@Composable
-fun ReplaceUnfinishedGame(
-    question: String,
-    confirm: String,
-    onConfirm: () -> Unit,
-    onKeep: (() -> Unit)?,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(text = question, style = MaterialTheme.typography.bodyMedium)
-        Button(onClick = onConfirm) { Text(text = confirm) }
-        onKeep?.let { TextButton(onClick = it) { Text(text = "Keep it") } }
     }
 }
 
