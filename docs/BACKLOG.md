@@ -7696,7 +7696,7 @@ was rejected.
 
 ## M21.12 — The four levels in the app
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M21.10, M21.11
 
@@ -7731,6 +7731,32 @@ stored games to `D089`'s numbering.
 - The `chess-app` unit tests for the computer game and the store migration.
 - `.\gradlew.bat build`.
 - `git diff --check`.
+
+### Completion Note
+
+2026-10-02. Schema version 2: `1.sqm` sets `difficulty = 4` where it was 3, changing data
+only, so the committed snapshot `2.db` has `1.db`'s tables; `verifySqlDelightMigration`
+(debug and release) passes. `LEVEL_CHOICES` lists the four levels with their names, weakest
+first, and the choice from the entry and from New game draws it. `difficultyName`
+(`M21.11`) gives the labels, on the game screen and in Past local games.
+
+- Tests: `LocalGameMigrationTest` opens the committed `1.db`, at version 1 with games
+  written in SQL as the old app wrote them, through the current schema: finished games at
+  1, 2 and 3 list as Very Easy, Easy and Hard (1, 2, 4), and an unfinished game at each old
+  level resumes as Very Easy, Easy or Hard with its position. `ComputerGameTest` checks the
+  choice's order and names, the label for each level, and that each level on offer starts a
+  game at that level; `PastLocalGamesTest` the list line for each level.
+- **Device check, Fire HD 8 (Android 5.1):** in the installed `0.1.3-beta`, under a
+  throwaway username `m2112fire`, a game at the old Easy and one at the old Medium were
+  resigned and one at the old Hard left unfinished after 1. e4 e5. A beta-signed build of
+  this code (`0.1.4-dev`, `versionCode` 5) installed over it with `adb install -r`. The
+  account stayed; "Play the computer" resumed "Computer (Hard) • You played White" at
+  1. e4 e5, and the computer answered 2. Nf3 with Nc6; Past local games listed "Computer
+  (Very Easy)" and "Computer (Easy)". The Fire was then put back on `0.1.3-beta` at the
+  username screen, so the next beta still needs only `versionCode` 5 or higher.
+- `.\gradlew.bat build`: BUILD SUCCESSFUL. Unit tests: `chess-app` 626, `chess-ai` 20,
+  `chess-core` 394, `server` 603, none failing.
+- `git diff --check`: clean.
 
 ## M21.13 — One unfinished local game of each kind
 

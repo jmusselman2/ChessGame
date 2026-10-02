@@ -130,4 +130,31 @@ class PastLocalGamesTest {
         )
         assertEquals("Black won by resignation", PastLocalGames.resultLabel(GameResult.resignation(Side.WHITE)))
     }
+
+    @Test
+    fun eachLevelIsListedUnderItsName() {
+        val summary =
+            LocalGameSummary(
+                id = 1,
+                computer = null,
+                createdAt = 1_000,
+                completedAt = 2_000,
+                result = GameResult.checkmate(Side.BLACK),
+            )
+
+        val lines =
+            (1..4).map { level ->
+                PastLocalGames.summaryFor(summary.copy(computer = ComputerOpponent(Side.BLACK, level))) { "day $it" }
+            }
+
+        assertEquals(
+            listOf(
+                "Computer (Very Easy) • You played Black • day 2000 • White won by checkmate",
+                "Computer (Easy) • You played Black • day 2000 • White won by checkmate",
+                "Computer (Medium) • You played Black • day 2000 • White won by checkmate",
+                "Computer (Hard) • You played Black • day 2000 • White won by checkmate",
+            ),
+            lines,
+        )
+    }
 }

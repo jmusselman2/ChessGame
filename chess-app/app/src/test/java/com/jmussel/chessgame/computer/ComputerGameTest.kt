@@ -445,6 +445,50 @@ class ComputerGameTest {
             assertEquals(listOf(finished.id), store.completedGames().map { it.id })
         }
 
+    // --- The four levels (M21.12) --------------------------------------------------------
+
+    @Test
+    fun theChoiceOffersTheFourLevelsWeakestFirst() {
+        assertEquals(
+            listOf(
+                Difficulty.VERY_EASY to "Very Easy",
+                Difficulty.EASY to "Easy",
+                Difficulty.MEDIUM to "Medium",
+                Difficulty.HARD to "Hard",
+            ),
+            LEVEL_CHOICES,
+        )
+    }
+
+    @Test
+    fun theGameScreenNamesEachLevel() {
+        assertEquals(
+            listOf("Computer (Very Easy)", "Computer (Easy)", "Computer (Medium)", "Computer (Hard)"),
+            (1..4).map(::computerLabel),
+        )
+    }
+
+    @Test
+    fun eachLevelOnOfferStartsAGameAtThatLevel() =
+        runTest(dispatcher) {
+            val game = computerGame(ScriptedEngine())
+            game.open()
+            advanceUntilIdle()
+
+            LEVEL_CHOICES.forEach { (difficulty, _) ->
+                if (game.state != null) {
+                    game.newGame()
+                    game.confirmReplacing()
+                }
+                assertEquals(ComputerSetup.ChooseDifficulty, game.setup)
+                game.choose(difficulty)
+                advanceUntilIdle()
+
+                assertEquals(difficulty, game.state!!.difficulty)
+                assertEquals(difficulty.level, store.activeGame()!!.computer!!.difficulty)
+            }
+        }
+
     // --- New game on the game screen (M21.10) -----------------------------------------
 
     @Test

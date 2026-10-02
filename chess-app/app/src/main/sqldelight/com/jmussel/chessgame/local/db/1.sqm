@@ -1,0 +1,4 @@
+-- Four computer levels (D089, M21.12): Hard moves from level 3 to 4, so that 3 can be the
+-- new Medium. Levels 1 and 2 keep their numbers: they are the same engines as before,
+-- renamed Very Easy and Easy, so no stored game changes how it plays.
+UPDATE local_games SET difficulty = 4 WHERE difficulty = 3;

@@ -486,8 +486,9 @@ against the computer. It never uses the server.
 *Decided 2026-09-29 (`D086`). Built by `M21.6`–`M21.7`.*
 
 - **Starting.** "Play the computer" sits next to the local game, including when
-  offline. A new game asks for one of three difficulty levels. The player's colour is
-  random for the first game.
+  offline. A new game asks for one of four levels: Very Easy, Easy, Medium or Hard
+  (`D089`, which superseded `D086`'s three). The player's colour is random for the
+  first game.
 - **The board** stays turned to the player's colour, and the opponent shows as
   "Computer" with its level. The player cannot move while the computer is thinking.
 - **Takeback.** After the computer has replied, Undo takes back its reply and the
@@ -528,6 +529,14 @@ in place of the board, headed "New game", with "Back to the game" (and Back) ret
 to the game as it is. Nothing is deleted until a level is chosen; then any search
 stops, the unfinished game is deleted, and the new game starts at that level with a
 random colour. A finished game stays in past local games. Play again is unchanged.
+
+*As built by `M21.11`–`M21.12`:* the level choice, from "Play the computer" and from
+New game, lists Very Easy, Easy, Medium and Hard, weakest first. The game screen and
+past local games name the level the same way: "Computer (Very Easy)" to "Computer
+(Hard)". Games saved before the update keep how they play: one at the old Easy or
+Medium now reads Very Easy or Easy, the same engine renamed, and one at the old Hard
+is still Hard. On a slow phone the computer may take a little longer than its time
+budget to finish looking one move ahead, rather than answer without looking.
 
 *Decided 2026-10-02 (`D090`), lands with `M21.13`:* "Play the computer" no longer asks
 about an unfinished pass-and-play game, and "Local game" no longer asks about an

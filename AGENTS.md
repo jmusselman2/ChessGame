@@ -110,7 +110,8 @@ Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/groups`,
   read-only ply-by-ply review built from the stored positions.
 - `local/` — the device-authoritative store for local games (`D084`, `D085`).
   `LocalGameStore` over the SQLDelight `LocalGameDatabase` generated from
-  `src/main/sqldelight` (`local_games`, `local_moves`); positions as JSON in
+  `src/main/sqldelight` (`local_games`, `local_moves`; schema version 2, whose `1.sqm`
+  moved stored Hard from level 3 to 4 for `D089`'s four levels); positions as JSON in
   `LocalStateDocument`; `openLocalGameStore(context)` opens `local_games.db`, which
   the backup rules exclude. `LocalGameSession` keeps the store in step with the game
   on screen, and `LocalGameChange` says what a screen update did to the game.

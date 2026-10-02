@@ -499,6 +499,10 @@ PostgreSQL, and it works when server startup fails.
 - **The computer's moves** come from a `ChessEngine` (`chess-ai`, `D086`), run off
   the main thread. The app discards any result that no longer matches the current
   game and position.
+- **The level is stored as its number,** 1 (Very Easy) to 4 (Hard), in
+  `local_games.difficulty` (`D089`). Schema version 2's `1.sqm` (`M21.12`) moved
+  stored Hard games from 3 to 4 when the new Medium took 3; it changes data only, so
+  the version-2 snapshot `2.db` has the same tables as `1.db`.
 
 **The store, as built by `M21.1`** (package `com.jmussel.chessgame.local`):
 

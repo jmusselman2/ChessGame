@@ -84,7 +84,7 @@ fun ComputerGameScreen(
     if (setup == ComputerSetup.ConfirmNewGame) NewGameConfirmation(onConfirm = actions.onConfirmReplacing, onCancel = actions.onKeepGame)
 }
 
-/** The three levels, easiest first (`D088`); [onKeepGame] goes back to the game New game left. */
+/** The four levels, weakest first (`D089`); [onKeepGame] goes back to the game New game left. */
 @Composable
 private fun DifficultyChoice(
     onChoose: (Difficulty) -> Unit,
@@ -92,8 +92,8 @@ private fun DifficultyChoice(
 ) {
     Text(text = if (onKeepGame == null) "Play the computer" else "New game", style = MaterialTheme.typography.titleSmall)
     Text(text = "Choose a level. You get a random colour.", style = MaterialTheme.typography.bodyMedium)
-    Difficulty.entries.forEach { difficulty ->
-        Button(onClick = { onChoose(difficulty) }) { Text(text = difficultyName(difficulty.level)) }
+    LEVEL_CHOICES.forEach { (difficulty, name) ->
+        Button(onClick = { onChoose(difficulty) }) { Text(text = name) }
     }
     onKeepGame?.let { TextButton(onClick = it) { Text(text = "Back to the game") } }
 }

@@ -31,6 +31,9 @@ fun difficultyName(difficulty: Int): String =
         .split('_')
         .joinToString(" ") { word -> word.lowercase().replaceFirstChar { it.uppercase() } }
 
+/** The levels a new game offers, weakest first, with their names (`D089`). */
+val LEVEL_CHOICES: List<Pair<Difficulty, String>> = Difficulty.entries.map { it to difficultyName(it.level) }
+
 /** How the computer is named on screen and in past local games: `"Computer (Medium)"`. */
 fun computerLabel(difficulty: Int): String = "Computer (${difficultyName(difficulty)})"
 
@@ -80,7 +83,7 @@ sealed interface ComputerSetup {
     /** New game on an unfinished game against the computer, which it would delete (`D084`, `D089`). */
     data object ConfirmNewGame : ComputerSetup
 
-    /** Which of the three levels to play (`D086`, `D088`). */
+    /** Which of the four levels to play (`D089`). */
     data object ChooseDifficulty : ComputerSetup
 }
 
