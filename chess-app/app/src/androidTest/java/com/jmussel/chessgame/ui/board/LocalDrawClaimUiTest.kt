@@ -1,5 +1,6 @@
 package com.jmussel.chessgame.ui.board
 
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -29,6 +30,8 @@ class LocalDrawClaimUiTest {
         composeRule.setContent { ChessGameTheme { LocalGameScreen(initialState = declared) } }
 
         composeRule.onNodeWithText("Playing f6g8", substring = true).assertExists()
+        // The explanation is on screen where the choice is made (`M21.18`).
+        composeRule.onNodeWithText("f6g8 is not played", substring = true).assertIsDisplayed()
         composeRule.onNodeWithText("Claim draw (threefold repetition)").performClick()
 
         composeRule.onNodeWithText("Drawn by threefold repetition").assertExists()

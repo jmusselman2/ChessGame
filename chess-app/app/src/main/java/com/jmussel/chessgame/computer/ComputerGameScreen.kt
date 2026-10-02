@@ -22,6 +22,7 @@ import com.jmussel.chessgame.ui.board.BoardRendering
 import com.jmussel.chessgame.ui.board.BoardUiState
 import com.jmussel.chessgame.ui.board.ChessBoard
 import com.jmussel.chessgame.ui.board.DeclaredMovePrompt
+import com.jmussel.chessgame.ui.board.ExplainedActions
 import com.jmussel.chessgame.ui.board.GameBackButton
 import com.jmussel.chessgame.ui.board.GameControls
 import com.jmussel.chessgame.ui.board.GameEndHeadline
@@ -142,15 +143,20 @@ private fun Game(
                         onCancel = { actions.onUpdate(BoardInteraction.cancelDeclaredMove(board)) },
                     )
                 }
-                GameControls.availableDrawClaims(board).forEach { claim ->
-                    Button(
-                        onClick = { actions.onUpdate(GameControls.claimDraw(board, claim)) },
-                    ) { Text(text = GameControls.labelFor(claim)) }
+                val claims = GameControls.availableDrawClaims(board)
+                if (claims.isNotEmpty()) {
+                    ExplainedActions(explanation = GameControls.CLAIM_EXPLANATION) {
+                        claims.forEach { claim ->
+                            Button(onClick = { actions.onUpdate(GameControls.claimDraw(board, claim)) }) {
+                                Text(text = GameControls.labelFor(claim))
+                            }
+                        }
+                    }
                 }
             }
 
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (state.canTakeBack) Button(onClick = actions.onTakeBack) { Text(text = "Undo") }
+                if (state.canTakeBack) Button(onClick = actions.onTakeBack) { Text(text = state.takeBackLabel) }
                 if (!board.game.isOver) Button(onClick = { resigning = true }) { Text(text = "Resign") }
             }
 

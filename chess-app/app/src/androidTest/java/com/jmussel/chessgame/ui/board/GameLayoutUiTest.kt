@@ -139,8 +139,9 @@ class GameLayoutUiTest {
             listOf(
                 "Back",
                 GameControls.statusFor(position.game),
-                "Undo",
+                GameControls.undoLabelFor(position)!!,
                 GameControls.labelFor(DrawClaim.THREEFOLD_REPETITION),
+                GameControls.CLAIM_EXPLANATION,
                 GameControls.resignLabelFor(Side.WHITE),
                 GameControls.resignLabelFor(Side.BLACK),
             )
@@ -217,7 +218,7 @@ class GameLayoutUiTest {
             }
             listOf(
                 "Back",
-                "Undo",
+                GameControls.undoLabelFor(position)!!,
                 GameControls.labelFor(DrawClaim.THREEFOLD_REPETITION),
                 GameControls.resignLabelFor(Side.WHITE),
                 GameControls.resignLabelFor(Side.BLACK),
@@ -242,7 +243,7 @@ class GameLayoutUiTest {
                 listOf(
                     "Back",
                     GameControls.statusFor(position.game),
-                    "Undo",
+                    GameControls.undoLabelFor(position)!!,
                     GameControls.labelFor(DrawClaim.THREEFOLD_REPETITION),
                     GameControls.resignLabelFor(Side.WHITE),
                     GameControls.resignLabelFor(Side.BLACK),

@@ -71,7 +71,7 @@ class OnlineGameLayoutUiTest {
             composeRule.onNodeWithTag(CHESS_BOARD_TAG).assertIsDisplayed().assertInsideViewport(composeRule, "$window: board")
             composeRule.onNodeWithText("Back").assertIsDisplayed()
             composeRule.onNodeWithText(OnlineGame.statusFor(finished)).assertIsDisplayed()
-            listOf("Undo", "Resign", "Leave series").forEach { action ->
+            listOf(OnlineGame.UNDO_LABEL, "Resign", "Leave series").forEach { action ->
                 composeRule.onNodeWithText(action).assertDoesNotExist()
             }
         }
@@ -84,7 +84,14 @@ class OnlineGameLayoutUiTest {
 
         TWO_PANE_VIEWPORTS.forEach { window ->
             showIn(window)
-            listOf("Back", "Undo", OnlineGame.claimLabel("THREEFOLD_REPETITION"), "Resign").forEach { label ->
+            listOf(
+                "Back",
+                OnlineGame.UNDO_LABEL,
+                OnlineGame.UNDO_EXPLANATION,
+                OnlineGame.claimLabel("THREEFOLD_REPETITION"),
+                OnlineGame.CLAIM_EXPLANATION,
+                "Resign",
+            ).forEach { label ->
                 composeRule.onNodeWithText(label).assertIsDisplayed().assertInsideViewport(composeRule, "$window: $label")
             }
         }

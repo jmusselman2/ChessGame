@@ -69,6 +69,13 @@ data class ComputerGameUiState(
      */
     val canTakeBack: Boolean
         get() = !game.isOver && game.history.any { it.positionBefore.sideToMove == humanSide }
+
+    /**
+     * What Undo says it takes back (`M21.18`): the human move the computer is still answering,
+     * or that move and the computer's reply. Both are `D086`'s takeback, not multiplayer Undo.
+     */
+    val takeBackLabel: String
+        get() = if (game.lastMover == humanSide) "Undo your move" else "Undo your move and the computer's reply"
 }
 
 /**

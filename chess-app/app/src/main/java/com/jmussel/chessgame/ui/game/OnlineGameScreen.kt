@@ -21,6 +21,7 @@ import com.jmussel.chessgame.api.UserSummaryDto
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.ui.board.ChessBoard
+import com.jmussel.chessgame.ui.board.ExplainedActions
 import com.jmussel.chessgame.ui.board.GameBackButton
 import com.jmussel.chessgame.ui.board.GameEndHeadline
 import com.jmussel.chessgame.ui.board.GameLayout
@@ -219,15 +220,23 @@ private fun Game(
 
             // Offered only while the server's own answer says this player may take a move back
             // (`D016`); the server decides again when the command arrives.
+            // What it takes back and how long it lasts are said beside it (`M21.18`).
             if (game.canUndo) {
-                Button(onClick = onUndo, enabled = !state.submitting) { Text(text = UNDO) }
+                ExplainedActions(explanation = OnlineGame.UNDO_EXPLANATION) {
+                    Button(onClick = onUndo, enabled = !state.submitting) { Text(text = OnlineGame.UNDO_LABEL) }
+                }
             }
 
             // Only the claims the server said are available, each labelled by its own rule
-            // (`D019`); an automatic draw needs no claim and never appears here.
-            game.availableDrawClaims.forEach { claim ->
-                Button(onClick = { onClaimDraw(claim) }, enabled = !state.submitting) {
-                    Text(text = OnlineGame.claimLabel(claim))
+            // (`D019`); an automatic draw needs no claim and never appears here. Not an offer:
+            // nothing here asks the opponent anything, and the copy says so (`M21.18`).
+            if (game.availableDrawClaims.isNotEmpty()) {
+                ExplainedActions(explanation = OnlineGame.CLAIM_EXPLANATION) {
+                    game.availableDrawClaims.forEach { claim ->
+                        Button(onClick = { onClaimDraw(claim) }, enabled = !state.submitting) {
+                            Text(text = OnlineGame.claimLabel(claim))
+                        }
+                    }
                 }
             }
 
@@ -340,7 +349,6 @@ private fun PromotionPrompt(
 private const val SUBMITTING = "Sending…"
 private const val PROMOTE_TO = "Promote to"
 private const val CANCEL = "Cancel"
-private const val UNDO = "Undo"
 private const val RESIGN = "Resign"
 private const val RESIGN_TITLE = "Resign?"
 private const val RESIGN_WARNING = "You lose this game. This cannot be undone."

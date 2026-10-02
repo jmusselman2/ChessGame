@@ -44,6 +44,13 @@ object GameControls {
      */
     fun undoableSide(state: BoardUiState): Side? = ChessRules.undoableSide(state.game)
 
+    /**
+     * What the Undo control says (`M21.18`): whose move it takes back, `"Undo White's move"`,
+     * or `null` when nothing may be taken back. The side is [undoableSide]'s, which is
+     * `chess-core`'s; the screen does not work it out.
+     */
+    fun undoLabelFor(state: BoardUiState): String? = undoableSide(state)?.let { "Undo ${sideName(it)}'s move" }
+
     /** Whether the Undo control should be shown at all. */
     fun canUndo(state: BoardUiState): Boolean = undoableSide(state) != null
 
@@ -142,7 +149,7 @@ object GameControls {
         )
 
     /** A short label for resigning as [side]. */
-    fun resignLabelFor(side: Side): String = "Resign as ${if (side == Side.WHITE) "White" else "Black"}"
+    fun resignLabelFor(side: Side): String = "Resign as ${sideName(side)}"
 
     /**
      * The game status: how it ended, or whose move it is and whether that player stands in
@@ -159,6 +166,19 @@ object GameControls {
         return if (ChessRules.isInCheck(game.state)) "$turn $SEPARATOR $CHECK" else turn
     }
 
+    /**
+     * What a draw claim does, shown under the claims wherever they are offered (`M21.18`).
+     * The labels name the rule; this says the claim needs nothing more (`D019`).
+     */
+    const val CLAIM_EXPLANATION = "A valid claim ends the game at once."
+
+    /**
+     * What a claim on a declared move does (`D038`, `D041`): the game ends from the position on
+     * the board, and the declared move is never played.
+     */
+    fun declaredClaimExplanation(declared: DeclaredMove): String =
+        "Playing ${declared.move} lets you claim a draw instead. Claiming ends the game now, and ${declared.move} is not played."
+
     /** A short label for a draw claim. */
     fun labelFor(claim: DrawClaim): String =
         when (claim) {
@@ -167,6 +187,8 @@ object GameControls {
         }
 
     private fun format(move: Move): String = move.toString()
+
+    private fun sideName(side: Side): String = if (side == Side.WHITE) "White" else "Black"
 
     private const val SEPARATOR = "—"
     private const val CHECK = "Check"

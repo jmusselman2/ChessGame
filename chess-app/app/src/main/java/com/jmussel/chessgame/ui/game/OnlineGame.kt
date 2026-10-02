@@ -353,6 +353,22 @@ object OnlineGame {
     /** The state after the player backs out of the promotion prompt. */
     fun cancelPromotion(state: OnlineGameState.Ready): OnlineGameState.Ready = state.copy(pendingPromotion = null)
 
+    /** What Undo says (`M21.18`): it takes back the player's own latest move, and only that. */
+    const val UNDO_LABEL = "Undo your move"
+
+    /**
+     * What Undo needs and how long it lasts (`D016`): no approval, and only until the opponent
+     * replies, which is when the server stops offering it. One short line, so a two-pane panel
+     * keeps every control in view (`D073`).
+     */
+    const val UNDO_EXPLANATION = "No approval needed, until they reply."
+
+    /**
+     * What a draw claim is, and is not (`D019`, `M21.18`): not an offer, so nobody answers it,
+     * and a valid one ends the game.
+     */
+    const val CLAIM_EXPLANATION = "Not a draw offer: no reply is needed. A valid claim ends the game at once."
+
     /**
      * What a claim button says.
      *
