@@ -31,17 +31,16 @@ Work continuously through the backlog. The normal autonomous task loop is
 10. Commit the verified task on `claude-autopilot` (see **Branch and Commit
     Workflow**).
 11. Push `claude-autopilot` to `origin`.
-12. Fast-forward `main` and `codex-autopilot` to the pushed commit (see
-    **Updating `main` and `codex-autopilot`**). Do this straight away; it does not wait for
-    CI (`D079`).
-13. Wait for the required GitHub Actions run for **that pushed commit** (see
-    **Remote CI Gate**).
-14. If CI fails: diagnose the failure, make the necessary fix, rerun local
-    verification (`./gradlew build`), commit, push again, update `main` and
-    `codex-autopilot` again, and wait for CI again. Use the same **Failure Handling and
-    Escalation** ladder.
-15. Only after the required CI checks are green for the pushed commit may the
-    workflow select and begin the next backlog task.
+12. Wait for the required GitHub Actions run for **that pushed commit** (see
+    **Remote CI Gate**), unless it changes Markdown files only (`D079`).
+13. If CI fails: diagnose the failure, make the necessary fix, rerun local
+    verification (`./gradlew build`), commit, push `claude-autopilot` again, and
+    wait for CI again. Use the same **Failure Handling and Escalation** ladder.
+    `main` and `codex-autopilot` do not move while CI is red.
+14. Once CI is green for the pushed commit (or it is documentation-only),
+    fast-forward `main` and `codex-autopilot` to it (see **Updating `main` and
+    `codex-autopilot`**, `D079`).
+15. Only then may the workflow select and begin the next backlog task.
 16. Continue automatically across milestone boundaries.
 
 ### `DONE` vs. advancing to the next task
@@ -121,16 +120,15 @@ one first.
     changed.
 18. Commit the verified work on `claude-autopilot`.
 19. Push `claude-autopilot` to `origin`.
-20. Fast-forward `main` and `codex-autopilot` (see **Updating `main` and `codex-autopilot`**).
-    This does not wait for CI.
-21. Identify and watch the required GitHub Actions run for the commit just
+20. Identify and watch the required GitHub Actions run for the commit just
     pushed (see **Remote CI Gate**). Confirm the run's head SHA matches the
-    pushed commit.
-22. If CI fails, diagnose and fix it (same escalation ladder), then re-run local
-    verification, commit, push, update `main` and `codex-autopilot` again, and watch CI again.
-    Repeat until the required checks are green.
-23. Only once the required CI checks are green for that commit, continue to the
-    next unblocked task.
+    pushed commit. A Markdown-only commit skips this (`D079`).
+21. If CI fails, diagnose and fix it (same escalation ladder), then re-run local
+    verification, commit, push `claude-autopilot`, and watch CI again. Repeat
+    until the required checks are green.
+22. Fast-forward `main` and `codex-autopilot` to the green commit (see
+    **Updating `main` and `codex-autopilot`**, `D079`).
+23. Continue to the next unblocked task.
 
 ## Verification
 
@@ -165,7 +163,17 @@ For a task whose acceptance criteria require GitHub Actions itself to succeed
 
 After pushing `claude-autopilot`, the workflow must wait for the required
 GitHub Actions run for the commit just pushed and confirm it is green before
-selecting the next backlog task.
+fast-forwarding `main` and `codex-autopilot` and before selecting the next backlog
+task (`D079`).
+
+### Documentation-only commits (`D079`)
+
+A commit whose every changed path is a Markdown file (`*.md`) does not wait for
+its run. Push it, update `main` and `codex-autopilot`, and carry on. The run
+still happens; if it is ever red, treat it like any red run once it is seen.
+The exemption covers that commit only: an earlier commit that changed code,
+build files or the workflow still needs its own green run before the next task
+starts.
 
 ### Monitoring the run
 
@@ -273,18 +281,18 @@ recommended conventional option per `CLAUDE.md`.
 ## Branch and Commit Workflow
 
 Development happens on the `claude-autopilot` branch. `main` and
-`codex-autopilot` are fast-forwarded to every commit Claude pushes there,
-without waiting for CI (`D079`). This
-applies to any coding task Claude finishes and pushes, not only the autonomous
-loop.
+`codex-autopilot` are fast-forwarded to each commit Claude pushes there once its
+required CI run is green, or straight away for a Markdown-only commit
+(`D079`). This applies to any coding task Claude finishes and pushes, not only the
+autonomous loop.
 
 - Use the existing `claude-autopilot` branch (`git switch claude-autopilot`).
 - Make one focused commit per completed, verified task. Commit messages state
   the backlog task id and what changed.
 - Local commits after verified tasks are expected and require no approval.
-- After each such commit, push `claude-autopilot` to `origin`, update `main` and
-  `codex-autopilot` (below), and then satisfy the **Remote CI Gate** before starting the
-  next task.
+- After each such commit, push `claude-autopilot` to `origin`, satisfy the
+  **Remote CI Gate**, and then update `main` and `codex-autopilot` (below) before
+  starting the next task.
 - **Do not** force-push any branch, and do not rewrite published history,
   except updating `claude-autopilot` with `--force-with-lease` after rebasing
   it onto `origin/main` (below).
@@ -296,8 +304,9 @@ loop.
 
 ### Updating `main` and `codex-autopilot`
 
-Run this after each push of `claude-autopilot`. It does not wait for CI. The
-owner reverts `main` by hand if a bad commit reaches it.
+Run this once the pushed `claude-autopilot` commit's required CI run is green, or
+straight after the push for a Markdown-only commit (`D079`). `main`
+deploys the beta, so it only ever receives commits CI has passed.
 
 Both branches move only by fast-forward, and `main`'s history stays linear: it
 never gets a merge commit. They differ only when a fast-forward is impossible:
@@ -326,7 +335,8 @@ the evaluator's.
    5. Update `claude-autopilot` on GitHub with
       `git push --force-with-lease origin claude-autopilot`. This is the only
       branch that is ever force-pushed. `main` is never force-pushed.
-   6. Fast-forward `main` as in step 2.
+   6. Wait for the rebased commit's required CI run to be green (not needed if
+      the rebase changed Markdown only), then fast-forward `main` as in step 2.
 4. **Fast-forward `codex-autopilot`, or skip it.** If
    `origin/codex-autopilot` is an ancestor of the new `origin/main`, push it
    forward: `git push origin origin/main:codex-autopilot`. If it is not (the

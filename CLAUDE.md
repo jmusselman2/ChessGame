@@ -214,18 +214,24 @@ normal task loop is exactly:
 9. Review `git status` and `git diff`.
 10. Commit the verified task on `claude-autopilot`.
 11. Push `claude-autopilot` to `origin`.
-12. Fast-forward `main` and `codex-autopilot` to it, without waiting for CI
-    (`D079`; see **Updating `main` and `codex-autopilot`** below).
-13. Wait for the required GitHub Actions run for that pushed commit.
-14. If CI fails, diagnose and fix it, rerun local verification, commit, push
-    again, update `main` and `codex-autopilot` again, and wait for CI again (same
-    escalation ladder).
-15. Only after the required CI checks are green may the workflow select and
-    begin the next backlog task.
+12. Wait for the required GitHub Actions run for that pushed commit, unless
+    the commit changes Markdown files only (`D079`).
+13. If CI fails, diagnose and fix it, rerun local verification, commit, push
+    `claude-autopilot` again, and wait for CI again (same escalation ladder).
+    `main` and `codex-autopilot` stay where they are meanwhile.
+14. Once CI is green for the pushed commit (or it is documentation-only),
+    fast-forward `main` and `codex-autopilot` to it (`D079`; see **Updating
+    `main` and `codex-autopilot`** below).
+15. Only then may the workflow select and begin the next backlog task.
 16. Continue automatically across milestone boundaries.
 
 Key clarifications:
 
+- **Documentation-only commits do not wait for CI** (`D079`). When every
+  changed path is a `*.md` file, push `claude-autopilot`, fast-forward `main`
+  and `codex-autopilot` straight away, and carry on. The run still happens; a
+  red one is handled when seen. An earlier commit that changed anything else
+  still needs its own green run before the next task starts.
 - **`DONE` vs. advancing are different gates.** A task may be marked `DONE` once
   its required **local** verification succeeds (implementation + acceptance
   criteria + `./gradlew build`). The workflow may **not** advance to the next
@@ -259,10 +265,10 @@ Key clarifications:
   security stop condition applies only when the task would need a security
   decision the documents have not made, or a change to the approved security
   model.
-- Work happens on `claude-autopilot`, and `main` and `codex-autopilot` are
-  fast-forwarded to each pushed commit straight away, before CI finishes
-  (`D079`). The CI gate still decides
-  when the next task may start.
+- Work happens on `claude-autopilot`. `main` and `codex-autopilot` are
+  fast-forwarded to a pushed commit only once its required CI run is green, or
+  straight away when it changes Markdown only (`D079`). So `main`, which
+  deploys the beta, never receives a commit CI has not passed.
 - Preserved guardrails: `main` stays linear and is never merged into, rebased,
   or force-pushed. No force-push and no rewriting published history, except
   updating a rebased `claude-autopilot` with `--force-with-lease` (`D079`).
@@ -334,9 +340,11 @@ Routine autonomous work may include:
 ### Updating `main` and `codex-autopilot`
 
 Whenever Claude has finished a coding task and pushed the commits it intends to
-`claude-autopilot` (in the autonomous loop or not), it fast-forwards `main` and
-`codex-autopilot` to them immediately, without waiting for CI (`D079`). The owner
-rolls `main` back by hand if needed.
+`claude-autopilot` (in the autonomous loop or not), it waits for that push's
+required CI run, and once it is green fast-forwards `main` and `codex-autopilot`
+to it (`D079`). A push that changes Markdown files only is fast-forwarded straight
+away. A red run leaves `main` and `codex-autopilot` where they are until a
+fix is green.
 
 Both branches move only by fast-forward, and `main`'s history stays linear: it
 never gets a merge commit. They differ only when a fast-forward is impossible:
@@ -357,7 +365,8 @@ Full procedure: `docs/AUTONOMOUS-DEVELOPMENT.md`, **Updating `main` and
    cleanly, stop and report, and leave `main` alone. After a rebase or squash,
    run `./gradlew build`, update `claude-autopilot` on GitHub with
    `git push --force-with-lease origin claude-autopilot` (that branch only),
-   then do step 2. `main` is never force-pushed.
+   wait for its CI to be green (unless the change is Markdown only), then do
+   step 2. `main` is never force-pushed.
 4. If `origin/codex-autopilot` is an ancestor of the new `origin/main`:
    `git push origin origin/main:codex-autopilot`. Otherwise skip it and say so.
    Never merge into, rebase or force-push `codex-autopilot`.

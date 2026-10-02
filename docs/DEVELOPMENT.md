@@ -953,8 +953,9 @@ is the latest required run for the commit at the tip of `claude-autopilot`, whic
 
 In the continuous autonomous workflow (`docs/AUTONOMOUS-DEVELOPMENT.md`), a task
 may be marked `DONE` once local `./gradlew build` passes, but the workflow may
-**not** start the next task until the pushed `claude-autopilot` commit has
-passed its required GitHub Actions run.
+**not** fast-forward `main` and `codex-autopilot`, or start the next task, until
+the pushed `claude-autopilot` commit has passed its required GitHub Actions run. A
+commit that changes Markdown files only does not wait for its run (`D079`).
 
 Monitor the run with the GitHub CLI, and confirm it is the run for the commit
 you just pushed:

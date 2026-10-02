@@ -670,7 +670,7 @@ Library quality changes faster than the architecture itself.
 **Status:** Accepted
 
 **Superseded in part by `D079`:** each commit pushed to `claude-autopilot` is now
-integrated into `main` straight away, before CI, and `codex-autopilot` is
+integrated into `main` by Claude once its CI run is green, and `codex-autopilot` is
 fast-forwarded to it when possible. The rest of this decision stands.
 
 ### Decision
@@ -5101,7 +5101,7 @@ just emptied the log, so nothing needed backfilling.
 
 ---
 
-## D079 — `main` and `codex-autopilot` Are Fast-Forwarded to Pushed Work Without Waiting for CI
+## D079 — `main` and `codex-autopilot` Are Fast-Forwarded to Pushed Work Once CI Is Green
 
 **Date:** 2026-09-24
 
@@ -5113,14 +5113,38 @@ just emptied the log, so nothing needed backfilling.
 diverged `claude-autopilot` is now rebased onto `main`, or squashed when a rebase
 is not workable, and never merged.
 
+**Corrected:** 2026-10-01 — this decision was first recorded as fast-forwarding
+`main` and `codex-autopilot` straight after the push, without waiting for CI. That
+was entered wrong. The owner's order is: push `claude-autopilot`, wait for its CI
+when needed, then bring `main` and `codex-autopilot` up. Work from 2026-09-24 to
+2026-10-01 followed the wrong order. In that time one commit whose CI run failed
+reached `main`: `6c87605` (2026-09-27); the next commit, `35da49a`, was green.
+
+**Amended:** 2026-10-01 — a commit that changes Markdown files only does not wait for
+CI, at the owner's instruction.
+
 **Supersedes in part:** `D026` (integrating `claude-autopilot` into `main` was a
 human step)
 
 ### Decision
 
-- **After Claude pushes the commits it intends to `claude-autopilot`, it
-  integrates them into `main` immediately.** It does not wait for CI. This holds
-  for any finished coding task, inside the autonomous loop or not.
+- **The order after each commit:**
+  1. Push `claude-autopilot`.
+  2. Wait for that commit's required GitHub Actions run, unless every changed path
+     is a Markdown file (`*.md`).
+  3. If the run is red, fix it on `claude-autopilot` and repeat from step 1. `main`
+     and `codex-autopilot` stay where they are.
+  4. Once it is green, or straight away for a Markdown-only commit, fast-forward
+     `main`, then `codex-autopilot`.
+
+  This holds for any finished coding task, inside the autonomous loop or not. It is
+  done by Claude, with no human step.
+- **A Markdown-only commit does not wait for CI.** Its run still happens, because
+  CI runs on every push, and a red one is handled when it is seen. The exemption is
+  that commit's alone: an earlier commit that changed code, build files or the
+  workflow still needs its own green run before `main` moves or the next task starts.
+  `git diff --check`, and a green local `./gradlew build` before a task is `DONE`,
+  still apply.
 - **`main` only moves by fast-forward, and its history stays linear.** Before
   any push to `main`, `origin/main` must be an ancestor of `claude-autopilot`,
   and there must be no merge commits between them.
@@ -5130,14 +5154,14 @@ human step)
   `main`. If even that won't resolve cleanly, or the rebased build fails for a
   reason the task did not cause, it stops and reports, and `main` is left alone.
 - **After a rebase, `claude-autopilot` is updated on GitHub with
-  `--force-with-lease`, and only that branch.** `main` still moves only by
-  fast-forward and is never force-pushed.
+  `--force-with-lease`, and only that branch.** The rebased head's CI must then
+  pass before `main` moves. `main` still moves only by fast-forward and is never
+  force-pushed.
 - **`codex-autopilot` is fast-forwarded to the new `main` when it is an ancestor
   of it.** When it is not, it is left alone. Claude never merges into, rebases
   or force-pushes that branch, and never merges it into `main`.
-- **The CI gate is unchanged.** The next task still starts only after the
-  required CI run for the pushed commit is green. A failure is fixed on
-  `claude-autopilot` and reaches `main` the same way.
+- **The same green run gates the next task.** The next task starts only after the
+  required CI run for the pushed commit is green, which is also when `main` moves.
 - **Updating `main` deploys the beta**, because Render auto-deploys `main`. The
   owner authorized that with this decision. No force-push, and no rewriting
   published history, still apply to every branch, except the
@@ -5152,10 +5176,16 @@ The procedure is in `docs/AUTONOMOUS-DEVELOPMENT.md`, **Updating `main` and `cod
 ### Rationale
 
 The owner merged every verified `claude-autopilot` commit into `main` by hand
-anyway, and is not concerned about a bad commit reaching `main`: it can be
-reverted in git. Waiting for a person added delay and nothing else. GitHub has
-no protection on `main`, and an ordinary push is refused unless it is a
-fast-forward, so nothing anyone else pushed can be overwritten.
+anyway. Waiting for a person added delay and nothing else. Waiting for CI does
+not: `main` deploys the beta and is the evaluator's starting point, so it should
+only ever hold commits CI has passed. The wait costs nothing, because the next
+task was already gated on the same run. GitHub has no protection on `main`, and an
+ordinary push is refused unless it is a fast-forward, so nothing anyone else pushed
+can be overwritten.
+
+Waiting is unnecessary for documentation (the owner, 2026-10-01). The build compiles,
+lints and tests no Markdown, so a Markdown-only commit cannot change what CI finds;
+its run repeats the previous commit's result.
 
 The owner wants `main`'s history linear. A merge commit on `main` makes it
 harder to read, revert and bisect. Rebasing the working branch instead keeps
@@ -5165,8 +5195,11 @@ refuses the push if someone else moved that branch in the meantime.
 
 ### Alternatives Considered
 
-- **Integrate only after CI is green.** Rejected by the owner: they asked for
-  integration before CI.
+- **Fast-forward `main` before CI.** Rejected: a commit CI then failed would sit on
+  `main` and the beta until a fix landed. This decision recorded it by mistake until
+  the 2026-10-01 correction.
+- **Skip CI entirely for documentation (`paths-ignore`).** Not chosen: it changes
+  the workflow file for no gain, and a run that costs nobody's attention is harmless.
 - **Merge `origin/main` into `claude-autopilot` when they diverge.** This
   decision's first version did this. Rejected by the owner once it put a merge
   commit on `main`: `main` must stay linear.
@@ -5177,11 +5210,11 @@ refuses the push if someone else moved that branch in the meantime.
 
 ### Consequences
 
-- `CLAUDE.md` and `docs/AUTONOMOUS-DEVELOPMENT.md` describe the new step and drop
+- `CLAUDE.md` and `docs/AUTONOMOUS-DEVELOPMENT.md` describe the order and drop
   "`main` is human-controlled".
-- A red CI run can now be on `main` and the beta until the fix lands.
+- A red CI run never reaches `main` or the beta; the fix does, once it is green.
 - A rebased `claude-autopilot` gets new commit ids. Its CI runs again for the
-  rebased head, and the CI gate applies to that run.
+  rebased head, and `main` waits for that run.
 - The evaluator should fetch before it starts, as `docs/INDEPENDENT-EVALUATION.md`
   step 1 already requires, because `origin/codex-autopilot` may have moved.
 
