@@ -26,7 +26,6 @@ import com.jmussel.chessgame.ui.board.GameControls
 import com.jmussel.chessgame.ui.board.LocalGameUiState
 import com.jmussel.chessgame.ui.localhistory.PastLocalGames
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respondError
 import io.ktor.http.HttpStatusCode
 import kotlinx.coroutines.Dispatchers
@@ -72,7 +71,7 @@ class LocalGamePersistenceTest {
             ChessAppDependencies(
                 serverConfig = ChessServerConfig("https://chess.example"),
                 supabaseConfig = SupabaseConfig(url = "https://supabase.example", anonKey = "publishable-key"),
-                httpClient = HttpClient(MockEngine { respondError(HttpStatusCode.InternalServerError) }),
+                httpClient = HttpClient(mockEngineOn(dispatcher.scheduler) { respondError(HttpStatusCode.InternalServerError) }),
                 sessionStore = InMemorySessionStore(),
                 localGameStore = localGameStore,
                 localGameDispatcher = dispatcher,

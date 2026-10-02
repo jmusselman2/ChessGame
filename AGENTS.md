@@ -317,6 +317,10 @@ commit.
   `UP-TO-DATE` even after you set the variable. Use `--rerun-tasks`; CI always
   sets the variable.
 - **Rules correctness belongs in `chess-core` tests**, not Android tests.
+- **View model tests build their `MockEngine` with `mockEngineOn(dispatcher.scheduler)`**
+  (`TestMockEngines.kt`, `M21.14`). A plain `MockEngine` answers on worker threads, which
+  then dispatch to the test's `Dispatchers.Main`; one landing during `@After`'s
+  `resetMain()` fails whichever test is finishing, and only now and then.
 - **Branches have owners:**
   - `claude-autopilot` — implementation.
   - `codex-autopilot` — the evaluator's checkpoints.

@@ -12,7 +12,6 @@ import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.local.inMemoryLocalGameStore
 import com.jmussel.chessgame.ui.game.OnlineGameState
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.http.ContentType
@@ -121,7 +120,7 @@ class StaleResponseOrderingTest {
 
     private fun stubbedServer(): HttpClient {
         val engine =
-            MockEngine { request ->
+            mockEngineOn(dispatcher.scheduler) { request ->
                 val path = request.url.encodedPath
 
                 if (path.endsWith("/moves")) {

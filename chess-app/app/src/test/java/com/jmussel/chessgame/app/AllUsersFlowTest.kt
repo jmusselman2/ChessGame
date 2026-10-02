@@ -10,7 +10,6 @@ import com.jmussel.chessgame.auth.SupabaseConfig
 import com.jmussel.chessgame.local.inMemoryLocalGameStore
 import com.jmussel.chessgame.navigation.Destination
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.HttpRequestData
@@ -83,13 +82,13 @@ class AllUsersFlowTest {
         var refused = 0
 
         val engine =
-            MockEngine { request ->
+            mockEngineOn(dispatcher.scheduler) { request ->
                 requests += request
                 val call = "${request.method.value} ${request.url.encodedPath}"
 
                 if (call == refusalCall && refused < refusals) {
                     refused++
-                    return@MockEngine respond(refusalBody, refusalStatus)
+                    return@mockEngineOn respond(refusalBody, refusalStatus)
                 }
 
                 val body =
@@ -199,7 +198,7 @@ class AllUsersFlowTest {
     @Test
     fun aListThatCouldNotBeReachedSaysSo() =
         runTest(dispatcher) {
-            val offline = HttpClient(MockEngine { throw IOException("offline") })
+            val offline = HttpClient(mockEngineOn(dispatcher.scheduler) { throw IOException("offline") })
             val viewModel = viewModel(offline)
 
             viewModel.openAllUsers()

@@ -6887,6 +6887,7 @@ pass-and-play's missing last-move highlight, after it.
 | `M21.11` | `chess-ai`: four levels, a Medium that plays well  | None           |
 | `M21.12` | The app shows the four levels; levels migrated     | M21.10, M21.11 |
 | `M21.13` | One unfinished local game of each kind             | M21.12         |
+| `M21.14` | View model tests answer HTTP on the test thread    | None           |
 
 `M21.5` depends on nothing, but lowest-number-first selection takes `M21.1`–`M21.4`
 first.
@@ -7861,6 +7862,61 @@ both screen branches and `ReplaceUnfinishedGame` are removed, and `confirmReplac
   with `adb install -r`. "Local game" opened a new pass-and-play game with no question;
   after 1. e4 there, "Play the computer" resumed 1. h4 e5 2. c4, and "Local game" again
   showed 1. e4.
+- `.\gradlew.bat build`: BUILD SUCCESSFUL. Unit tests: `chess-app` 635, `chess-ai` 20,
+  `chess-core` 394, `server` 603, none failing.
+- `git diff --check`: clean.
+
+## M21.14 — View model tests answer HTTP on the test's own thread
+
+**Status:** DONE
+
+**Depends on:** None
+
+A test defect, found 2026-10-02 and filed here as the next free M21 ID, after `M21.13`'s
+first CI run failed in a test it does not touch.
+
+### Objective
+
+`ChessAppTest.aNameTheServerRefusesIsExplainedAndAnotherCanBeTried` failed once in CI
+(run 36979559634, commit `2bb0067`) with `IllegalStateException` from
+`Dispatchers.resetMain()` in `@After`, then passed on a re-run. kotlinx-coroutines-test
+throws "Dispatchers.Main is used concurrently with setting it" when another thread is
+dispatching to `Main` as a test resets it. Ktor's `MockEngine` answers on worker threads,
+which resume the view model's coroutines onto `Main` from there, so a reply landing during
+teardown fails whichever test is finishing. Make the view model tests' HTTP replies run on
+the test's own thread and scheduler, so nothing else touches `Main`.
+
+### Acceptance Criteria
+
+- Every test class that sets `Dispatchers.Main` and talks HTTP through a `MockEngine`
+  builds the engine on the test's scheduler, through one shared helper.
+- A temporary probe on `Main` that records dispatches from any other thread records none
+  across those classes, where before it recorded them in nearly every `ChessAppTest`.
+- No assertion is weakened, and the classes pass as before.
+
+### Verification
+
+- `.\gradlew.bat :chess-app:testDebugUnitTest`.
+- `.\gradlew.bat build`.
+- `git diff --check`.
+
+### Completion Note
+
+2026-10-02. `TestMockEngines.kt` adds `mockEngineOn(scheduler, handler)`: a `MockEngine`
+whose dispatcher is an `UnconfinedTestDispatcher` on the test's scheduler, so its replies
+run on the test's thread (and a call made outside `runTest` still runs). The seven classes
+that set `Dispatchers.Main` and use a `MockEngine` (`ChessAppTest`, `AllUsersFlowTest`,
+`AppRestartTest`, `GroupsFlowTest`, `LocalGamePersistenceTest`, `NetworkInterruptionTest`,
+`StaleResponseOrderingTest`) build theirs with it. `AppStartupTest` and
+`AppStartupLiveTest` never set `Main` and are unchanged. `AGENTS.md` names the helper.
+
+- **Cause, measured:** a temporary probe wrapping the test's `Main` recorded every dispatch
+  from another thread. With plain `MockEngine`s nearly every `ChessAppTest` had them, 2 to
+  12 each, from `DefaultDispatcher-worker` threads resuming Ktor call coroutines onto
+  `Main`. With the helper, all seven classes (190 tests) recorded none. The probe was then
+  removed. The CI failure itself did not reproduce locally (0 in 2,000 runs of its flow,
+  also under CPU load), so the probe, not a reproduction, is the evidence.
+- No assertion changed.
 - `.\gradlew.bat build`: BUILD SUCCESSFUL. Unit tests: `chess-app` 635, `chess-ai` 20,
   `chess-core` 394, `server` 603, none failing.
 - `git diff --check`: clean.

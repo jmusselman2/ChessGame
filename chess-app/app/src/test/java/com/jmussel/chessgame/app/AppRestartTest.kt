@@ -13,7 +13,6 @@ import com.jmussel.chessgame.local.inMemoryLocalGameStore
 import com.jmussel.chessgame.navigation.Destination
 import com.jmussel.chessgame.ui.game.OnlineGameState
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.http.ContentType
@@ -317,7 +316,7 @@ class AppRestartTest {
 
     private fun server(): HttpClient {
         val engine =
-            MockEngine { request ->
+            mockEngineOn(dispatcher.scheduler) { request ->
                 val path = request.url.encodedPath
                 paths += path
 
@@ -329,7 +328,7 @@ class AppRestartTest {
                         request.headers[HttpHeaders.Authorization] != "Bearer $onlyTokenAccepted"
 
                 if (rejected) {
-                    return@MockEngine respond(content = "Invalid bearer token", status = HttpStatusCode.Unauthorized)
+                    return@mockEngineOn respond(content = "Invalid bearer token", status = HttpStatusCode.Unauthorized)
                 }
 
                 respond(

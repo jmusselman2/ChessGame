@@ -13,7 +13,6 @@ import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.local.inMemoryLocalGameStore
 import com.jmussel.chessgame.ui.game.OnlineGameState
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.http.ContentType
@@ -705,7 +704,7 @@ class NetworkInterruptionTest {
      */
     private fun statefulServer(): HttpClient {
         val engine =
-            MockEngine { request ->
+            mockEngineOn(dispatcher.scheduler) { request ->
                 val path = request.url.encodedPath
                 paths += path
 
@@ -721,7 +720,7 @@ class NetworkInterruptionTest {
                         heldReadArrived?.complete(Unit)
                         gate.await()
 
-                        return@MockEngine respond(
+                        return@mockEngineOn respond(
                             content = answeredWith,
                             status = HttpStatusCode.OK,
                             headers = headersOf("Content-Type", ContentType.Application.Json.toString()),
@@ -743,7 +742,7 @@ class NetworkInterruptionTest {
                         heldReadArrived?.complete(Unit)
                         gate.await()
 
-                        return@MockEngine respond(
+                        return@mockEngineOn respond(
                             content = answeredWith,
                             status = HttpStatusCode.OK,
                             headers = headersOf("Content-Type", ContentType.Application.Json.toString()),
@@ -756,7 +755,7 @@ class NetworkInterruptionTest {
                     val expected = versionIn(sent)
 
                     if (expected != version) {
-                        return@MockEngine respond(
+                        return@mockEngineOn respond(
                             content = staleRefusal(),
                             status = HttpStatusCode.Conflict,
                             headers = headersOf("Content-Type", ContentType.Application.Json.toString()),
@@ -773,7 +772,7 @@ class NetworkInterruptionTest {
                         heldMoveReplyArrived?.complete(Unit)
                         gate.await()
 
-                        return@MockEngine respond(
+                        return@mockEngineOn respond(
                             content = answeredWith,
                             status = HttpStatusCode.OK,
                             headers = headersOf("Content-Type", ContentType.Application.Json.toString()),
@@ -801,7 +800,7 @@ class NetworkInterruptionTest {
     /** A server that refuses everything about a game with [status], and means it. */
     private fun alwaysRefusing(status: HttpStatusCode): HttpClient {
         val engine =
-            MockEngine { request ->
+            mockEngineOn(dispatcher.scheduler) { request ->
                 paths += request.url.encodedPath
                 respond(content = "no", status = status)
             }

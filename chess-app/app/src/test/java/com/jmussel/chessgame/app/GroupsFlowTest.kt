@@ -11,7 +11,6 @@ import com.jmussel.chessgame.auth.SupabaseConfig
 import com.jmussel.chessgame.local.inMemoryLocalGameStore
 import com.jmussel.chessgame.navigation.Destination
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.HttpRequestData
@@ -91,7 +90,7 @@ class GroupsFlowTest {
 
         val client: HttpClient =
             HttpClient(
-                MockEngine { request ->
+                mockEngineOn(dispatcher.scheduler) { request ->
                     requests += request
                     val path = request.url.encodedPath
                     val call = "${request.method.value} $path"
@@ -99,7 +98,7 @@ class GroupsFlowTest {
 
                     if (call == refusalCall && refusals > 0) {
                         refusals--
-                        return@MockEngine respond(refusalBody, refusalStatus)
+                        return@mockEngineOn respond(refusalBody, refusalStatus)
                     }
 
                     fun json(
@@ -255,7 +254,7 @@ class GroupsFlowTest {
     @Test
     fun aListThatCouldNotBeReachedSaysSo() =
         runTest(dispatcher) {
-            val viewModel = viewModel(HttpClient(MockEngine { throw IOException("offline") }))
+            val viewModel = viewModel(HttpClient(mockEngineOn(dispatcher.scheduler) { throw IOException("offline") }))
 
             viewModel.openGroups()
             viewModel.groupsJob?.join()

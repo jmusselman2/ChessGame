@@ -30,7 +30,6 @@ import com.jmussel.chessgame.ui.game.OnlineGameState
 import com.jmussel.chessgame.ui.history.HistoryList
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.HttpRequestData
@@ -180,7 +179,7 @@ class ChessAppTest {
         var gameReads = 0
         var leftSeries = false
         val engine =
-            MockEngine { request ->
+            mockEngineOn(dispatcher.scheduler) { request ->
                 requests += request
                 val path = request.url.encodedPath
                 val refusable = refusalPath == null || refusalPath == path
@@ -673,7 +672,7 @@ class ChessAppTest {
     fun localGamesDoNotWaitForAStartupStillInProgress() =
         runTest(dispatcher) {
             // A server that never answers: startup waits for as long as the test lets it.
-            val silentServer = HttpClient(MockEngine { awaitCancellation() })
+            val silentServer = HttpClient(mockEngineOn(dispatcher.scheduler) { awaitCancellation() })
             val viewModel = viewModel(httpClient = silentServer, localGameStore = storeWithLocalGames())
             viewModel.start()
             dispatcher.scheduler.runCurrent()
@@ -2649,7 +2648,7 @@ class ChessAppTest {
         runTest(dispatcher) {
             var moveAttempts = 0
             val engine =
-                MockEngine { request ->
+                mockEngineOn(dispatcher.scheduler) { request ->
                     requests += request
                     val path = request.url.encodedPath
 
