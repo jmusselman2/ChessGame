@@ -7600,7 +7600,7 @@ again and Leave.
 
 ## M21.11 — `chess-ai`: four levels, and a Medium that plays sensibly
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** None
 
@@ -7648,6 +7648,44 @@ as the new Medium.
 - The device timings.
 - `.\gradlew.bat build`.
 - `git diff --check`.
+
+### Completion Note
+
+2026-10-02. `Difficulty` has `VERY_EASY` to `HARD`, stored as 1–4. `AlphaBetaEngine.Settings`
+gains an `evaluator`: Very Easy and Easy keep `D088`'s Easy and Medium settings with
+`Evaluation`, and Medium (depth 2, 2 s, margin 0) and Hard (`D088`'s depth 3, 3 s, margin
+0) use the new `SensibleEvaluation`. That adds opening terms (castling, development, the
+queen, edge pawns, early knight raids, blocked centre pawns), pawn structure, king shelter
+and static exchanges from `chess-core`'s `Attacks`. At a leaf on the engine's opponent's
+turn, a capture search plays out the opponent's three best winning captures, four deep,
+through `ChessRules`. `D089`'s note of 2026-10-02 has the terms, the measurements and what
+was rejected.
+
+- **A defect found on the Fire:** `D088`'s 0.5 s Easy (now Very Easy) usually ran out of
+  time before finishing one ply in a middlegame and played the unsearched fallback (such as
+  a2a3). The one-ply search now always finishes; the budget stops only deeper searches.
+- **Tests:** `UnchangedLevelsTest` (Very Easy and Easy choose the moves recorded from the
+  old Easy and Medium, two seeds, twelve positions); `MediumOpeningTest` (ten self-play
+  openings at Medium's two plies with no aimless king, rook, edge-pawn or repeated minor
+  moves and castling by move 10; first moves from seven openings at one and two plies);
+  `MediumTacticsTest` (takes unprotected material and leaves nothing to be taken for free,
+  at one and two plies and for Hard); `aSpentBudgetStillFinishesTheOnePlySearch`; the
+  existing tests, moved to four levels. In ten openings kept out of the tests, three
+  self-play games still broke a rule; `D089` records them.
+- **Matches** (`:chess-ai:match`, new, outside `build`): Medium 12 of 12 against Easy;
+  Hard 9.5 of 12 against Medium. `D088`'s Hard unchanged scored 3.5 of 12 against the new
+  Medium, so Hard took the new evaluation.
+- **Device timings** (`EngineTimingDeviceTest`, new): on the Pixel 7 Medium answers in
+  0.23–0.78 s with its full search; on the Fire HD 8 every level answers within its budget,
+  or within its one-ply time for Very Easy (up to 0.96 s), and plays one ply above Very
+  Easy. Both phones had `0.1.3-beta` uninstalled for the debug test and reinstalled after.
+- **The app:** `difficultyName` gives "Very Easy"; tests that pinned the old numbers use
+  the new ones. Until `M21.12` migrates the store, a game saved at the old Hard (3) reads
+  as Medium; no beta is built in between. The level choice already lists four levels;
+  `M21.12` tests it.
+- `.\gradlew.bat build`: BUILD SUCCESSFUL. Unit tests: `chess-app` 620, `chess-ai` 20,
+  `chess-core` 394, `server` 603, none failing.
+- `git diff --check`: clean.
 
 ## M21.12 — The four levels in the app
 

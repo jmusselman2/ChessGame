@@ -23,13 +23,13 @@ import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
 import kotlin.random.Random
 
-/** A level's name: `"Easy"`, `"Medium"` or `"Hard"`. */
+/** A level's name: `"Very Easy"`, `"Easy"`, `"Medium"` or `"Hard"`. */
 fun difficultyName(difficulty: Int): String =
     Difficulty
         .ofLevel(difficulty)
         .name
-        .lowercase()
-        .replaceFirstChar { it.uppercase() }
+        .split('_')
+        .joinToString(" ") { word -> word.lowercase().replaceFirstChar { it.uppercase() } }
 
 /** How the computer is named on screen and in past local games: `"Computer (Medium)"`. */
 fun computerLabel(difficulty: Int): String = "Computer (${difficultyName(difficulty)})"

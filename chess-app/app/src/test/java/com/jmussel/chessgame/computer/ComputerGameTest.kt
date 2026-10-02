@@ -370,7 +370,7 @@ class ComputerGameTest {
 
             assertNull(game.setup)
             assertEquals(ComputerOpponent(Side.BLACK, Difficulty.HARD.level), game.state!!.opponent)
-            assertEquals(ComputerOpponent(Side.BLACK, 3), store.activeGame()!!.computer)
+            assertEquals(ComputerOpponent(Side.BLACK, 4), store.activeGame()!!.computer)
             // The computer had White, so it has opened.
             assertEquals(1, game.moves.size)
         }

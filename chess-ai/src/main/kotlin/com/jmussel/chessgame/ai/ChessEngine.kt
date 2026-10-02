@@ -3,14 +3,15 @@ package com.jmussel.chessgame.ai
 import com.jmussel.chessgame.core.chess.GameState
 import com.jmussel.chessgame.core.chess.Move
 
-/** How strongly the computer plays: the three levels `D086` sets. */
+/** How strongly the computer plays: the four levels `D089` sets, weakest first. */
 enum class Difficulty(
-    /** How the level is stored with a local game and shown to the player, 1 (easiest) to 3. */
+    /** How the level is stored with a local game and shown to the player, 1 (weakest) to 4. */
     val level: Int,
 ) {
-    EASY(1),
-    MEDIUM(2),
-    HARD(3),
+    VERY_EASY(1),
+    EASY(2),
+    MEDIUM(3),
+    HARD(4),
     ;
 
     companion object {

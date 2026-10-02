@@ -469,7 +469,7 @@ class LocalGamePersistenceTest {
             assertEquals(ComputerSetup.ConfirmReplacing, viewModel.computerGame.setup)
 
             viewModel.computerGame.confirmReplacing()
-            viewModel.computerGame.choose(Difficulty.MEDIUM)
+            viewModel.computerGame.choose(Difficulty.EASY)
             advanceUntilIdle()
 
             assertNull(store.game(passAndPlay))
@@ -506,7 +506,7 @@ class LocalGamePersistenceTest {
     @Test
     fun aFinishedComputerGameShowsItsLevelAndColourInPastLocalGames() =
         runTest(dispatcher) {
-            val game = store.startGame(ComputerOpponent(Side.BLACK, 3))
+            val game = store.startGame(ComputerOpponent(Side.BLACK, 4))
             store.recordResult(game.id, ChessRules.resign(game.game, Side.WHITE))
             val viewModel = viewModel()
             viewModel.restartAt(Destination.History)
@@ -515,7 +515,7 @@ class LocalGamePersistenceTest {
             advanceUntilIdle()
 
             val listed = viewModel.pastLocalGames.games.single()
-            assertEquals(ComputerOpponent(Side.BLACK, 3), listed.computer)
+            assertEquals(ComputerOpponent(Side.BLACK, 4), listed.computer)
             assertEquals(
                 "Computer (Hard) • You played Black • today • Black won by resignation",
                 PastLocalGames.summaryFor(listed) { "today" },

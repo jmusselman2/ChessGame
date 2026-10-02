@@ -182,8 +182,37 @@ Linux/macOS/CI:
 
 Status: VERIFIED (2026-10-01, `M21.5`)
 
-The computer opponent's engine (`D086`, `D088`). The budget test prints how long each
-level took; add `-i` to see it. It takes about a minute, most of it Hard's searches.
+The computer opponent's engine (`D086`, `D088`, `D089`). The budget test prints how
+long each level took; add `-i` to see it. It takes about two minutes, most of it
+Hard's searches and Medium's self-play openings.
+
+### Engine Matches
+
+Windows:
+
+    .\gradlew.bat :chess-ai:match
+
+Linux/macOS/CI:
+
+    ./gradlew :chess-ai:match
+
+Status: VERIFIED (2026-10-01, `M21.11`)
+
+The seeded matches between the computer's levels (`D089`): Medium against Easy, and
+Hard against Medium, twelve games each with alternating colours, adjudicated on
+material after 160 plies. The clock stands still, so every level searches to its full
+depth and the result is the same on any machine. `build` and CI never run them; they
+take about eight minutes on a 12-core desktop, most of it Hard. Add
+`--tests "*mediumBeatsEasy*"` to run one match. `D089` records the results.
+
+### Engine Timings on a Device
+
+`EngineTimingDeviceTest` (`chess-app/app/src/androidTest`) logs, for each level and a
+few positions, how long the device took to answer and how long the full search takes
+there, under the tag `EngineTiming`. Run it like the other device tests (below), with
+`"-Pandroid.testInstrumentationRunnerArguments.class=com.jmussel.chessgame.computer.EngineTimingDeviceTest"`,
+then read `adb logcat -d -s EngineTiming`. It takes several minutes on a slow device,
+because it times each level's full search too. `D089` records the results.
 
 ### Android Unit Tests
 

@@ -6195,7 +6195,9 @@ take hanging material but blunder freely. Medium sees an immediate recapture.
 
 **Superseded in part by `D089`:** this table's Easy is now Very Easy and its Medium is
 now Easy, with the same settings; Hard is stored as 4; and a new Medium, level 3, sits
-between them (`M21.11`).
+between them (`M21.11`). `M21.11` also gave Hard `D089`'s evaluation, keeping its
+depth, budget and margin, and made the one-ply search always finish, so a slow phone no
+longer falls back to an unsearched move (`D089`'s note of 2026-10-02).
 
 ---
 
@@ -6279,3 +6281,86 @@ tested without pinning one move where several are reasonable.
 - `M21.10` adds New game to the computer screen. `M21.11` builds the four levels in
   `chess-ai`. `M21.12` shows them in the app and migrates the store.
 - `PRODUCT.md`'s *Playing the Computer* describes the four levels and New game.
+
+### Note, 2026-10-02: the levels as `M21.11` built them
+
+| Level     | Stored as | Deepest search | Time budget | Margin | Evaluation           |
+| --------- | --------- | -------------- | ----------- | ------ | -------------------- |
+| Very Easy | 1         | 1 ply          | 0.5 s       | 150    | `D088`'s             |
+| Easy      | 2         | 2 plies        | 1.5 s       | 30     | `D088`'s             |
+| Medium    | 3         | 2 plies        | 2 s         | 0      | `SensibleEvaluation` |
+| Hard      | 4         | 3 plies        | 3 s         | 0      | `SensibleEvaluation` |
+
+A margin of 0 plays the best move, with the seed breaking exact ties.
+
+**`SensibleEvaluation`** keeps `D088`'s material values and adds:
+
+- Piece-square tables (the widely used "simplified evaluation function" ones), blended
+  from opening to endgame by the material left. The king's best opening squares are the
+  two it castles to.
+- The opening: castled +50; each castling right kept +10; a king that has lost both
+  rights without castling −30; each minor piece still at home −15; the queen out while
+  a minor piece is at home −25; an a- or h-pawn pushed before castling −35; a knight past
+  its fourth rank before castling −15; a minor piece in front of an unmoved d- or e-pawn
+  −25; an uncastled king with an open d- or e-file −15 each.
+- Structure: doubled and isolated pawns −12, passed pawns by rank, the bishop pair +30,
+  rooks on open (+15) and half-open (+8) files, and −12 for each pawn missing in front of
+  a castled king.
+- Threats, by static exchange (capture and recapture on one square, cheapest piece
+  first, from `chess-core`'s `Attacks`). At the end of a line on the engine's own turn,
+  its best capture counts half. On its opponent's turn the engine does not guess: it plays
+  out the opponent's three best winning captures, up to four captures deep, through
+  `ChessRules`. Either way, a second piece of the side to move en prise costs half its
+  value.
+
+**The one-ply search always finishes,** even past the budget. Measuring on the Fire
+found that `D088`'s 0.5 s Easy (now Very Easy) usually ran out of time before finishing
+one ply in a middlegame (0.54–0.97 s there). It then played the unsearched fallback,
+the first move in a fixed capture-then-alphabetical order, such as a2a3. The budget now
+stops only deeper searches. No level's settings changed; Very Easy just plays as designed
+on a slow phone, taking up to about 1 s.
+
+**Hard takes the new evaluation.** `D088`'s Hard, unchanged, scored 3.5 of 12 against
+the new Medium, so "at least as strong as Medium" needed it. Hard keeps `D088`'s
+depth, budget and margin.
+
+**Matches** (`:chess-ai:match`, `DEVELOPMENT.md`): twelve seeded games each, colours
+alternating, adjudicated on material after 160 plies, every level at its full depth:
+
+| Match                                | Score           |
+| ------------------------------------ | --------------- |
+| Medium against Easy                  | 12 of 12        |
+| Hard against Medium                  | 9.5 of 12 (79%) |
+| Medium against Easy, both at one ply | 12 of 12        |
+| `D088`'s Hard against the new Medium | 3.5 of 12       |
+
+All twelve Medium–Easy games ended in checkmate.
+
+**Timings.** How long the player waited, and how long the level's full search takes:
+
+| Level     | Desktop, full | Pixel 7, waited | Pixel 7, full | Fire HD 8, waited | Fire HD 8, full | Fire HD 8, one ply |
+| --------- | ------------- | --------------- | ------------- | ----------------- | --------------- | ------------------ |
+| Very Easy | 6–25 ms       | 0.07–0.25 s     | 0.07–0.14 s   | 0.3–0.96 s        | 0.3–0.97 s      | 0.3–0.97 s         |
+| Easy      | 0.14–0.62 s   | 0.4–1.5 s       | 0.4–2.8 s     | 1.5 s             | 4.5–25 s        | 0.3–0.96 s         |
+| Medium    | 0.05–0.26 s   | 0.23–0.78 s     | 0.22–0.76 s   | 2.0 s             | 2.5–9.4 s       | 0.3–1.1 s          |
+| Hard      | 0.8 s to 3 s+ | 2.7–3.0 s       | 2.7–18 s      | 3.0 s             | 34–227 s        | 0.3–1.1 s          |
+
+The desktop figures are the start and a middlegame; the phones' are the start and four
+middlegames (`EngineTimingDeviceTest`, 2026-10-02). On the Pixel 7, Medium always
+finishes its two plies well inside its budget, and Hard finishes three plies at the
+start but falls back to two in a middlegame. The Fire is about 25 times slower than the
+desktop, so there every level above Very Easy plays its one-ply search with whatever the
+budget adds. Medium's evaluation and the one-ply capture search are what make that one
+ply sensible, and the tests check Medium's choices at one ply as well as two.
+
+**What was checked, and what was not.** At its full two plies, Medium played ten
+seeded self-play openings without breaking a rule above. In ten other openings, kept out
+of the tests, three games broke one: a rook move before castling in a gambit, a knight
+moved twice, and castling after move 10 in sharp openings. At one ply, nine of the ten
+test openings were clean; in the tenth, White traded pieces from move 7 and had not
+castled by move 12. Further tuning to these games only
+moved the faults around, so the remaining ones are recorded rather than fitted.
+
+**Rejected:** a capture search at the end of every line, which made two-ply Medium
+greedier: it counted every capture on its own turn in full and preferred grabbing and
+threatening to developing.

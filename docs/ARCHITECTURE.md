@@ -137,6 +137,15 @@ margins. The engine blocks while it thinks; the caller puts it on a background
 thread. It uses Gradle's Kotlin/JVM plugin and `chess-core` and nothing else, and
 `chess-app` depends on it from `M21.6`.
 
+As built by `M21.11` (`D089`): `Difficulty` has four levels, `VERY_EASY` to `HARD`,
+stored as 1–4. Very Easy and Easy are `D088`'s Easy and Medium unchanged, scored by
+`Evaluation`. Medium and Hard score positions with `SensibleEvaluation`, which adds
+opening play (castling, development, the queen and edge pawns kept back), pawn
+structure, king shelter and static exchanges built from `chess-core`'s `Attacks`. At
+the end of a line where the engine's opponent is to move, the search plays out the
+opponent's winning captures through `ChessRules` instead of guessing. Every move the
+engine plays or searches still goes through `ChessRules` (`D088`).
+
 ### Multi-game layout (`D082`)
 
 ChessGame and the Deck Builder are separate Android apps in this one repository.
@@ -146,7 +155,7 @@ repository moves toward this layout:
 
 ```text
 chess-core      pure JVM: chess rules      — exists (formerly game-core, M20.3)
-chess-ai        pure JVM: chess engine     — planned (M21.5, D086), chess-app only
+chess-ai        pure JVM: chess engine     — exists (M21.5, D086), chess-app only
 chess-app       the ChessGame app          — exists (formerly android-app, M20.3)
 deck-core       pure JVM: Deck Builder rules — created with real Deck Builder rules
 deck-app        the Deck Builder app       — created with real Deck Builder rules

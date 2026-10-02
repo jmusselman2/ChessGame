@@ -1,15 +1,10 @@
 package com.jmussel.chessgame.ai
 
-import com.jmussel.chessgame.core.chess.Board
-import com.jmussel.chessgame.core.chess.CastlingRights
 import com.jmussel.chessgame.core.chess.ChessGame
 import com.jmussel.chessgame.core.chess.ChessRules
 import com.jmussel.chessgame.core.chess.GameState
 import com.jmussel.chessgame.core.chess.Move
-import com.jmussel.chessgame.core.chess.Piece
 import com.jmussel.chessgame.core.chess.PieceType
-import com.jmussel.chessgame.core.chess.Side
-import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.core.chess.StandardPosition
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -26,31 +21,6 @@ import kotlin.test.assertTrue
  */
 class AlphaBetaEngineTest {
     private val engine = AlphaBetaEngine(seed = 1)
-
-    /**
-     * A position from the placement and side-to-move fields of FEN, with no castling and no
-     * en passant: `"6k1/5ppp/8/8/8/8/5PPP/R5K1 w"`.
-     */
-    private fun position(fen: String): GameState {
-        val (placement, side) = fen.split(" ")
-        val pieces = mutableMapOf<Square, Piece>()
-        placement.split("/").forEachIndexed { row, text ->
-            var file = 0
-            text.forEach { symbol ->
-                if (symbol.isDigit()) {
-                    file += symbol.digitToInt()
-                } else {
-                    pieces[Square.of(file, Square.RANKS - 1 - row)] = Piece.fromSymbol(symbol)
-                    file++
-                }
-            }
-        }
-        return GameState(
-            board = Board.of(pieces),
-            sideToMove = if (side == "w") Side.WHITE else Side.BLACK,
-            castlingRights = CastlingRights.NONE,
-        )
-    }
 
     private fun play(
         state: GameState,
@@ -95,7 +65,7 @@ class AlphaBetaEngineTest {
             listOf(white, black).forEach { state ->
                 val move = assertNotNull(engine.chooseMove(state, difficulty))
                 assertTrue(ChessRules.isLegal(state, move))
-                if (difficulty != Difficulty.EASY) {
+                if (difficulty != Difficulty.VERY_EASY) {
                     assertNotNull(move.promotion, "$difficulty did not promote: $move")
                 }
             }
@@ -123,7 +93,7 @@ class AlphaBetaEngineTest {
     fun theHigherLevelsTakeAHangingQueen() {
         val state = position("4k3/8/8/3q4/8/2N5/8/4K3 w")
 
-        listOf(Difficulty.MEDIUM, Difficulty.HARD).forEach { difficulty ->
+        listOf(Difficulty.EASY, Difficulty.MEDIUM, Difficulty.HARD).forEach { difficulty ->
             listOf(1L, 2L, 3L).forEach { seed ->
                 assertEquals(Move.of("c3", "d5"), AlphaBetaEngine(seed = seed).chooseMove(state, difficulty), "$difficulty, seed $seed")
             }
@@ -135,7 +105,7 @@ class AlphaBetaEngineTest {
         // Taking the knight with the queen loses the queen to the pawn.
         val state = position("4k3/8/4p3/3n4/8/8/3Q4/4K3 w")
 
-        listOf(Difficulty.MEDIUM, Difficulty.HARD).forEach { difficulty ->
+        listOf(Difficulty.EASY, Difficulty.MEDIUM, Difficulty.HARD).forEach { difficulty ->
             assertTrue(engine.chooseMove(state, difficulty) != Move.of("d2", "d5"), "$difficulty gave the queen away")
         }
     }
@@ -158,7 +128,7 @@ class AlphaBetaEngineTest {
     @Test
     fun theEasiestLevelVariesWithTheSeed() {
         val start = StandardPosition.newGame()
-        val openings = (1L..20L).map { AlphaBetaEngine(seed = it).chooseMove(start, Difficulty.EASY) }.toSet()
+        val openings = (1L..20L).map { AlphaBetaEngine(seed = it).chooseMove(start, Difficulty.VERY_EASY) }.toSet()
 
         assertTrue(openings.size > 1, "Every seed opened with $openings")
     }
@@ -195,6 +165,20 @@ class AlphaBetaEngineTest {
     }
 
     @Test
+    fun aSpentBudgetStillFinishesTheOnePlySearch() {
+        // A slow phone can spend a level's whole budget on one ply (D089): the move is still
+        // the one-ply search's, never the unsearched fallback.
+        val italian = after("e2e4 e7e5 g1f3 b8c6 f1c4 g8f6 d2d3 f8c5 e1g1 d7d6")
+
+        Difficulty.entries.forEach { difficulty ->
+            var reads = 0
+            val impatient = AlphaBetaEngine(seed = 1, clock = { if (reads++ == 0) 0L else Long.MAX_VALUE / 2 })
+            val onePly = AlphaBetaEngine(seed = 1, clock = { 0L }, settings = { AlphaBetaEngine.settingsFor(it).copy(maxDepth = 1) })
+            assertEquals(onePly.chooseMove(italian, difficulty), impatient.chooseMove(italian, difficulty), "$difficulty")
+        }
+    }
+
+    @Test
     fun aCancelledSearchHasNoMoveToApply() {
         val start = StandardPosition.newGame()
         // The clock stands still, so only cancelling can stop the search: on a busy machine
@@ -222,9 +206,10 @@ class AlphaBetaEngineTest {
 
     @Test
     fun difficultiesAreStoredAsTheirLevels() {
-        assertEquals(listOf(1, 2, 3), Difficulty.entries.map { it.level })
+        assertEquals(listOf(1, 2, 3, 4), Difficulty.entries.map { it.level })
+        assertEquals(listOf(Difficulty.VERY_EASY, Difficulty.EASY, Difficulty.MEDIUM, Difficulty.HARD), Difficulty.entries)
         Difficulty.entries.forEach { assertEquals(it, Difficulty.ofLevel(it.level)) }
-        assertFailsWith<IllegalArgumentException> { Difficulty.ofLevel(4) }
+        assertFailsWith<IllegalArgumentException> { Difficulty.ofLevel(5) }
     }
 
     private companion object {

@@ -24,8 +24,8 @@ Four Gradle modules (`settings.gradle.kts`):
 - `chess-core` — pure Kotlin/JVM chess rules. No I/O and no dependencies outside
   the module.
 - `chess-ai` — pure Kotlin/JVM: the computer opponent's `ChessEngine` and the
-  project's `AlphaBetaEngine` (`D086`, `D088`). Depends on `chess-core` only; only
-  `chess-app` may use it.
+  project's `AlphaBetaEngine`, with four levels (`D086`, `D088`, `D089`). Depends on
+  `chess-core` only; only `chess-app` may use it.
 - `server` — Ktor + Exposed on PostgreSQL. Authoritative for every online game.
 - `chess-app` — the Android app (Jetpack Compose); source under
   `chess-app/app/src/main/java/com/jmussel/chessgame/`.
