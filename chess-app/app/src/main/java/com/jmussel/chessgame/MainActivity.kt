@@ -124,6 +124,8 @@ class MainActivity : ComponentActivity() {
                             onConfirmReplacing = viewModel.computerGame::confirmReplacing,
                             onChoose = viewModel.computerGame::choose,
                             onPlayAgain = viewModel.computerGame::playAgain,
+                            onNewGame = viewModel.computerGame::newGame,
+                            onKeepGame = { viewModel.computerGame.keepGame() },
                         )
                     }
 

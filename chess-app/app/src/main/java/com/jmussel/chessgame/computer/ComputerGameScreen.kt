@@ -25,6 +25,7 @@ import com.jmussel.chessgame.ui.board.DeclaredMovePrompt
 import com.jmussel.chessgame.ui.board.GameBackButton
 import com.jmussel.chessgame.ui.board.GameControls
 import com.jmussel.chessgame.ui.board.GameLayout
+import com.jmussel.chessgame.ui.board.NewGameConfirmation
 import com.jmussel.chessgame.ui.board.PromotionPrompt
 import com.jmussel.chessgame.ui.board.ReplaceUnfinishedGame
 import com.jmussel.chessgame.ui.board.ResignConfirmation
@@ -36,10 +37,15 @@ data class ComputerGameActions(
     val onConfirmReplacing: () -> Unit = {},
     val onChoose: (Difficulty) -> Unit = {},
     val onPlayAgain: () -> Unit = {},
+    val onNewGame: () -> Unit = {},
+    /** Back from New game's question or level choice to the game. */
+    val onKeepGame: () -> Unit = {},
 )
 
 /**
  * Playing the computer (`D086`, `M21.7`): the question before a new game, then the game.
+ * New game (`M21.10`) asks over the game when it is unfinished, then shows the level choice in
+ * its place, with Back returning to it.
  *
  * The board is the local game's, fixed to the human's colour with every piece upright: the
  * computer has no seat across the table (`D087`). It takes taps only on the human's turn.
@@ -53,9 +59,11 @@ fun ComputerGameScreen(
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
 ) {
-    if (state == null || loading) {
+    if (state == null || loading || setup == ComputerSetup.ChooseDifficulty) {
+        // From New game, the game is behind the choice and Back returns to it.
+        val fromGame = state != null && !loading
         Column(modifier = modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            onBack?.let { GameBackButton(onClick = it) }
+            (if (fromGame) actions.onKeepGame else onBack)?.let { GameBackButton(onClick = it) }
             when {
                 loading || setup == null -> Text(text = "Loading…", style = MaterialTheme.typography.bodyMedium)
                 setup == ComputerSetup.ConfirmReplacing ->
@@ -65,23 +73,29 @@ fun ComputerGameScreen(
                         onConfirm = actions.onConfirmReplacing,
                         onKeep = onBack,
                     )
-                else -> DifficultyChoice(onChoose = actions.onChoose)
+                else -> DifficultyChoice(onChoose = actions.onChoose, onKeepGame = actions.onKeepGame.takeIf { fromGame })
             }
         }
         return
     }
 
     Game(state = state, actions = actions, modifier = modifier, onBack = onBack)
+
+    if (setup == ComputerSetup.ConfirmNewGame) NewGameConfirmation(onConfirm = actions.onConfirmReplacing, onCancel = actions.onKeepGame)
 }
 
-/** The three levels, easiest first (`D088`). */
+/** The three levels, easiest first (`D088`); [onKeepGame] goes back to the game New game left. */
 @Composable
-private fun DifficultyChoice(onChoose: (Difficulty) -> Unit) {
-    Text(text = "Play the computer", style = MaterialTheme.typography.titleSmall)
+private fun DifficultyChoice(
+    onChoose: (Difficulty) -> Unit,
+    onKeepGame: (() -> Unit)?,
+) {
+    Text(text = if (onKeepGame == null) "Play the computer" else "New game", style = MaterialTheme.typography.titleSmall)
     Text(text = "Choose a level. You get a random colour.", style = MaterialTheme.typography.bodyMedium)
     Difficulty.entries.forEach { difficulty ->
         Button(onClick = { onChoose(difficulty) }) { Text(text = difficultyName(difficulty.level)) }
     }
+    onKeepGame?.let { TextButton(onClick = it) { Text(text = "Back to the game") } }
 }
 
 @Composable
@@ -137,11 +151,11 @@ private fun Game(
                 if (!board.game.isOver) Button(onClick = { resigning = true }) { Text(text = "Resign") }
             }
 
-            if (board.game.isOver) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = actions.onPlayAgain) { Text(text = "Play again") }
-                    onBack?.let { TextButton(onClick = it) { Text(text = "Leave") } }
-                }
+            // New game is always offered; an unfinished game is asked about first (`D089`).
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (board.game.isOver) Button(onClick = actions.onPlayAgain) { Text(text = "Play again") }
+                TextButton(onClick = actions.onNewGame) { Text(text = "New game") }
+                if (board.game.isOver) onBack?.let { TextButton(onClick = it) { Text(text = "Leave") } }
             }
         },
         moveList = {

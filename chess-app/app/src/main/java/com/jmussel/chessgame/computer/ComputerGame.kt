@@ -68,10 +68,17 @@ data class ComputerGameUiState(
         get() = !game.isOver && game.history.any { it.positionBefore.sideToMove == humanSide }
 }
 
-/** What "Play the computer" asks before a new game starts (`M21.7`). */
+/**
+ * What is asked before a new game against the computer starts: from "Play the computer"
+ * (`M21.7`), or from New game on the game screen (`M21.10`), where the game stays in
+ * [ComputerGame.state] behind the question until a level is chosen.
+ */
 sealed interface ComputerSetup {
     /** A pass-and-play game is unfinished, and a new game would delete it (`D084`). */
     data object ConfirmReplacing : ComputerSetup
+
+    /** New game on an unfinished game against the computer, which it would delete (`D084`, `D089`). */
+    data object ConfirmNewGame : ComputerSetup
 
     /** Which of the three levels to play (`D086`, `D088`). */
     data object ChooseDifficulty : ComputerSetup
@@ -158,12 +165,37 @@ class ComputerGame(
             }
     }
 
-    /** The player agreed to replace the unfinished pass-and-play game; now the level. */
+    /** The player agreed to delete the unfinished game, of either kind; now the level. */
     fun confirmReplacing() {
-        if (setup == ComputerSetup.ConfirmReplacing) setup = ComputerSetup.ChooseDifficulty
+        if (setup == ComputerSetup.ConfirmReplacing || setup == ComputerSetup.ConfirmNewGame) setup = ComputerSetup.ChooseDifficulty
     }
 
-    /** Starts a new game at [difficulty], the human's colour chosen at random (`D086`). */
+    /**
+     * New game on the game screen (`D089`): the level choice, asking first when the game is
+     * unfinished, because a new game deletes it (`D084`). The game carries on behind the
+     * question, and nothing is deleted until a level is chosen.
+     */
+    fun newGame() {
+        val current = state ?: return
+        if (setup != null || loading) return
+        setup = if (current.game.isOver) ComputerSetup.ChooseDifficulty else ComputerSetup.ConfirmNewGame
+    }
+
+    /**
+     * Back out of New game's question or level choice to the game, as it is: a search in
+     * progress has carried on. Returns `false` when there is no game behind the question,
+     * as from "Play the computer", so Back belongs to the screen.
+     */
+    fun keepGame(): Boolean {
+        if (state == null || setup == null) return false
+        setup = null
+        return true
+    }
+
+    /**
+     * Starts a new game at [difficulty], the human's colour chosen at random (`D086`), in place
+     * of any unfinished game, whose search stops and whose result can no longer land.
+     */
     fun choose(difficulty: Difficulty) {
         if (setup != ComputerSetup.ChooseDifficulty) return
         setup = null

@@ -444,4 +444,165 @@ class ComputerGameTest {
             assertEquals(ComputerOpponent(Side.WHITE, 2), kept.computer)
             assertEquals(listOf(finished.id), store.completedGames().map { it.id })
         }
+
+    // --- New game on the game screen (M21.10) -----------------------------------------
+
+    @Test
+    fun newGameOnAnUnfinishedGameAsksAndKeepingItChangesNothing() =
+        runTest(dispatcher) {
+            val engine = ScriptedEngine("e7e5")
+            val game = started(engine)
+            game.tap("e2", "e4")
+            val thinking = game.state!!
+            assertTrue(thinking.thinking)
+
+            game.newGame()
+            assertEquals(ComputerSetup.ConfirmNewGame, game.setup)
+            // A level cannot be chosen before the question is answered.
+            game.choose(Difficulty.HARD)
+            assertEquals(thinking, game.state)
+
+            assertTrue(game.keepGame())
+            assertNull(game.setup)
+            assertEquals(thinking, game.state)
+
+            // The search in progress carried on.
+            advanceUntilIdle()
+            assertEquals(1, engine.calls)
+            assertEquals(listOf(Move.of("e2", "e4"), Move.of("e7", "e5")), game.moves)
+            assertEquals(thinking.id, store.activeGame()!!.id)
+            assertEquals(game.state!!.game, store.activeGame()!!.game)
+        }
+
+    @Test
+    fun agreeingToNewGameAndChoosingALevelReplacesTheGameAndTheOldOneIsNotKept() =
+        runTest(dispatcher) {
+            val game = started(ScriptedEngine("e7e5", "d2d4"), difficulty = 1)
+            game.tap("e2", "e4")
+            advanceUntilIdle()
+            val old = game.state!!
+
+            game.newGame()
+            game.confirmReplacing()
+            assertEquals(ComputerSetup.ChooseDifficulty, game.setup)
+            // Nothing is deleted until a level is chosen.
+            assertEquals(old, game.state)
+            assertEquals(old.id, store.activeGame()!!.id)
+
+            game.choose(Difficulty.HARD)
+            advanceUntilIdle()
+
+            val replacement = game.state!!
+            assertNull(game.setup)
+            assertTrue(replacement.id != old.id)
+            assertEquals(ComputerOpponent(Side.WHITE, Difficulty.HARD.level), replacement.opponent)
+            assertEquals(ChessGame.newGame(), replacement.game)
+            assertNull(store.game(old.id))
+            assertEquals(emptyList<Any>(), store.completedGames())
+            assertEquals(replacement.id, store.activeGame()!!.id)
+        }
+
+    @Test
+    fun newGamesColourIsChosenAsFromTheEntry() =
+        runTest(dispatcher) {
+            val game = computerGame(ScriptedEngine("d2d4"), side = Side.BLACK)
+            game.start(ComputerOpponent(Side.WHITE, 2))
+            advanceUntilIdle()
+
+            game.newGame()
+            game.confirmReplacing()
+            game.choose(Difficulty.EASY)
+            advanceUntilIdle()
+
+            assertEquals(ComputerOpponent(Side.BLACK, Difficulty.EASY.level), game.state!!.opponent)
+            // The computer has White, so it has opened.
+            assertEquals(1, game.moves.size)
+        }
+
+    @Test
+    fun backingOutOfNewGamesLevelChoiceKeepsTheGame() =
+        runTest(dispatcher) {
+            val engine = ScriptedEngine("e7e5")
+            val game = started(engine)
+            game.tap("e2", "e4")
+            advanceUntilIdle()
+            val kept = game.state!!
+
+            game.newGame()
+            game.confirmReplacing()
+            assertTrue(game.keepGame())
+            advanceUntilIdle()
+
+            assertNull(game.setup)
+            assertEquals(kept, game.state)
+            assertEquals(kept.id, store.activeGame()!!.id)
+            assertEquals(kept.game, store.activeGame()!!.game)
+            // With the choice gone, no level can start a game.
+            game.choose(Difficulty.EASY)
+            advanceUntilIdle()
+            assertEquals(kept, game.state)
+            assertEquals(1, engine.calls)
+        }
+
+    @Test
+    fun newGameOnAFinishedGameKeepsItAndStartsTheChosenLevel() =
+        runTest(dispatcher) {
+            val game = started(ScriptedEngine("e7e5"), difficulty = 1)
+            game.tap("e2", "e4")
+            advanceUntilIdle()
+            game.update(GameControls.resign(game.state!!.boardState, Side.WHITE))
+            advanceUntilIdle()
+            val finished = game.state!!
+
+            game.newGame()
+            // A finished game is kept, so nothing is asked.
+            assertEquals(ComputerSetup.ChooseDifficulty, game.setup)
+            game.choose(Difficulty.MEDIUM)
+            advanceUntilIdle()
+
+            val next = game.state!!
+            assertTrue(next.id != finished.id)
+            assertEquals(ComputerOpponent(Side.WHITE, Difficulty.MEDIUM.level), next.opponent)
+            assertEquals(finished.game, store.game(finished.id)!!.game)
+            assertEquals(listOf(finished.id), store.completedGames().map { it.id })
+            assertEquals(next.id, store.activeGame()!!.id)
+        }
+
+    @Test
+    fun withNoGameBehindTheLevelChoiceKeepGameLeavesBackToTheScreen() =
+        runTest(dispatcher) {
+            val game = computerGame(ScriptedEngine())
+            game.open()
+            advanceUntilIdle()
+
+            assertEquals(ComputerSetup.ChooseDifficulty, game.setup)
+            assertFalse(game.keepGame())
+            assertEquals(ComputerSetup.ChooseDifficulty, game.setup)
+        }
+
+    @Test
+    fun aSearchRunningWhenTheNewGameStartsCannotChangeIt() =
+        runTest(dispatcher) {
+            val engine = ScriptedEngine("e7e5")
+            val game = started(engine)
+            // The level is chosen while the computer is still thinking about the old game, and
+            // the search answers anyway.
+            engine.whileThinking = {
+                engine.whileThinking = {}
+                game.newGame()
+                game.confirmReplacing()
+                game.choose(Difficulty.EASY)
+            }
+            game.tap("e2", "e4")
+            advanceUntilIdle()
+
+            assertEquals(1, engine.calls)
+            val replacement = game.state!!
+            assertEquals(ComputerOpponent(Side.WHITE, Difficulty.EASY.level), replacement.opponent)
+            assertEquals(ChessGame.newGame(), replacement.game)
+            assertFalse(replacement.thinking)
+            assertEquals(replacement.id, store.activeGame()!!.id)
+            assertEquals(ChessGame.newGame(), store.activeGame()!!.game)
+            assertEquals(emptyList<Any>(), store.completedGames())
+        }
 }

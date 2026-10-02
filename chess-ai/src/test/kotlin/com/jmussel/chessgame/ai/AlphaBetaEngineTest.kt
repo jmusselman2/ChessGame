@@ -197,12 +197,15 @@ class AlphaBetaEngineTest {
     @Test
     fun aCancelledSearchHasNoMoveToApply() {
         val start = StandardPosition.newGame()
+        // The clock stands still, so only cancelling can stop the search: on a busy machine
+        // the real budget could run out first, and the search would rightly answer.
+        val timeless = AlphaBetaEngine(seed = 1, clock = { 0L })
 
-        assertNull(engine.chooseMove(start, Difficulty.HARD) { true })
+        assertNull(timeless.chooseMove(start, Difficulty.HARD) { true })
 
         // Cancelled part-way, after it has already settled on a fallback and searched a little.
         var polls = 0
-        assertNull(engine.chooseMove(start, Difficulty.HARD) { ++polls > 200 })
+        assertNull(timeless.chooseMove(start, Difficulty.HARD) { ++polls > 200 })
     }
 
     @Test

@@ -223,7 +223,7 @@ fun ReplaceUnfinishedGame(
 
 /** The question asked before an unfinished game is deleted for a new one (`D084`). */
 @Composable
-private fun NewGameConfirmation(
+internal fun NewGameConfirmation(
     onConfirm: () -> Unit,
     onCancel: () -> Unit,
 ) {

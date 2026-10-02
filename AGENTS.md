@@ -100,9 +100,11 @@ Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/groups`,
   `ChessBoard`, `BoardRendering`, `GameLayout`. `LocalGameScreen` is
   pass-and-play.
 - `ui/game/OnlineGame.kt` and `OnlineGameScreen.kt` — the online game.
-- `computer/` — playing the computer (`D086`). `ComputerGame`: the entry questions
-  (`ComputerSetup`), one engine search per computer turn, stale results discarded,
-  takeback, Play again and saving; `ChessAppViewModel.computerGame` owns it.
+- `computer/` — playing the computer (`D086`). `ComputerGame`: the questions before a
+  new game (`ComputerSetup`, from the entry or from New game, which keeps the game
+  behind them until a level is chosen), one engine search per computer turn, stale
+  results discarded, takeback, Play again and saving; `ChessAppViewModel.computerGame`
+  owns it, and its `back()` returns from New game's questions to the game.
   `ComputerGameScreen` draws it with the local game's board and prompts.
 - `ui/localhistory/` — Past local games: the list, and `LocalGameReview`, a
   read-only ply-by-ply review built from the stored positions.

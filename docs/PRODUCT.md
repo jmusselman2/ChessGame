@@ -516,6 +516,15 @@ stays the strongest. The game screen gains New game, which offers the level choi
 at any time, asking first when the game is unfinished because that game is deleted
 and not kept.
 
+*As built by `M21.10`:* the game screen always shows New game, next to Play again and
+Leave once the game is over. On an unfinished game it first asks "Start a new game?",
+as pass-and-play does; "Keep playing" returns to the game, and a computer that was
+thinking carries on. Agreeing, or New game on a finished game, shows the level choice
+in place of the board, headed "New game", with "Back to the game" (and Back) returning
+to the game as it is. Nothing is deleted until a level is chosen; then any search
+stops, the unfinished game is deleted, and the new game starts at that level with a
+random colour. A finished game stays in past local games. Play again is unchanged.
+
 ## Deferred Features
 
 Do not initially build the features below. The complete list of what is not in the

@@ -7532,7 +7532,7 @@ the only move.
 
 ## M21.10 — New game on the computer screen
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** None
 
@@ -7569,6 +7569,34 @@ resigning first (`D089`).
 - The `chess-app` unit tests for the computer game.
 - `.\gradlew.bat build`.
 - `git diff --check`.
+
+### Completion Note
+
+2026-10-01. `ComputerGame` gains `newGame()`, `keepGame()` and a third question,
+`ComputerSetup.ConfirmNewGame`. New game leaves the game in `state` behind the
+question: on an unfinished game it asks first (pass-and-play's "Start a new game?"
+dialog, now `internal` and shared), and on a finished one it goes straight to
+`ChooseDifficulty`. `confirmReplacing()` answers either question. The search keeps
+running behind both. Choosing a level goes through the existing `start`, which stops
+the search, bumps the turn token so a late result is discarded, and makes the store
+replace the unfinished game. "Back to the game" and system Back call `keepGame()`
+(`ChessAppViewModel.back()` asks it first), which returns `false` when there is no game
+behind the choice, as from the entry. On the screen, New game sits in the row with Play
+again and Leave.
+
+- Tests: 7 in `ComputerGameTest` (asking and keeping, with the search carrying on;
+  agreeing and choosing replaces the game and keeps nothing; the colour comes from the
+  entry's chooser; backing out of the choice; a finished game is kept; no game behind the
+  entry's choice; a search answering after the new game started cannot change it), and
+  one in `LocalGamePersistenceTest` for Back through the questions and then out.
+- `AlphaBetaEngineTest.aCancelledSearchHasNoMoveToApply` (`M21.5`) failed once in the
+  full build: under load, Hard's 3 s budget ran out before the test's 200 polls, so
+  the search correctly answered. The test now uses a clock that stands still, so only
+  cancelling can stop the search. It checks the same thing.
+- `.\gradlew.bat build`: BUILD SUCCESSFUL. Unit tests: `chess-app` 620, `chess-ai` 13,
+  `chess-core` 394, `server` 603, none failing.
+- Not checked on a device: only the Fire HD 8 was attached.
+- `git diff --check`: clean.
 
 ## M21.11 — `chess-ai`: four levels, and a Medium that plays sensibly
 

@@ -1732,6 +1732,8 @@ class ChessAppViewModel(
      * back press belongs to the system and the app should close.
      */
     fun back(): Boolean {
+        // Back from the computer's New game question or level choice returns to the game.
+        if (navigation.current == Destination.ComputerGame && computerGame.keepGame()) return true
         val previous = navigation.back() ?: return false
         // Leaving the local game leaves it saved; opening it again reads it back (`D084`).
         if (navigation.current == Destination.LocalGame) localGameJob?.cancel()

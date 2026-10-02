@@ -477,6 +477,33 @@ class LocalGamePersistenceTest {
         }
 
     @Test
+    fun backFromTheComputersNewGameReturnsToTheGameAndOnlyThenLeavesIt() =
+        runTest(dispatcher) {
+            val game = store.startGame(ComputerOpponent(Side.WHITE, 1))
+            val viewModel = viewModel()
+            viewModel.restartAt(Destination.Dashboard)
+            viewModel.openComputerGame()
+            advanceUntilIdle()
+
+            viewModel.computerGame.newGame()
+            assertEquals(ComputerSetup.ConfirmNewGame, viewModel.computerGame.setup)
+            assertTrue(viewModel.back())
+            assertNull(viewModel.computerGame.setup)
+
+            viewModel.computerGame.newGame()
+            viewModel.computerGame.confirmReplacing()
+            assertEquals(ComputerSetup.ChooseDifficulty, viewModel.computerGame.setup)
+            assertTrue(viewModel.back())
+            assertNull(viewModel.computerGame.setup)
+            assertEquals(Destination.ComputerGame, viewModel.navigation.current)
+            assertEquals(game.id, viewModel.computerGame.state!!.id)
+
+            assertTrue(viewModel.back())
+            assertEquals(Destination.Dashboard, viewModel.navigation.current)
+            assertEquals(game.id, store.activeGame()!!.id)
+        }
+
+    @Test
     fun aFinishedComputerGameShowsItsLevelAndColourInPastLocalGames() =
         runTest(dispatcher) {
             val game = store.startGame(ComputerOpponent(Side.BLACK, 3))
