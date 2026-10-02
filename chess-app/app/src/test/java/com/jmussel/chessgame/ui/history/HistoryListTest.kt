@@ -65,7 +65,7 @@ class HistoryListTest {
     fun aDrawIsNeitherWonNorLost() {
         val drawn = game(result = "DRAW", reason = "THREEFOLD_REPETITION_CLAIM")
 
-        assertEquals("Drawn by threefold repetition claim", HistoryList.outcomeFor(drawn))
+        assertEquals("Drawn by threefold repetition", HistoryList.outcomeFor(drawn))
     }
 
     @Test

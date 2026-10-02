@@ -183,6 +183,13 @@ colours swapped (`D015`, `D050`), so no client can see a finished game without
 its successor. The series row is locked, so retries and races start one rematch
 at most.
 
+On the client, a game that ends on screen reads the dashboard to find that
+successor (`ChessAppViewModel.followSeries`, `AfterGame`). A game whose series
+was already left ends as `SeriesOver` without the read. A read that fails is
+`NotFound`, with Try again, and never taken as an ended series (`M21.16`). Every
+board words its ending through `ui/board/GameEndings`, and pass-and-play and the
+computer offer Review into `M21.3`'s read-only review.
+
 ### A local game (pass-and-play)
 
 Entirely on the device: no network, and the device's own database, never the

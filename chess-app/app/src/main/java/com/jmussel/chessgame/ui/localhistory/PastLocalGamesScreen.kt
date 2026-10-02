@@ -20,6 +20,7 @@ import com.jmussel.chessgame.ui.board.BoardRendering
 import com.jmussel.chessgame.ui.board.ChessBoard
 import com.jmussel.chessgame.ui.board.GameBackButton
 import com.jmussel.chessgame.ui.board.GameControls
+import com.jmussel.chessgame.ui.board.GameEndHeadline
 import com.jmussel.chessgame.ui.board.GameLayout
 import java.text.DateFormat
 import java.util.Date
@@ -97,7 +98,7 @@ fun LocalGameReviewScreen(
         },
         controls = {
             Text(text = PastLocalGames.opponentLabel(review.stored.computer))
-            Text(text = GameControls.statusFor(game))
+            review.ending?.let { GameEndHeadline(text = it) } ?: Text(text = GameControls.statusFor(game))
             Text(text = review.position, style = MaterialTheme.typography.bodySmall)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { onStep(0) }, enabled = review.canStepBack) { Text(text = "Start") }

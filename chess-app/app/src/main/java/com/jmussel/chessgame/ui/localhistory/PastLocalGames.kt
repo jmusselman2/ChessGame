@@ -9,6 +9,7 @@ import com.jmussel.chessgame.local.ComputerOpponent
 import com.jmussel.chessgame.local.LocalGameKind
 import com.jmussel.chessgame.local.LocalGameSummary
 import com.jmussel.chessgame.local.StoredLocalGame
+import com.jmussel.chessgame.ui.board.GameEndings
 
 /** The list of finished local games, and what is happening to it (`M21.3`). */
 data class PastLocalGamesUiState(
@@ -65,6 +66,17 @@ data class LocalGameReview(
     /** The review at [ply], kept within the game. */
     fun at(ply: Int): LocalGameReview = copy(ply = ply.coerceIn(0, plies))
 
+    /**
+     * How the game ended, said as it was on the game's own screen (`M21.16`), at its final
+     * position only; `null` before it.
+     */
+    val ending: String?
+        get() {
+            val result = game.result ?: return null
+            val computer = stored.computer
+            return if (computer == null) GameEndings.forSides(result) else GameEndings.forComputer(result, computer.humanSide)
+        }
+
     /** `"After e7e5 (2 of 24)"`, or `"Start of the game"` before the first move. */
     val position: String
         get() = if (ply == 0) "Start of the game" else "After ${stored.game.history[ply - 1].move} ($ply of $plies)"
@@ -100,18 +112,8 @@ object PastLocalGames {
             LocalGameKind.COMPUTER -> "Against the computer"
         }
 
-    /** `"White won by checkmate"`, `"Drawn by stalemate"`. */
-    fun resultLabel(result: GameResult): String {
-        val reason =
-            result.reason.name
-                .lowercase()
-                .replace('_', ' ')
-        return when (result.winner) {
-            null -> "Drawn by $reason"
-            Side.WHITE -> "White won by $reason"
-            Side.BLACK -> "Black won by $reason"
-        }
-    }
+    /** `"White won by checkmate"`, `"Drawn by stalemate"`, in the words every board uses (`M21.16`). */
+    fun resultLabel(result: GameResult): String = GameEndings.forSides(result)
 
     private const val SEPARATOR = " • "
 }

@@ -12,6 +12,7 @@ import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.ui.ServerWaiting
+import com.jmussel.chessgame.ui.board.GameEndings
 import com.jmussel.chessgame.ui.board.PendingPromotion
 
 /**
@@ -183,6 +184,12 @@ sealed interface AfterGame {
 
     /** There will be no next game: a player left the series (`D052`). */
     data object SeriesOver : AfterGame
+
+    /**
+     * The dashboard could not be read, so whether there is a next game is not known yet
+     * (`M21.16`). Looking again is a read, and safe to offer.
+     */
+    data object NotFound : AfterGame
 }
 
 /**
@@ -360,15 +367,34 @@ object OnlineGame {
      */
     fun statusFor(game: GameViewDto): String {
         val result = game.result ?: return turnFor(game)
-        val reason = game.terminationReason?.let(::reasonLabel)
         val verdict =
             when {
-                result == DRAW -> "Drawn"
-                result == "${game.yourSide}_WINS" -> "You won"
+                result == DRAW -> GameEndings.DRAWN
+                result == "${game.yourSide}_WINS" -> GameEndings.YOU_WON
                 else -> "${game.opponent.username} won"
             }
 
-        return listOfNotNull(verdict, reason).joinToString(separator = " by ")
+        return GameEndings.sentence(verdict, game.terminationReason?.let(GameEndings::reasonWords))
+    }
+
+    /**
+     * What a finished game says about the next one (`M21.16`).
+     *
+     * The server starts the next game itself when a game ends in a series that goes on
+     * (`D014`, `D015`), so this only ever reports what it found; nothing here asks for one.
+     */
+    fun afterGameText(
+        after: AfterGame,
+        game: GameViewDto,
+    ): String {
+        val opponent = game.opponent.username
+
+        return when (after) {
+            AfterGame.Looking -> "Finding your next game with $opponent. The server starts it automatically."
+            is AfterGame.NextGame -> "Your next game with $opponent has started."
+            AfterGame.SeriesOver -> "That was the last game with $opponent."
+            AfterGame.NotFound -> "Could not find your next game with $opponent. Check your connection and try again."
+        }
     }
 
     /** What the leave confirmation says leaving will do, and what it will not (`D052`, `D068`). */
@@ -502,9 +528,6 @@ object OnlineGame {
     private fun sideNamed(name: String): Side = if (name.equals(Side.BLACK.name, ignoreCase = true)) Side.BLACK else Side.WHITE
 
     private fun sideLabel(name: String): String = if (sideNamed(name) == Side.BLACK) "Black" else "White"
-
-    /** `THREEFOLD_REPETITION_CLAIM` reads as `threefold repetition claim`. */
-    private fun reasonLabel(reason: String): String = reason.lowercase().replace('_', ' ')
 
     private const val EMPTY_SQUARE = '.'
     private const val SEPARATOR = "•"

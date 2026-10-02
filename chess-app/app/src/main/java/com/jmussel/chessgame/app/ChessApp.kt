@@ -89,6 +89,7 @@ fun ChessApp(
     localGame: LocalGameUiState = LocalGameUiState(),
     onLocalGameChange: (LocalGameUiState) -> Unit = {},
     onNewLocalGame: () -> Unit = {},
+    onReviewLocalGame: () -> Unit = {},
     /** Finished local games, and the one being looked back at (`M21.3`). */
     pastLocalGames: PastLocalGamesUiState = PastLocalGamesUiState(),
     localReview: LocalGameReview? = null,
@@ -124,6 +125,7 @@ fun ChessApp(
     onLeaveSeries: () -> Unit = {},
     onCancelLeaveSeries: () -> Unit = {},
     onOpenNextGame: () -> Unit = {},
+    onFindNextGame: () -> Unit = {},
     onGameDone: () -> Unit = {},
     onClaimUsername: (String) -> Unit = {},
     friendsActions: FriendsActions = FriendsActions(),
@@ -191,7 +193,13 @@ fun ChessApp(
                 PastLocalGamesScreen(state = pastLocalGames, onOpenGame = { game -> onOpenPastLocalGame(game.id) })
             is Destination.PastLocalGame -> LocalGameReviewScreen(review = localReview, onStep = onStepLocalReview, onBack = onBack)
             Destination.LocalGame ->
-                LocalGameScreen(state = localGame, onStateChange = onLocalGameChange, onBack = onBack, onNewGame = onNewLocalGame)
+                LocalGameScreen(
+                    state = localGame,
+                    onStateChange = onLocalGameChange,
+                    onBack = onBack,
+                    onNewGame = onNewLocalGame,
+                    onReview = onReviewLocalGame,
+                )
             is Destination.OnlineGame ->
                 OnlineGameScreen(
                     state = game ?: OnlineGameState.Loading(destination.gameId),
@@ -211,6 +219,7 @@ fun ChessApp(
                     onLeaveSeries = onLeaveSeries,
                     onCancelLeaveSeries = onCancelLeaveSeries,
                     onOpenNextGame = onOpenNextGame,
+                    onFindNextGame = onFindNextGame,
                     onDone = onGameDone,
                 )
         }

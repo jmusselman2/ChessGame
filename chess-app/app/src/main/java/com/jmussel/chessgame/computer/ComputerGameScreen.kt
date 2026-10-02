@@ -24,6 +24,8 @@ import com.jmussel.chessgame.ui.board.ChessBoard
 import com.jmussel.chessgame.ui.board.DeclaredMovePrompt
 import com.jmussel.chessgame.ui.board.GameBackButton
 import com.jmussel.chessgame.ui.board.GameControls
+import com.jmussel.chessgame.ui.board.GameEndHeadline
+import com.jmussel.chessgame.ui.board.GameEndings
 import com.jmussel.chessgame.ui.board.GameLayout
 import com.jmussel.chessgame.ui.board.NewGameConfirmation
 import com.jmussel.chessgame.ui.board.PromotionPrompt
@@ -39,6 +41,8 @@ data class ComputerGameActions(
     val onNewGame: () -> Unit = {},
     /** Back from New game's question or level choice to the game. */
     val onKeepGame: () -> Unit = {},
+    /** Opens the finished game in the past-local-game review, at its final move (`M21.16`). */
+    val onReview: () -> Unit = {},
 )
 
 /**
@@ -116,7 +120,13 @@ private fun Game(
         },
         controls = {
             Text(text = computerLabel(state.opponent.difficulty) + " • " + humanSideLabel(state.humanSide))
-            Text(text = GameControls.statusFor(board.game))
+            // A finished game says how it ended above everything else (`M21.16`).
+            val result = board.game.result
+            if (result != null) {
+                GameEndHeadline(text = GameEndings.forComputer(result, state.humanSide))
+            } else {
+                Text(text = GameControls.statusFor(board.game))
+            }
             if (state.thinking) Text(text = "The computer is thinking…", style = MaterialTheme.typography.bodySmall)
 
             if (state.humansTurn) {
@@ -143,10 +153,12 @@ private fun Game(
                 if (!board.game.isOver) Button(onClick = { resigning = true }) { Text(text = "Resign") }
             }
 
-            // New game is always offered; an unfinished game is asked about first (`D089`).
+            // New game is always offered; an unfinished game is asked about first (`D089`). A finished
+            // game also offers Play again, Review and Leave (`M21.16`).
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (board.game.isOver) Button(onClick = actions.onPlayAgain) { Text(text = "Play again") }
                 TextButton(onClick = actions.onNewGame) { Text(text = "New game") }
+                if (board.game.isOver) TextButton(onClick = actions.onReview) { Text(text = "Review") }
                 if (board.game.isOver) onBack?.let { TextButton(onClick = it) { Text(text = "Leave") } }
             }
         },

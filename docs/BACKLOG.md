@@ -8049,7 +8049,7 @@ give them a safe way to try again without ever resending a game command.
 
 ## M21.16 — Clearer game-end screens
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M13.2, M13.5, M21.3, M21.7, M21.9, M21.10
 
@@ -8091,6 +8091,74 @@ clear without changing how the game or its series ended.
 - `.\gradlew.bat :chess-app:assembleDebugAndroidTest`.
 - `.\gradlew.bat build`.
 - `git diff --check`.
+
+### Completion Note
+
+2026-10-02. Android only; no server, API, database, rule, rematch or series change.
+
+- **One wording.** `ui/board/GameEndings` words every ending:
+  - `reasonWords` maps each `TerminationReason`, and the server's names for them, to
+    checkmate, resignation, stalemate, insufficient material, threefold repetition,
+    the fifty-move rule, fivefold repetition and the seventy-five-move rule;
+  - `forSides` gives "White won by checkmate" or "Drawn by stalemate";
+  - `forComputer` gives "You won by …", "The computer won by …" or "Drawn by …".
+
+  `GameControls.statusFor`, `OnlineGame.statusFor`, `PastLocalGames.resultLabel`
+  and `HistoryList.outcomeFor` all use it. The raw forms ("BLACK wins — CHECKMATE",
+  "threefold repetition claim") are gone.
+- **Prominent.** On every finished board, `GameEndHeadline` (`headlineSmall`,
+  marked as a heading) replaces the status line. That covers online, pass-and-play,
+  the computer and the review at its final ply. The board, the move list and the
+  last-move highlight stay. A resignation or a claim adds no move, so the highlight
+  stays on the last move played, and a declared claim's move is never highlighted.
+- **Online.** While the dashboard is read, the screen says "Finding your next game
+  with Alex. The server starts it automatically." It then offers Play the next game
+  or Back to your games. Nothing requests a rematch.
+  - Fixed: a failed dashboard read used to fall back to the older list, so an active
+    series was reported as over. `fetchDashboard` now returns whether it was
+    answered. An unanswered look is the new `AfterGame.NotFound`, with Try again
+    (`findNextGame`, a read) and Back to your games.
+  - A game whose series was already left (`seriesActive` false) ends as `SeriesOver`
+    without the read (`D068`).
+  - A finished game opened from History still does not look up the series.
+- **Computer.** A finished game offers Play again, New game, Review and Leave. Play
+  again and New game are unchanged (`D086`, `D089`).
+- **Pass-and-play.** A finished game offers New game, which no longer asks (as
+  before, nothing unfinished is deleted), and Review.
+- **Review.** `reviewLocalGame()` and `reviewComputerGame()` open `M21.3`'s review at
+  the final ply. The session's reads queue behind its saves, so the result is
+  already stored. Back returns to the finished game. The review shows the same
+  headline at its final ply.
+- **Online review.** No online ply review was added.
+- **Tests.**
+  - `GameEndingsTest` (new) covers:
+    - the words for all eight reasons, local and server names, and an unknown name;
+    - the side, computer and draw verdicts;
+    - the highlight after a game-ending move, a resignation, a position claim, and
+      a declared claim, which keeps the move before it.
+  - `OnlineGameTest` covers all eight server reasons, a resigned game's last move,
+    and the four after-game texts.
+  - `ChessAppTest` covers:
+    - "finding" text while the dashboard is read;
+    - a failed lookup giving `NotFound`, which Try again turns into the next game,
+      with no `/series` request;
+    - a left series giving `SeriesOver` even though the dashboard lists a game.
+  - `LocalGamePersistenceTest` covers:
+    - pass-and-play Review at ply 4 of fool's mate, Back, then New game;
+    - computer Review after a resignation, Back, then Play again with colours swapped;
+    - no Review for either kind while unfinished.
+  - `GameEndUiTest` (Compose, new) covers each screen's headline, controls and
+    callbacks, the review headline, and that no control mentions a rematch.
+  - Existing assertions changed only for the new wording: `GameControlsTest`,
+    `M5IndependentReevaluationTest`, `HistoryListTest`, `PastLocalGamesTest`,
+    `M5IndependentUiReevaluationTest`, `M5LocalUiAdversarialTest` and
+    `PastLocalGamesUiTest`. `ChessAppTest`'s stubbed resignation now carries
+    `seriesActive`.
+- **Device run.** On the `ChessPlayerM5Api36` emulator (Android 16), 16/16 passed:
+  `GameEndUiTest`, `PastLocalGamesUiTest`, both M5 UI tests and
+  `OnlineGameConnectionUiTest`.
+- `.\gradlew.bat build`: BUILD SUCCESSFUL. Unit tests: `chess-app` 668, `chess-ai` 20, `chess-core` 394, `server` 603, none failing.
+  `git diff --check`: clean.
 
 ## M21.17 — Consistent move feedback on every playable board
 

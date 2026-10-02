@@ -38,7 +38,7 @@ class M5LocalUiAdversarialTest {
             }
         }
 
-        composeRule.onNodeWithText("CHECKMATE", substring = true).assertExists()
+        composeRule.onNodeWithText("by checkmate", substring = true).assertExists()
         composeRule.onNodeWithText("Undo").assertDoesNotExist()
         composeRule.onNodeWithText("Resign as White").assertDoesNotExist()
         composeRule.onNodeWithText("Resign as Black").assertDoesNotExist()

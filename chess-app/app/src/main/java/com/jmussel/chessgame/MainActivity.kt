@@ -126,6 +126,7 @@ class MainActivity : ComponentActivity() {
                             onPlayAgain = viewModel.computerGame::playAgain,
                             onNewGame = viewModel.computerGame::newGame,
                             onKeepGame = { viewModel.computerGame.keepGame() },
+                            onReview = viewModel::reviewComputerGame,
                         )
                     }
 
@@ -147,6 +148,7 @@ class MainActivity : ComponentActivity() {
                         localGame = viewModel.localGame,
                         onLocalGameChange = viewModel::updateLocalGame,
                         onNewLocalGame = viewModel::startNewLocalGame,
+                        onReviewLocalGame = viewModel::reviewLocalGame,
                         pastLocalGames = viewModel.pastLocalGames,
                         localReview = viewModel.localReview,
                         onOpenPastLocalGames = viewModel::openPastLocalGames,
@@ -179,6 +181,7 @@ class MainActivity : ComponentActivity() {
                         onLeaveSeries = viewModel::leaveSeries,
                         onCancelLeaveSeries = viewModel::cancelLeaveSeries,
                         onOpenNextGame = viewModel::openNextGame,
+                        onFindNextGame = viewModel::findNextGame,
                         onGameDone = viewModel::returnToDashboard,
                         onClaimUsername = viewModel::claimUsername,
                         friendsActions = friendsActions,

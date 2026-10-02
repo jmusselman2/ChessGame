@@ -215,6 +215,59 @@ class OnlineGameTest {
         assertTrue(OnlineGame.unreachableMessage().contains("connection"))
     }
 
+    // --- A finished game (`M21.16`) ------------------------------------------------------
+
+    @Test
+    fun everyWayAnOnlineGameEndsIsSaidInAPlayersWords() {
+        val endings =
+            mapOf(
+                "CHECKMATE" to "You won by checkmate",
+                "RESIGNATION" to "You won by resignation",
+                "STALEMATE" to "Drawn by stalemate",
+                "INSUFFICIENT_MATERIAL" to "Drawn by insufficient material",
+                "THREEFOLD_REPETITION_CLAIM" to "Drawn by threefold repetition",
+                "FIFTY_MOVE_RULE_CLAIM" to "Drawn by the fifty-move rule",
+                "FIVEFOLD_REPETITION" to "Drawn by fivefold repetition",
+                "SEVENTY_FIVE_MOVE_RULE" to "Drawn by the seventy-five-move rule",
+            )
+
+        endings.forEach { (reason, said) ->
+            val result = if (said.startsWith("You won")) "WHITE_WINS" else "DRAW"
+            assertEquals(said, OnlineGame.statusFor(game(yourSide = "WHITE", result = result, terminationReason = reason)))
+        }
+        assertEquals(
+            "the opponent is named when they won",
+            "Alex won by checkmate",
+            OnlineGame.statusFor(game(yourSide = "BLACK", result = "WHITE_WINS", terminationReason = "CHECKMATE")),
+        )
+    }
+
+    @Test
+    fun aResignedGameKeepsTheLastMoveThatWasPlayed() {
+        val resigned =
+            game(
+                moves = listOf("e2e4", "e7e5"),
+                lastMove = MoveDto(from = "e7", to = "e5"),
+                result = "BLACK_WINS",
+                terminationReason = "RESIGNATION",
+            )
+
+        assertEquals(setOf(Square.parse("e7"), Square.parse("e5")), OnlineGame.lastMoveSquares(resigned))
+    }
+
+    @Test
+    fun aFinishedGameSaysWhatTheSeriesDidNextWithoutAskingForARematch() {
+        val finished = game(result = "DRAW", terminationReason = "STALEMATE")
+
+        assertEquals(
+            "Finding your next game with Alex. The server starts it automatically.",
+            OnlineGame.afterGameText(AfterGame.Looking, finished),
+        )
+        assertEquals("Your next game with Alex has started.", OnlineGame.afterGameText(AfterGame.NextGame("game-2"), finished))
+        assertEquals("That was the last game with Alex.", OnlineGame.afterGameText(AfterGame.SeriesOver, finished))
+        assertTrue(OnlineGame.afterGameText(AfterGame.NotFound, finished).startsWith("Could not find your next game"))
+    }
+
     // --- Keeping up with the server (`M21.15`) ------------------------------------------
 
     @Test

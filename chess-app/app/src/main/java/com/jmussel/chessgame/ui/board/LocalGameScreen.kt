@@ -74,6 +74,8 @@ fun LocalGameScreen(
     onBack: (() -> Unit)? = null,
     /** Replaces this game with a new one, once the player has been asked if they need to be. */
     onNewGame: () -> Unit = {},
+    /** Opens the finished game in the past-local-game review, at its final move (`M21.16`). */
+    onReview: (() -> Unit)? = null,
 ) {
     if (state.loading) {
         Column(modifier = modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -103,7 +105,12 @@ fun LocalGameScreen(
             )
         },
         controls = {
-            Text(text = GameControls.statusFor(game.game))
+            // A finished game says how it ended above everything else (`M21.16`).
+            if (game.game.isOver) {
+                GameEndHeadline(text = GameControls.statusFor(game.game))
+            } else {
+                Text(text = GameControls.statusFor(game.game))
+            }
 
             game.pendingPromotion?.let { pending ->
                 PromotionPrompt(
@@ -145,14 +152,17 @@ fun LocalGameScreen(
                 }
             }
 
-            // A new game deletes an unfinished one, so the player is asked first (`D084`).
-            if (GameControls.canStartNewGame(game)) {
+            // A finished game's next steps (`M21.16`): another game, or a look back at this one.
+            if (game.game.isOver) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onNewGame) { Text(text = "New game") }
+                    onReview?.let { Button(onClick = it) { Text(text = "Review") } }
+                }
+            } else if (GameControls.canStartNewGame(game)) {
+                // A new game deletes an unfinished one, so the player is asked first (`D084`).
                 TextButton(
                     onClick = {
-                        if (GameControls.newGameNeedsConfirmation(
-                                game,
-                            )
-                        ) {
+                        if (GameControls.newGameNeedsConfirmation(game)) {
                             onStateChange(state.copy(confirmingNewGame = true))
                         } else {
                             onNewGame()

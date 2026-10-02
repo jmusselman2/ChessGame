@@ -148,16 +148,12 @@ object GameControls {
      * The game status: how it ended, or whose move it is and whether that player stands in
      * check.
      *
-     * Check is `chess-core`'s answer rather than the screen's, and `PRODUCT`'s *Game Screen*
-     * asks every board to show it — the local one says what the online one already says
-     * (`D041`).
+     * A finished game says it in the words every board uses (`M21.16`). Check is
+     * `chess-core`'s answer rather than the screen's, and `PRODUCT`'s *Game Screen* asks
+     * every board to show it — the local one says what the online one already says (`D041`).
      */
     fun statusFor(game: ChessGame): String {
-        val result = game.result
-        if (result != null) {
-            val winner = result.winner
-            return if (winner == null) "Draw $SEPARATOR ${result.reason}" else "$winner wins $SEPARATOR ${result.reason}"
-        }
+        game.result?.let { return GameEndings.forSides(it) }
 
         val turn = "${game.sideToMove} to move"
         return if (ChessRules.isInCheck(game.state)) "$turn $SEPARATOR $CHECK" else turn

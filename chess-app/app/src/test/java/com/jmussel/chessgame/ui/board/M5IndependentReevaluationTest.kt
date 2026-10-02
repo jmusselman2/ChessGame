@@ -123,7 +123,7 @@ class M5IndependentReevaluationTest {
 
         assertNull(finished.declaredMove)
         assertEquals(TerminationReason.CHECKMATE, finished.game.result?.reason)
-        assertEquals("WHITE wins — CHECKMATE", GameControls.statusFor(finished.game))
+        assertEquals("White won by checkmate", GameControls.statusFor(finished.game))
         assertFalse(GameControls.canUndo(finished))
         assertFalse(GameControls.canClaimDraw(finished))
         assertFalse(GameControls.canResign(finished))

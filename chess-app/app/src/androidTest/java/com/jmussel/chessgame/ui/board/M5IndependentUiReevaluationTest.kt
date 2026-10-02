@@ -33,7 +33,7 @@ class M5IndependentUiReevaluationTest {
         tap("d8")
         tap("h4")
 
-        composeRule.onNodeWithText("BLACK wins — CHECKMATE").assertExists()
+        composeRule.onNodeWithText("Black won by checkmate").assertExists()
         composeRule.onNodeWithText("2. g2g4 d8h4").assertExists()
         composeRule.onNodeWithText("Undo").assertDoesNotExist()
         composeRule.onNodeWithText("Resign as White").assertDoesNotExist()
@@ -42,7 +42,7 @@ class M5IndependentUiReevaluationTest {
         // A terminal board remains clickable for presentation, but the interaction layer
         // must ignore the tap and leave the final position and history unchanged.
         tap("e2")
-        composeRule.onNodeWithText("BLACK wins — CHECKMATE").assertExists()
+        composeRule.onNodeWithText("Black won by checkmate").assertExists()
         composeRule.onNodeWithText("2. g2g4 d8h4").assertExists()
     }
 

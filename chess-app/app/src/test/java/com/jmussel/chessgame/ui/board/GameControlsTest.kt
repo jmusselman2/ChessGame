@@ -221,10 +221,10 @@ class GameControlsTest {
         val mated = tap(BoardUiState.newGame(), "f2", "f3", "e7", "e5", "g2", "g4", "d8", "h4")
 
         assertTrue(mated.game.isOver)
-        assertEquals("BLACK wins — CHECKMATE", GameControls.statusFor(mated.game))
-        assertEquals("WHITE wins — RESIGNATION", GameControls.statusFor(GameControls.resign(BoardUiState.newGame(), Side.BLACK).game))
+        assertEquals("Black won by checkmate", GameControls.statusFor(mated.game))
+        assertEquals("White won by resignation", GameControls.statusFor(GameControls.resign(BoardUiState.newGame(), Side.BLACK).game))
         assertEquals(
-            "Draw — THREEFOLD_REPETITION_CLAIM",
+            "Drawn by threefold repetition",
             GameControls.statusFor(GameControls.claimDraw(shuffled(rounds = 2), DrawClaim.THREEFOLD_REPETITION).game),
         )
     }

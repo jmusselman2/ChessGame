@@ -586,6 +586,101 @@ class LocalGamePersistenceTest {
             assertEquals(game.id, store.activeGame(LocalGameKind.COMPUTER)!!.id)
         }
 
+    // --- What a finished game offers (`M21.16`) ----------------------------------------
+
+    @Test
+    fun reviewOpensAFinishedPassAndPlayGameAtItsFinalMove() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+            val id = store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.id
+            tap(viewModel, "f2", "f3", "e7", "e5", "g2", "g4", "d8", "h4")
+
+            viewModel.reviewLocalGame()
+            advanceUntilIdle()
+
+            assertEquals(Destination.PastLocalGame(id), viewModel.navigation.current)
+            val review = viewModel.localReview!!
+            assertEquals("at the final move", review.plies, review.ply)
+            assertEquals(4, review.ply)
+            assertEquals("Black won by checkmate", review.ending)
+
+            // Back returns to the finished game, where New game still starts another.
+            assertTrue(viewModel.back())
+            assertEquals(Destination.LocalGame, viewModel.navigation.current)
+            viewModel.startNewLocalGame()
+            advanceUntilIdle()
+            assertTrue(
+                viewModel.localGame.boardState.game.history
+                    .isEmpty(),
+            )
+            assertNotEquals(id, store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.id)
+        }
+
+    @Test
+    fun anUnfinishedPassAndPlayGameIsNotReviewed() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+            tap(viewModel, "e2", "e4")
+
+            viewModel.reviewLocalGame()
+            advanceUntilIdle()
+
+            assertEquals(Destination.LocalGame, viewModel.navigation.current)
+        }
+
+    @Test
+    fun reviewOpensAFinishedComputerGameAtItsFinalMoveAndBackReturnsToIt() =
+        runTest(dispatcher) {
+            val game = store.startGame(ComputerOpponent(Side.WHITE, 1))
+            val viewModel = viewModel()
+            viewModel.restartAt(Destination.Dashboard)
+            viewModel.openComputerGame()
+            advanceUntilIdle()
+            playTheComputer(viewModel)
+
+            val playing = viewModel.computerGame.state!!
+            viewModel.computerGame.update(GameControls.resign(playing.boardState, Side.WHITE))
+            advanceUntilIdle()
+
+            viewModel.reviewComputerGame()
+            advanceUntilIdle()
+
+            assertEquals(Destination.PastLocalGame(game.id), viewModel.navigation.current)
+            val review = viewModel.localReview!!
+            assertEquals(review.plies, review.ply)
+            assertEquals("The computer won by resignation", review.ending)
+
+            assertTrue(viewModel.back())
+            assertEquals(Destination.ComputerGame, viewModel.navigation.current)
+            assertTrue(
+                "the finished game is still on screen",
+                viewModel.computerGame.state!!
+                    .game.isOver,
+            )
+
+            // Play again keeps its behaviour: the same level, colours swapped (`D086`).
+            viewModel.computerGame.playAgain()
+            advanceUntilIdle()
+            val again = viewModel.computerGame.state!!
+            assertNotEquals(game.id, again.id)
+            assertEquals(ComputerOpponent(Side.BLACK, 1), again.opponent)
+        }
+
+    @Test
+    fun anUnfinishedComputerGameIsNotReviewed() =
+        runTest(dispatcher) {
+            store.startGame(ComputerOpponent(Side.WHITE, 1))
+            val viewModel = viewModel()
+            viewModel.restartAt(Destination.Dashboard)
+            viewModel.openComputerGame()
+            advanceUntilIdle()
+
+            viewModel.reviewComputerGame()
+            advanceUntilIdle()
+
+            assertEquals(Destination.ComputerGame, viewModel.navigation.current)
+        }
+
     @Test
     fun aFinishedComputerGameShowsItsLevelAndColourInPastLocalGames() =
         runTest(dispatcher) {

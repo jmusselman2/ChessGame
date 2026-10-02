@@ -1001,8 +1001,20 @@ class ChessAppViewModel(
      * The client never creates or confirms a rematch: the server made the next game when it
      * finalized this one (`D014`), so this only reads the answer — a different current game
      * to offer, or a series that has gone, which means there will not be another (`D013`).
+     *
+     * A game whose series had already ended when it finished has no next game, and says so
+     * without asking (`D068`). A dashboard that could not be read says nothing either way, so
+     * the screen says the next game could not be found and offers to look again, rather than
+     * guessing from an older list that the series is over (`M21.16`).
      */
     private fun followSeries(finished: GameViewDto) {
+        if (!finished.seriesActive) {
+            val ready = (game as? OnlineGameState.Ready)?.takeIf { it.game.gameId == finished.gameId } ?: return
+            game = ready.copy(after = AfterGame.SeriesOver)
+            loadDashboard()
+            return
+        }
+
         // Deliberately not queued behind a dashboard read already in flight. That read was
         // decided before this game ended, so it cannot know about the rematch, and waiting
         // for it would leave the player on "finding out what happens next" for as long as it
@@ -1010,7 +1022,7 @@ class ChessAppViewModel(
         // the freshness ordering in [fetchDashboard] is what stops the older answer landing
         // on top of this one afterwards and erasing the rematch (`M14-03`).
         dashboardJob =
-            beginDashboardLoad {
+            beginDashboardLoad { answered ->
                 val ready = game as? OnlineGameState.Ready ?: return@beginDashboardLoad
                 if (ready.game.gameId != finished.gameId) return@beginDashboardLoad
 
@@ -1020,8 +1032,23 @@ class ChessAppViewModel(
                         ?.gameId
                         ?.takeIf { it != finished.gameId }
 
-                game = ready.copy(after = nextGameId?.let(AfterGame::NextGame) ?: AfterGame.SeriesOver)
+                val after =
+                    when {
+                        nextGameId != null -> AfterGame.NextGame(nextGameId)
+                        answered -> AfterGame.SeriesOver
+                        else -> AfterGame.NotFound
+                    }
+                game = ready.copy(after = after)
             }
+    }
+
+    /** Looks again for the game the series moved on to, after a look that could not be made. */
+    fun findNextGame() {
+        val ready = game as? OnlineGameState.Ready ?: return
+        if (ready.after != AfterGame.NotFound) return
+
+        game = ready.copy(after = AfterGame.Looking)
+        followSeries(ready.game)
     }
 
     /** Opens the game the series moved on to, which the server chose (`D015`). */
@@ -1062,14 +1089,15 @@ class ChessAppViewModel(
      * One loop shape for both callers, so a completion refresh cannot end up with a
      * different discipline from an ordinary reload — which is how `M14-03` happened.
      */
-    private fun beginDashboardLoad(andThen: suspend () -> Unit = {}): Job =
+    private fun beginDashboardLoad(andThen: suspend (answered: Boolean) -> Unit = {}): Job =
         viewModelScope.launch {
+            var answered: Boolean
             do {
                 dashboardReloadWanted = false
-                fetchDashboard()
+                answered = fetchDashboard()
             } while (dashboardReloadWanted)
 
-            andThen()
+            andThen(answered)
         }
 
     /**
@@ -1137,8 +1165,11 @@ class ChessAppViewModel(
      * overwrites a newer one, which is what erased a rematch the completion refresh had just
      * found (`M14-03`). A discarded answer changes nothing at all, `loading` included: the
      * newer answer it lost to has already said whether the dashboard is still loading.
+     *
+     * Returns whether the server answered. An answer that lost to a newer one still counts:
+     * what is on screen is then at least as new as it.
      */
-    private suspend fun fetchDashboard() {
+    private suspend fun fetchDashboard(): Boolean {
         val read = ++dashboardReadsIssued
         dashboard = dashboard.copy(loading = true)
 
@@ -1156,6 +1187,7 @@ class ChessAppViewModel(
                     friends = friends.copy(friends = loadedFriends, loaded = true)
                 }
             }
+            return true
         } catch (refused: ChessApiException) {
             if (isFreshestDashboardRead(read)) {
                 dashboard = dashboard.copy(loading = false, message = DashboardMessages.messageFor(refused))
@@ -1167,6 +1199,7 @@ class ChessAppViewModel(
                 dashboard = dashboard.copy(loading = false, message = DashboardMessages.unreachableMessage())
             }
         }
+        return false
     }
 
     /**
@@ -1788,6 +1821,21 @@ class ChessAppViewModel(
                 // Only a finished game is reviewed; an unfinished one is played, not looked back at.
                 localReview = localGames.game(id)?.takeUnless { it.isActive }?.let(::LocalGameReview)
             }
+    }
+
+    /** Opens the pass-and-play game on screen in the review, once it has finished (`M21.16`). */
+    fun reviewLocalGame() {
+        val id = localGameId ?: return
+        if (!localGame.boardState.game.isOver) return
+
+        openPastLocalGame(id)
+    }
+
+    /** Opens the game against the computer on screen in the review, once it has finished (`M21.16`). */
+    fun reviewComputerGame() {
+        val finished = computerGame.state?.takeIf { it.game.isOver } ?: return
+
+        openPastLocalGame(finished.id)
     }
 
     /** Shows the game under review at [ply]. */

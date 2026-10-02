@@ -269,7 +269,8 @@ class ChessAppTest {
             path.endsWith("/moves") -> playedGame(path.removePrefix("/games/").removeSuffix("/moves"))
             path.endsWith("/undo") -> gameView(path.removePrefix("/games/").removeSuffix("/undo"), canUndo = false)
             path.endsWith("/draw-claims") -> drawnGame(path.removePrefix("/games/").removeSuffix("/draw-claims"))
-            path.endsWith("/resignation") -> resignedGame(path.removePrefix("/games/").removeSuffix("/resignation"))
+            path.endsWith("/resignation") ->
+                resignedGame(path.removePrefix("/games/").removeSuffix("/resignation"), seriesActive = !replies.seriesLeft)
             path.startsWith("/games/") ->
                 gameView(
                     gameId = path.removePrefix("/games/"),
@@ -354,12 +355,15 @@ class ChessAppTest {
     }
 
     /** The same game once its White player has resigned. */
-    private fun resignedGame(gameId: String): String =
+    private fun resignedGame(
+        gameId: String,
+        seriesActive: Boolean = true,
+    ): String =
         """
         {"gameId":"$gameId","seriesId":"series-1","opponent":${user("Alex")},"version":2,
          "yourSide":"WHITE","sideToMove":"WHITE","yourTurn":false,"inCheck":false,
          "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
-         "moves":[],"moveNumber":1,"halfmoveClock":0,
+         "moves":[],"moveNumber":1,"halfmoveClock":0,"seriesActive":$seriesActive,
          "result":"BLACK_WINS","terminationReason":"RESIGNATION"}
         """.trimIndent()
 
@@ -2380,6 +2384,84 @@ class ChessAppTest {
             val ready = viewModel.game as OnlineGameState.Ready
             assertEquals("DRAW", ready.game.result)
             assertEquals(AfterGame.NextGame("game-2"), ready.after)
+        }
+
+    @Test
+    fun whileTheSeriesIsCheckedTheScreenSaysItIsFindingTheNextGame() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan", nextGameId = "game-2"))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.askToResign()
+            viewModel.resign()
+            viewModel.moveJob?.join()
+
+            val looking = viewModel.game as OnlineGameState.Ready
+            assertEquals("the dashboard is being asked", AfterGame.Looking, looking.after)
+            assertTrue(OnlineGame.afterGameText(looking.after!!, looking.game).contains("automatically"))
+
+            viewModel.dashboardJob?.join()
+            assertEquals(AfterGame.NextGame("game-2"), (viewModel.game as OnlineGameState.Ready).after)
+        }
+
+    @Test
+    fun aNextGameThatCouldNotBeLookedUpIsNotMistakenForAnEndedSeries() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            username = "Jordan",
+                            nextGameId = "game-2",
+                            refusals = 1,
+                            refusalPath = "/dashboard",
+                            refusalStatus = HttpStatusCode.ServiceUnavailable,
+                        ),
+                )
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.askToResign()
+            viewModel.resign()
+            viewModel.moveJob?.join()
+            viewModel.dashboardJob?.join()
+
+            assertEquals(
+                "an unanswered look says it could not find the next game, not that the series is over",
+                AfterGame.NotFound,
+                (viewModel.game as OnlineGameState.Ready).after,
+            )
+
+            viewModel.findNextGame()
+            viewModel.dashboardJob?.join()
+
+            assertEquals(
+                "looking again finds the game the server started",
+                AfterGame.NextGame("game-2"),
+                (viewModel.game as OnlineGameState.Ready).after,
+            )
+            assertTrue("and nothing asked for a rematch", paths.none { it == "/series" })
+        }
+
+    @Test
+    fun aGameWhoseSeriesWasLeftEndsWithNoNextGameWhateverTheDashboardSays() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan", nextGameId = "game-2"))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+            viewModel.askToLeaveSeries()
+            viewModel.leaveSeries()
+            viewModel.moveJob?.join()
+            viewModel.dashboardJob?.join()
+            assertFalse((viewModel.game as OnlineGameState.Ready).game.seriesActive)
+
+            viewModel.askToResign()
+            viewModel.resign()
+            viewModel.moveJob?.join()
+
+            // The server never starts a game after a series that has been left (`D068`).
+            assertEquals(AfterGame.SeriesOver, (viewModel.game as OnlineGameState.Ready).after)
         }
 
     @Test

@@ -120,7 +120,7 @@ class PastLocalGamesTest {
 
         assertEquals("Pass-and-play • day 2000 • White won by checkmate", PastLocalGames.summaryFor(summary) { "day $it" })
         assertEquals(
-            "Computer (Very Easy) • You played White • day 2000 • Drawn by threefold repetition claim",
+            "Computer (Very Easy) • You played White • day 2000 • Drawn by threefold repetition",
             PastLocalGames.summaryFor(
                 summary.copy(
                     computer = ComputerOpponent(Side.WHITE, 1),

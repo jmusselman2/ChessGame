@@ -2,6 +2,7 @@ package com.jmussel.chessgame.ui.history
 
 import com.jmussel.chessgame.api.FinishedGameDto
 import com.jmussel.chessgame.api.SeriesHistoryDto
+import com.jmussel.chessgame.ui.board.GameEndings
 
 /** One finished game, as a line of history. */
 data class HistoryGameRow(
@@ -53,7 +54,7 @@ object HistoryList {
     /** How it went for the viewer: `"Won by checkmate"`, `"Lost by resignation"`, `"Drawn …"`. */
     fun outcomeFor(game: FinishedGameDto): String? {
         val result = game.result ?: return null
-        val reason = game.terminationReason?.let(::reasonLabel)
+        val reason = game.terminationReason?.let(GameEndings::reasonWords)
         val verdict =
             when (result) {
                 DRAW -> "Drawn"
@@ -61,7 +62,7 @@ object HistoryList {
                 else -> "Lost"
             }
 
-        return if (reason == null) verdict else "$verdict by $reason"
+        return GameEndings.sentence(verdict, reason)
     }
 
     private fun moveCountFor(game: FinishedGameDto): String? =
@@ -70,9 +71,6 @@ object HistoryList {
             game.moveNumber == 1 -> "1 move"
             else -> "${game.moveNumber} moves"
         }
-
-    /** `THREEFOLD_REPETITION_CLAIM` reads as `threefold repetition claim`. */
-    private fun reasonLabel(reason: String): String = reason.lowercase().replace('_', ' ')
 
     private fun sideLabel(side: String): String = side.lowercase().replaceFirstChar { it.uppercase() }
 

@@ -63,7 +63,7 @@ class PastLocalGamesUiTest {
             }
         }
 
-        composeRule.onNodeWithText("BLACK wins", substring = true).assertExists()
+        composeRule.onNodeWithText("Black won by checkmate").assertExists()
         composeRule.onNodeWithText("After d8h4 (4 of 4)").assertExists()
         composeRule.onNodeWithText("Next").assertIsNotEnabled()
 

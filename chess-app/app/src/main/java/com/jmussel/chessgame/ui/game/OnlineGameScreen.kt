@@ -22,6 +22,7 @@ import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.ui.board.ChessBoard
 import com.jmussel.chessgame.ui.board.GameBackButton
+import com.jmussel.chessgame.ui.board.GameEndHeadline
 import com.jmussel.chessgame.ui.board.GameLayout
 import com.jmussel.chessgame.ui.board.PromotionChoice
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
@@ -64,6 +65,7 @@ fun OnlineGameScreen(
     onLeaveSeries: () -> Unit = {},
     onCancelLeaveSeries: () -> Unit = {},
     onOpenNextGame: () -> Unit = {},
+    onFindNextGame: () -> Unit = {},
     onDone: () -> Unit = {},
 ) {
     when (state) {
@@ -105,11 +107,17 @@ fun OnlineGameScreen(
                         onLeave = onLeaveSeries,
                         onCancel = onCancelLeaveSeries,
                     ),
-                onOpenNextGame = onOpenNextGame,
-                onDone = onDone,
+                after = AfterGameActions(onOpenNextGame = onOpenNextGame, onFindNextGame = onFindNextGame, onDone = onDone),
             )
     }
 }
+
+/** What a finished game offers next: the server's next game, another look for it, or the dashboard. */
+private class AfterGameActions(
+    val onOpenNextGame: () -> Unit,
+    val onFindNextGame: () -> Unit,
+    val onDone: () -> Unit,
+)
 
 /** Leaving the series, which is asked about first (`D052`). */
 private class SeriesExit(
@@ -157,8 +165,7 @@ private fun Game(
     onResign: () -> Unit,
     onCancelResignation: () -> Unit,
     series: SeriesExit,
-    onOpenNextGame: () -> Unit,
-    onDone: () -> Unit,
+    after: AfterGameActions,
 ) {
     val game = state.game
 
@@ -179,7 +186,13 @@ private fun Game(
         controls = {
             Text(text = OnlineGame.headingFor(game), style = MaterialTheme.typography.titleSmall)
 
-            Text(text = OnlineGame.statusFor(game), style = MaterialTheme.typography.bodyLarge)
+            // A finished game says how it ended above everything else (`M21.16`); the board and the
+            // move list stay as they were, with the last move actually played highlighted.
+            if (game.isOver) {
+                GameEndHeadline(text = OnlineGame.statusFor(game))
+            } else {
+                Text(text = OnlineGame.statusFor(game), style = MaterialTheme.typography.bodyLarge)
+            }
 
             // Whether this board is being brought up to date, or may be behind (`M21.15`). The
             // board itself stays the last one the server sent throughout.
@@ -225,18 +238,19 @@ private fun Game(
 
             // What the series did next, which the server decided when it finalized this game
             // (`D014`); nothing here creates or confirms a rematch.
-            when (state.after) {
-                AfterGame.Looking -> Text(text = LOOKING_FOR_NEXT, style = MaterialTheme.typography.bodyMedium)
+            state.after?.let { next ->
+                Text(text = OnlineGame.afterGameText(next, game), style = MaterialTheme.typography.bodyMedium)
 
-                is AfterGame.NextGame ->
-                    Button(onClick = onOpenNextGame) { Text(text = NEXT_GAME) }
-
-                AfterGame.SeriesOver -> {
-                    Text(text = "$NO_MORE_GAMES ${game.opponent.username}.", style = MaterialTheme.typography.bodyMedium)
-                    Button(onClick = onDone) { Text(text = BACK_TO_DASHBOARD) }
+                when (next) {
+                    AfterGame.Looking -> Unit
+                    is AfterGame.NextGame -> Button(onClick = after.onOpenNextGame) { Text(text = NEXT_GAME) }
+                    AfterGame.SeriesOver -> Button(onClick = after.onDone) { Text(text = BACK_TO_DASHBOARD) }
+                    AfterGame.NotFound ->
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(onClick = after.onFindNextGame) { Text(text = SyncAction.TRY_AGAIN.label) }
+                            TextButton(onClick = after.onDone) { Text(text = BACK_TO_DASHBOARD) }
+                        }
                 }
-
-                null -> Unit
             }
 
             // Leaving the series is not resigning: it ends the series and leaves this game alone
@@ -333,9 +347,7 @@ private const val KEEP_PLAYING = "Keep playing"
 private const val LEAVE_SERIES = "Leave series"
 private const val LEAVE_TITLE = "Leave this series?"
 private const val STAY = "Stay"
-private const val LOOKING_FOR_NEXT = "Looking for the next game…"
 private const val NEXT_GAME = "Play the next game"
-private const val NO_MORE_GAMES = "That was the last game with"
 private const val BACK_TO_DASHBOARD = "Back to your games"
 
 @Preview(showBackground = true)
