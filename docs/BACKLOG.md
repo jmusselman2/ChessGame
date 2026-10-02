@@ -7939,7 +7939,7 @@ that set `Dispatchers.Main` and use a `MockEngine` (`ChessAppTest`, `AllUsersFlo
 
 ## M21.15 — Reconnect, waiting, and game-refresh states
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M12.3, M17.10, M21.4
 
@@ -7982,6 +7982,70 @@ give them a safe way to try again without ever resending a game command.
 - `.\gradlew.bat :chess-app:assembleDebugAndroidTest`.
 - `.\gradlew.bat build`.
 - `git diff --check`.
+
+### Completion Note
+
+2026-10-02. Android only; no server, API, database or rule change.
+
+- **States.** `OnlineGameState.Loading` gained `waking`, for a first load waiting
+  through a cold server. `Ready` gained `sync: GameSync?`:
+  - `Refreshing(waking)` while the game on screen is read again;
+  - `RefreshFailed(message, canRetry)` when that read fails;
+  - `CommandOutcomeUnknown` when a command's answer is lost.
+
+  The view model's `liveUpdates` (`LiveUpdates`: `Connecting`, `Live`,
+  `Reconnecting(failedAttempts, waiting)`) reports the socket.
+- **The board stays.** A refresh, a waking refresh, a failed refresh and a reconnect
+  all keep the last canonical board, last move and move list. Before this, a failed
+  reload replaced the game with `Failed` and blanked the board. A game never drawn still
+  fails to `Failed` with Try again.
+- **What is said.** `OnlineGame.syncNoticesFor` and `loadingNoticeFor` give the screen's
+  words and the one action each notice offers. A notice about the game comes before
+  one about the socket. The actions are `SyncAction.TRY_AGAIN`, `REFRESH_GAME` and
+  `RECONNECT_NOW`. All three are reads or reconnects, and none sends a command (`D037`).
+  "Reconnecting live updates…" shows only after a drop. "Reconnect now" shows only
+  during the pause between attempts.
+- **Reconnect now.** `reconnectNow()` ends the current pause through a conflated
+  channel. The count of failed attempts is kept, so the backoff after a failed attempt
+  is unchanged (`D042`). Once connected, the `connected` greeting's HTTPS refresh shows
+  "Refreshing the game…" until it lands, and then nothing is left on screen.
+- **Lost command answer.** Move, Undo, Claim Draw and Resign are still sent once.
+  Losing the answer now sets `CommandOutcomeUnknown` instead of the generic unreachable
+  message. The screen says the request "has not been sent again" and offers Refresh
+  game, which reads the game. Playing the same move again by hand still goes at the old
+  version and is refused as stale (`D021`).
+- **Waiting copy.** `ui/ServerWaiting` holds the waiting copy shared by startup's Waking
+  state and an in-game read through a cold server. The detail line now reads "Waking it
+  takes about a minute" instead of "The first game of the day takes about a minute to
+  start". Startup keeps its Starting, Waking and Failed states and its offline entries.
+- **Tests.**
+  - `NetworkInterruptionTest`, new cases:
+    - first load, then waking;
+    - foreground refresh keeping the board;
+    - a cold-server refresh;
+    - a failed refresh and its Try again;
+    - a lost move answer offering only Refresh game, with exactly one `/moves`;
+    - a dropped socket that shows Reconnecting, backs off 3, 3, 6 s, then reconnects
+      on Reconnect now at once with the failure still counted, and clears only after
+      the reconnect's refresh lands;
+    - Reconnect now doing nothing while live.
+  - `OnlineGameTest` covers every notice and that no action sends a command.
+  - `OnlineGameConnectionUiTest` (Compose, new) covers loading and waking, startup's
+    shared wording, refresh and waking refresh in two-pane and one-column windows, a
+    reconnect with and without Reconnect now, a failed refresh, a failed first load,
+    and a lost answer. In each, the board stays inside the window, and the actions call
+    only retry or reconnect.
+  - Four existing assertions changed for the new behaviour, with their intent kept:
+    - three asserted a lost answer set `message` and now assert `CommandOutcomeUnknown`;
+    - one asserted that a failed reload blanks the board into `Failed`, which this task
+      removes. It now asserts `RefreshFailed` over the kept board, and that the
+      recovery clears it.
+- **Device run.** On the `ChessPlayerM5Api36` emulator (Android 16),
+  `OnlineGameConnectionUiTest` passed 7/7 and `OnlineGameLayoutUiTest` 4/4. Its
+  `playingBlackEverySquareCentreTapsThatSquare` recorded one stray extra tap on the first
+  run, which drew no notice, and passed when run again alone.
+- `.\gradlew.bat build`: BUILD SUCCESSFUL. Unit tests: `chess-app` 649, `chess-ai` 20,
+  `chess-core` 394, `server` 603, none failing. `git diff --check`: clean.
 
 ## M21.16 — Clearer game-end screens
 

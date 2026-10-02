@@ -16,6 +16,7 @@ import com.jmussel.chessgame.api.ListedUserDto
 import com.jmussel.chessgame.api.RealtimeMessageDto
 import com.jmussel.chessgame.api.SeriesOpening
 import com.jmussel.chessgame.api.ServerWakePolicy
+import com.jmussel.chessgame.api.ServerWaking
 import com.jmussel.chessgame.api.UserSummaryDto
 import com.jmussel.chessgame.api.withServerWake
 import com.jmussel.chessgame.computer.ComputerGame
@@ -37,6 +38,8 @@ import com.jmussel.chessgame.ui.friends.Friends
 import com.jmussel.chessgame.ui.friends.FriendsUiState
 import com.jmussel.chessgame.ui.game.AfterGame
 import com.jmussel.chessgame.ui.game.BoardTap
+import com.jmussel.chessgame.ui.game.GameSync
+import com.jmussel.chessgame.ui.game.LiveUpdates
 import com.jmussel.chessgame.ui.game.OnlineGame
 import com.jmussel.chessgame.ui.game.OnlineGameState
 import com.jmussel.chessgame.ui.groups.GroupUiState
@@ -52,10 +55,12 @@ import com.jmussel.chessgame.ui.series.PlayOffer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.pow
 
 /**
@@ -126,6 +131,13 @@ class ChessAppViewModel(
     /** The game screen: the canonical state as far as it has been read, or `null` before any game has been opened. */
     var game: OnlineGameState? by mutableStateOf(null)
         private set
+
+    /** The realtime connection, which the game screen reports on once it has dropped (`M21.15`). */
+    var liveUpdates: LiveUpdates by mutableStateOf(LiveUpdates.Connecting)
+        private set
+
+    /** A player's request to stop waiting out the reconnect pause ([reconnectNow]). */
+    private val reconnectRequests = Channel<Unit>(Channel.CONFLATED)
 
     /**
      * The local pass-and-play game on screen.
@@ -420,16 +432,14 @@ class ChessAppViewModel(
             gameJob?.cancel()
         }
 
-        // A different game blanks the screen, so it is never showing the one before it; the
-        // game already on screen stays put while it reloads, which is both less flicker and
-        // what lets a reload tell that this game has just ended.
-        if ((game as? OnlineGameState.Ready)?.game?.gameId != gameId) game = OnlineGameState.Loading(gameId)
+        readingGame(gameId, waking = false)
 
         loadingGameId = gameId
         gameJob =
             viewModelScope.launch {
                 do {
                     reloadWanted = false
+                    readingGame(gameId, waking = false)
 
                     try {
                         // A reload is a read, so it is safe to repeat while the service wakes.
@@ -437,25 +447,58 @@ class ChessAppViewModel(
                         // instance is replaced or spins down, and canonical state is reloaded
                         // over HTTPS immediately afterwards — against a server that is, by
                         // definition, only just coming back.
-                        show(waitingForServer { dependencies.chessApi.game(gameId) })
+                        val view =
+                            waitingForServer(onWaking = { readingGame(gameId, waking = true) }) {
+                                dependencies.chessApi.game(gameId)
+                            }
+                        show(view, refreshLanded = true)
                     } catch (refused: ChessApiException) {
-                        game =
-                            OnlineGameState.Failed(
-                                gameId = gameId,
-                                message = OnlineGame.messageFor(refused),
-                                canRetry = OnlineGame.canRetry(refused),
-                            )
+                        readFailed(gameId, OnlineGame.messageFor(refused), canRetry = OnlineGame.canRetry(refused))
                     } catch (cancelled: CancellationException) {
                         throw cancelled
                     } catch (unreachable: Exception) {
-                        game =
-                            OnlineGameState.Failed(
-                                gameId = gameId,
-                                message = OnlineGame.unreachableMessage(),
-                                canRetry = true,
-                            )
+                        readFailed(gameId, message = null, canRetry = true)
                     }
                 } while (reloadWanted)
+            }
+    }
+
+    /**
+     * Says that [gameId] is being read, and whether the read is [waking] a server.
+     *
+     * A different game blanks the screen, so it is never showing the one before it. The game
+     * already on screen stays put while it reloads (`M21.15`), which is both less flicker and
+     * what lets a reload tell that this game has just ended.
+     */
+    private fun readingGame(
+        gameId: String,
+        waking: Boolean,
+    ) {
+        val showing = (game as? OnlineGameState.Ready)?.takeIf { it.game.gameId == gameId }
+
+        game = showing?.copy(sync = GameSync.Refreshing(waking)) ?: OnlineGameState.Loading(gameId, waking)
+    }
+
+    /**
+     * Says that reading [gameId] did not work.
+     *
+     * A game never drawn has nothing to show but the failure. A game already drawn keeps its
+     * board, which is still the last canonical one, and says it may be behind (`M21.15`).
+     * [message] is `null` when nothing answered at all.
+     */
+    private fun readFailed(
+        gameId: String,
+        message: String?,
+        canRetry: Boolean,
+    ) {
+        val showing = (game as? OnlineGameState.Ready)?.takeIf { it.game.gameId == gameId }
+
+        game =
+            if (showing != null) {
+                val failure = GameSync.RefreshFailed(message ?: OnlineGame.refreshUnreachableMessage(), canRetry)
+                showing.copy(sync = failure)
+            } else {
+                OnlineGameState.Failed(gameId = gameId, message = message ?: OnlineGame.unreachableMessage(), canRetry = canRetry)
             }
     }
 
@@ -502,6 +545,9 @@ class ChessAppViewModel(
     fun watchUpdates() {
         if (updatesJob?.isActive == true) return
 
+        liveUpdates = LiveUpdates.Connecting
+        reconnectRequests.tryReceive()
+
         updatesJob =
             viewModelScope.launch {
                 var failures = 0
@@ -513,16 +559,40 @@ class ChessAppViewModel(
                     // answer is the same: wait a moment and connect again.
                     runCatching {
                         dependencies.realtime.messages().collect { message ->
+                            if (!live) liveUpdates = LiveUpdates.Live
                             live = true
                             onRealtimeMessage(message)
                         }
                     }
 
+                    // Cancelled, rather than dropped: a replacement may already be connecting,
+                    // and what it reports is the connection's state now.
+                    ensureActive()
+
                     failures = if (live) 0 else failures + 1
 
-                    delay(reconnectPauseAfter(failures))
+                    // The pause is the backoff's, and a player may only cut it short: the next
+                    // failure still counts and still lengthens the pause after it (`D042`).
+                    liveUpdates = LiveUpdates.Reconnecting(failedAttempts = failures, waiting = true)
+                    withTimeoutOrNull(reconnectPauseAfter(failures)) { reconnectRequests.receive() }
+                    liveUpdates = LiveUpdates.Reconnecting(failedAttempts = failures, waiting = false)
                 }
             }
+    }
+
+    /**
+     * Opens the realtime connection now instead of at the end of the current pause, which is
+     * what "Reconnect now" does (`M21.15`).
+     *
+     * Only the pause is shortened. The count of failed attempts stays, so the backoff is the
+     * same as it would have been (`D042`), and a tap while an attempt is already under way does
+     * nothing.
+     */
+    fun reconnectNow() {
+        val reconnecting = liveUpdates as? LiveUpdates.Reconnecting ?: return
+        if (!reconnecting.waiting) return
+
+        reconnectRequests.trySend(Unit)
     }
 
     /**
@@ -833,7 +903,10 @@ class ChessAppViewModel(
      * version guard, not a thing a client loop should do on its own (`D021`). [sendCommand]
      * deliberately does not call this, and `commandsAreNotRetriedBlindly` locks that.
      */
-    private suspend fun <T> waitingForServer(read: suspend () -> T): T = withServerWake(policy = wakePolicy, attempt = read)
+    private suspend fun <T> waitingForServer(
+        onWaking: (ServerWaking) -> Unit = {},
+        read: suspend () -> T,
+    ): T = withServerWake(policy = wakePolicy, onWaking = onWaking, attempt = read)
 
     /**
      * Sends one command about the game on screen and shows whatever came back.
@@ -864,9 +937,22 @@ class ChessAppViewModel(
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (unreachable: Exception) {
-                    show(decidedAt, OnlineGame.unreachableMessage())
+                    outcomeUnknown(decidedAt)
                 }
             }
+    }
+
+    /**
+     * Says that the command decided against [decidedAt] got no answer (`M21.15`).
+     *
+     * The server may have applied it or never seen it, and nothing here can tell which, so
+     * nothing here guesses: the board stays as it is, the command is not sent again (`D037`),
+     * and the screen offers to read the game, which settles it.
+     */
+    private fun outcomeUnknown(decidedAt: GameViewDto) {
+        val showing = (game as? OnlineGameState.Ready)?.takeIf { it.game.gameId == decidedAt.gameId } ?: return
+
+        game = showing.copy(submitting = false, message = null, sync = GameSync.CommandOutcomeUnknown)
     }
 
     /**
@@ -880,8 +966,14 @@ class ChessAppViewModel(
     private fun show(
         view: GameViewDto,
         message: String? = null,
+        refreshLanded: Boolean = false,
     ) {
         val showing = (game as? OnlineGameState.Ready)?.takeIf { it.game.gameId == view.gameId }
+
+        // A refresh still on its way keeps saying so when a command's answer lands first; only
+        // the refresh's own answer ends it (`M21.15`). Anything else in doubt is settled by
+        // whatever canonical state has just arrived.
+        val sync = showing?.sync?.takeIf { it is GameSync.Refreshing && !refreshLanded }
 
         // A view older than the one on screen is a late answer to a question the screen has
         // already moved past: a command response held up behind the reload that the
@@ -892,13 +984,13 @@ class ChessAppViewModel(
         // uses. The *message* is kept either way: the player asked for something and is owed
         // the answer, even when the board has moved on since.
         if (showing != null && view.version < showing.game.version) {
-            game = showing.copy(submitting = false, message = message ?: showing.message)
+            game = showing.copy(submitting = false, message = message ?: showing.message, sync = if (refreshLanded) null else showing.sync)
             return
         }
 
         val justEnded = view.isOver && showing != null && !showing.game.isOver
 
-        game = OnlineGameState.Ready(game = view, message = message, after = if (justEnded) AfterGame.Looking else null)
+        game = OnlineGameState.Ready(game = view, message = message, after = if (justEnded) AfterGame.Looking else null, sync = sync)
 
         if (justEnded) followSeries(view)
     }

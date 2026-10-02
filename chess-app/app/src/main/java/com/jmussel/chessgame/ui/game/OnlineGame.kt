@@ -11,6 +11,7 @@ import com.jmussel.chessgame.core.chess.Piece
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.Square
+import com.jmussel.chessgame.ui.ServerWaiting
 import com.jmussel.chessgame.ui.board.PendingPromotion
 
 /**
@@ -20,9 +21,15 @@ import com.jmussel.chessgame.ui.board.PendingPromotion
  * locally, only drawn from what came back (`D004`).
  */
 sealed interface OnlineGameState {
-    /** The game is being fetched; [gameId] is all that is known about it. */
+    /**
+     * The game is being fetched for the first time; [gameId] is all that is known about it.
+     *
+     * [waking] once the first attempt found nothing and the read is waiting through a
+     * sleeping server (`D037`), which the screen says in the words startup uses.
+     */
     data class Loading(
         val gameId: String,
+        val waking: Boolean = false,
     ) : OnlineGameState
 
     /**
@@ -45,6 +52,13 @@ sealed interface OnlineGameState {
         /** What follows this game, once it has finished and the series has been asked. */
         val after: AfterGame? = null,
         val message: String? = null,
+        /**
+         * What is being done to bring [game] up to date, or why it may be behind (`M21.15`).
+         *
+         * Never a reason to take [game] off the screen: the board stays the last canonical
+         * one until a newer one arrives.
+         */
+        val sync: GameSync? = null,
     ) : OnlineGameState
 
     /**
@@ -58,6 +72,97 @@ sealed interface OnlineGameState {
         val message: String,
         val canRetry: Boolean,
     ) : OnlineGameState
+}
+
+/**
+ * Where the game on screen stands against the server's, when that is worth saying.
+ *
+ * Each is about the canonical game already drawn, which stays drawn: a refresh never
+ * blanks the board (`M21.15`). `null` on [OnlineGameState.Ready] means nothing is
+ * happening and nothing is in doubt.
+ */
+sealed interface GameSync {
+    /**
+     * The game is being read again (`D022`), after an update, a reconnect or a return to
+     * the app. [waking] once that read is waiting through a sleeping server (`D037`).
+     */
+    data class Refreshing(
+        val waking: Boolean = false,
+    ) : GameSync
+
+    /**
+     * Reading the game again did not work, so the board may be behind.
+     *
+     * [canRetry] is false when the server's answer will not change, like
+     * [OnlineGameState.Failed]'s.
+     */
+    data class RefreshFailed(
+        val message: String,
+        val canRetry: Boolean,
+    ) : GameSync
+
+    /**
+     * A command went out and no answer came back, so whether the server applied it is not
+     * known.
+     *
+     * The command is never sent again on the app's own initiative (`D037`). Reading the
+     * game is what settles it, and is what the screen offers.
+     */
+    data object CommandOutcomeUnknown : GameSync
+}
+
+/**
+ * The realtime connection, as far as the game screen needs to know about it.
+ *
+ * The socket only says that something changed, and the game is then read over HTTPS
+ * (`D022`), so losing it never loses a move. What the player loses is being told about
+ * the opponent's moves, which is worth saying while it lasts.
+ */
+sealed interface LiveUpdates {
+    /** Opening the connection, before the server has said anything on it. */
+    data object Connecting : LiveUpdates
+
+    /** The server has spoken on the current connection. */
+    data object Live : LiveUpdates
+
+    /**
+     * The connection dropped, or could not be opened, and is being opened again.
+     *
+     * [failedAttempts] in a row have reached nothing, which is what the backoff grows on
+     * (`D042`). [waiting] is true during the pause before the next attempt, which is when
+     * the player may cut it short.
+     */
+    data class Reconnecting(
+        val failedAttempts: Int,
+        val waiting: Boolean,
+    ) : LiveUpdates
+}
+
+/**
+ * One thing the game screen says about keeping up with the server, and what the player can
+ * do about it.
+ *
+ * [action] is only ever a read or a reconnect. No notice offers to send a command again
+ * (`D037`).
+ */
+data class SyncNotice(
+    val title: String,
+    val detail: String? = null,
+    val action: SyncAction? = null,
+)
+
+/** The safe things a [SyncNotice] can offer, each with its label. */
+enum class SyncAction(
+    val label: String,
+) {
+    /** Read the game again after a read failed. */
+    TRY_AGAIN("Try again"),
+
+    /** Read the game again to learn what became of a command whose answer was lost. */
+    REFRESH_GAME("Refresh game"),
+
+    /** Open the realtime connection now rather than at the end of the pause (`D042`). */
+    RECONNECT_NOW("Reconnect now"),
 }
 
 /**
@@ -325,6 +430,43 @@ object OnlineGame {
     /** What to show when the request never reached the server. */
     fun unreachableMessage(): String = UNREACHABLE
 
+    /** What to show when reading the game again never reached the server; the board stays. */
+    fun refreshUnreachableMessage(): String = REFRESH_UNREACHABLE
+
+    /** What a game that has not arrived yet says while it is fetched (`M21.15`). */
+    fun loadingNoticeFor(state: OnlineGameState.Loading): SyncNotice =
+        if (state.waking) SyncNotice(ServerWaiting.TITLE, ServerWaiting.DETAIL) else SyncNotice(LOADING)
+
+    /**
+     * What a game on screen says about keeping up with the server (`M21.15`), most pressing
+     * first, or nothing when there is nothing to say.
+     *
+     * The game's own state comes first: it is about the board in front of the player. The
+     * realtime connection comes after, and only once it has dropped. While it is first
+     * opening, a refresh is already under way and says so.
+     */
+    fun syncNoticesFor(
+        state: OnlineGameState.Ready,
+        liveUpdates: LiveUpdates,
+    ): List<SyncNotice> = listOfNotNull(state.sync?.let(::noticeFor), noticeFor(liveUpdates))
+
+    private fun noticeFor(sync: GameSync): SyncNotice =
+        when (sync) {
+            is GameSync.Refreshing ->
+                if (sync.waking) SyncNotice(ServerWaiting.TITLE, ServerWaiting.DETAIL) else SyncNotice(REFRESHING)
+
+            is GameSync.RefreshFailed ->
+                SyncNotice(REFRESH_FAILED, sync.message, SyncAction.TRY_AGAIN.takeIf { sync.canRetry })
+
+            GameSync.CommandOutcomeUnknown -> SyncNotice(OUTCOME_UNKNOWN, OUTCOME_UNKNOWN_DETAIL, SyncAction.REFRESH_GAME)
+        }
+
+    private fun noticeFor(liveUpdates: LiveUpdates): SyncNotice? {
+        if (liveUpdates !is LiveUpdates.Reconnecting) return null
+
+        return SyncNotice(RECONNECTING, RECONNECTING_DETAIL, SyncAction.RECONNECT_NOW.takeIf { liveUpdates.waiting })
+    }
+
     /** `"Your move"`, or `"Alex to move"`, and the check that goes with it. */
     private fun turnFor(game: GameViewDto): String {
         val turn = if (game.yourTurn) YOUR_MOVE else "${game.opponent.username} to move"
@@ -390,4 +532,13 @@ object OnlineGame {
     private const val NO_CLAIM = "There is no draw to claim here."
     private const val NOTHING_BACK = "There is nothing to take back."
     private const val UNREACHABLE = "Could not reach the server. Check your connection and try again."
+    private const val REFRESH_UNREACHABLE = "Could not reach the server. The board is as it was when it last loaded."
+    private const val LOADING = "Loading the game…"
+    private const val REFRESHING = "Refreshing the game…"
+    private const val REFRESH_FAILED = "Could not refresh the game"
+    private const val OUTCOME_UNKNOWN = "No answer from the server"
+    private const val OUTCOME_UNKNOWN_DETAIL =
+        "What you asked for may or may not have gone through. It has not been sent again. Refresh the game to see where it stands."
+    private const val RECONNECTING = "Reconnecting live updates…"
+    private const val RECONNECTING_DETAIL = "Your opponent's moves will appear once it is back."
 }

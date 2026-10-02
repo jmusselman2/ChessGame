@@ -8,6 +8,7 @@ import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.core.chess.StandardPosition
+import com.jmussel.chessgame.ui.ServerWaiting
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -212,5 +213,82 @@ class OnlineGameTest {
     @Test
     fun aLostConnectionSaysWhatToDoAboutIt() {
         assertTrue(OnlineGame.unreachableMessage().contains("connection"))
+    }
+
+    // --- Keeping up with the server (`M21.15`) ------------------------------------------
+
+    @Test
+    fun aGameStillLoadingSaysSoAndSaysWhenTheServerIsWaking() {
+        assertEquals(SyncNotice("Loading the game…"), OnlineGame.loadingNoticeFor(OnlineGameState.Loading("game-1")))
+
+        val waking = OnlineGame.loadingNoticeFor(OnlineGameState.Loading("game-1", waking = true))
+        assertEquals("the same words as startup", SyncNotice(ServerWaiting.TITLE, ServerWaiting.DETAIL), waking)
+    }
+
+    @Test
+    fun aGameUpToDateOverALiveConnectionSaysNothing() {
+        val ready = OnlineGameState.Ready(game())
+
+        assertEquals(emptyList<SyncNotice>(), OnlineGame.syncNoticesFor(ready, LiveUpdates.Live))
+        assertEquals(
+            "a connection still opening is not news: startup or the refresh beside it says enough",
+            emptyList<SyncNotice>(),
+            OnlineGame.syncNoticesFor(ready, LiveUpdates.Connecting),
+        )
+    }
+
+    @Test
+    fun eachKindOfCatchingUpSaysWhatItIs() {
+        fun noticeFor(sync: GameSync) = OnlineGame.syncNoticesFor(OnlineGameState.Ready(game(), sync = sync), LiveUpdates.Live).single()
+
+        assertEquals(SyncNotice("Refreshing the game…"), noticeFor(GameSync.Refreshing()))
+        assertEquals(SyncNotice(ServerWaiting.TITLE, ServerWaiting.DETAIL), noticeFor(GameSync.Refreshing(waking = true)))
+
+        val failed = noticeFor(GameSync.RefreshFailed("Could not reach the server.", canRetry = true))
+        assertEquals("Could not reach the server.", failed.detail)
+        assertEquals(SyncAction.TRY_AGAIN, failed.action)
+        assertNull(
+            "a refusal that will not change offers nothing to tap",
+            noticeFor(GameSync.RefreshFailed("That game is gone.", canRetry = false)).action,
+        )
+
+        val unknown = noticeFor(GameSync.CommandOutcomeUnknown)
+        assertEquals(SyncAction.REFRESH_GAME, unknown.action)
+        assertTrue("it says the command was not sent again", unknown.detail.orEmpty().contains("not been sent again"))
+    }
+
+    @Test
+    fun aDroppedConnectionSaysItIsReconnectingAndOffersToHurryOnlyBetweenAttempts() {
+        val ready = OnlineGameState.Ready(game())
+
+        val pausing = OnlineGame.syncNoticesFor(ready, LiveUpdates.Reconnecting(failedAttempts = 2, waiting = true)).single()
+        assertEquals("Reconnecting live updates…", pausing.title)
+        assertEquals(SyncAction.RECONNECT_NOW, pausing.action)
+
+        val attempting = OnlineGame.syncNoticesFor(ready, LiveUpdates.Reconnecting(failedAttempts = 2, waiting = false)).single()
+        assertNull("an attempt under way has nothing to hurry", attempting.action)
+    }
+
+    @Test
+    fun aRefreshAndAReconnectAreBothSaidGameFirst() {
+        val ready = OnlineGameState.Ready(game(), sync = GameSync.Refreshing())
+
+        val notices = OnlineGame.syncNoticesFor(ready, LiveUpdates.Reconnecting(failedAttempts = 0, waiting = true))
+
+        assertEquals(listOf("Refreshing the game…", "Reconnecting live updates…"), notices.map { it.title })
+    }
+
+    @Test
+    fun nothingOfferedEverSendsACommandAgain() {
+        // Every action a notice can carry is a read or a reconnect (`D037`).
+        assertEquals(
+            setOf(SyncAction.TRY_AGAIN, SyncAction.REFRESH_GAME, SyncAction.RECONNECT_NOW),
+            SyncAction.entries.toSet(),
+        )
+    }
+
+    @Test
+    fun aRefreshThatCouldNotReachTheServerSaysTheBoardIsTheLastOneLoaded() {
+        assertTrue(OnlineGame.refreshUnreachableMessage().contains("last loaded"))
     }
 }

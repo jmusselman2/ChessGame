@@ -167,6 +167,14 @@ The socket message carries only `gameId` and `version`. The client then fetches
 the game over HTTPS (`D022`). The socket is a hint, not a source of truth; a
 dropped socket is reconnected and the screen refreshed.
 
+The game screen says what it is doing (`M21.15`). `OnlineGameState.Loading` is a
+first load, `waking` once it waits through a cold server. A game already drawn keeps
+its board, and `Ready.sync` (`GameSync`) says it is refreshing, waking the server,
+failed to refresh, or sent a command whose answer was lost. The view model's
+`liveUpdates` reports the socket, and `reconnectNow()` cuts the backoff pause short
+without resetting it (`D042`). Every action offered is a read or a reconnect, never
+a command sent again (`D037`).
+
 ### Game end and rematch
 
 A move or claim that ends a game calls `SeriesService.settleAfter` inside the

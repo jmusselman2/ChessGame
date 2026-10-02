@@ -25,6 +25,7 @@ import com.jmussel.chessgame.ui.board.BoardInteraction
 import com.jmussel.chessgame.ui.board.BoardUiState
 import com.jmussel.chessgame.ui.dashboard.DashboardSections
 import com.jmussel.chessgame.ui.game.AfterGame
+import com.jmussel.chessgame.ui.game.GameSync
 import com.jmussel.chessgame.ui.game.OnlineGame
 import com.jmussel.chessgame.ui.game.OnlineGameState
 import com.jmussel.chessgame.ui.history.HistoryList
@@ -57,7 +58,6 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -2675,10 +2675,12 @@ class ChessAppTest {
 
             assertEquals("a command must be sent exactly once", 1, moveAttempts)
 
-            // The player is told, and the board is still the canonical one they decided
-            // against rather than a guess about what the server did with the lost request.
+            // The player is told the outcome is unknown, and the board is still the canonical
+            // one they decided against rather than a guess about what the server did with the
+            // lost request (`M21.15`).
             val ready = viewModel.game as OnlineGameState.Ready
-            assertNotNull(ready.message)
+            assertEquals(GameSync.CommandOutcomeUnknown, ready.sync)
+            assertEquals(emptyList<String>(), ready.game.moves)
         }
 
     private fun viewModel(

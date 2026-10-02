@@ -11,7 +11,13 @@ import com.jmussel.chessgame.auth.SessionStore
 import com.jmussel.chessgame.auth.SupabaseConfig
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.local.inMemoryLocalGameStore
+import com.jmussel.chessgame.ui.ServerWaiting
+import com.jmussel.chessgame.ui.game.GameSync
+import com.jmussel.chessgame.ui.game.LiveUpdates
+import com.jmussel.chessgame.ui.game.OnlineGame
 import com.jmussel.chessgame.ui.game.OnlineGameState
+import com.jmussel.chessgame.ui.game.SyncAction
+import com.jmussel.chessgame.ui.game.SyncNotice
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -28,6 +34,7 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -35,7 +42,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -156,7 +163,9 @@ class NetworkInterruptionTest {
             offline = true
             viewModel.loadGame(GAME)
             viewModel.gameJob?.join()
-            assertTrue("an interrupted reload leaves the screen failed", viewModel.game is OnlineGameState.Failed)
+            // The board already drawn stays drawn, saying it could not be refreshed (`M21.15`).
+            val interrupted = viewModel.game as OnlineGameState.Ready
+            assertTrue("an interrupted reload says it failed", interrupted.sync is GameSync.RefreshFailed)
 
             // The socket coming back is the app's own evidence that the server is reachable
             // again; a player should not have to press anything after it.
@@ -166,6 +175,7 @@ class NetworkInterruptionTest {
 
             val recovered = viewModel.game as OnlineGameState.Ready
             assertEquals(GAME, recovered.game.gameId)
+            assertNull("and the failure is cleared once the refresh lands", recovered.sync)
         }
 
     @Test
@@ -322,7 +332,7 @@ class NetworkInterruptionTest {
             assertEquals("the server really did record it", listOf("e2e4"), played.toList())
             val stranded = viewModel.game as OnlineGameState.Ready
             assertEquals("the screen is still on the state the move was decided against", 1L, stranded.game.version)
-            assertNotNull("and says something happened", stranded.message)
+            assertEquals("and says the outcome is unknown", GameSync.CommandOutcomeUnknown, stranded.sync)
 
             viewModel.onRealtimeMessage(RealtimeMessageDto(type = RealtimeMessageDto.CONNECTED))
             viewModel.gameJob?.join()
@@ -630,6 +640,255 @@ class NetworkInterruptionTest {
 
             assertTrue("no request is made for a player who is not signed in yet", paths.isEmpty())
             assertEquals("and no socket is opened ahead of startup", 0, opened)
+        }
+
+    // --- What the game screen says while it catches up (`M21.15`) ---------------------
+
+    @Test
+    fun aGameNotYetDrawnSaysItIsLoadingAndThenThatTheServerIsWaking() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+
+            offline = true
+            viewModel.openOnlineGame(GAME)
+            assertEquals("first it is simply loading", OnlineGameState.Loading(GAME), viewModel.game)
+
+            runCurrent()
+            assertEquals(
+                "a read that found nothing is waiting for the server, not failing",
+                OnlineGameState.Loading(GAME, waking = true),
+                viewModel.game,
+            )
+
+            offline = false
+            viewModel.gameJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertNull("and the board arrives with nothing left to say", ready.sync)
+        }
+
+    @Test
+    fun comingBackToTheAppRefreshesWithoutTakingTheBoardAway() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.start()
+            viewModel.startupJob?.join()
+            viewModel.openOnlineGame(GAME)
+            viewModel.gameJob?.join()
+
+            val arrived = CompletableDeferred<Unit>()
+            val inFlight = CompletableDeferred<Unit>()
+            heldReadArrived = arrived
+            holdNextGameRead = inFlight
+            viewModel.onBackground()
+            played += "e7e5"
+            viewModel.onForeground()
+            arrived.await()
+
+            val refreshing = viewModel.game as OnlineGameState.Ready
+            assertEquals("the screen says it is refreshing", GameSync.Refreshing(), refreshing.sync)
+            assertEquals("while the last canonical board stays", 1L, refreshing.game.version)
+            assertEquals(emptyList<String>(), refreshing.game.moves)
+
+            inFlight.complete(Unit)
+            viewModel.gameJob?.join()
+
+            val refreshed = viewModel.game as OnlineGameState.Ready
+            assertEquals(listOf("e7e5"), refreshed.game.moves)
+            assertNull("and the status goes once the refresh has landed", refreshed.sync)
+        }
+
+    @Test
+    fun aRefreshWaitingForASleepingServerSaysSoAndKeepsTheBoard() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.openOnlineGame(GAME)
+            viewModel.gameJob?.join()
+
+            offline = true
+            viewModel.loadGame(GAME)
+            runCurrent()
+
+            val waking = viewModel.game as OnlineGameState.Ready
+            assertEquals("the refresh is waiting for the server", GameSync.Refreshing(waking = true), waking.sync)
+            val notice = OnlineGame.syncNoticesFor(waking, LiveUpdates.Live).single()
+            assertEquals("in the words startup uses", ServerWaiting.TITLE, notice.title)
+            assertEquals("over the board it already had", 1L, waking.game.version)
+
+            offline = false
+            played += "e7e5"
+            viewModel.gameJob?.join()
+
+            val woken = viewModel.game as OnlineGameState.Ready
+            assertEquals(listOf("e7e5"), woken.game.moves)
+            assertNull(woken.sync)
+        }
+
+    @Test
+    fun aRefreshThatFailsKeepsTheBoardAndOffersTryAgain() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.openOnlineGame(GAME)
+            viewModel.gameJob?.join()
+
+            offline = true
+            viewModel.loadGame(GAME)
+            viewModel.gameJob?.join()
+
+            val failed = viewModel.game as OnlineGameState.Ready
+            assertEquals("the last canonical board stays", 1L, failed.game.version)
+            val failure = failed.sync as GameSync.RefreshFailed
+            assertTrue("and trying again is offered", failure.canRetry)
+            assertEquals(
+                listOf(SyncAction.TRY_AGAIN),
+                OnlineGame.syncNoticesFor(failed, LiveUpdates.Live).mapNotNull { it.action },
+            )
+
+            offline = false
+            played += "e7e5"
+            viewModel.reloadGame()
+            viewModel.gameJob?.join()
+
+            val retried = viewModel.game as OnlineGameState.Ready
+            assertEquals("trying again reads the game", listOf("e7e5"), retried.game.moves)
+            assertNull(retried.sync)
+        }
+
+    @Test
+    fun aLostCommandAnswerOffersRefreshAndNeverSendsTheCommandAgain() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.openOnlineGame(GAME)
+            viewModel.gameJob?.join()
+
+            loseNextReply = true
+            viewModel.tapSquare(Square.parse("e2"))
+            viewModel.tapSquare(Square.parse("e4"))
+            viewModel.moveJob?.join()
+
+            val unknown = viewModel.game as OnlineGameState.Ready
+            assertEquals("the outcome is unknown, and the screen says so", GameSync.CommandOutcomeUnknown, unknown.sync)
+            assertFalse("the board is usable", unknown.submitting)
+            assertEquals("the board is the one the move was decided against", 1L, unknown.game.version)
+            assertEquals(
+                "the only thing offered is reading the game",
+                listOf(SyncAction.REFRESH_GAME),
+                OnlineGame.syncNoticesFor(unknown, LiveUpdates.Live).mapNotNull { it.action },
+            )
+            runCurrent()
+            assertEquals("nothing sent the move again on its own", 1, paths.count { it == "/games/$GAME/moves" })
+
+            viewModel.reloadGame()
+            viewModel.gameJob?.join()
+
+            val settled = viewModel.game as OnlineGameState.Ready
+            assertEquals("refreshing shows what became of it", listOf("e2e4"), settled.game.moves)
+            assertNull(settled.sync)
+            assertEquals("and still sends no second command", 1, paths.count { it == "/games/$GAME/moves" })
+        }
+
+    @Test
+    fun aDroppedSocketSaysItIsReconnectingBacksOffAndClearsOnceTheRefreshLands() =
+        runTest(dispatcher) {
+            var attempts = 0
+            var reachable = true
+            val drop = CompletableDeferred<Unit>()
+            val source =
+                RealtimeSource {
+                    flow {
+                        attempts++
+                        if (!reachable) throw IOException("no route to host")
+                        emit(RealtimeMessageDto(type = RealtimeMessageDto.CONNECTED))
+                        // The first connection drops when the test says; later ones stay open.
+                        if (!drop.isCompleted) drop.await() else awaitCancellation()
+                    }
+                }
+            val viewModel = viewModel(realtime = source)
+            viewModel.openOnlineGame(GAME)
+            viewModel.gameJob?.join()
+
+            viewModel.watchUpdates()
+            runCurrent()
+            viewModel.gameJob?.join()
+            assertEquals(LiveUpdates.Live, viewModel.liveUpdates)
+            val board = (viewModel.game as OnlineGameState.Ready).game
+
+            // The connection goes, and the server with it.
+            reachable = false
+            drop.complete(Unit)
+            runCurrent()
+            assertEquals(LiveUpdates.Reconnecting(failedAttempts = 0, waiting = true), viewModel.liveUpdates)
+            val dropped = viewModel.game as OnlineGameState.Ready
+            assertEquals("the board stays while it reconnects", board, dropped.game)
+            assertEquals(
+                "and the screen says so, offering to reconnect now",
+                listOf(SyncAction.RECONNECT_NOW),
+                OnlineGame.syncNoticesFor(dropped, viewModel.liveUpdates).mapNotNull { it.action },
+            )
+
+            // Attempts that reach nothing back off as before: 3 s, 3 s, 6 s.
+            advanceTimeBy(12_001)
+            assertEquals(LiveUpdates.Reconnecting(failedAttempts = 3, waiting = true), viewModel.liveUpdates)
+
+            // Reconnecting now tries at once, and the failure still counts towards the backoff.
+            val before = attempts
+            val clock = currentTime
+            viewModel.reconnectNow()
+            runCurrent()
+            assertEquals("one attempt, made at once", before + 1, attempts)
+            assertEquals(clock, currentTime)
+            assertEquals(LiveUpdates.Reconnecting(failedAttempts = 4, waiting = true), viewModel.liveUpdates)
+            assertEquals("the pause after it is the backed-off one", 24_000L, viewModel.reconnectPauseAfter(4))
+
+            // The server is back. The status stays until the refresh the reconnect prompts has landed.
+            reachable = true
+            played += "e7e5"
+            val arrived = CompletableDeferred<Unit>()
+            val inFlight = CompletableDeferred<Unit>()
+            heldReadArrived = arrived
+            holdNextGameRead = inFlight
+            viewModel.reconnectNow()
+            runCurrent()
+            arrived.await()
+
+            assertEquals(LiveUpdates.Live, viewModel.liveUpdates)
+            val catchingUp = viewModel.game as OnlineGameState.Ready
+            assertEquals(GameSync.Refreshing(), catchingUp.sync)
+            assertEquals("the old board is still up", board, catchingUp.game)
+
+            inFlight.complete(Unit)
+            viewModel.gameJob?.join()
+
+            val caughtUp = viewModel.game as OnlineGameState.Ready
+            assertEquals(listOf("e7e5"), caughtUp.game.moves)
+            assertEquals("nothing left to say", emptyList<SyncNotice>(), OnlineGame.syncNoticesFor(caughtUp, viewModel.liveUpdates))
+
+            viewModel.updatesJob?.cancel()
+        }
+
+    @Test
+    fun reconnectNowDoesNothingWhileConnectedOrMidAttempt() =
+        runTest(dispatcher) {
+            var attempts = 0
+            val source =
+                RealtimeSource {
+                    flow {
+                        attempts++
+                        emit(RealtimeMessageDto(type = RealtimeMessageDto.CONNECTED))
+                        awaitCancellation()
+                    }
+                }
+            val viewModel = viewModel(realtime = source)
+
+            viewModel.watchUpdates()
+            runCurrent()
+            assertEquals(LiveUpdates.Live, viewModel.liveUpdates)
+
+            viewModel.reconnectNow()
+            runCurrent()
+            assertEquals("a live connection is left alone", 1, attempts)
+
+            viewModel.updatesJob?.cancel()
         }
 
     // --- Waking, retryable, and terminal stay apart ------------------------------------

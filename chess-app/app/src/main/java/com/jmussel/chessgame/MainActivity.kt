@@ -165,6 +165,8 @@ class MainActivity : ComponentActivity() {
                         onBack = { if (!viewModel.back()) finish() },
                         onRetryStartup = viewModel::retryStartup,
                         onRetryGame = viewModel::reloadGame,
+                        liveUpdates = viewModel.liveUpdates,
+                        onReconnectNow = viewModel::reconnectNow,
                         onSquareTapped = viewModel::tapSquare,
                         onChoosePromotion = viewModel::choosePromotion,
                         onCancelPromotion = viewModel::cancelPromotion,

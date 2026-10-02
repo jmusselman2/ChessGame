@@ -38,6 +38,11 @@ import com.jmussel.chessgame.ui.theme.ChessGameTheme
  * The board and the rest are arranged by `GameLayout` (`D073`). Back is part of this
  * screen rather than of the app's top row, and is drawn when [onBack] is given, in every
  * state, so a game that failed to load can still be left.
+ *
+ * Once a board has been drawn it stays drawn while the game is read again, while the server
+ * wakes and while [liveUpdates] reconnects; a short notice says which is happening, and
+ * offers only a read or a reconnect, never a command a second time (`M21.15`, `D037`).
+ * [onRetry] reads the game again; [onReconnectNow] cuts the reconnect pause short.
  */
 @Composable
 fun OnlineGameScreen(
@@ -45,6 +50,8 @@ fun OnlineGameScreen(
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
     onRetry: () -> Unit = {},
+    liveUpdates: LiveUpdates = LiveUpdates.Live,
+    onReconnectNow: () -> Unit = {},
     onSquareTapped: (Square) -> Unit = {},
     onChoosePromotion: (PieceType) -> Unit = {},
     onCancelPromotion: () -> Unit = {},
@@ -62,14 +69,14 @@ fun OnlineGameScreen(
     when (state) {
         is OnlineGameState.Loading ->
             NoGameYet(onBack = onBack, modifier = modifier) {
-                Text(text = LOADING, style = MaterialTheme.typography.bodyMedium)
+                SyncNoticeText(notice = OnlineGame.loadingNoticeFor(state))
             }
 
         is OnlineGameState.Failed ->
             NoGameYet(onBack = onBack, modifier = modifier) {
                 Text(text = state.message, style = MaterialTheme.typography.bodyMedium)
                 if (state.canRetry) {
-                    TextButton(onClick = onRetry) { Text(text = RETRY) }
+                    TextButton(onClick = onRetry) { Text(text = SyncAction.TRY_AGAIN.label) }
                 }
             }
 
@@ -78,6 +85,12 @@ fun OnlineGameScreen(
                 state = state,
                 modifier = modifier,
                 onBack = onBack,
+                connection =
+                    Connection(
+                        liveUpdates = liveUpdates,
+                        onRetry = onRetry,
+                        onReconnectNow = onReconnectNow,
+                    ),
                 onSquareTapped = onSquareTapped,
                 onChoosePromotion = onChoosePromotion,
                 onCancelPromotion = onCancelPromotion,
@@ -105,6 +118,13 @@ private class SeriesExit(
     val onCancel: () -> Unit,
 )
 
+/** Keeping the game on screen in step with the server: what is happening, and the safe ways to hurry it. */
+private class Connection(
+    val liveUpdates: LiveUpdates,
+    val onRetry: () -> Unit,
+    val onReconnectNow: () -> Unit,
+)
+
 /** A game still loading, or one that could not be loaded: Back, and what is happening. */
 @Composable
 private fun NoGameYet(
@@ -127,6 +147,7 @@ private fun Game(
     state: OnlineGameState.Ready,
     modifier: Modifier,
     onBack: (() -> Unit)?,
+    connection: Connection,
     onSquareTapped: (Square) -> Unit,
     onChoosePromotion: (PieceType) -> Unit,
     onCancelPromotion: () -> Unit,
@@ -159,6 +180,20 @@ private fun Game(
             Text(text = OnlineGame.headingFor(game), style = MaterialTheme.typography.titleSmall)
 
             Text(text = OnlineGame.statusFor(game), style = MaterialTheme.typography.bodyLarge)
+
+            // Whether this board is being brought up to date, or may be behind (`M21.15`). The
+            // board itself stays the last one the server sent throughout.
+            OnlineGame.syncNoticesFor(state, connection.liveUpdates).forEach { notice ->
+                SyncNoticeView(
+                    notice = notice,
+                    onAction = { action ->
+                        when (action) {
+                            SyncAction.TRY_AGAIN, SyncAction.REFRESH_GAME -> connection.onRetry()
+                            SyncAction.RECONNECT_NOW -> connection.onReconnectNow()
+                        }
+                    },
+                )
+            }
 
             state.pendingPromotion?.let { pending ->
                 PromotionPrompt(
@@ -246,6 +281,27 @@ private fun Game(
     }
 }
 
+/** A notice's words, without its action. */
+@Composable
+private fun SyncNoticeText(notice: SyncNotice) {
+    Text(text = notice.title, style = MaterialTheme.typography.titleSmall)
+    notice.detail?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium) }
+}
+
+/** A notice and the one safe thing it offers, if any. */
+@Composable
+private fun SyncNoticeView(
+    notice: SyncNotice,
+    onAction: (SyncAction) -> Unit,
+) {
+    Column {
+        SyncNoticeText(notice = notice)
+        notice.action?.let { action ->
+            TextButton(onClick = { onAction(action) }) { Text(text = action.label) }
+        }
+    }
+}
+
 /** The four pieces a pawn may become, and the way out of the question. */
 @Composable
 private fun PromotionPrompt(
@@ -266,8 +322,6 @@ private fun PromotionPrompt(
     }
 }
 
-private const val LOADING = "Loading…"
-private const val RETRY = "Try again"
 private const val SUBMITTING = "Sending…"
 private const val PROMOTE_TO = "Promote to"
 private const val CANCEL = "Cancel"

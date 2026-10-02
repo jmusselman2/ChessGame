@@ -10,6 +10,7 @@ import com.jmussel.chessgame.auth.InMemorySessionStore
 import com.jmussel.chessgame.auth.SupabaseConfig
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.local.inMemoryLocalGameStore
+import com.jmussel.chessgame.ui.game.GameSync
 import com.jmussel.chessgame.ui.game.OnlineGameState
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.respond
@@ -30,7 +31,6 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Before
 import org.junit.Test
 import java.io.IOException
@@ -99,7 +99,7 @@ class StaleResponseOrderingTest {
 
             val ready = viewModel.game as OnlineGameState.Ready
             assertEquals("the newer canonical state stays on the board", 3L, ready.game.version)
-            assertNotNull("and the player is still told what happened to their move", ready.message)
+            assertEquals("and the player is still told what happened to their move", GameSync.CommandOutcomeUnknown, ready.sync)
             assertFalse("with the board usable again", ready.submitting)
         }
 

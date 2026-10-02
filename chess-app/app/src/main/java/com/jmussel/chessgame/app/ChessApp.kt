@@ -27,6 +27,7 @@ import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.navigation.AppNavigation
 import com.jmussel.chessgame.navigation.Destination
+import com.jmussel.chessgame.ui.ServerWaiting
 import com.jmussel.chessgame.ui.allusers.AllUsersActions
 import com.jmussel.chessgame.ui.allusers.AllUsersScreen
 import com.jmussel.chessgame.ui.allusers.AllUsersUiState
@@ -38,6 +39,7 @@ import com.jmussel.chessgame.ui.dashboard.DashboardUiState
 import com.jmussel.chessgame.ui.friends.FriendsActions
 import com.jmussel.chessgame.ui.friends.FriendsScreen
 import com.jmussel.chessgame.ui.friends.FriendsUiState
+import com.jmussel.chessgame.ui.game.LiveUpdates
 import com.jmussel.chessgame.ui.game.OnlineGameScreen
 import com.jmussel.chessgame.ui.game.OnlineGameState
 import com.jmussel.chessgame.ui.groups.GroupActions
@@ -107,6 +109,9 @@ fun ChessApp(
     onBack: () -> Unit = {},
     onRetryStartup: () -> Unit = {},
     onRetryGame: () -> Unit = {},
+    /** The realtime connection, which the online game reports on (`M21.15`). */
+    liveUpdates: LiveUpdates = LiveUpdates.Live,
+    onReconnectNow: () -> Unit = {},
     onSquareTapped: (Square) -> Unit = {},
     onChoosePromotion: (PieceType) -> Unit = {},
     onCancelPromotion: () -> Unit = {},
@@ -192,6 +197,8 @@ fun ChessApp(
                     state = game ?: OnlineGameState.Loading(destination.gameId),
                     onBack = onBack,
                     onRetry = onRetryGame,
+                    liveUpdates = liveUpdates,
+                    onReconnectNow = onReconnectNow,
                     onSquareTapped = onSquareTapped,
                     onChoosePromotion = onChoosePromotion,
                     onCancelPromotion = onCancelPromotion,
@@ -331,8 +338,8 @@ private fun StartupScreen(
             // app in a while. The retry is offered anyway — waiting is the app's job, but
             // deciding to stop waiting is the player's.
             is StartupState.Waking -> {
-                Text(text = WAKING, style = MaterialTheme.typography.titleSmall)
-                Text(text = WAKING_DETAIL, style = MaterialTheme.typography.bodyMedium)
+                Text(text = ServerWaiting.TITLE, style = MaterialTheme.typography.titleSmall)
+                Text(text = ServerWaiting.DETAIL, style = MaterialTheme.typography.bodyMedium)
                 TextButton(onClick = onRetry) { Text(text = RETRY) }
             }
 
@@ -362,9 +369,6 @@ private const val PLAY_THE_COMPUTER = "Play the computer"
 private const val PAST_LOCAL_GAMES = "Past local games"
 private const val PLAY_ON_THIS_PHONE = "Games on this phone work without the server:"
 private const val STARTING = "Starting…"
-private const val WAKING = "Waking the server…"
-private const val WAKING_DETAIL =
-    "The server sleeps when nobody has played for a while. The first game of the day takes about a minute to start."
 private const val SIGN_IN_PROBLEM = "Cannot sign in"
 private const val RETRY = "Try again"
 
