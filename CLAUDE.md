@@ -154,7 +154,7 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - If the opponent undoes their move, the previous player's move becomes undoable again.
 - A game-ending move is immediately final and cannot be undone.
 - In a game against the computer, Undo is a takeback instead (`D086`). It takes back the computer's reply and the human move before it, repeatably. If the computer has not replied yet, it takes back the pending human move alone. A game-ending move is still final.
-- At most one local game (pass-and-play or against the computer) is unfinished at a time. Replacing it deletes it. Finished local games are kept for review, with no local series or statistics (`D084`).
+- At most one local game of each kind is unfinished at a time: one pass-and-play game and one game against the computer may both be kept (`D090`, superseding `D084`'s one game of either kind; built by `M21.13`). A new game of a kind deletes that kind's unfinished game, never the other kind's. Finished local games are kept for review, with no local series or statistics (`D084`).
 - Resignation is immediately final after confirmation.
 - The next game is created automatically after a normally completed game when the series remains active.
 - Threefold repetition and the fifty-move rule are claimable draws.

@@ -5899,6 +5899,11 @@ Excluding the database from backup keeps "stored on this device" literally true.
   pass-and-play onto it; `M21.3` adds local history; `M21.4` adds the offline entry
   and corrects the manifest comment that says the app is useless offline.
 
+**Superseded in part by `D090`:** there may be one unfinished local game of each
+kind, so an unfinished pass-and-play game and an unfinished game against the computer
+can both be kept. Starting a game of one kind no longer asks about, or deletes, the
+other kind's game. A new game of the same kind still asks first and deletes it.
+
 ---
 
 ## D085 — SQLDelight Is the Standard for Relational On-Device Storage
@@ -6364,3 +6369,66 @@ moved the faults around, so the remaining ones are recorded rather than fitted.
 **Rejected:** a capture search at the end of every line, which made two-ply Medium
 greedier: it counted every capture on its own turn in full and preferred grabbing and
 threatening to developing.
+
+---
+
+## D090 — One Unfinished Local Game of Each Kind
+
+**Date:** 2026-10-02
+
+**Status:** Accepted
+
+**Supersedes in part:** `D084`, only "one unfinished local game at a time, of either
+kind" and the question asked before a local game of the other kind replaces it.
+
+**Relates to:** `D061`, `D084`, `D085`, `D086`, `D089`, `M21.13`
+
+### Decision
+
+The project owner asked for this on 2026-10-02: a game against the computer should
+not have to be given up to play pass-and-play with someone, or the other way round.
+
+**One unfinished local game of each kind.** At most one unfinished pass-and-play game
+and at most one unfinished game against the computer, side by side.
+
+- "Local game" resumes the unfinished pass-and-play game, or starts one when there is
+  none, whatever the computer game is doing.
+- "Play the computer" resumes the unfinished game against the computer, or asks for a
+  level when there is none, whatever the pass-and-play game is doing.
+- Neither entry asks about, or touches, the other kind's game.
+- **New game is unchanged within a kind.** On an unfinished game it asks first, and
+  confirming deletes that game, which is not kept (`D084`, `D089`). A new game of one
+  kind never deletes the other kind's game.
+
+Everything else in `D084` stands: finished games are kept for review, there are no
+local series or statistics, local games work offline and stay on this installation,
+and writes append and truncate.
+
+**Storage.** The unique partial index becomes one per kind: `(kind) WHERE status =
+'ACTIVE'` in place of `(status) WHERE status = 'ACTIVE'`. A schema migration replaces
+the index; no row changes, because today's data, with at most one unfinished game,
+already satisfies it. The store's queries for the unfinished game and for replacing it
+take the kind.
+
+### Rationale
+
+The app already has one entry per kind, so a game of each kind needs no list of games
+in progress and no new screen, which was `D084`'s reason for one game. Deleting a
+computer game to play a friend across the table, or the reverse, lost work the player
+had not chosen to give up. Keeping one per kind, rather than any number, keeps every
+entry point's meaning: each resumes exactly one game.
+
+### Alternatives Considered
+
+- **Any number of unfinished games.** Rejected: it needs a "games in progress" list
+  and a way to choose among them, for no request yet.
+- **Keep one game and keep asking.** Rejected by the owner.
+
+### Consequences
+
+- `M21.13` builds it: the index migration, the store and session by kind, and the
+  removal of both cross-kind questions (`ComputerSetup.ConfirmReplacing` and the
+  pass-and-play screen's "Delete it and play pass-and-play"). It follows `M21.12`, so
+  it takes the migration after `M21.12`'s.
+- `CLAUDE.md`'s product rule, `PRODUCT.md`'s *Local Games* and `ARCHITECTURE.md` §11.4
+  state the rule now; `AGENTS.md` and the "as built" notes change when `M21.13` lands.

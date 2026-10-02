@@ -483,8 +483,11 @@ PostgreSQL, and it works when server startup fails.
     `positionBefore`.
 
   There are no local series, users, participants or statistics tables.
-- **One unfinished local game** at a time, of either kind. Replacing it deletes it.
-  Finished games are kept for read-only review.
+- **One unfinished local game of each kind** (`D090`, built by `M21.13`): a
+  pass-and-play game and a game against the computer may both be unfinished. The
+  unique partial index is per kind, and starting a game replaces, deleting it, only
+  its own kind's unfinished game. Until `M21.13` lands, the store keeps one of either
+  kind (`D084`), as described below. Finished games are kept for read-only review.
 - **Writes append and truncate** (`D061`). A move appends; an undo or a computer-game
   takeback truncates and restores the recorded prior position. Each change touching
   state and history is one transaction, so the stored board always matches the

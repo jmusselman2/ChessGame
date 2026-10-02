@@ -452,11 +452,15 @@ against the computer. It never uses the server.
 - **Saved.** A local game survives closing the app, Back and a restart of the
   phone, and picks up where it left off. Every move, Undo, resignation and draw claim
   is saved as it happens (built by `M21.2` for pass-and-play).
-- **One unfinished local game at a time**, of either kind. Its entry resumes it:
-  "Local game" opens the unfinished pass-and-play game, or a new one when nothing is
-  unfinished. A finished game is not resumed; the entry starts a new one.
-  Starting a different local game while one is unfinished asks first. Confirming
-  deletes the unfinished game, and it is not kept.
+- **One unfinished local game of each kind** (`D090`, superseding `D084`'s one of
+  either kind; built by `M21.13`). An unfinished pass-and-play game and an unfinished
+  game against the computer can both be kept, and each entry resumes its own:
+  "Local game" opens the unfinished pass-and-play game, or a new one when there is
+  none; "Play the computer" opens the unfinished game against the computer, or asks
+  for a level. A finished game is not resumed; the entry starts a new one. Neither
+  entry asks about or deletes the other kind's game.
+  *Until `M21.13` lands*, as `D084` built it: one unfinished game of either kind, and
+  starting the other kind asks first, then deletes it.
 - **New game.** The pass-and-play screen offers New game once a move has been played,
   or the game has ended. If the game is unfinished it asks first ("Start a new
   game?"), and confirming deletes it. A finished game is kept, so nothing is asked.
@@ -524,6 +528,11 @@ in place of the board, headed "New game", with "Back to the game" (and Back) ret
 to the game as it is. Nothing is deleted until a level is chosen; then any search
 stops, the unfinished game is deleted, and the new game starts at that level with a
 random colour. A finished game stays in past local games. Play again is unchanged.
+
+*Decided 2026-10-02 (`D090`), lands with `M21.13`:* "Play the computer" no longer asks
+about an unfinished pass-and-play game, and "Local game" no longer asks about an
+unfinished game against the computer. One of each can be kept, and the player can
+switch between them freely. New game still deletes only the game on screen.
 
 ## Deferred Features
 

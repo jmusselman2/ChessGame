@@ -6886,6 +6886,7 @@ pass-and-play's missing last-move highlight, after it.
 | `M21.10` | New game, with the level choice, vs the computer   | None           |
 | `M21.11` | `chess-ai`: four levels, a Medium that plays well  | None           |
 | `M21.12` | The app shows the four levels; levels migrated     | M21.10, M21.11 |
+| `M21.13` | One unfinished local game of each kind             | M21.12         |
 
 `M21.5` depends on nothing, but lowest-number-first selection takes `M21.1`–`M21.4`
 first.
@@ -6894,6 +6895,12 @@ first.
 `0.1.3-beta` (`D089`): four computer levels (today's Easy and Medium become Very Easy
 and Easy, a new Medium that plays sensibly, Hard unchanged) and New game on the
 computer screen. Like the rest of `M21`, they touch neither the server nor its
+database.
+
+*Added 2026-10-02:* the project owner asked to keep a game against the computer while
+playing pass-and-play, and the other way round (`D090`). `M21.13` allows one
+unfinished local game of each kind. It follows `M21.12`, so its schema migration comes
+after `M21.12`'s, and like the rest of `M21` it touches neither the server nor its
 database.
 
 ## M21.1 — The local game store
@@ -7722,5 +7729,77 @@ stored games to `D089`'s numbering.
 ### Verification
 
 - The `chess-app` unit tests for the computer game and the store migration.
+- `.\gradlew.bat build`.
+- `git diff --check`.
+
+## M21.13 — One unfinished local game of each kind
+
+**Status:** TODO
+
+**Depends on:** M21.12
+
+### Objective
+
+Let an unfinished pass-and-play game and an unfinished game against the computer be
+kept side by side (`D090`). Each entry resumes its own game; neither asks about or
+deletes the other kind's game. New game still replaces only the game on screen, after
+asking.
+
+### Acceptance Criteria
+
+- **Schema.** In `LocalGames.sq` the index `local_games_one_active` on `(status) WHERE
+  status = 'ACTIVE'` becomes `local_games_one_active_per_kind` on `(kind) WHERE status =
+  'ACTIVE'`. The queries `active` and `deleteActive` become `activeOfKind` and
+  `deleteActiveOfKind`, taking `:kind`, and `LocalMoves.sq`'s `deleteForActive` becomes
+  `deleteForActiveOfKind`. A `2.sqm` (after `M21.12`'s `1.sqm`) drops the old index and
+  creates the new one; the version-3 snapshot `3.db` is committed, and
+  `verifySqlDelightMigration` passes. The SQL stays within Android 5.1's SQLite 3.8.
+- **`LocalGameStore`.** `activeGame(kind)` takes the kind. `startGame(computer)` deletes
+  only the unfinished game of its own kind, with its moves, in the same transaction.
+  Its KDoc and the class KDoc state the rule.
+- **`LocalGameSession`.** `resume()` returns the unfinished pass-and-play game, or a new
+  one, and is no longer nullable; `resumeComputer()` reads only the computer game;
+  `active()` is removed.
+- **The computer game.** "Play the computer" resumes the unfinished computer game or
+  shows the level choice, whatever the pass-and-play game is doing.
+  `ComputerSetup.ConfirmReplacing` and its screen branch are removed;
+  `confirmReplacing()` becomes `confirmNewGame()`, and the screen's
+  `onConfirmReplacing` becomes `onConfirmNewGame`. New game (`M21.10`) is unchanged.
+- **Pass-and-play.** "Local game" resumes or starts pass-and-play, whatever the
+  computer game is doing. `LocalGameUiState.replacingComputerGame`, its screen branch
+  and the `ReplaceUnfinishedGame` composable are removed, and
+  `ChessAppViewModel.showLocalGame` takes a non-null load. New game is unchanged.
+- **Tests:**
+  - the store: starting a computer game leaves an unfinished pass-and-play game and
+    its moves untouched, and the reverse; starting a game replaces only its own kind's
+    unfinished game, with its moves; the database refuses a second unfinished game of
+    one kind and accepts one of each; finishing one kind leaves the other unfinished;
+  - the migration: a database at version 1 with an unfinished game and a move migrates
+    to the current version with the game still unfinished, its move kept and its level
+    mapped as `M21.12` maps it; a game of the other kind can then start beside it, and a
+    second of the same kind is still refused;
+  - the session: `resume()` returns pass-and-play while a computer game is
+    unfinished, and `resumeComputer()` ignores pass-and-play;
+  - `ComputerGame`: "Play the computer" with an unfinished pass-and-play game goes
+    straight to the level choice, and choosing a level keeps that game;
+  - the view model: play a computer move, open "Local game" and move, reopen "Play the
+    computer", then "Local game": both games resume where they were. New game on each
+    kind deletes only that kind's game;
+  - tests that asserted the cross-kind question or deletion (`D084`) are rewritten to
+    `D090`; other tests change only for the `activeGame(kind)` signature, including
+    the device test `LocalGameStoreDeviceTest`.
+- A device check on the emulator: an install holding an unfinished game upgrades and
+  keeps it, and switching between "Play the computer" and "Local game" keeps both games
+  with no question asked.
+- `AGENTS.md` (the local-game flow and the store's sharp edge), `ARCHITECTURE.md` §11.4's
+  "as built" notes and `PRODUCT.md`'s *Local Games* and *Playing the Computer* describe
+  what was built, and drop their "until `M21.13`" wording.
+
+### Verification
+
+- `.\gradlew.bat :chess-app:testDebugUnitTest`, starting with the store, session,
+  computer game and local persistence tests.
+- `.\gradlew.bat :chess-app:verifySqlDelightMigration`.
+- The emulator check.
 - `.\gradlew.bat build`.
 - `git diff --check`.
