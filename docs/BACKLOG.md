@@ -6872,20 +6872,29 @@ acceptance criteria and tests are the original ones, moved, not rewritten. `M21.
 the face-to-face pass-and-play board (`D087`), was added the same day, and `M21.9`,
 pass-and-play's missing last-move highlight, after it.
 
-| Task    | Outcome                                             | Depends on   |
-| ------- | --------------------------------------------------- | ------------ |
-| `M21.1` | The local game store, with no visible change        | None         |
-| `M21.2` | Pass-and-play is saved and resumes                  | M21.1        |
-| `M21.3` | Past local games: list and read-only review         | M21.1        |
-| `M21.4` | Local games are reachable when startup fails        | M21.2, M21.3 |
-| `M21.5` | `chess-ai`: the `ChessEngine` interface and engine  | None         |
-| `M21.6` | Computer turns and takeback in the view model       | M21.1, M21.5 |
-| `M21.7` | Play the computer: entry, difficulty, Play again    | M21.4, M21.6 |
-| `M21.8` | Pass-and-play drawn face to face (DONE)             | M5.5         |
-| `M21.9` | Pass-and-play highlights the last move (DONE)       | M5.5         |
+| Task     | Outcome                                            | Depends on     |
+| -------- | -------------------------------------------------- | -------------- |
+| `M21.1`  | The local game store, with no visible change       | None           |
+| `M21.2`  | Pass-and-play is saved and resumes                 | M21.1          |
+| `M21.3`  | Past local games: list and read-only review        | M21.1          |
+| `M21.4`  | Local games are reachable when startup fails       | M21.2, M21.3   |
+| `M21.5`  | `chess-ai`: the `ChessEngine` interface and engine | None           |
+| `M21.6`  | Computer turns and takeback in the view model      | M21.1, M21.5   |
+| `M21.7`  | Play the computer: entry, difficulty, Play again   | M21.4, M21.6   |
+| `M21.8`  | Pass-and-play drawn face to face (DONE)            | M5.5           |
+| `M21.9`  | Pass-and-play highlights the last move (DONE)      | M5.5           |
+| `M21.10` | New game, with the level choice, vs the computer   | None           |
+| `M21.11` | `chess-ai`: four levels, a Medium that plays well  | None           |
+| `M21.12` | The app shows the four levels; levels migrated     | M21.10, M21.11 |
 
 `M21.5` depends on nothing, but lowest-number-first selection takes `M21.1`–`M21.4`
 first.
+
+*Added 2026-10-01:* the project owner scheduled `M21.10`–`M21.12` after playing the
+`0.1.3-beta` (`D089`): four computer levels (today's Easy and Medium become Very Easy
+and Easy, a new Medium that plays sensibly, Hard unchanged) and New game on the
+computer screen. Like the rest of `M21`, they touch neither the server nor its
+database.
 
 ## M21.1 — The local game store
 
@@ -6968,8 +6977,10 @@ Verified:
   real SQLite file. Removing `recordMove`'s or `takeBack`'s transaction fails exactly
   its atomicity test, so those tests catch a non-atomic write.
 - `LocalGameStoreDeviceTest` passed on the Pixel 7 (Android 16) through the Android
-  driver. It was not run on Android 5.1: the Fire HD 8 is used only when the owner asks,
-  and no API 22 emulator image is installed.
+  driver. It was not run on Android 5.1 then: the Fire HD 8 is used only when the
+  owner asks, and no API 22 emulator image is installed. *Added 2026-10-01:* it passed
+  on the Fire HD 8 (Android 5.1.1, API 22) when the owner asked for the `0.1.3-beta`
+  install, so the pinned driver 2.2.1 works there.
 - `.\gradlew.bat build`: BUILD SUCCESSFUL. `chess-app` debug unit tests: 555, none
   failing. `:chess-app:assembleDebugAndroidTest` compiles.
 
@@ -7518,3 +7529,132 @@ the only move.
   other JVMs busy. This change does not touch it, and it passed on the rerun.
 - Not checked on a device.
 - `git diff --check`: clean.
+
+## M21.10 — New game on the computer screen
+
+**Status:** TODO
+
+**Depends on:** None
+
+### Objective
+
+Let the player start a new game against the computer, at any level, without
+resigning first (`D089`).
+
+### Acceptance Criteria
+
+- The computer game screen shows **New game** whenever a game is shown, unfinished
+  or finished.
+- **Unfinished game:** New game asks first, as pass-and-play does: the game is
+  deleted and not kept (`D084`).
+  - Keeping it returns to the game unchanged. A search in progress carries on.
+  - Agreeing shows the level choice. Nothing is deleted until a level is chosen, and
+    Back from the choice returns to the game as it was.
+  - Choosing a level stops any search, deletes the game and starts the new one. A
+    stale engine result never lands on the new game.
+- **Finished game:** New game goes straight to the level choice. The finished game
+  stays in Past local games.
+- The new game's colour is random, as from the entry. Play again is unchanged: same
+  level, colours swapped.
+- **Tests:**
+  - New game on an unfinished game asks, and keeping it changes nothing;
+  - agreeing and choosing a level replaces the game, and the old one is not kept;
+  - backing out of the level choice keeps the game;
+  - New game on a finished game keeps it and starts the chosen level;
+  - a search running when the new game starts cannot change it.
+- `PRODUCT.md`'s *Playing the Computer* describes what was built.
+
+### Verification
+
+- The `chess-app` unit tests for the computer game.
+- `.\gradlew.bat build`.
+- `git diff --check`.
+
+## M21.11 — `chess-ai`: four levels, and a Medium that plays sensibly
+
+**Status:** TODO
+
+**Depends on:** None
+
+### Objective
+
+Give the engine `D089`'s four levels: today's Easy and Medium renamed Very Easy and
+Easy, unchanged; a new Medium that does not play badly; and Hard at least as strong
+as the new Medium.
+
+### Acceptance Criteria
+
+- **`Difficulty`** has `VERY_EASY` (1), `EASY` (2), `MEDIUM` (3) and `HARD` (4).
+- **Very Easy and Easy are unchanged.** They use `D088`'s Easy and Medium settings
+  and today's evaluation. A test shows each still chooses, for a fixed seed, the move
+  today's Easy or Medium chooses across a set of positions.
+- **The new Medium does not play badly** (`D089`), shown by tests that check
+  behaviour rather than one exact move:
+  - from the starting position and several early openings, its move is one of a set
+    of reasonable developing moves;
+  - in seeded self-play openings it castles within its first ten moves, and in its
+    first eight moves makes no king move except castling, no rook move before
+    castling, and no edge-pawn move, unless forced or winning material;
+  - it does not move the same minor piece twice in its first six moves unless
+    capturing, recapturing or escaping a threat;
+  - it takes unprotected material, and in a set of positions does not leave a piece
+    to be taken for free next move;
+  - its existing tests (mate in one, hanging queen, promotion, legality,
+    cancellation, determinism) pass.
+- **Medium beats Easy** in a seeded match of at least ten games with alternating
+  colours, adjudicated on material after a ply limit: Medium scores at least 70%.
+  The match is an opt-in test, not part of `build`, and its result is recorded in
+  `D089`.
+- **Hard is at least as strong as Medium:** Hard scores at least 50% against Medium
+  in a seeded match like the one above, recorded in `D089`.
+- **Time.** Medium answers a typical middlegame move within its budget. The budgets
+  are measured on the Pixel 7 and the Fire HD 8 (the owner allows the Fire for this)
+  and recorded in `D089`, along with the depths, margins and evaluation terms chosen.
+- Every move still goes through `ChessRules` (`D088`).
+- `ARCHITECTURE.md` §4's `chess-ai` paragraph and `DEVELOPMENT.md` (the match
+  command) describe what was built.
+
+### Verification
+
+- `.\gradlew.bat :chess-ai:test`, and the opt-in match.
+- The device timings.
+- `.\gradlew.bat build`.
+- `git diff --check`.
+
+## M21.12 — The four levels in the app
+
+**Status:** TODO
+
+**Depends on:** M21.10, M21.11
+
+### Objective
+
+Offer Very Easy, Easy, Medium and Hard wherever a level is chosen or shown, and move
+stored games to `D089`'s numbering.
+
+### Acceptance Criteria
+
+- The level choice, from the entry and from New game, lists Very Easy, Easy, Medium
+  and Hard, weakest first.
+- Labels read "Computer (Very Easy)" and so on, on the game screen and in Past local
+  games.
+- **The store.** Schema version 2: a `1.sqm` migration sets `difficulty = 4` where it
+  was 3, and the version-2 snapshot `2.db` is committed; `verifySqlDelightMigration`
+  passes. Stored 1 and 2 keep their numbers.
+- An unfinished game saved before the migration resumes at the same strength it was
+  started at, and a finished one is listed under its new name.
+- **Tests:**
+  - the choice offers the four levels in order and starts the chosen one;
+  - the labels for each level;
+  - a database created at version 1 with games at levels 1, 2 and 3 migrates to 1, 2
+    and 4, and each resumes or lists correctly;
+  - a device check on the Fire HD 8 that an existing install upgrades and keeps its
+    local games.
+- `PRODUCT.md`'s *Playing the Computer*, `ARCHITECTURE.md` §11.4 and `AGENTS.md`
+  describe what was built.
+
+### Verification
+
+- The `chess-app` unit tests for the computer game and the store migration.
+- `.\gradlew.bat build`.
+- `git diff --check`.

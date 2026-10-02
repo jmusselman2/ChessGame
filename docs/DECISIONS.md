@@ -6018,6 +6018,9 @@ here rather than inherited by accident.
 - `F7` leaves `docs/FUTURE.md` and `docs/MVP.md`'s non-MVP list. Its ID is retired
   (`D072`).
 
+**Superseded in part by `D089`:** the computer has four levels, not three: Very Easy,
+Easy, Medium and Hard.
+
 ---
 
 ## D087 — Pass-and-Play Is Drawn Face to Face
@@ -6156,3 +6159,90 @@ take hanging material but blunder freely. Medium sees an immediate recapture.
   budget, and that Medium and Hard take a free queen and do not give one away.
 - `M21.6` runs the engine off the main thread and maps `local_games.difficulty`
   through `Difficulty.ofLevel`.
+
+**Superseded in part by `D089`:** this table's Easy is now Very Easy and its Medium is
+now Easy, with the same settings; Hard is stored as 4; and a new Medium, level 3, sits
+between them (`M21.11`).
+
+---
+
+## D089 — Four Computer Levels, a Medium That Plays Sensibly, and New Game
+
+**Date:** 2026-10-01
+
+**Status:** Accepted
+
+**Supersedes in part:** `D086`, only "three difficulty levels"; `D088`'s level table,
+whose settings move to new names as below.
+
+**Relates to:** `D084`, `D086`, `D088`, `M21.10`–`M21.12`
+
+### Decision
+
+The project owner asked for this on 2026-10-01, after watching Medium play aimless
+moves on both test devices (…a5, …h5, …Ra7 then …Ra8, …Kd8, 6. Bf1).
+
+**Four levels, weakest first:**
+
+| Level     | Stored as | Plays like                                        |
+| --------- | --------- | ------------------------------------------------- |
+| Very Easy | 1         | `D088`'s Easy, unchanged                          |
+| Easy      | 2         | `D088`'s Medium, unchanged                        |
+| Medium    | 3         | New: must not play badly (below)                  |
+| Hard      | 4         | `D088`'s Hard, and at least as strong as Medium   |
+
+- Very Easy and Easy keep `D088`'s settings and evaluation exactly: a renamed level
+  plays as it did.
+- `local_games.difficulty` stays the level number, weakest first. A migration moves
+  stored Hard games from 3 to 4. Stored 1 and 2 keep their numbers and their
+  strength, so a game played at the old Medium now reads "Easy", which is the same
+  engine renamed. No stored game changes strength.
+
+**The new Medium must not play badly.** In concrete terms, it:
+
+- develops in the opening: central pawns and minor pieces, and castling early,
+  rather than edge-pawn, rook or king moves;
+- does not move a king, except to castle, or a rook before castling, in the first
+  eight moves unless forced or winning material;
+- does not move the same minor piece twice in the opening without a reason it can
+  see (a capture, a threat to it, or a material gain);
+- takes material left unprotected, and does not leave its own pieces to be taken
+  for free one move later;
+- beats Easy clearly in a seeded match;
+- answers within a budget a player will wait for on both test devices.
+
+How is open to `M21.11`: evaluation terms (development, castling, king safety,
+mobility), a capture-only quiescence search, a smaller or zero random margin with
+tie-breaking among equal moves, better move ordering, or a short opening book. The
+`D088` rule stands: moves go through `ChessRules`, never a second copy of the rules.
+Any speed-up to `chess-core` itself is a separate, deliberate change.
+`M21.11` records the settings it chooses and its measurements here, as a dated note.
+
+**New game, against the computer.** The computer game screen offers New game at any
+time, with the same level choice as the entry and a random colour:
+
+- on an unfinished game it asks first, because the game is deleted and not kept
+  (`D084`); nothing is deleted until a level is chosen, and backing out of the choice
+  returns to the game as it was;
+- on a finished game it goes straight to the level choice, and the finished game is
+  kept;
+- Play again is unchanged: same level, colours swapped.
+
+### Rationale
+
+The owner's request. Keeping the two weaker levels exactly as they are means no
+stored game changes how it plays, and a player who found the old Medium right can
+still pick it as Easy. Stating "not badly" as checkable behaviour lets `M21.11` be
+tested without pinning one move where several are reasonable.
+
+### Alternatives Considered
+
+- **Renumber stored levels as names.** Rejected: the column is a level number, and
+  one migration line keeps it that way.
+- **Fix the old Medium in place.** Rejected by the owner, who wanted it kept as Easy.
+
+### Consequences
+
+- `M21.10` adds New game to the computer screen. `M21.11` builds the four levels in
+  `chess-ai`. `M21.12` shows them in the app and migrates the store.
+- `PRODUCT.md`'s *Playing the Computer* describes the four levels and New game.

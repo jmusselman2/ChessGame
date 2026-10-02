@@ -88,7 +88,7 @@ Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/groups`,
 - `MainActivity.kt` creates `ChessAppViewModel` and hands its state and callbacks
   to `app/ChessApp.kt`, which picks the screen with a `when` on the current
   `Destination` (`navigation/Destination.kt`, a back stack).
-- `app/ChessAppViewModel.kt` (about 1,650 lines) holds nearly all client state:
+- `app/ChessAppViewModel.kt` (about 1,770 lines) holds nearly all client state:
   navigation, startup, the online game, the local game, friends, groups,
   dashboard, history, and the realtime loop.
 - `app/AppStartup.kt` — sign in, wait out a cold server, ask `/me`.

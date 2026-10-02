@@ -509,6 +509,13 @@ and Resign. A finished game offers Play again and Leave. Past local games list i
 player's side with every piece upright. When the top row does not fit on one line, the
 player's name moves to a line of its own.
 
+*Decided 2026-10-01 (`D089`), lands with `M21.10`–`M21.12`:* the levels become Very
+Easy, Easy, Medium and Hard. Very Easy and Easy play as today's Easy and Medium did;
+the new Medium develops its pieces and castles rather than making aimless moves; Hard
+stays the strongest. The game screen gains New game, which offers the level choice
+at any time, asking first when the game is unfinished because that game is deleted
+and not kept.
+
 ## Deferred Features
 
 Do not initially build the features below. The complete list of what is not in the

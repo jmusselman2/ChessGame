@@ -1338,9 +1338,10 @@ way to tell which one you have.
 Raise `chessVersionCode` for every build you hand out (`versionName` is what a
 tester will quote back to you). Android installs a higher `versionCode` over a
 lower one and refuses the reverse — so the numbers above are an example that must
-be raised, not copied. The last build handed to a tester was `0.1.2-beta`,
-`versionCode` 3 (`M17.1`); anything you send now must exceed it or it will not
-install over what they already have.
+be raised, not copied. The latest beta is `0.1.3-beta`, `versionCode` 4, built
+2026-10-01 from the code at `341fc5b` (`M21.1`–`M21.7`) and installed on the
+Pixel 7 and the Fire HD 8. It is signed with the same key as `0.1.2-beta`. Anything
+you send next must exceed `versionCode` 4 or it will not install over it.
 
 **Verify before sending it.**
 
