@@ -35,7 +35,7 @@ class M5IndependentUiReevaluationTest {
 
         composeRule.onNodeWithText("Black won by checkmate").assertExists()
         composeRule.onNodeWithText("2. g2g4 d8h4").assertExists()
-        composeRule.onNodeWithText("Undo").assertDoesNotExist()
+        composeRule.onNodeWithText("Undo", substring = true).assertDoesNotExist()
         composeRule.onNodeWithText("Resign as White").assertDoesNotExist()
         composeRule.onNodeWithText("Resign as Black").assertDoesNotExist()
 

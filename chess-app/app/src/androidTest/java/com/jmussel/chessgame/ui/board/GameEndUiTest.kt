@@ -68,7 +68,7 @@ class GameEndUiTest {
             composeRule.onNodeWithTag(CHESS_BOARD_TAG).assertIsDisplayed().assertInsideViewport(composeRule, "$window: board")
             composeRule.onNodeWithText("2. g2g4 d8h4").assertExists()
         }
-        listOf("Undo", "Resign as White", "Resign as Black").forEach { composeRule.onNodeWithText(it).assertDoesNotExist() }
+        listOf("Undo", "Resign as").forEach { composeRule.onNodeWithText(it, substring = true).assertDoesNotExist() }
 
         composeRule.onNodeWithText("Review").performClick()
         composeRule.onNodeWithText("New game").performClick()

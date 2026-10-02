@@ -2,6 +2,7 @@ package com.jmussel.chessgame.ui.board
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -129,15 +130,21 @@ fun LocalGameScreen(
                 )
             }
 
-            if (GameControls.canUndo(game)) {
+            // Named for the side whose move it takes back, which `chess-core` decides (`M21.18`).
+            GameControls.undoLabelFor(game)?.let { label ->
                 Button(onClick = { play(GameControls.undo(game)) }) {
-                    Text(text = "Undo")
+                    Text(text = label)
                 }
             }
 
-            GameControls.availableDrawClaims(game).forEach { claim ->
-                Button(onClick = { play(GameControls.claimDraw(game, claim)) }) {
-                    Text(text = GameControls.labelFor(claim))
+            val claims = GameControls.availableDrawClaims(game)
+            if (claims.isNotEmpty()) {
+                ExplainedActions(explanation = GameControls.CLAIM_EXPLANATION) {
+                    claims.forEach { claim ->
+                        Button(onClick = { play(GameControls.claimDraw(game, claim)) }) {
+                            Text(text = GameControls.labelFor(claim))
+                        }
+                    }
                 }
             }
 
@@ -244,7 +251,7 @@ internal fun DeclaredMovePrompt(
     onCancel: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(text = "Playing ${declared.move} lets you claim a draw first.")
+        Text(text = GameControls.declaredClaimExplanation(declared))
         declared.claims.forEach { claim ->
             Button(onClick = { onClaim(claim) }) { Text(text = GameControls.labelFor(claim)) }
         }
@@ -254,6 +261,25 @@ internal fun DeclaredMovePrompt(
         }
     }
 }
+
+/**
+ * Controls and what they do, said right under them where the player decides (`M21.18`).
+ *
+ * Kept close to the controls, rather than spaced like the rest of the panel, so the words
+ * read as theirs and a two-pane panel still has room for every control (`D073`).
+ */
+@Composable
+internal fun ExplainedActions(
+    explanation: String,
+    actions: @Composable ColumnScope.() -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(EXPLANATION_GAP)) {
+        actions()
+        Text(text = explanation, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+private val EXPLANATION_GAP = 2.dp
 
 /** The four pieces a pawn may become, offered as buttons. */
 @Composable

@@ -8262,7 +8262,7 @@ unmistakable on online, pass-and-play and computer boards, using the shared boar
 
 ## M21.18 — Explain Undo and draw claims
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M5.6, M21.6, M21.7
 
@@ -8276,13 +8276,13 @@ including whether another person has to respond.
 - **Pass-and-play:** the action identifies the side whose latest move will be undone,
   for example **Undo White's move**. It continues to use
   `ChessRules.undoableSide`; the screen does not infer the side independently.
-- **Online:** the action says it undoes the player's own latest unanswered move. Its
-  supporting text says no opponent approval is needed and that the option is available
-  only until the opponent responds. It disappears when the canonical game says the
-  move is no longer undoable (`D016`).
-- **Computer:** while the computer is thinking, the action says it takes back the
-  pending human move. After the reply, it says it takes back the human move and the
-  computer reply. Both remain the existing `D086` takeback, not multiplayer Undo.
+- **Online:** the action says it undoes the player's own move, **Undo your move**, with
+  no supporting text: that no approval is needed, and that it lasts only until the
+  opponent replies, are left to be inferred. It disappears when the canonical game says
+  the move is no longer undoable (`D016`).
+- **Computer:** the action reads **Undo your move**, whether the computer is still
+  thinking or has replied; the board shows which moves go. Both remain the existing
+  `D086` takeback, not multiplayer Undo.
 - Every draw-claim action names threefold repetition or the fifty-move rule and says
   that a valid claim ends the game immediately. Online copy explicitly says this is
   not a draw offer and needs no opponent response; no agreement or approval flow is
@@ -8305,3 +8305,58 @@ including whether another person has to respond.
 - `.\gradlew.bat :chess-app:assembleDebugAndroidTest`.
 - `.\gradlew.bat build`.
 - `git diff --check`.
+
+### Completion Note
+
+2026-10-02. Android only. Eligibility is unchanged: `chess-core` and the server still
+decide what is offered.
+
+- **Pass-and-play.** Undo reads "Undo White's move" or "Undo Black's move", from
+  `GameControls.undoLabelFor`, which uses `ChessRules.undoableSide`.
+- **Online.** Undo reads "Undo your move", with no line under it, and goes when the
+  server's `canUndo` does (`D016`).
+- **Computer.** Undo reads `ComputerGameUiState.TAKE_BACK_LABEL`, "Undo your move",
+  while the computer is answering and once it has replied. Both are still `D086`'s
+  takeback.
+- **Trimmed by the owner (2026-10-14).** As first built, online Undo had "No approval
+  needed, until they reply." under it, and the computer's read "Undo your move and the
+  computer's reply" after a reply. Both were taken out as inferable, and the criteria
+  above were changed to match.
+- **Claims.** The labels already named the rule. Under the claims:
+  - locally (pass-and-play and the computer): "A valid claim ends the game at once.";
+  - online: "Not a draw offer: no reply is needed. A valid claim ends the game at once."
+- **Declared claim.** The prompt reads "Playing f6g8 lets you claim a draw instead.
+  Claiming ends the game now, and f6g8 is not played." (`D038`, `D041`).
+- **Placement.** The words sit under their controls, 2 dp below them in
+  `ExplainedActions`, rather than 8 dp, to stay with the action. In the tightest
+  two-pane window (640×360, a 248 dp panel), the online controls with Undo and a claim
+  fit, so every control stays in view without scrolling (`D073`).
+- **Nothing added.** No approval or offer flow, rematch, or command retry was added.
+- **Tests.**
+  - `ActionExplanationTest` (new) covers:
+    - pass-and-play Undo for White and for Black, none at the start or after mate, and
+      the label always following `undoableSide`;
+    - both local rule labels and the claim line, and the declared-move explanation;
+    - the computer's one takeback label;
+    - the online Undo label, and both online rule labels with the not-an-offer line.
+  - `ActionExplanationUiTest` (Compose, new) covers:
+    - the White and Black Undo labels;
+    - the local claim line;
+    - the computer's label before and after its reply;
+    - online Undo, which goes once `canUndo` is false;
+    - both online claims with their line;
+    - no clickable control that offers, asks for agreement or acceptance, or sends
+      again.
+  - `LocalDrawClaimUiTest` now checks that the "is not played" explanation is
+    displayed.
+  - The layout tests check the new labels and lines in their no-scrolling two-pane
+    lists: `GameLayoutUiTest` and `OnlineGameLayoutUiTest` the claim line.
+  - Exact "Undo" lookups became the new labels or substring matches, so the absence
+    checks in `GameEndUiTest` and the two M5 UI tests still mean something.
+- **Not run on a device.** The Pixel 7 had dropped off USB, the emulator had been
+  stopped at its 2-hour limit, and the Fire HD 8 is not used unasked. The androidTest
+  APK compiles. Before the next beta, run the changed UI classes on a device:
+  `ActionExplanationUiTest`, `LocalDrawClaimUiTest`, `GameLayoutUiTest`,
+  `OnlineGameLayoutUiTest`, `GameEndUiTest` and the two M5 UI tests.
+- `.\gradlew.bat build`: BUILD SUCCESSFUL. Unit tests: `chess-app` 688, `chess-ai` 20,
+  `chess-core` 394, `server` 603, none failing. `git diff --check`: clean.

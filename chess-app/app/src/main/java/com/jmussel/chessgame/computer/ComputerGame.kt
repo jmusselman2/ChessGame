@@ -69,6 +69,14 @@ data class ComputerGameUiState(
      */
     val canTakeBack: Boolean
         get() = !game.isOver && game.history.any { it.positionBefore.sideToMove == humanSide }
+
+    companion object {
+        /**
+         * What Undo says (`M21.18`), whether it takes back the pending move alone or the move
+         * and the computer's reply: both are `D086`'s takeback, and the board shows which.
+         */
+        const val TAKE_BACK_LABEL = "Undo your move"
+    }
 }
 
 /**
