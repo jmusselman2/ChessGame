@@ -176,17 +176,17 @@ same `F` number (`D072`). The two lists hold the same items; changing one means
 changing both.
 
 Scheduled beyond the MVP: the AI opponent (formerly `F7`) and saved local games are
-backlog milestone `M21` (`D084`–`D086`). They are post-MVP work and do not change
-the MVP's definition of done.
+backlog milestone `M21` (`D084`–`D086`). Draw offers by agreement, drag-and-drop
+moves, username changes, detailed profiles, the win/loss/draw record per friend,
+turning automatic rematches off by hand, one active series per party, readable move
+notation with board coordinates, and online ply-by-ply review (formerly `F1`–`F6`,
+`F38`, `F39` and `F41`) are milestone `M22`, scheduled on 2026-10-14. They are
+post-MVP work and do not change the MVP's definition of done.
 
 ### Chess Play
 
-- `F2` draw offers by agreement (`D019`)
-- `F3` drag-and-drop moves (`PRODUCT.md`)
 - `F10` clocks
 - `F11` dead-position detection by search (`D038`)
-- `F39` readable move notation and board coordinates
-- `F41` online ply-by-ply review (`M21.16`)
 
 ### Presentation
 
@@ -197,7 +197,6 @@ the MVP's definition of done.
 
 ### Identity and Accounts
 
-- `F5` username changes
 - `F12` removing the "All users" page, or restricting it to admins (`D071`)
 - `F13` account recovery UI (`PRODUCT.md`)
 - `F14` approval setting for friend requests and game invites (`D047`, `D049`)
@@ -205,7 +204,6 @@ the MVP's definition of done.
 
 ### Social
 
-- `F6` detailed profiles (`PRODUCT.md`)
 - `F15` blocking (`PRODUCT.md`)
 - `F16` chat
 - `F17` followers (`PRODUCT.md`)
@@ -216,12 +214,9 @@ the MVP's definition of done.
 
 ### Series and Statistics
 
-- `F1` win/loss/draw record per friend
-- `F4` turning automatic rematches off by hand (`PRODUCT.md`)
 - `F22` ratings
 - `F30` detailed statistics, including per-table statistics (`D048`)
 - `F31` series revival (`D048`)
-- `F38` at most one active series per party (reverses `D053` rule 1)
 
 ### Public Play
 

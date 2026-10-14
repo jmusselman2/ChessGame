@@ -14,7 +14,7 @@ removing an item means changing both files.
 
 Nothing here is scheduled. The backlog holds only scheduled work (`D072`), and the
 autonomous loop never selects anything from this document. When the project owner
-schedules an item, it becomes a task in `docs/BACKLOG.md` and is removed from
+schedules an item, it becomes a backlog task (`D093`) and is removed from
 here.
 
 These are the four things `D062` asks every standalone document to state:
@@ -38,7 +38,9 @@ These are the four things `D062` asks every standalone document to state:
 leaves keeps its ID in the git history, and the number is never given out again.
 
 **Scheduled items.** `F7` (AI opponent) was scheduled on 2026-09-28 as backlog
-milestone `M21`, under `D084`–`D086`. Its ID is retired.
+milestone `M21`, under `D084`–`D086`. Its ID is retired. Tier 1 (`F38`, `F1`, `F2`,
+`F39`, `F3`, `F4`, `F5`, `F6` and `F41`) was scheduled on 2026-10-14 as milestone
+`M22`, and those IDs are retired too.
 
 **Order.** The project owner's triage on 2026-09-23: value to players against
 cost, with every item after the items it depends on. The value ratings in *At a
@@ -47,21 +49,13 @@ day. Numbers are stable from then on: an item added later takes the next free
 number and is placed by the same rule, and a later reordering moves entries and
 leaves their numbers alone. After either, *At a Glance* and the tiers follow
 this order, not the numbers. `MVP.md` lists the same items by topic. `F38`–`F42`
-were added on 2026-10-14 from a usability review and placed by the same rule.
+were added on 2026-10-14 from a usability review and placed by the same rule. The
+same day, tier 1 moved to the backlog as `M22`; the other tiers did not move.
 
 ## At a Glance
 
 | ID    | Item                                        | Topic (`MVP.md`)      | Effort        | Value to players   |
 | ----- | ------------------------------------------- | --------------------- | ------------- | ------------------ |
-| `F38` | At most one active series per party         | Series and Statistics | S–M           | Medium             |
-| `F1`  | Win/loss/draw record per friend             | Series and Statistics | M             | High               |
-| `F2`  | Draw offers by agreement                    | Chess Play            | M             | High               |
-| `F39` | Readable notation and board coordinates     | Chess Play            | M             | Medium–high        |
-| `F3`  | Drag-and-drop moves                         | Chess Play            | S–M           | Medium             |
-| `F4`  | Turning automatic rematches off by hand     | Series and Statistics | S             | Medium             |
-| `F5`  | Username changes                            | Identity and Accounts | M             | Medium             |
-| `F6`  | Detailed profiles                           | Social                | M             | Medium             |
-| `F41` | Online ply-by-ply review                    | Chess Play            | M             | Medium             |
 | `F40` | Complete board accessibility                | Presentation          | S–M           | Low now            |
 | `F8`  | Custom themes                               | Presentation          | S–M           | Low                |
 | `F9`  | Elaborate animations                        | Presentation          | M             | Low                |
@@ -99,161 +93,10 @@ were added on 2026-10-14 from a usability review and placed by the same rule.
 
 ## 1. Low cost, high value
 
-No dependency outside this tier. The most value to players for the cost.
-
-### F38 — At most one active series per party
-
-- **Source:** the project owner, 2026-10-14, from a usability review. Parallel
-  series against one opponent cannot be told apart: the dashboard shows each as the
-  opponent's name and the same detail ("White • Move 2"), History heads each with
-  the same name, and the Friends row links to only one of them. It reverses rule 1
-  of `D053`, which dropped `D011`'s `game_series_one_active_per_pair` index.
-- **Value:** Medium. It removes an ambiguity players can already reach, and the
-  code that offers a second series.
-- **Effort:** Small–medium. For chess: a migration that restores the pair index;
-  Play always opens the pair's active series; `PlayOffer`, `startAnotherSeries` and
-  the series offer (`POST /series?another=true`) are removed.
-- **Depends on:** nothing.
-- **Rule:** a party is the exact set of a series' participants; for chess, the
-  two players. A party has at most one active series. Another may start only once
-  it has ended.
-- **Until it is scheduled, `D053` stays binding:** parallel series remain allowed,
-  and `CLAUDE.md`'s product rule is unchanged. Scheduling it needs a decision that
-  supersedes `D053` rule 1 (rule 2, unfriending, stays), with the same change to
-  `CLAUDE.md`'s product rules and `PRODUCT.md`.
-- **Why first in its tier:** every parallel series created before it lands is one
-  more for its migration to resolve, and it settles most of `F1`'s open question.
-- **Open decisions:**
-  - what happens to pairs that already have several active series when the index
-    returns (migrations must be safe on live data);
-  - whether a series a player has left, with its last game still being played
-    (`D068`), still counts as the party's active series;
-  - what an older APK gets when it asks to start another series;
-  - for the Deck Builder, how uniqueness over a table's participant set is
-    enforced. That is designed with `F26`, not before (`D044`).
-- **Affects:** `F1` (a friend's record and their one series mostly coincide) and
-  `F31` (reviving a party's earlier series).
-
-### F1 — Win/loss/draw record per friend
-
-- **Source:** `MVP.md`. Split from `F30` (detailed statistics) on 2026-09-23.
-- **Value:** High
-- **Effort:** Medium. Results are already stored; this is a query and a screen.
-- **Depends on:** nothing.
-- **Open decisions:** where the record shows (dashboard, friends list, series),
-  and whether it counts one series or every game with that friend. `F38` would
-  make the two mostly the same.
-
-### F2 — Draw offers by agreement
-
-- **Source:** `MVP.md`, `PRODUCT.md`, `D019`
-- **Value:** High
-- **Effort:** Medium. A new command and a pending-offer state.
-- **Depends on:** nothing new.
-- **Open decisions:** when an offer expires, and how an offer interacts with
-  undo and the game version.
-- **Since `D091` (2026-10-14):** a draw offer and an undo request (`M21.19`) may be
-  pending in one game at the same time. `D091` settles the same two questions for an
-  undo request, and F2 could follow it:
-  - no cancel and no timer;
-  - any other accepted change to the game clears it;
-  - an answer counts only at the version it was asked at.
-
-  `M21.19` implements only undo requests, so its dashboard contract remains the
-  singular `pendingRequest` until F2 introduces the second request type. F2 owns the
-  compatible replacement rather than changing that API speculatively beforehand.
-
-  **Dashboard acceptance criteria for F2:**
-
-  - The server and client dashboard DTOs replace the singular field with
-    `pendingRequests: List<PendingRequest> = emptyList()`, containing every request
-    pending in that game for the viewer.
-  - Simultaneous requests have one stable, tested display order: undo request before
-    draw offer, independent of which direction each request is travelling.
-  - `yourTurn` retains its chess-specific meaning: it is `true` only when it is the
-    viewer's turn to move, never merely because a request needs their response.
-  - The dashboard entry's derived `waitingOnYou` is `true` when `yourTurn` is true or
-    any entry in `pendingRequests` requires the viewer's response.
-  - Each entry accurately distinguishes an incoming request that the viewer must
-    answer from an outgoing request that the viewer sent and is waiting on.
-  - Server and client tests cover an undo request and draw offer pending together for
-    both viewers, including DTO projection, stable ordering, YOUR TURN / THEIR TURN
-    grouping, and row rendering of both requests.
-
-### F39 — Readable move notation and board coordinates
-
-- **Source:** the project owner, 2026-10-14, from a usability review. Move lists
-  print `Move.toString()` (`GameControls`): `e2e4`, castling as `e1g1`, promotion
-  as `e7e8q`. `BoardRendering.fileLabels` and `rankLabels` exist, but nothing draws
-  them.
-- **Value:** Medium–high. Every game shows a move list.
-- **Effort:** Medium.
-- **Depends on:** nothing.
-- **Scope:**
-  - Standard algebraic notation (`Nf3`, `O-O`, `Nbd2`, `exd8=Q+`, `Qh7#`) in every
-    move list, and wherever else the app names a move, such as the declared-move
-    draw claim.
-  - The formatter is in `chess-core`, a pure function of the position and the
-    move, because disambiguation and the check and mate suffixes need legal moves.
-    Compose holds no rule. Notation is for display only, never stored or sent as
-    canonical data (`ARCHITECTURE.md` §19).
-  - Online, positions come from `OnlineGame.replayOf`. An older client whose replay
-    fails keeps coordinate notation.
-  - File and rank labels on every board, drawn inside the edge squares so the board
-    keeps its size. The labels name the true squares. Pass-and-play, always White
-    at the bottom (`D087`), reads them from White's side; an online or computer
-    board turned for Black shows the files from h to a.
-- **Open decisions:** whether the move list pairs moves by number (`1. e4 e5`), and
-  the labels' style.
-
-### F3 — Drag-and-drop moves
-
-- **Source:** `PRODUCT.md`
-- **Value:** Medium
-- **Effort:** Small–medium. Compose only; legality already comes from
-  `chess-core`.
-- **Depends on:** nothing.
-- **Open decisions:** none.
-
-### F4 — Turning automatic rematches off by hand
-
-- **Source:** `PRODUCT.md`
-- **Value:** Medium
-- **Effort:** Small. Explicit series exit already exists (`M19.8`).
-- **Depends on:** nothing.
-- **Open decisions:** whether the switch lives in user settings (`F35`).
-
-### F5 — Username changes
-
-- **Source:** `MVP.md`, `PRODUCT.md`
-- **Value:** Medium
-- **Effort:** Medium
-- **Depends on:** nothing new.
-- **Open decisions:** what happens to the old name (`D008` keeps lost names
-  reserved), and how to prevent impersonation. A security decision.
-
-### F6 — Detailed profiles
-
-- **Source:** `PRODUCT.md`
-- **Value:** Medium
-- **Effort:** Medium
-- **Depends on:** `F1` (something worth showing).
-- **Open decisions:** what a profile shows, and to whom.
-
-### F41 — Online ply-by-ply review
-
-- **Source:** the project owner, 2026-10-14, from a usability review. `M21.16` left
-  it an open product decision: ply-by-ply review exists only for saved local games
-  (`M21.3`).
-- **Value:** Medium. Most useful from History, where a finished online game opens
-  read-only.
-- **Effort:** Medium. `LocalGameReview`'s Start, Previous, Next and End controls can
-  be reused. Its positions come from replaying the server's move list, which is for
-  display only and does not conflict with `D061`.
-- **Depends on:** nothing. Better after `F39`, so the move list it steps through is
-  readable.
-- **Open decisions:** where review is offered: at the end of a game, from History,
-  or both; and whether an unfinished game can be reviewed too.
+Scheduled on 2026-10-14 as backlog milestone
+[`M22`](BACKLOG.md#m22--play-and-social-improvements): `F38`, `F1`, `F2`, `F39`,
+`F3`, `F4`, `F5`, `F6` and `F41`. Their IDs are retired. The later tiers keep their
+numbers.
 
 ## 2. Higher cost, or lower value
 
@@ -272,8 +115,8 @@ does less for players than tier 1.
 - **Effort:** Small for each square's spoken description ("e4, White pawn, last
   move", from `BoardRendering.nameFor`). Medium with the full pass: predictable
   focus order, and large-text and TalkBack acceptance testing on a device.
-- **Depends on:** nothing. Reads better after `F39`, since a screen reader speaks
-  the move list.
+- **Depends on:** nothing. Reads better after `M22.4`–`M22.6` (formerly `F39`),
+  since a screen reader speaks the move list.
 - **Why first in its tier:** the cheapest worthwhile item here. The small slice
   could be scheduled earlier on its own.
 - **Open decisions:** whether the small slice is scheduled ahead of the full pass.
@@ -363,7 +206,8 @@ The task's acceptance criteria:
 - **Value:** not estimated. The screen's value depends on which settings it holds.
 - **Effort:** not estimated until its initial contents are decided.
 - **Depends on:** the feature or features chosen for its initial contents; possible
-  contents already include `F4`, `F5`, `F8`, `F14`, and `F42`.
+  contents already include `F8`, `F14` and `F42`, and the scheduled `M22.8` and
+  `M22.9` (formerly `F4` and `F5`).
 - **Open decisions:** which settings it contains. Its entry point is decided:
   tapping the username at the right-hand end of the dashboard's top row.
 
@@ -414,7 +258,7 @@ gates the public play in tier 4.
 - **Source:** `PRODUCT.md`
 - **Value:** Low
 - **Effort:** Large
-- **Depends on:** `F15`, `F6`.
+- **Depends on:** `F15`, and `M22.10` (detailed profiles, formerly `F6`).
 - **Open decisions:** whether following needs consent.
 
 ### F18 — Social feeds
@@ -614,11 +458,11 @@ the real Deck Builder implementation:
 
 ### F30 — Detailed and per-table statistics
 
-- **Source:** `MVP.md`, `D048`. Split from `F1` on 2026-09-23.
+- **Source:** `MVP.md`, `D048`. Split from `F1` (now `M22.2`) on 2026-09-23.
 - **Value:** Low–medium
 - **Effort:** not estimated. Per-table statistics need tables of three or more.
-- **Depends on:** `F1`, so both share one statistics model; `F26` for per-table
-  statistics.
+- **Depends on:** `M22.2` (formerly `F1`), so both share one statistics model;
+  `F26` for per-table statistics.
 - **Open decisions:** which statistics.
 
 ### F31 — Series revival
@@ -627,9 +471,11 @@ the real Deck Builder implementation:
   identity for statistics.
 - **Value:** Low
 - **Effort:** not estimated.
-- **Depends on:** `F1` and `F30`, so all three share one statistics model; the
-  deck-builder (`F26`).
+- **Depends on:** `M22.2` (formerly `F1`) and `F30`, so all three share one
+  statistics model; the deck-builder (`F26`).
 - **Open decisions:** when a new series counts as a revival.
+- **Affected by `M22.1`** (formerly `F38`): with at most one active series per party,
+  a revival is the party's next series, never one beside another.
 
 ## 7. Other clients
 

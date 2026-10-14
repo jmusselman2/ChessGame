@@ -372,13 +372,19 @@ commit.
   then dispatch to the test's `Dispatchers.Main`; one landing during `@After`'s
   `resetMain()` fails whichever test is finishing, and only now and then.
 - **Branches have owners:**
-  - `claude-autopilot` — implementation.
-  - `codex-autopilot` — the evaluator's checkpoints.
-  - `main` — linear, deploys the beta.
+  - `claude-autopilot` — implementation. The only branch Claude pushes.
+  - `codex-autopilot` — the evaluator's checkpoints. The owner brings it up to
+    date by hand.
+  - `main` — deploys the beta. The owner updates it by hand (`D094`).
 
-  Fast-forward only; never merge, rebase or force-push `main` or
-  `codex-autopilot`. The full procedure is in `CLAUDE.md`.
-- **The docs are big and binding.** `docs/BACKLOG.md` is about 7,000 lines and
-  `docs/DECISIONS.md` about 6,000. Search by task id (`M21.1`) or decision
-  number (`D061`) rather than reading top to bottom, and check whether a decision
-  has been superseded before relying on it.
+  Without the owner's explicit authorization, never push, merge into, rebase or
+  force-push `main` or `codex-autopilot` (evaluator checkpoints aside), and never
+  force-push any branch. `main` and
+  `codex-autopilot` may lag `claude-autopilot`; that is expected. The rules are in
+  `CLAUDE.md`.
+- **The docs are big and binding.** `docs/DECISIONS.md` is about 6,800 lines.
+  The backlog is split (`D093`): `docs/BACKLOG.md` holds the rules, the index and
+  the active milestones, and finished milestones are archived by phase under
+  `docs/backlog/` (task `M19.9` is in `docs/backlog/M18-M20.md`).
+  Search decisions by number (`D061`) rather than reading top to bottom, and check
+  whether a decision has been superseded before relying on it.

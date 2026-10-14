@@ -1,7 +1,7 @@
 # Undo Storage Sizing — the `M19.9` Spike
 
 **Measured:** 2026-09-10, against `claude-autopilot` at `81e0c8d`
-**Backlog task:** [`M19.9`](BACKLOG.md#m199--undo-storage-sizing-spike-before-undo-is-built)
+**Backlog task:** [`M19.9`](backlog/M18-M20.md#m199--undo-storage-sizing-spike-before-undo-is-built)
 **Discharges:** `D055`'s explicit obligation to cost the persistence approach
 before `M19` implements undo
 **Status:** nonbinding analysis. Its measurements stand. **Its recommendations

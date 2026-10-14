@@ -187,16 +187,18 @@ ruleset through an explicit `when (gameType)` (§30).
 ### Implementation status
 
 This document describes the intended structure, not how much of it is built.
-**`docs/BACKLOG.md` is the source of truth for implementation status**, task by
-task, and this section deliberately does not restate it: the snapshot that used
-to live here was pinned to a single commit and went stale as the work passed it.
+**`docs/BACKLOG.md`, with its archives under `docs/backlog/`, is the source of truth
+for implementation status**, task by task (`D093`), and this section deliberately
+does not restate it: the snapshot that used to live here was pinned to a single
+commit and went stale as the work passed it.
 
 What is durable is the shape. Every module the first diagram above names exists and is
 exercised by `./gradlew build` — `chess-core`, the Ktor command/query surface with
 PostgreSQL persistence and realtime publication, and an Android application wired
 end to end from `MainActivity` through `ChessApp`. `docs/PLATFORM-REVIEW.md`
 reviews what building all of it proved about the boundaries described here, and
-`M18`'s completion note in `docs/BACKLOG.md` says where that leaves the project.
+`M18`'s completion note in `docs/backlog/M18-M20.md` says where that leaves the
+project.
 
 ## 5. `chess-core`
 

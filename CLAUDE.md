@@ -27,7 +27,8 @@ Before making architectural or product-behavior changes, read:
 - `docs/PRODUCT.md`
 - `docs/ARCHITECTURE.md`
 - `docs/MVP.md`
-- `docs/BACKLOG.md`
+- `docs/BACKLOG.md` (the rules, the index and the active milestones; finished
+  milestones are archived under `docs/backlog/`, `D093`)
 - `docs/DEVELOPMENT.md`
 - `docs/AUTONOMOUS-DEVELOPMENT.md`
 
@@ -75,7 +76,8 @@ If documents appear to conflict, use this precedence order:
 2. `docs/PRODUCT.md` — intended user-facing behavior
 3. `docs/ARCHITECTURE.md` — technical boundaries and system structure
 4. `docs/MVP.md` — MVP scope and definition of done
-5. `docs/BACKLOG.md` — implementation ordering and task acceptance criteria
+5. `docs/BACKLOG.md`, with its archives in `docs/backlog/` — implementation ordering
+   and task acceptance criteria (`D093`)
 6. `docs/DEVELOPMENT.md` — verified developer commands and environment instructions
 7. `docs/AUTONOMOUS-DEVELOPMENT.md` — working procedure
 
@@ -172,7 +174,8 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - Never weaken, delete, or rewrite a correct requirement-backed test merely to make an implementation pass.
 - Do not silently change product requirements.
 - Record meaningful architectural decisions in `docs/DECISIONS.md`.
-- Update `docs/BACKLOG.md` when work is completed.
+- Update `docs/BACKLOG.md` when work is completed, and archive a finished milestone
+  as it says (`D093`).
 - Document analysis and decision tasks per `D062`. Each gets a concise backlog completion note or pointer, and each binding conclusion gets a numbered decision. A standalone analysis document is chosen by the nature of its evidence and its likely reuse, not its length, and it states its status, method, assumptions, and relationship to binding decisions. When a later decision changes its recommendations, update it in the same change.
 - Prefer immutable domain state where practical.
 - Keep rule logic out of Compose.
@@ -191,10 +194,9 @@ milestone. A confirmed production defect stops the evaluation only after its
 complete milestone checkpoint is pushed and verified; production remediation
 then occurs on `claude-autopilot`.
 
-Evaluator checkpoint pushes to `codex-autopilot` are the narrow exception to
-the implementation branch-update procedure later in this file. They must not
-fast-forward `main`, modify `claude-autopilot`, combine milestones, or rewrite
-published history.
+Evaluator checkpoint pushes to `codex-autopilot` are the one exception to
+Claude pushing `claude-autopilot` only (`D094`). They must not touch `main`,
+modify `claude-autopilot`, combine milestones, or rewrite published history.
 
 ## Continuous Autonomous Development
 
@@ -215,23 +217,19 @@ normal task loop is exactly:
 10. Commit the verified task on `claude-autopilot`.
 11. Push `claude-autopilot` to `origin`.
 12. Wait for the required GitHub Actions run for that pushed commit, unless
-    the commit changes Markdown files only (`D079`).
+    the commit changes Markdown files only (`D094`).
 13. If CI fails, diagnose and fix it, rerun local verification, commit, push
     `claude-autopilot` again, and wait for CI again (same escalation ladder).
-    `main` and `codex-autopilot` stay where they are meanwhile.
-14. Once CI is green for the pushed commit (or it is documentation-only),
-    fast-forward `main` and `codex-autopilot` to it (`D079`; see **Updating
-    `main` and `codex-autopilot`** below).
-15. Only then may the workflow select and begin the next backlog task.
-16. Continue automatically across milestone boundaries.
+14. Once CI is green for the pushed commit (or it is documentation-only), the
+    workflow may select and begin the next backlog task.
+15. Continue automatically across milestone boundaries.
 
 Key clarifications:
 
-- **Documentation-only commits do not wait for CI** (`D079`). When every
-  changed path is a `*.md` file, push `claude-autopilot`, fast-forward `main`
-  and `codex-autopilot` straight away, and carry on. The run still happens; a
-  red one is handled when seen. An earlier commit that changed anything else
-  still needs its own green run before the next task starts.
+- **Documentation-only commits do not wait for CI** (`D094`). When every
+  changed path is a `*.md` file, push `claude-autopilot` and carry on. The run
+  still happens; a red one is handled when seen. An earlier commit that changed
+  anything else still needs its own green run before the next task starts.
 - **`DONE` vs. advancing are different gates.** A task may be marked `DONE` once
   its required **local** verification succeeds (implementation + acceptance
   criteria + `./gradlew build`). The workflow may **not** advance to the next
@@ -265,16 +263,15 @@ Key clarifications:
   security stop condition applies only when the task would need a security
   decision the documents have not made, or a change to the approved security
   model.
-- Work happens on `claude-autopilot`. `main` and `codex-autopilot` are
-  fast-forwarded to a pushed commit only once its required CI run is green, or
-  straight away when it changes Markdown only (`D079`). So `main`, which
-  deploys the beta, never receives a commit CI has not passed.
-- Preserved guardrails: `main` stays linear and is never merged into, rebased,
-  or force-pushed. No force-push and no rewriting published history, except
-  updating a rebased `claude-autopilot` with `--force-with-lease` (`D079`).
-  Updating `main` deploys the beta (Render auto-deploys `main`); that is
-  authorized by `D079`. Production deployment still needs explicit
-  authorization.
+- Work happens on `claude-autopilot`, and Claude pushes that branch only
+  (`D094`). The owner brings `main` and `codex-autopilot` up to date by hand.
+  Updating `main` deploys the beta (Render auto-deploys `main`), so that is the
+  owner's step too.
+- Preserved guardrails: no force-push of any branch, and no rewriting published
+  history, without the owner's explicit authorization. If `main` diverges from
+  `claude-autopilot`, carry on with `claude-autopilot` and report the divergence;
+  do not reconcile them unless the owner asks.
+  Production deployment still needs explicit authorization.
 
 ## Verification Commands
 
@@ -328,52 +325,16 @@ Routine autonomous work may include:
 - running Gradle builds/tests/checks,
 - inspecting `git status`, `git diff`, and history,
 - making local commits on `claude-autopilot` after verified tasks,
-- pushing `claude-autopilot` to `origin` so CI can run,
-- fast-forwarding `main` and `codex-autopilot` to `claude-autopilot`, as below.
+- pushing `claude-autopilot` to `origin` so CI can run.
 
 ### `claude-autopilot` branch workflow
 
 - Work happens on `claude-autopilot`. One focused commit per completed, verified
   backlog task; the message names the task id.
 - Do not commit directly on `main`; work reaches it only from `claude-autopilot`.
-
-### Updating `main` and `codex-autopilot`
-
-Whenever Claude has finished a coding task and pushed the commits it intends to
-`claude-autopilot` (in the autonomous loop or not), it waits for that push's
-required CI run, and once it is green fast-forwards `main` and `codex-autopilot`
-to it (`D079`). A push that changes Markdown files only is fast-forwarded straight
-away. A red run leaves `main` and `codex-autopilot` where they are until a
-fix is green.
-
-Both branches move only by fast-forward, and `main`'s history stays linear: it
-never gets a merge commit. They differ only when a fast-forward is impossible:
-`claude-autopilot` is then rebased onto `origin/main` first, so the fast-forward
-becomes possible; `codex-autopilot` is skipped, because its extra commits are
-the evaluator's.
-
-Full procedure: `docs/AUTONOMOUS-DEVELOPMENT.md`, **Updating `main` and
-`codex-autopilot`**. In short:
-
-1. `git fetch origin`.
-2. Before any push to `main`, require both: `origin/main` is an ancestor of
-   `claude-autopilot`, and `git rev-list --merges origin/main..claude-autopilot`
-   prints nothing. Then `git push origin claude-autopilot:main`.
-3. Otherwise never merge `main` into `claude-autopilot`. Rebase it onto
-   `origin/main`. If the rebase can't be done cleanly, squash its new commits
-   into one commit on top of `origin/main` instead. If even that won't resolve
-   cleanly, stop and report, and leave `main` alone. After a rebase or squash,
-   run `./gradlew build`, update `claude-autopilot` on GitHub with
-   `git push --force-with-lease origin claude-autopilot` (that branch only),
-   wait for its CI to be green (unless the change is Markdown only), then do
-   step 2. `main` is never force-pushed.
-4. If `origin/codex-autopilot` is an ancestor of the new `origin/main`:
-   `git push origin origin/main:codex-autopilot`. Otherwise skip it and say so.
-   Never merge into, rebase or force-push `codex-autopilot`.
-
-Every push except that `--force-with-lease` update of `claude-autopilot` is an
-ordinary push, so a non-fast-forward is refused rather than overwriting
-anything.
+- Claude pushes `claude-autopilot` only. The owner brings `main` and
+  `codex-autopilot` up to date by hand, in whatever way suits them (`D094`).
+  `main` and `codex-autopilot` may lag `claude-autopilot` by any number of commits.
 
 ### Pre-commit hygiene
 
@@ -393,15 +354,12 @@ anything.
 Do not perform any of the following without explicit authorization:
 
 - destructive production actions,
-- production deployment (beta deployment by updating `main` is authorized,
-  `D079`),
+- production deployment, and beta deployment by updating `main` (`D094`),
 - credential changes,
 - destructive database operations,
 - `git reset --hard`,
 - deleting untracked user work,
-- force pushing, except updating a rebased `claude-autopilot` with
-  `--force-with-lease` as in **Updating `main` and `codex-autopilot`**,
-- pushing to `main` or `codex-autopilot` other than as in **Updating `main`
-  and `codex-autopilot`**, or the milestone checkpoint procedure in
-  `docs/INDEPENDENT-EVALUATION.md`,
-- rewriting published history, with the same `claude-autopilot` exception.
+- force pushing any branch,
+- pushing to `main` or `codex-autopilot`, other than the milestone checkpoint
+  procedure in `docs/INDEPENDENT-EVALUATION.md` (`D094`),
+- rewriting published history.

@@ -378,7 +378,8 @@ The Android application builds, launches, and is covered by host-side tests.
 Its emulator/device play-through was completed for local play (`M5.7`) and for
 the full online flow (`M14.18`), and the authenticated dashboard, friends,
 online game, and history screens are wired into the application entry point.
-`docs/BACKLOG.md` is the source of truth for task-level status.
+`docs/BACKLOG.md` is the source of truth for task-level status. Finished milestones
+are archived under `docs/backlog/` (`D093`).
 
 ### Android Lint / Static Checks
 
@@ -982,9 +983,10 @@ is the latest required run for the commit at the tip of `claude-autopilot`, whic
 
 In the continuous autonomous workflow (`docs/AUTONOMOUS-DEVELOPMENT.md`), a task
 may be marked `DONE` once local `./gradlew build` passes, but the workflow may
-**not** fast-forward `main` and `codex-autopilot`, or start the next task, until
-the pushed `claude-autopilot` commit has passed its required GitHub Actions run. A
-commit that changes Markdown files only does not wait for its run (`D079`).
+**not** start the next task until the pushed `claude-autopilot` commit has passed
+its required GitHub Actions run. A commit that changes Markdown files only does not
+wait for its run. Claude pushes `claude-autopilot` only; the owner brings `main` and
+`codex-autopilot` up to date by hand (`D094`).
 
 Monitor the run with the GitHub CLI, and confirm it is the run for the commit
 you just pushed:

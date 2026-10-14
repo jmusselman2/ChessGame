@@ -39,7 +39,8 @@ The long-term goal is not to remain a chess application. Chess is being used to 
     ├── UNDO-STORAGE.md
     ├── GAME-STATE-VISIBILITY.md
     ├── DECISIONS.md
-    ├── BACKLOG.md
+    ├── BACKLOG.md              -- rules, index and active milestones (D093)
+    ├── backlog/                -- finished milestones, archived by phase
     ├── DEVELOPMENT.md
     ├── AUTONOMOUS-DEVELOPMENT.md
     ├── INDEPENDENT-EVALUATION.md

@@ -18,13 +18,14 @@ Work continuously through the backlog. The normal autonomous task loop is
 7. Fix failures until local verification passes. Iterate here; do not stop for a
    normal failure (see **Failure Handling and Escalation**).
 8. Mark the task `DONE` and add its completion note in `docs/BACKLOG.md`
-   (date + how it was locally verified). Update any other affected documentation
-   (`DECISIONS.md`, `DEVELOPMENT.md`; `PRODUCT.md`/`ARCHITECTURE.md` only when a
-   higher-precedence doc is stale). For an analysis or decision task, follow
-   `D062`: a concise completion pointer, a numbered decision for each binding
-   conclusion, a standalone analysis document where its evidence warrants one,
-   and an update to any standalone document whose recommendations a decision
-   changes.
+   (date + how it was locally verified). When it is its milestone's last task,
+   archive the milestone as `docs/BACKLOG.md` describes (`D093`). Update any
+   other affected documentation (`DECISIONS.md`, `DEVELOPMENT.md`;
+   `PRODUCT.md`/`ARCHITECTURE.md` only when a higher-precedence doc is stale).
+   For an analysis or decision task, follow `D062`: a concise completion
+   pointer, a numbered decision for each binding conclusion, a standalone
+   analysis document where its evidence warrants one, and an update to any
+   standalone document whose recommendations a decision changes.
 9. Review `git status` and `git diff`, and run `git diff --check` — it must
    report nothing (exit 0). Fix any trailing-whitespace or conflict-marker
    errors it flags before committing.
@@ -32,16 +33,13 @@ Work continuously through the backlog. The normal autonomous task loop is
     Workflow**).
 11. Push `claude-autopilot` to `origin`.
 12. Wait for the required GitHub Actions run for **that pushed commit** (see
-    **Remote CI Gate**), unless it changes Markdown files only (`D079`).
+    **Remote CI Gate**), unless it changes Markdown files only (`D094`).
 13. If CI fails: diagnose the failure, make the necessary fix, rerun local
     verification (`./gradlew build`), commit, push `claude-autopilot` again, and
     wait for CI again. Use the same **Failure Handling and Escalation** ladder.
-    `main` and `codex-autopilot` do not move while CI is red.
-14. Once CI is green for the pushed commit (or it is documentation-only),
-    fast-forward `main` and `codex-autopilot` to it (see **Updating `main` and
-    `codex-autopilot`**, `D079`).
-15. Only then may the workflow select and begin the next backlog task.
-16. Continue automatically across milestone boundaries.
+14. Once CI is green for the pushed commit (or it is documentation-only), the
+    workflow may select and begin the next backlog task.
+15. Continue automatically across milestone boundaries.
 
 ### `DONE` vs. advancing to the next task
 
@@ -72,14 +70,15 @@ backlog has no remaining unblocked `TODO` task.
 
 ## Task Selection
 
-`docs/BACKLOG.md` is the authority. Its **Task Selection Order** section defines
-the deterministic rule:
+`docs/BACKLOG.md` is the authority. It holds every active milestone; finished ones
+are archived under `docs/backlog/` (`D093`). Its **Task Selection Order** section
+defines the deterministic rule:
 
-- consider only `Status: TODO` tasks,
+- consider only `Status: TODO` tasks in `docs/BACKLOG.md`,
 - exclude tasks whose `Depends on` tasks are not all `DONE`,
 - exclude `BLOCKED` tasks and tasks that would trigger a Stop Condition,
-- of the rest, take the one that appears first in the document (lowest milestone
-  number, then lowest task number).
+- of the rest, take the one with the lowest milestone number, then the lowest
+  task number.
 
 If two tasks are genuinely independent and equally ranked, do the lower-numbered
 one first.
@@ -122,13 +121,11 @@ one first.
 19. Push `claude-autopilot` to `origin`.
 20. Identify and watch the required GitHub Actions run for the commit just
     pushed (see **Remote CI Gate**). Confirm the run's head SHA matches the
-    pushed commit. A Markdown-only commit skips this (`D079`).
+    pushed commit. A Markdown-only commit skips this (`D094`).
 21. If CI fails, diagnose and fix it (same escalation ladder), then re-run local
     verification, commit, push `claude-autopilot`, and watch CI again. Repeat
     until the required checks are green.
-22. Fast-forward `main` and `codex-autopilot` to the green commit (see
-    **Updating `main` and `codex-autopilot`**, `D079`).
-23. Continue to the next unblocked task.
+22. Continue to the next unblocked task.
 
 ## Verification
 
@@ -163,14 +160,13 @@ For a task whose acceptance criteria require GitHub Actions itself to succeed
 
 After pushing `claude-autopilot`, the workflow must wait for the required
 GitHub Actions run for the commit just pushed and confirm it is green before
-fast-forwarding `main` and `codex-autopilot` and before selecting the next backlog
-task (`D079`).
+selecting the next backlog task (`D026`, `D094`).
 
-### Documentation-only commits (`D079`)
+### Documentation-only commits (`D094`)
 
 A commit whose every changed path is a Markdown file (`*.md`) does not wait for
-its run. Push it, update `main` and `codex-autopilot`, and carry on. The run
-still happens; if it is ever red, treat it like any red run once it is seen.
+its run. Push it and carry on. The run still happens; if it is ever red, treat
+it like any red run once it is seen.
 The exemption covers that commit only: an earlier commit that changed code,
 build files or the workflow still needs its own green run before the next task
 starts.
@@ -280,84 +276,32 @@ recommended conventional option per `CLAUDE.md`.
 
 ## Branch and Commit Workflow
 
-Development happens on the `claude-autopilot` branch. `main` and
-`codex-autopilot` are fast-forwarded to each commit Claude pushes there once its
-required CI run is green, or straight away for a Markdown-only commit
-(`D079`). This applies to any coding task Claude finishes and pushes, not only the
-autonomous loop.
+Development happens on the `claude-autopilot` branch, and Claude pushes that
+branch only (`D094`). The project owner brings `main` and `codex-autopilot` up to
+date by hand, in whatever way suits them. This applies to any work Claude finishes
+and pushes, not only the autonomous loop.
 
 - Use the existing `claude-autopilot` branch (`git switch claude-autopilot`).
 - Make one focused commit per completed, verified task. Commit messages state
   the backlog task id and what changed.
 - Local commits after verified tasks are expected and require no approval.
-- After each such commit, push `claude-autopilot` to `origin`, satisfy the
-  **Remote CI Gate**, and then update `main` and `codex-autopilot` (below) before
-  starting the next task.
-- **Do not** force-push any branch, and do not rewrite published history,
-  except updating `claude-autopilot` with `--force-with-lease` after rebasing
-  it onto `origin/main` (below).
-- **Do not** merge into, rebase, or force-push `main`. Its history stays
-  linear.
+- After each such commit, push `claude-autopilot` to `origin` and satisfy the
+  **Remote CI Gate** before starting the next task.
+- **Do not** push, merge into, rebase, or force-push `main` or
+  `codex-autopilot` without the owner's explicit authorization. The standing
+  exception is the evaluator's milestone checkpoints on `codex-autopilot`
+  (`docs/INDEPENDENT-EVALUATION.md`).
+- **Do not** force-push any branch, `claude-autopilot` included, or rewrite
+  published history, without the owner's explicit authorization.
 - **Do not** commit directly on `main`. Work reaches `main` only from
-  `claude-autopilot`.
-- Opening a pull request is not needed; `main` is updated by push.
-
-### Updating `main` and `codex-autopilot`
-
-Run this once the pushed `claude-autopilot` commit's required CI run is green, or
-straight after the push for a Markdown-only commit (`D079`). `main`
-deploys the beta, so it only ever receives commits CI has passed.
-
-Both branches move only by fast-forward, and `main`'s history stays linear: it
-never gets a merge commit. They differ only when a fast-forward is impossible:
-`claude-autopilot` is then rebased onto `origin/main` first, so the fast-forward
-becomes possible; `codex-autopilot` is skipped, because its extra commits are
-the evaluator's.
-
-1. `git fetch origin`.
-2. **Before any push to `main`, require both checks.** `origin/main` must be
-   an ancestor of `claude-autopilot`
-   (`git merge-base --is-ancestor origin/main claude-autopilot`), and there must
-   be no merge commits in between (`git rev-list --merges
-   origin/main..claude-autopilot` prints nothing). If both hold, fast-forward
-   it: `git push origin claude-autopilot:main`.
-3. **Otherwise `main` has commits `claude-autopilot` lacks** (for example a
-   commit the owner made on `main`). Never merge `main` into
-   `claude-autopilot`. Instead:
-   1. Rebase it onto `origin/main` (`git rebase origin/main`).
-   2. If the rebase can't be done cleanly, `git rebase --abort` and squash the
-      branch's new commits into one commit on top of `origin/main` instead.
-   3. If even that won't resolve cleanly, stop and report the divergence to the
-      owner. Leave `main` as it is and keep the unrebased work on
-      `claude-autopilot`.
-   4. Run `./gradlew build`. If the rebased build fails in a way the task did
-      not cause, stop and report it the same way.
-   5. Update `claude-autopilot` on GitHub with
-      `git push --force-with-lease origin claude-autopilot`. This is the only
-      branch that is ever force-pushed. `main` is never force-pushed.
-   6. Wait for the rebased commit's required CI run to be green (not needed if
-      the rebase changed Markdown only), then fast-forward `main` as in step 2.
-4. **Fast-forward `codex-autopilot`, or skip it.** If
-   `origin/codex-autopilot` is an ancestor of the new `origin/main`, push it
-   forward: `git push origin origin/main:codex-autopilot`. If it is not (the
-   evaluator has commits not yet in `main`), skip it and say so. Never
-   merge into, rebase, or force-push `codex-autopilot`, and never merge it into
-   `main`; that branch belongs to the independent evaluator
-   (`docs/INDEPENDENT-EVALUATION.md`).
-5. Update the local `main` and `codex-autopilot` refs if they exist and are not
-   checked out elsewhere (`git fetch origin main:main
-   codex-autopilot:codex-autopilot`); a failure here is harmless.
-
-An ordinary push is refused when it is not a fast-forward, and
-`--force-with-lease` is refused when `origin/claude-autopilot` has moved since
-the last fetch, so a concurrent push by someone else cannot be overwritten;
-fetch and repeat from step 1.
-
-Render auto-deploys `main` to the beta service, so each update of `main` also
-deploys the beta. The owner authorized that together with the automatic update
-(`D079`).
-Production deployment, where it exists separately, still needs explicit
-approval.
+  `claude-autopilot`, through the owner.
+- If `main` has diverged from `claude-autopilot` (for example the owner squashed
+  or edited work on `main`), carry on with `claude-autopilot` and report the
+  divergence. Do not reconcile them unless the owner asks.
+- `main` and `codex-autopilot` may lag `claude-autopilot` by any number of
+  commits. Render auto-deploys `main` to the beta service, so updating `main` is
+  the owner's deployment step. Production deployment, where it exists
+  separately, still needs explicit approval.
 
 ## Test Integrity Rule
 
@@ -398,11 +342,10 @@ Do not perform without explicit authorization:
 
 - `git reset --hard`,
 - deleting untracked user work,
-- force push, except updating a rebased `claude-autopilot` with
-  `--force-with-lease` as in **Updating `main` and `codex-autopilot`**,
-- pushing to `main` or `codex-autopilot` other than as described in
-  **Updating `main` and `codex-autopilot`**,
-- rewriting published history, with the same `claude-autopilot` exception.
+- force-pushing any branch,
+- pushing to `main` or `codex-autopilot`, other than the evaluator's milestone
+  checkpoints (`D094`),
+- rewriting published history.
 
 Prefer additive, reversible recovery approaches.
 

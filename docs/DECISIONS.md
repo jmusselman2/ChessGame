@@ -675,9 +675,11 @@ Library quality changes faster than the architecture itself.
 
 **Status:** Accepted
 
-**Superseded in part by `D079`:** each commit pushed to `claude-autopilot` is now
-integrated into `main` by Claude once its CI run is green, and `codex-autopilot` is
-fast-forwarded to it when possible. The rest of this decision stands.
+**Superseded in part by `D079`:** each commit pushed to `claude-autopilot` was
+integrated into `main` by Claude once its CI run was green, and `codex-autopilot` was
+fast-forwarded to it when possible. **Restored by `D094` (2026-10-14):** integrating
+`claude-autopilot` into `main` is the owner's step again, as below. The rest of this
+decision stands.
 
 ### Decision
 
@@ -3621,7 +3623,7 @@ dormant".
 **Status:** Accepted
 
 **Relates to:** `D016`, `D020`, `D021`, `D029`, `D044`, `D055`, `D056`,
-[`M19.9`](BACKLOG.md#m199--undo-storage-sizing-spike-before-undo-is-built),
+[`M19.9`](backlog/M18-M20.md#m199--undo-storage-sizing-spike-before-undo-is-built),
 [`docs/UNDO-STORAGE.md`](UNDO-STORAGE.md), `PLATFORM-REVIEW` *The action
 history should be a stack in storage* / *Prior state is kept to a turn horizon*
 / *Randomness is materialised*
@@ -5111,7 +5113,8 @@ just emptied the log, so nothing needed backfilling.
 
 **Date:** 2026-09-24
 
-**Status:** Accepted
+**Status:** Superseded by `D094` (2026-10-14). The owner updates `main` and
+`codex-autopilot` by hand again, and Claude pushes `claude-autopilot` only.
 
 **Amended:** 2026-09-24 — the first version merged `origin/main` into
 `claude-autopilot` when they had diverged, and put a merge commit (`fc8b692`) on
@@ -6777,3 +6780,114 @@ optimistic concurrency unambiguous.
   normal single search afterward.
 - Completed-history review remains read-only. Redo changes an unfinished game's active
   history only and does not create a new kind of dashboard wait.
+
+---
+
+## D093 — The Backlog Keeps Active Milestones, and Archives Finished Ones by Phase
+
+**Date:** 2026-10-14
+
+**Status:** Accepted
+
+**Relates to:** `D026`, `D062`, `D072`, `CLAUDE.md` *Document Precedence*,
+`docs/AUTONOMOUS-DEVELOPMENT.md`
+
+### Decision
+
+The project owner asked on 2026-10-14 for the backlog to stop being one file.
+
+- **`docs/BACKLOG.md` keeps its path and its role.** It holds *Status Values*,
+  *Task Selection Order*, the rules for adding and finishing milestones, a
+  **milestone index** (one row per milestone: ID, title, where it is, `Done` or
+  `Active`), and **every active milestone in full**. Work is read and recorded here.
+- **Finished milestones are archived in `docs/backlog/`,** grouped by phase, one
+  file per group, named by its range with two-digit milestone numbers, so they
+  sort in order: `M01-M05.md` (local chess), `M06-M13.md` (the
+  server and online play), `M14-M17.md` (the multiplayer client through the friend
+  beta), `M18-M20.md` (the platform review and generalization) and `M21.md` (the AI
+  opponent and local games). Task `M19.9` is in `docs/backlog/M18-M20.md`.
+  Milestone headings are unchanged, so their anchors are unchanged.
+- **Finishing a milestone** moves it, unchanged, into a new archive file named by
+  its range, in the commit that marks its last task `DONE`. Several milestones that
+  finish together may share one. **Archive files are never added to or renamed,**
+  so links into them keep working.
+- **Precedence is unchanged.** `docs/BACKLOG.md` and the archives share `BACKLOG`'s
+  rank in `CLAUDE.md`'s precedence list.
+- **Task selection reads `docs/BACKLOG.md` only.** Archived milestones are finished.
+- `D072` is unchanged: the backlog still holds only scheduled work.
+
+### Rationale
+
+The file had reached about 9,000 lines, almost all of it finished history, while
+only the active milestone is read during work. Keeping that milestone in
+`docs/BACKLOG.md` leaves one file to read and edit. Grouping the history by phase
+keeps it to a handful of files, each about one stretch of the project.
+
+### Alternatives Considered
+
+- **One file per milestone.** Tried first, the same day, and rejected by the owner
+  as too scattered: twenty-two files, some under a hundred lines.
+- **One archive file.** Rejected: it would be about 9,000 lines, the same problem.
+- **Groups sized by line count.** Not chosen: the cuts would fall mid-phase.
+- **Leave it as one file.** Rejected by the owner.
+
+### Consequences
+
+- `M1`–`M21` moved unchanged into the five archives, except that relative links in
+  them now go up one directory. Links into a specific milestone name its archive.
+- `CLAUDE.md`, `AGENTS.md`, `README.md`, `docs/AUTONOMOUS-DEVELOPMENT.md` and
+  `docs/DEVELOPMENT.md` describe the layout. `evals/runs/` reports keep their old
+  references, because they describe past commits.
+
+---
+
+## D094 — The Owner Integrates `main` and `codex-autopilot` by Hand
+
+**Date:** 2026-10-14
+
+**Status:** Accepted
+
+**Supersedes:** `D079` entirely. It restores `D026`'s human integration step.
+
+**Relates to:** `D026`, `D079`, `docs/INDEPENDENT-EVALUATION.md`
+
+### Decision
+
+- **Claude commits and pushes to `claude-autopilot` only.** It does not push, merge,
+  rebase or force-push `main` or `codex-autopilot` without the owner's explicit
+  authorization for that action. The standing exception is the evaluator's
+  checkpoints on `codex-autopilot` under `docs/INDEPENDENT-EVALUATION.md`.
+- **The owner brings `main` up to date by hand**, which also deploys the beta through
+  Render, and brings `codex-autopilot` up to date by hand.
+- **No branch is force-pushed without the owner's explicit authorization,**
+  `claude-autopilot` included. `D079`'s standing rebase-and-`--force-with-lease`
+  exception goes with it. If `main` diverges from `claude-autopilot`, Claude carries
+  on with `claude-autopilot` and reports the divergence; it does not reconcile them
+  unless the owner asks.
+- **An authorization covers the action it names, once.** It does not become a
+  standing permission.
+- **Kept from before:**
+  - the green required CI run for a pushed `claude-autopilot` commit still gates the
+    next task (`D026`);
+  - a commit that changes Markdown files only still does not wait for its run (the
+    owner, 2026-10-01);
+  - `git diff --check`, and a green local `./gradlew build` before a task is `DONE`,
+    are unchanged.
+
+### Rationale
+
+The owner wants to choose when work reaches `main` and the beta.
+
+### Alternatives Considered
+
+- **Keep `D079`.** Rejected by the owner on 2026-10-14.
+- **A pull request per task.** Not chosen: the owner merges in whatever way suits
+  them.
+
+### Consequences
+
+- `CLAUDE.md`, `AGENTS.md`, `docs/AUTONOMOUS-DEVELOPMENT.md` and
+  `docs/DEVELOPMENT.md` drop the procedure for updating `main` and
+  `codex-autopilot`.
+- `main` and `codex-autopilot` can lag `claude-autopilot` by any number of commits.
+  The evaluator still fetches before it starts (`docs/INDEPENDENT-EVALUATION.md`).

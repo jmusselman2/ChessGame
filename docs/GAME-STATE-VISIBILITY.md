@@ -1,7 +1,7 @@
 # Game-State Visibility — the `M19.10` Analysis
 
 **Written:** 2026-09-16, against `claude-autopilot` at `68d503b`
-**Backlog task:** [`M19.10`](BACKLOG.md#m1910--per-viewer-state-projection-and-the-gameid-version-identity)
+**Backlog task:** [`M19.10`](backlog/M18-M20.md#m1910--per-viewer-state-projection-and-the-gameid-version-identity)
 **Status:** nonbinding analysis. Its binding conclusions are
 [`D069`](DECISIONS.md#d069--state-leaves-the-server-only-through-a-per-viewer-projection-built-as-an-allowlist)
 (the projection boundary and what never crosses it) and

@@ -2,13 +2,13 @@ $ErrorActionPreference = 'Stop'
 
 $repositoryRoot = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
 $review = Get-Content -LiteralPath (Join-Path $repositoryRoot 'docs\PLATFORM-REVIEW.md') -Raw
-$backlog = Get-Content -LiteralPath (Join-Path $repositoryRoot 'docs\BACKLOG.md') -Raw
+# M17 is the last milestone in its archive (D093): its evidence runs to the end.
+$backlog = Get-Content -LiteralPath (Join-Path $repositoryRoot 'docs\backlog\M14-M17.md') -Raw
 $m17Start = $backlog.IndexOf('# M17 — Friend Beta', [StringComparison]::Ordinal)
-$m18Start = $backlog.IndexOf('# M18 — Post-Chess Architecture Review', [StringComparison]::Ordinal)
-if ($m17Start -lt 0 -or $m18Start -le $m17Start) {
-    throw 'Could not isolate the authoritative M17 evidence in docs/BACKLOG.md.'
+if ($m17Start -lt 0) {
+    throw 'Could not isolate the authoritative M17 evidence in docs/backlog/M14-M17.md.'
 }
-$m17Evidence = $backlog.Substring($m17Start, $m18Start - $m17Start)
+$m17Evidence = $backlog.Substring($m17Start)
 
 $claimsTwoPhysicalDevices =
     $review -match '(?is)two\s+real\s+people\s+on\s+two\s+physical\s+devices'
