@@ -6863,12 +6863,14 @@ Formerly [`F7`](FUTURE.md) ("AI opponent"). The project owner scheduled it on
 (the AI opponent). It is post-MVP work and does not change the MVP's definition of
 done.
 
-The server, the database and the chess rules are deliberately unchanged. `M21.1`–
-`M21.13` add device-authoritative local games and the AI opponent; `M21.15`–
-`M21.18` and `M21.20` add Android presentation, clarity and dashboard-freshness work
-across local and online game screens. Nothing in this milestone touches Ktor,
-PostgreSQL, `game_events` or any server query, and the polish does not change
-automatic-rematch, retry, undo or draw semantics.
+Most of M21 is device-authoritative or Android-only. `M21.1`–`M21.18` and `M21.20`
+leave Ktor, PostgreSQL, `game_events` and server queries unchanged. `M21.19` and the
+planned `M21.21` are the deliberate exceptions. `M21.19` adds undo requests and
+PostgreSQL migration `V12`; `M21.21` adds persistent Redo across local, computer and
+online games, including server and database work. `chess-core` remains unchanged by
+the completed M21 tasks; `M21.21` may add only a focused Redo query/transition if the
+implementation genuinely needs one. Automatic-rematch and draw semantics remain
+unchanged.
 
 *Split 2026-09-30:* the three tasks first scheduled became seven, before any work
 began, so each has a single testable outcome and leaves the app working. The
@@ -6898,6 +6900,7 @@ pass-and-play's missing last-move highlight, after it.
 | `M21.18` | Explain Undo and draw claims                       |                |
 | `M21.19` | Undo requests: ask to undo an answered move        | M21.18         |
 | `M21.20` | Refresh turn sections after playing online         | M14.2, M14.11, M14.12 |
+| `M21.21` | Redo                                                | M21.19, M21.20 |
 
 `M21.5` depends on nothing, but lowest-number-first selection takes `M21.1`–`M21.4`
 first.
@@ -6905,14 +6908,12 @@ first.
 *Added 2026-10-01:* the project owner scheduled `M21.10`–`M21.12` after playing the
 `0.1.3-beta` (`D089`): four computer levels (today's Easy and Medium become Very Easy
 and Easy, a new Medium that plays sensibly, Hard unchanged) and New game on the
-computer screen. Like the rest of `M21`, they touch neither the server nor its
-database.
+computer screen. Those three tasks touch neither the server nor its database.
 
 *Added 2026-10-02:* the project owner asked to keep a game against the computer while
 playing pass-and-play, and the other way round (`D090`). `M21.13` allows one
 unfinished local game of each kind. It follows `M21.12`, so its schema migration comes
-after `M21.12`'s, and like the rest of `M21` it touches neither the server nor its
-database.
+after `M21.12`'s. `M21.13` touches neither the server nor its database.
 
 *Added 2026-10-02 (game-screen polish):* the project owner scheduled `M21.15`–
 `M21.18` to make connection state, game endings, move feedback, Undo and draw claims
@@ -6923,17 +6924,21 @@ It adds no command retry, draw offer, opponent approval or manual online rematch
 it changes no chess rule, server API or database.
 
 *Added 2026-10-14:* the project owner scheduled `M21.19`, undo requests (`D091`,
-amending `D016`). It is the one `M21` task that changes the server and its
+amending `D016`). It is the first `M21` task that changes the server and its
 database: a migration, three new commands, a change to the undo command, and new
-per-viewer game and dashboard fields.
-The other tasks' statement above, that nothing in this milestone touches Ktor or
-PostgreSQL, holds for them and not for `M21.19`. `chess-core` is still unchanged.
+per-viewer game and dashboard fields. It did not change `chess-core`.
 
 *Added 2026-10-14 (dashboard freshness):* the project owner reported that a game
 opened from **Your Turn** stayed there after the player moved and returned with Back.
 `M21.20` makes the dashboard read the server's current turn classification when the
 player returns from an online game. It does not infer whose turn it is on the client
 or change the realtime payload, server API or database.
+
+*Added 2026-10-14 (Redo):* the project owner scheduled `M21.21`, persistent Redo in
+all three playable modes (`D092`). It is the second M21 task planned to change the
+server and PostgreSQL, and it also changes local persistence and Android. It preserves
+the finality rules, exact-state restoration, online authority and per-viewer projection
+rules, and does not schedule `F2` or change `M21.19`'s current singular dashboard DTO.
 
 ## M21.1 — The local game store
 
@@ -8462,9 +8467,10 @@ or declines (`D091`, amending `D016`). Online games only.
     - whether an undo request is pending that they sent or must answer;
     - for the requester, the last answer, or the undo-first crossing;
     - for the opponent, a crossing that undid both moves.
-  - The dashboard adds a field naming what waits on the viewer: an undo request now, and
-    a draw offer once `F2` exists. `yourTurn` keeps meaning "it is your move" and is not
-    set for a request.
+  - The dashboard adds the singular `pendingRequest` field for the only implemented
+    request type, an undo request. `yourTurn` keeps meaning "it is your move" and is not
+    set for a request. When `F2` introduces draw offers, it owns replacing this with
+    `pendingRequests: List<PendingRequest> = emptyList()` so both types can coexist.
   - Each change is announced through the existing version announcement (`D022`); there
     is no new socket message.
   - Apps built before this task need not show requests (beta).
@@ -8490,8 +8496,8 @@ or declines (`D091`, amending `D016`). Online games only.
   - Pass-and-play, the computer takeback, `D016`'s unilateral undo when no request
     waits, and the finality of game-ending moves, resignations and draw claims
     (`D017`–`D019`).
-  - No draw offer is added. `F2` stays unscheduled, but nothing here may stop a draw
-    offer and an undo request from being pending in one game together.
+  - No draw offer is added. `F2` stays unscheduled and records the plural dashboard
+    contract and tests needed for a draw offer and undo request to be pending together.
 - **Tests:**
   - **Server**, against a real database:
     - each asking condition, both ways;
@@ -8559,7 +8565,9 @@ or declines (`D091`, amending `D016`). Online games only.
   moves) and `undoNote` (`ACCEPTED`, `DECLINED`, `UNDONE_TOO`, `BOTH_UNDONE`, with the two
   moves). The requester hears every answer, and the opponent only of a crossing.
   `DashboardEntry.pendingRequest` (`kind` `UNDO`, `waitingOnYou`) names what waits on the
-  viewer; `yourTurn` is unchanged.
+  viewer; `yourTurn` is unchanged. This remains singular while undo is the only request
+  type; `F2` records the future `pendingRequests: List<PendingRequest> = emptyList()`
+  contract for simultaneous undo requests and draw offers.
 - **Android.** "Ask to undo"; "Undo requested. Waiting for Alex." with no cancel; for the
   opponent, "Jordan asks to undo g1f3 and your b8c6" with Accept and Decline (one tap
   each) beside "Undo your move", which accepts; every note in `D091`'s words until the
@@ -8568,8 +8576,9 @@ or declines (`D091`, amending `D016`). Online games only.
   dashboard lists a game under YOUR TURN when `DashboardEntryDto.waitingOnYou` (your move,
   or a request to answer), with "Jordan asks to undo" or "Undo requested" in the row.
 - **Unchanged.** Pass-and-play, the computer takeback, unilateral undo with no request
-  waiting, finality, and the realtime payload. No draw offer was added, and nothing stops
-  one being pending beside an undo request.
+  waiting, finality, and the realtime payload. No draw offer was added; F2 owns the
+  persistence and plural dashboard contract that will let one be pending beside an undo
+  request.
 - **Tests.**
   - Server, against Docker PostgreSQL: `UndoRequestTest` (33: every asking condition,
     accept and the restored position, stale accept, answering by the requester or with
@@ -8671,3 +8680,200 @@ eligibility or rematch behaviour changed.
   failed refresh. All six fail without the change. The existing stale-response and
   network-interruption tests pass unchanged.
 - `.\gradlew.bat build`: BUILD SUCCESSFUL. `git diff --check`: clean.
+
+## M21.21 — Redo
+
+**Status:** TODO
+
+**Depends on:** M21.19, M21.20
+
+### Objective
+
+Add a plainly labelled **Redo** button to pass-and-play, games against the computer,
+and online games (`D092`). Redo restores exactly what the preceding accepted Undo or
+takeback operation removed. Its complete forward path is persistent game state, not
+temporary screen or ViewModel state.
+
+### Acceptance Criteria
+
+- **All playable modes.** Redo works in:
+  - pass-and-play;
+  - games against the computer;
+  - online games.
+- **One operation per accepted Undo or takeback.** One tap restores one operation:
+  - pass-and-play Undo removes and Redo restores one ply;
+  - a normal unilateral online Undo removes and Redo restores one ply;
+  - a computer takeback that removed a human move and its recorded computer reply is
+    restored as that same two-ply operation, atomically;
+  - a computer takeback made before a reply existed restores its human move alone;
+  - an accepted or crossed online undo request restores its exact two plies atomically.
+- **The entire path is retained.** Use an active-history cursor, or an equivalent
+  ordered retained suffix with operation boundaries:
+  - Undo moves backward without deleting the later recorded moves;
+  - Redo moves forward through those exact operations in their original order;
+  - repeated Undo retains every operation ahead;
+  - alternating Undo and Redo retains the remaining forward path.
+- **Persistent, not screen-local.** Availability and the complete path survive Back
+  and reopening the game, rotation and ordinary state recreation, process death, and
+  app restart. For online games they are canonical server state and also survive
+  reopening the game from another client installation.
+- **Exact recorded restoration.** Redo restores recorded moves and recorded resulting
+  states. It never reconstructs canonical state by replaying commands through the
+  rules. Each retained move preserves enough information to restore its exact:
+  - board;
+  - side to move;
+  - castling rights;
+  - en passant target;
+  - halfmove clock;
+  - repetition counts;
+  - result state where applicable.
+- **A new branch clears the path.** Any ordinary newly accepted move clears every
+  remaining Redo operation in the same transaction. A move is a continuation only
+  when the Redo command applies it; manually playing the same coordinates is still a
+  new branch and clears the path.
+- **Final actions clear and stay final.** Resignation, a successful draw claim, and a
+  newly played game-ending move clear the remaining path in the same transaction.
+  They cannot be undone or redone past (`D017`–`D019`), and no finished game offers
+  Redo.
+- **Activity that does not change history does not clear it.** Navigation, refresh,
+  reconnect, opening another screen, rotation, process recreation, app restart, and
+  undo-request status changes that do not alter move history leave the path intact.
+  Accepting or crossing an undo request adds its two-ply operation. Redo itself is a
+  board-changing command and clears any pending request or last-answer note under
+  `D091`'s existing next-change rule.
+
+#### Online games
+
+- Add a typed Redo command and endpoint using `expectedVersion`. Keep the server-side
+  eligibility query and transition in step so an invalid transition produces a typed
+  refusal, never a transaction failure.
+- Offer Redo only to the player whose turn it is in the canonical position immediately
+  before Redo. In the locked transaction the server validates the actor, live game,
+  complete next retained operation, and `expectedVersion`; the client never decides
+  eligibility or supplies canonical snapshots.
+- One accepted Redo operation, whether one or two plies, increments the game version
+  exactly once. Stale and concurrent submissions follow the existing optimistic-
+  concurrency handling, and an operation can apply at most once.
+- Add the next forward-only PostgreSQL migration (`V13` at scheduling time), safe for
+  existing live games, to retain ordered Redo operations, their boundaries, and enough
+  recorded state for exact restoration. A pre-migration game starts with no Redo path.
+- Change `GameRepository` persistence so Undo moves the active cursor or otherwise
+  retains removed move rows and exact states. Its current delete-and-rewrite behavior
+  must not silently destroy the path. Undo/Redo, branching and terminal clearing each
+  write canonical state, active history and retained history atomically.
+- Write one audit event for an accepted Redo operation. It names the actor, game,
+  series, restored moves, and whether the operation contains one or two plies. The
+  audit trail records the result; it is not read to reconstruct or authorize Redo.
+- Reuse the existing version announcement (`D022`). Do not add moves, snapshots,
+  eligibility, or another payload to the socket message.
+- Extend the per-viewer game projection with only whether Redo is available and any
+  safe display information required by the UI. Do not expose stored snapshots,
+  persistence data, or information barred by `D069` and `D070`.
+- Server tests, against real PostgreSQL, cover ordinary one-ply Undo/Redo, accepted
+  two-ply undo requests, both `D091` crossing orders, persistence after repository and
+  server reconstruction, a different move, each terminal action, stale versions,
+  concurrent Redo, one version increment, audit contents, per-viewer projection, and
+  migration from games already in progress.
+
+#### Local persistence
+
+- Add the next forward-only SQLDelight migration (`3.sqm` at scheduling time) and
+  updated schema snapshot (`databases/4.db` at scheduling time). Retain the ordered
+  moves and operation boundaries with the unfinished local game; do not hold them only
+  in `ChessAppViewModel`, `LocalGameSession`, or a screen state.
+- Update the local append/truncate-or-cursor model so move, Undo, Redo, branching and
+  terminal clearing write the active cursor/path and canonical state atomically. A
+  committed database never has state, active history and retained history that
+  disagree.
+- Loading the unfinished game restores Redo availability and the complete path after
+  Back, process death, and app restart. Rotation preserves it through the same
+  canonical state flow.
+- Starting a new pass-and-play or computer game deletes/replaces only that local kind's
+  unfinished game and path. It leaves the other kind untouched (`D090`).
+- Completed-history review remains read-only and unchanged. A completed game has no
+  active Redo path, and review's ply navigation is not this command.
+- SQLDelight/store tests use a real SQLite file and prove atomic rollback as well as
+  recovery after closing and reopening the store.
+
+#### Games against the computer
+
+- Redo first cancels or invalidates any in-flight engine search, using the same stale-
+  result protections as takeback and replacement, before changing the game.
+- When a retained computer reply exists, restore that exact move and state with its
+  human move as one operation. Do not invoke `ChessEngine`, even if the engine would
+  now choose the same move.
+- When the takeback removed only a human move because no computer reply had been
+  recorded, restore that move and then allow the ordinary one-search computer-turn
+  flow to continue.
+- Tests use the project's controlled `MockEngine`/test-dispatcher pattern. They prove
+  that a recorded reply makes zero new engine calls, a human-only Redo starts exactly
+  one valid search, and a result from a search invalidated by Redo cannot land later.
+
+#### Android UI and state
+
+- Show a plainly labelled **Redo** control on the pass-and-play, computer, and online
+  game screens only while one valid operation is available. It takes one tap and no
+  confirmation.
+- Protect a submitted online Redo from duplicate taps and show command/loading state
+  consistently with the existing online Undo controls. Refresh after a typed refusal
+  or uncertain response follows the existing command rules and never sends Redo again
+  automatically.
+- Keep the action and any necessary wording visible and correct in the tightest
+  supported portrait and two-pane layouts (`D073`), including the existing dense
+  online request/claim control combinations.
+- After Redo, last-move highlighting, the checked king, move list, status text, and
+  side to move all reflect the restored recorded state in every mode.
+- Give the control its correct accessibility semantics and add Compose/device coverage
+  alongside the host-side state tests. Device coverage includes the supported compact
+  portrait and two-pane arrangements; do not claim it until it has run.
+
+#### Required interaction tests
+
+1. Undo, Undo, Redo, Redo restores both operations in order.
+2. Undo, Undo, Redo, Undo retains the correct complete forward path.
+3. Undo followed by a different move clears every retained Redo operation.
+4. Undo followed by resignation or a successful draw claim clears the path.
+5. Back, process death, and restart do not clear it.
+6. A computer takeback followed by Redo restores the identical human and computer
+   moves without an engine search.
+7. An accepted online undo request followed by Redo restores its exact two recorded
+   plies atomically.
+8. Both `D091` crossing orders produce the same redoable two-ply operation.
+9. A stale or concurrent online Redo applies at most once.
+10. No finished game offers Redo past `D017`–`D019` finality.
+
+The mode-specific suites also cover repeated paths longer than two operations,
+alternation at both ends of the path, manually replaying the same coordinates as the
+next retained move, automatic game-ending moves, failed atomic writes, and all
+availability boundaries.
+
+### Scope and Expected Changes
+
+- Expected production modules when this task is implemented:
+  - `chess-core` only if a focused `canRedo`/`redo` query-and-transition pair is
+    genuinely required; do not create a generic history framework;
+  - `chess-app` local persistence, computer-game state, shared controls and all three
+    game screens;
+  - `server` command/API, repository, per-viewer projection and audit event;
+  - PostgreSQL and SQLDelight forward-only migrations and their schema tests;
+  - the corresponding host-side, real-database, Compose and device tests.
+- Automatic-rematch behavior, completed-history review, the realtime payload, draw
+  semantics, and the operation sizes/eligibility of existing Undo flows are unchanged.
+- `F2` remains unscheduled; this task adds no draw offer. Preserve F2's future dashboard
+  contract, `pendingRequests: List<PendingRequest> = emptyList()`, for simultaneous
+  request types.
+- Do not replace `M21.19`'s current singular undo-only dashboard DTO in this task.
+  Redo is a game command, not a dashboard request waiting for another player.
+
+### Verification
+
+- The focused `chess-core` tests, only if that module changes.
+- Local store tests against a real SQLite file, including migration and reopen tests.
+- Computer-game and Android application-flow unit tests with the controlled engine.
+- `.\gradlew.bat :server:test --rerun-tasks` with `TEST_DATABASE_URL` set to the
+  disposable Docker PostgreSQL database; confirm no database test was skipped.
+- `.\gradlew.bat :chess-app:testDebugUnitTest`.
+- `.\gradlew.bat :chess-app:assembleDebugAndroidTest`, followed by the new and changed
+  Compose classes on a supported device or emulator.
+- `.\gradlew.bat build`.
+- `git diff --check`.

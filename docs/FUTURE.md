@@ -119,8 +119,26 @@ No dependency outside this tier. The most value to players for the cost.
   - any other accepted change to the game clears it;
   - an answer counts only at the version it was asked at.
 
-  `M21.19`'s dashboard field, naming what waits on the viewer, is meant to take draw
-  offers too.
+  `M21.19` implements only undo requests, so its dashboard contract remains the
+  singular `pendingRequest` until F2 introduces the second request type. F2 owns the
+  compatible replacement rather than changing that API speculatively beforehand.
+
+  **Dashboard acceptance criteria for F2:**
+
+  - The server and client dashboard DTOs replace the singular field with
+    `pendingRequests: List<PendingRequest> = emptyList()`, containing every request
+    pending in that game for the viewer.
+  - Simultaneous requests have one stable, tested display order: undo request before
+    draw offer, independent of which direction each request is travelling.
+  - `yourTurn` retains its chess-specific meaning: it is `true` only when it is the
+    viewer's turn to move, never merely because a request needs their response.
+  - The dashboard entry's derived `waitingOnYou` is `true` when `yourTurn` is true or
+    any entry in `pendingRequests` requires the viewer's response.
+  - Each entry accurately distinguishes an incoming request that the viewer must
+    answer from an outgoing request that the viewer sent and is waiting on.
+  - Server and client tests cover an undo request and draw offer pending together for
+    both viewers, including DTO projection, stable ordering, YOUR TURN / THEIR TURN
+    grouping, and row rendering of both requests.
 
 ### F3 — Drag-and-drop moves
 

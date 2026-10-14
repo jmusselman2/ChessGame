@@ -6572,19 +6572,24 @@ Alex sees the request with both moves it undoes: "Jordan asks to undo g1f3 and y
 b8c6", with Accept and Decline.
 
 **The dashboard.** A game with a request waiting on the viewer is listed as needing
-them, beside the games where it is their move. This is a field of its own, naming what
-waits on the viewer (an undo request now, a draw offer once `F2` exists). `yourTurn`
+them, beside the games where it is their move. `M21.19`, which has only undo requests,
+uses the singular `pendingRequest` field to name what waits on the viewer. `yourTurn`
 is not used for it, because `yourTurn` means "it is your move": it comes from the side
 to move, and the game screen shows it as "Your move". Set for Alex, it would contradict
 the game, which says "Jordan to move". The row also needs to say why the game needs
 Alex. Jordan's own row says "Undo requested" while the request waits, from the same
-field.
+field. When `F2` adds draw offers, it replaces that singular field with
+`pendingRequests: List<PendingRequest> = emptyList()` so both request types can be
+represented at once; F2 owns that server-and-client API change and its ordering and
+rendering tests.
 
 **Activity.** Asking, accepting and declining are actions by that player, and record
 their last action as moves and undos do (`M19.11`).
 
 **Draw offers.** When `F2`'s draw offers are built, an undo request and a draw offer
-may both be pending in one game at the same time.
+may both be pending in one game at the same time. `F2` records the plural dashboard
+contract and the required simultaneous-state tests; `M21.19` does not introduce that
+unused API shape before draw offers exist.
 
 ### Rationale
 
@@ -6646,3 +6651,129 @@ did not see.
   when `M21.19` lands.
 - Nothing here is generalised for the deck-builder (`D044`). Its consented undo is
   designed there.
+
+---
+
+## D092 — Redo Restores the Recorded Undo Operation Until Play Diverges
+
+**Date:** 2026-10-14
+
+**Status:** Accepted
+
+**Amends:** `D016`, `D084`, `D086`, and `D091` only by defining what may follow an
+accepted Undo or takeback. Their eligibility and operation sizes are unchanged.
+
+**Relates to:** `D017`, `D018`, `D019`, `D021`, `D022`, `D029`, `D061`, `D069`,
+`D070`, `D085`, `D090`, `M21.19`, `M21.20`, `M21.21`, `F2`
+
+### Decision
+
+The project owner asked for Redo on 2026-10-14. It applies to pass-and-play, games
+against the computer, and online games. Redo is persistent game state, not temporary
+screen state.
+
+**The unit is the accepted Undo operation.** One Redo restores exactly one preceding
+Undo or takeback operation:
+
+- pass-and-play Undo: one ply;
+- unilateral online Undo: one ply;
+- computer takeback: the human move and recorded computer reply together when both
+  were removed, or the human move alone when no reply had been recorded;
+- an accepted or crossed online undo request: its two plies together.
+
+An operation that removed two plies is restored atomically. The player never has to
+Redo its plies separately.
+
+**The whole forward path is retained.** A game records its ordered moves, their exact
+states, the boundary of each Undo operation, and an active-history cursor or an
+equivalent representation. Undo moves backward without deleting the later records.
+Redo moves forward through the retained operations in their original order. Repeated
+Undo keeps the whole path, and alternating Undo and Redo does not discard the
+operations still ahead.
+
+Only the Redo command consumes the next retained operation. An ordinary accepted move
+starts a new continuation and clears the entire remaining path in the same atomic
+write, even if its coordinates happen to match the next recorded move. A resignation,
+successful draw claim, or newly played game-ending move also clears the path. A
+game-ending move, resignation, and successful draw claim remain final and cannot be
+reached past with Undo or Redo (`D017`–`D019`). A finished game never offers Redo.
+
+Navigation, refresh, reconnect, opening another screen, rotation, process recreation,
+and app restart do not change the path. Nor does an undo-request status change that
+does not change move history. Accepting or crossing an undo request does change move
+history and adds its two-ply Undo operation. A Redo is a new board-changing command,
+so it clears a pending undo request or last-answer note just as other board-changing
+commands do.
+
+**Restoration uses recorded state.** Redo restores the recorded moves and exact
+recorded resulting states. It never reconstructs canonical state by replaying move
+commands through the rules. Each retained move therefore preserves enough information
+to restore the board, side to move, castling rights, en passant target, halfmove clock,
+repetition counts, and result state where applicable (`D029`, `D061`). A computer move
+that was already recorded is restored exactly and never chosen again by
+`ChessEngine`. If a takeback removed only a human move because no computer reply
+existed, Redo restores that human move and the ordinary one-search computer-turn flow
+may then continue.
+
+**Authority and persistence follow the game mode.** Local games keep the path in the
+same SQLDelight database as the unfinished game (`D084`, `D085`, `D090`), in atomic
+writes with canonical state and move history. Online games keep it in PostgreSQL as
+canonical server state. It survives reopening from another client installation; the
+client is never its authority.
+
+For an online game, Redo is offered only to the player whose turn it is in the
+position immediately before Redo. The server validates that actor, the complete next
+operation, the live game state, and `expectedVersion` in the locked transaction. One
+accepted Redo operation increments the version once, writes one audit event that names
+the actor, game, series, restored moves, and one- or two-ply size, and uses the existing
+version-only realtime announcement (`D021`, `D022`). A stale or concurrent Redo can
+apply at most once.
+
+Per-viewer APIs expose only whether Redo is available and any safe display information
+the screen needs. They do not expose stored snapshots, another player's hidden data,
+or persistence details (`D069`, `D070`). Redo adds no dashboard request type and does
+not change `M21.19`'s singular undo-only `pendingRequest`. `F2` still owns the future
+`pendingRequests: List<PendingRequest> = emptyList()` contract when draw offers make
+simultaneous request types possible.
+
+### Rationale
+
+Redo is useful only if Undo is reversible after leaving and reopening the screen. An
+in-memory stack would make the same game behave differently after process death, and
+re-running rules or the computer engine could produce a different continuation.
+Treating the Undo operation as the unit also preserves the meaning players already see:
+a computer takeback and an agreed online two-ply undo are each one action.
+
+An explicit cursor or retained suffix makes repeated and alternating Undo/Redo
+well-defined. Requiring the Redo command, rather than recognizing a manually repeated
+move, keeps command intent, operation boundaries, online authorization, audit, and
+optimistic concurrency unambiguous.
+
+### Alternatives Considered
+
+- **Keep one in-memory redo item.** Rejected: it loses repeated history and fails after
+  Back, process death, restart, or another online installation.
+- **Re-run moves through `ChessRules`, or ask the engine again.** Rejected: the restored
+  state or computer reply could differ, and `D061` requires snapshot restoration.
+- **Redo each ply separately.** Rejected: it splits one accepted takeback or agreement
+  into actions the player did not perform separately.
+- **Treat manually replaying the same coordinates as Redo.** Rejected: an ordinary move
+  is a new branch, while Redo is an explicit restoration with different persistence,
+  authorization, and audit semantics.
+- **Let the online client own the path.** Rejected: it would disagree across
+  installations and bypass server validation.
+
+### Consequences
+
+- `M21.21` plans the implementation across Android UI/state, local SQLDelight
+  persistence, server/API, PostgreSQL, and tests. `chess-core` changes only if a focused
+  `canRedo`/`redo` query-and-transition pair is genuinely needed; this decision creates
+  no generic history framework.
+- Both persistence layers need forward-only migrations. Undo must retain the removed
+  records and their operation boundary instead of deleting them; Redo, Undo, branching,
+  and terminal clearing must update the cursor/path and canonical state atomically.
+- Computer Redo must invalidate a stale search before changing the game. Restoring a
+  recorded reply makes no engine call; restoring a human-only operation may begin the
+  normal single search afterward.
+- Completed-history review remains read-only. Redo changes an unfinished game's active
+  history only and does not create a new kind of dashboard wait.
