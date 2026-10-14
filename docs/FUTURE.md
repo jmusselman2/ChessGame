@@ -112,6 +112,15 @@ No dependency outside this tier. The most value to players for the cost.
 - **Depends on:** nothing new.
 - **Open decisions:** when an offer expires, and how an offer interacts with
   undo and the game version.
+- **Since `D091` (2026-10-14):** a draw offer and an undo request (`M21.19`) may be
+  pending in one game at the same time. `D091` settles the same two questions for an
+  undo request, and F2 could follow it:
+  - no cancel and no timer;
+  - any other accepted change to the game clears it;
+  - an answer counts only at the version it was asked at.
+
+  `M21.19`'s dashboard field, naming what waits on the viewer, is meant to take draw
+  offers too.
 
 ### F3 — Drag-and-drop moves
 

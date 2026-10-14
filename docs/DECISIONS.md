@@ -455,6 +455,12 @@ This matches the desired casual play model: correct your latest move until the o
 
 Undo eligibility depends on current active move history, not a permanent historical lock flag.
 
+**Amended by `D091`:** the lock binds a player acting alone. Once the opponent has
+replied, the player may send an undo request, asking the opponent to undo their move
+and the reply together. The opponent accepts or declines. While a request waits on
+the opponent, the opponent's own Undo counts as accepting it. A request and the
+opponent's undo that cross are combined, whichever arrives first.
+
 ---
 
 ## D017 — Game-Ending Moves Are Immediately Final
@@ -6432,3 +6438,211 @@ entry point's meaning: each resumes exactly one game.
   it takes the migration after `M21.12`'s.
 - `CLAUDE.md`'s product rule, `PRODUCT.md`'s *Local Games* and `ARCHITECTURE.md` §11.4
   state the rule now; `AGENTS.md` and the "as built" notes change when `M21.13` lands.
+
+---
+
+## D091 — A Player May Ask the Opponent to Undo an Answered Move
+
+**Date:** 2026-10-14
+
+**Status:** Accepted
+
+**Amends:** `D016`. It adds an undo request, answered by the opponent, once the
+opponent has replied. `D016`'s unilateral undo is unchanged, except where an undo
+request is waiting (below).
+
+**Relates to:** `D016`, `D017`, `D018`, `D019`, `D021`, `D022`, `D029`, `D044`, `D061`,
+`D068`, `D069`, `D070`, `D078`, `F2`, `M21.19`
+
+### Decision
+
+The project owner asked for this on 2026-10-14. `D016`'s lock, under which an
+answered move can never be undone, was chosen to keep the prototype simple. Now that
+the prototype works, it is being revisited for the players' sake. `D044` already
+noted that `D016` restrains a player acting alone, so undo by agreement can reach past
+it.
+
+It applies to online games only. Pass-and-play can already undo any number of moves,
+one at a time. A game against the computer has its own takeback (`D086`).
+
+**One term.** The feature is an **undo request** everywhere: on screen ("Ask to
+undo"), in these documents, and in the code (`requestUndo`, `acceptUndo`,
+`declineUndo`; audit events `UndoRequested`, `UndoAccepted`, `UndoDeclined`). Players
+already know Undo, so the request uses the same word.
+
+**Asking.** Jordan plays `Nf3` and Alex replies `Nc6`. On Jordan's turn, Jordan may
+ask Alex to undo `Nf3`.
+
+- Jordan may ask only when:
+  - the game is in progress;
+  - it is Jordan's turn;
+  - the latest move is Alex's;
+  - the move before it is Jordan's;
+  - Jordan has no undo request already pending in this game.
+- Asking is an accepted change to the game: it increments the version (`D021`).
+
+**Answering.** Alex may accept or decline. Either answer increments the version and
+takes one tap, with no confirmation.
+
+- **Accepting** undoes Alex's `Nc6` and Jordan's `Nf3` together. The game returns to the
+  position before `Nf3`, with Jordan to move. Only that one move is undone, with the
+  reply it got. The position is restored from recorded state, never by replaying
+  moves (`D029`, `D061`).
+- **Alex's own Undo counts as accepting.** While an undo request waits on Alex, Alex's
+  "Undo your move" has exactly the effect of Accept: both moves are undone, it is
+  recorded as `UndoAccepted`, and Jordan is told Alex accepted. Undoing `Nc6` alone
+  would leave `Nf3` for Jordan to undo anyway, so it is treated as the agreement it
+  amounts to.
+- An accept counts only if the game is still at the version the request was made at.
+  Otherwise it is refused as stale, like any other command (`D021`), except for the
+  crossing below.
+- **Declining** ends the request. Jordan may ask again at once, as often as Jordan
+  likes. After a decline, Alex's "Undo your move" undoes `Nc6` alone again (`D016`).
+
+**Jordan is told the answer.** The game keeps the last answer, and Jordan's view
+shows it until the next accepted change to the game, including on opening the game
+later:
+
+- "Alex declined your undo request";
+- "Alex accepted your undo request: g1f3 and b8c6 undone". The board has gone back two
+  moves, and this says why.
+
+The next accepted change to the game clears the answer, as it would a pending request.
+
+**Jordan can still play.** While the request waits, Jordan's board stays playable, and
+a move withdraws the request (below). "Waiting for Alex" describes the request, not
+the game.
+
+**What else ends a request.** Jordan cannot cancel it, and it has no time limit. Any
+other accepted change to the game clears it in the same transaction: Jordan moves,
+claims a draw, or resigns, or Alex resigns. Leaving the series is not a change to the
+game (`D068`), so it does not clear a request.
+
+**When an undo request and an undo cross.** Jordan's request and Alex's undo of
+`Nc6` can be sent at the same moment, each from the version both last saw. Whichever
+arrives second would be stale. Both players want `Nc6` undone, and Jordan wants `Nf3`
+undone too, which Jordan could do alone once `Nc6` is gone (`D016`). So the second
+command completes the first, and either order ends at the position before `Nf3`, with
+Jordan to move:
+
+- **The request arrives first.** Alex's undo, stale by exactly that request, counts as
+  accepting it, as Alex's Undo does once Alex has seen the request.
+- **Alex's undo arrives first.** Jordan's request, stale by exactly that undo, undoes
+  `Nf3`, completing what Jordan asked for.
+
+The exception to the stale check is this narrow: the second command's version must be
+the version the first command was applied to, and the first command must be the only
+change since. Anything else in between (a move, a decline, another request) leaves the
+second command stale and refused, as always. The check runs in the game row's locked
+transaction, so it cannot pass twice. The game row records the last accepted change
+(what it was, who made it, the version it applied to) for this check. The audit trail
+is a record, and is not read to decide it.
+
+What each player is told, and what is recorded, follows what actually happened. Each
+note shows until the next accepted change to the game.
+
+- **Request first.** Alex's undo accepted a request that was pending. Jordan sees
+  "Alex accepted your undo request: g1f3 and b8c6 undone". Alex, who undid one move
+  and finds two gone, sees "Jordan had asked to undo g1f3, so both moves were undone".
+  The audit trail has `UndoRequested` (Jordan), then `UndoAccepted` (Alex), marked as
+  a crossing.
+- **Undo first.** No request was ever pending, and Alex accepted nothing. Jordan sees
+  "Alex had undone b8c6, so g1f3 was undone too". Alex sees the same note as in the
+  other order. The audit trail has `MoveUndone` (Alex), then `UndoRequested` (Jordan),
+  completed at once and marked as a crossing, with no `UndoAccepted`.
+
+Each command still increments the version once.
+
+Any other command that crosses the request is stale and refused as before, and the
+screen refreshes to show the request. That is ordinary optimistic concurrency
+(`D021`), not a fault.
+
+**Finality is unchanged.** A game-ending move, a resignation and a successful draw
+claim are final, and no request reaches past them (`D017`, `D018`, `D019`). A game
+that has ended has no request pending.
+
+**Who sees what.** Each player's view of the game (`D069`) says:
+
+- whether they may ask;
+- whether an undo request is pending that they sent or must answer;
+- for the requester, the last answer, or the undo-first crossing;
+- for the opponent, a crossing that undid both moves.
+
+Alex sees the request with both moves it undoes: "Jordan asks to undo g1f3 and your
+b8c6", with Accept and Decline.
+
+**The dashboard.** A game with a request waiting on the viewer is listed as needing
+them, beside the games where it is their move. This is a field of its own, naming what
+waits on the viewer (an undo request now, a draw offer once `F2` exists). `yourTurn`
+is not used for it, because `yourTurn` means "it is your move": it comes from the side
+to move, and the game screen shows it as "Your move". Set for Alex, it would contradict
+the game, which says "Jordan to move". The row also needs to say why the game needs
+Alex. Jordan's own row says "Undo requested" while the request waits, from the same
+field.
+
+**Activity.** Asking, accepting and declining are actions by that player, and record
+their last action as moves and undos do (`M19.11`).
+
+**Draw offers.** When `F2`'s draw offers are built, an undo request and a draw offer
+may both be pending in one game at the same time.
+
+### Rationale
+
+Players who mis-tap, or who want a casual game to forgive a blunder, can now ask,
+and nobody loses a move without agreeing to it. Undoing exactly one move plus its
+reply keeps every request answerable from what is on the board.
+
+The game version already serialises every command. Tying the accept to it, and
+clearing a request on any other change, means a request is answered only against the
+position it was made in. That needs no expiry timer and no cancel command. With no
+timer, nothing has to run in the background, and nothing waits on push notifications
+(`F25`). The pending request lives in the database, and a later push notification can
+be sent from its audit event.
+
+Counting Alex's own Undo as accepting closes a gap: without it, Alex could undo `Nc6`
+and quickly play another reply, locking `Nf3` before Jordan could undo it.
+
+Combining crossed commands means the outcome does not depend on whose message reached
+the server first. Neither player is asked to tap again for something both already
+wanted. The exception to the stale check is limited to the one change in between that
+makes the two compatible, so a command is still never applied to a position its sender
+did not see.
+
+### Alternatives Considered
+
+- **Undo only the opponent's reply.** Rejected: Alex can already do that alone.
+- **Undo any number of moves.** Rejected for now. One move is what was asked for, and
+  it is the simplest request to understand.
+- **The requester may cancel, or requests time out.** Rejected for simplicity.
+  Playing a move withdraws a request in practice.
+- **Once declined, a request may not be repeated for that position.** Rejected by the
+  owner.
+- **Hide Alex's Undo while a request waits.** Rejected by the owner in favour of
+  counting it as Accept.
+- **"Takeback request" in the documents and code, "undo" on screen.** Rejected: one
+  term everywhere.
+- **Reuse `yourTurn` on the dashboard.** Rejected: it would contradict the game screen.
+- **Refuse a crossed request or undo as stale.** Rejected by the owner: the result
+  would depend on arrival order, and both players would have to act again.
+
+### Consequences
+
+- `M21.19` builds it, and it is the first `M21` task to change the server and its
+  database:
+  - a migration for the pending request, the last answer and the last accepted change;
+  - the request, accept and decline commands, and the undo command's accept case,
+    with typed refusals and audit events that name their actor (`D078`);
+  - the per-viewer game and dashboard fields;
+  - the online game screen and dashboard.
+- `chess-core` needs nothing new: accepting is `ChessRules.undo` for Alex's side, then
+  for Jordan's. Who asked and who agreed are server concerns. Realtime needs nothing
+  new either: each change increments the version, which is already announced (`D022`).
+- Apps built before `M21.19` do not show requests. This is a beta, and they are
+  expected to update. On such an app, Alex's Undo while a request waits still counts as
+  accepting, so both moves go without the request ever having been shown. The server
+  cannot tell an old app from a new one, and the effect is the one Jordan asked for.
+- `D016` is amended, not superseded. `CLAUDE.md`'s product rules, `PRODUCT.md`'s
+  *Takebacks / Undo* and `ARCHITECTURE.md` §21 state the rule now. `AGENTS.md` changes
+  when `M21.19` lands.
+- Nothing here is generalised for the deck-builder (`D044`). Its consented undo is
+  designed there.

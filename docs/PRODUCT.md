@@ -279,6 +279,38 @@ Alex may undo `Nc6`.
 
 If Alex undoes `Nc6`, Jordan's `Nf3` becomes the latest unanswered move again and may be undone.
 
+### Undo Requests
+
+Once Alex has replied, Jordan cannot undo `Nf3` alone, but may send Alex an undo
+request (`D091`). Jordan asks on Jordan's turn ("Ask to undo"), and may have one
+request pending at a time. Jordan sees "Undo requested. Waiting for Alex." and has no
+cancel, but can still play: a move withdraws the request.
+
+Alex sees "Jordan asks to undo g1f3 and your b8c6", with Accept and Decline. Neither
+asks for confirmation. Alex's own "Undo your move" counts as Accept while the request
+waits.
+
+- **Alex accepts:** `Nc6` and `Nf3` are both undone, and Jordan is to move again from
+  the position before `Nf3`. Jordan sees "Alex accepted your undo request: g1f3 and
+  b8c6 undone".
+- **Alex declines:** nothing changes. Jordan sees "Alex declined your undo request"
+  and may ask again straight away. Alex may again undo `Nc6` alone.
+- **The game changes first:** Jordan moves, claims a draw, or resigns, or Alex
+  resigns. The request is gone, and an answer to it is refused as out of date.
+
+If Jordan asks just as Alex undoes `Nc6`, before either has seen the other, both
+are combined whichever reaches the server first: `Nc6` and `Nf3` are undone. Alex sees
+"Jordan had asked to undo g1f3, so both moves were undone". Jordan sees the accepted
+note if the request got there first, or "Alex had undone b8c6, so g1f3 was undone
+too" if Alex's undo did.
+
+Each note stays until the next change to the game.
+
+Leaving the series does not clear a request, and a request never expires on its own.
+While it is pending, Alex's dashboard lists the game under YOUR TURN with "Jordan asks
+to undo", and Jordan's row says "Undo requested". This is for online games; pass-and-play and games against the computer
+already undo moves.
+
 A game against the computer uses a takeback instead (`D086`, see *Playing the
 Computer*).
 

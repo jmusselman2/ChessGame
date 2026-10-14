@@ -6896,6 +6896,7 @@ pass-and-play's missing last-move highlight, after it.
 | `M21.16` | Clearer game-end screens                           |                |
 | `M21.17` | Consistent move feedback on every playable board   |                |
 | `M21.18` | Explain Undo and draw claims                       |                |
+| `M21.19` | Undo requests: ask to undo an answered move        | M21.18         |
 
 `M21.5` depends on nothing, but lowest-number-first selection takes `M21.1`–`M21.4`
 first.
@@ -6919,6 +6920,13 @@ unilateral unanswered-move Undo, `D019`'s claimable draws, `D022`'s canonical HT
 reload, `D037`'s safe-read-only wake retries and `D014`/`D015`'s automatic rematches.
 It adds no command retry, draw offer, opponent approval or manual online rematch, and
 it changes no chess rule, server API or database.
+
+*Added 2026-10-14:* the project owner scheduled `M21.19`, undo requests (`D091`,
+amending `D016`). It is the one `M21` task that changes the server and its
+database: a migration, three new commands, a change to the undo command, and new
+per-viewer game and dashboard fields.
+The other tasks' statement above, that nothing in this milestone touches Ktor or
+PostgreSQL, holds for them and not for `M21.19`. `chess-core` is still unchanged.
 
 ## M21.1 — The local game store
 
@@ -8360,3 +8368,155 @@ decide what is offered.
   `OnlineGameLayoutUiTest`, `GameEndUiTest` and the two M5 UI tests.
 - `.\gradlew.bat build`: BUILD SUCCESSFUL. Unit tests: `chess-app` 688, `chess-ai` 20,
   `chess-core` 394, `server` 603, none failing. `git diff --check`: clean.
+
+## M21.19 — Undo requests: ask the opponent to undo an answered move
+
+**Status:** TODO
+
+**Depends on:** M21.18
+
+### Objective
+
+Once the opponent has replied, the player whose move it was can send an undo request
+on their turn, asking for that move and the reply to be undone. The opponent accepts
+or declines (`D091`, amending `D016`). Online games only.
+
+### Acceptance Criteria
+
+- **One term.** The feature is an undo request on screen, in the documents and in the
+  code: `requestUndo`, `acceptUndo`, `declineUndo`, and audit events `UndoRequested`,
+  `UndoAccepted` and `UndoDeclined`.
+- **Asking.** A player may send an undo request only when:
+  - the game is in progress;
+  - it is their turn;
+  - the latest move is the opponent's;
+  - the move before it is theirs;
+  - they have no undo request pending in this game.
+
+  Otherwise the request is refused with a typed result and no change. It is sent with
+  `expectedVersion`, like every command, and increments the version.
+- **Accepting.** Only the opponent may accept.
+  - Accepting restores the position before the requester's move, with the requester to
+    move: `ChessRules.undo` for the opponent's side, then for the requester's. Nothing is
+    replayed (`D061`).
+  - It succeeds only at the version the request was made at. An earlier version is
+    refused as stale.
+  - It increments the version once, and clears the request.
+- **The opponent's Undo counts as accepting.** While an undo request waits on the
+  opponent, the existing undo command from the opponent, at the request's version, is
+  an accept: both moves are undone, `UndoAccepted` is recorded, and the requester is
+  told it was accepted.
+- **Crossing.** A request and the opponent's undo sent at the same moment are combined,
+  in either order, ending at the position before the requester's move:
+  - the opponent's undo, stale by exactly the request, accepts it;
+  - the request, stale by exactly the opponent's undo, undoes the requester's move.
+
+  "Stale by exactly" means: the command's `expectedVersion` is the version the other
+  command was applied to, and that command is the only change since. Anything else in
+  between leaves the command stale and refused. The game row records the last accepted
+  change (kind, actor, version applied to) for this check; the audit trail is not read.
+  Notes and audit events follow what happened:
+  - **Request first:** the requester sees the accepted note. The opponent sees "Jordan
+    had asked to undo g1f3, so both moves were undone". Audit: `UndoRequested`, then
+    `UndoAccepted`, marked as a crossing.
+  - **Undo first:** the requester sees "Alex had undone b8c6, so g1f3 was undone too".
+    The opponent sees the same note as above. Audit: `MoveUndone`, then
+    `UndoRequested`, completed at once and marked as a crossing, with no
+    `UndoAccepted`.
+
+  Each command increments the version once.
+- **Declining.** Only the opponent may decline. It clears the request and increments the
+  version. The requester may ask again at once. After a decline, the opponent's undo
+  undoes their reply alone again (`D016`).
+- **No confirmation.** Accept and Decline each take one tap.
+- **The answer.** The game keeps the last answer (accepted or declined), or the last
+  crossing, until the next accepted change to the game. Each note shows until then,
+  including on opening the game later, never just once.
+- **The requester can still play.** While the request waits, the requester's board stays
+  playable, and a move withdraws the request.
+- **Clearing.** Every other accepted command clears a pending request in the same
+  transaction: a move, a draw claim or a resignation by either player. The requester
+  has no cancel, and nothing expires on a timer. A finished game never has a request
+  pending.
+- **Not a clearing change.** Leaving the series is not a game command (`D068`), so it
+  leaves a pending request in place.
+- **Stale by design.** Asking increments the version. So any other command from the
+  opponent sent at the same moment (a resignation, for instance) is refused as stale
+  and their screen refreshes. That is the existing handling, and it is not a bug.
+- **Activity.** Request, accept and decline each record the actor's last action
+  (`recordAction`, `M19.11`).
+- **Persistence.** The pending request, the last answer and the last accepted change
+  are stored with the game row (one forward-only migration, safe on live data), not in
+  `GameState` or `GameStateDocument`. `chess-core` is unchanged. Request, accept and decline each write
+  an audit event that names its actor and series (`D078`).
+- **Projection.**
+  - The viewer's game view (`D069`) adds:
+    - whether they may ask;
+    - whether an undo request is pending that they sent or must answer;
+    - for the requester, the last answer, or the undo-first crossing;
+    - for the opponent, a crossing that undid both moves.
+  - The dashboard adds a field naming what waits on the viewer: an undo request now, and
+    a draw offer once `F2` exists. `yourTurn` keeps meaning "it is your move" and is not
+    set for a request.
+  - Each change is announced through the existing version announcement (`D022`); there
+    is no new socket message.
+  - Apps built before this task need not show requests (beta).
+- **Online game screen.** Copy stays short, as after the M21.18 trim.
+  - Asking: "Ask to undo". It never appears together with the requester's "Undo your
+    move", because the two are offered in different states.
+  - While the requester waits: "Undo requested. Waiting for Alex.", with no cancel
+    control.
+  - For the opponent: "Jordan asks to undo g1f3 and your b8c6", with Accept and
+    Decline. Their "Undo your move" stays, and while the request waits it accepts.
+  - The requester sees the answer until the next change: "Alex declined your undo
+    request", or "Alex accepted your undo request: g1f3 and b8c6 undone".
+  - After a crossing, the notes in **Crossing** above, until the next change.
+  - Every control stays in view without scrolling in the two-pane windows (`D073`).
+    Two panels are the tightest:
+    - the opponent's: "Undo your move", the request, Accept, Decline and Resign;
+    - the requester's after an answer: "Ask to undo", the note, a draw claim with its
+      line, and Resign.
+- **Dashboard.** A game with a request waiting on the viewer is listed under YOUR TURN,
+  and its row says "Jordan asks to undo". The requester's row says "Undo requested"
+  while it waits.
+- **Unchanged.**
+  - Pass-and-play, the computer takeback, `D016`'s unilateral undo when no request
+    waits, and the finality of game-ending moves, resignations and draw claims
+    (`D017`–`D019`).
+  - No draw offer is added. `F2` stays unscheduled, but nothing here may stop a draw
+    offer and an undo request from being pending in one game together.
+- **Tests:**
+  - **Server**, against a real database:
+    - each asking condition, both ways;
+    - an accept that restores the earlier position, side to move and draw-rule state;
+    - the opponent's undo, while a request waits, acting as an accept;
+    - crossing, request first: the opponent's undo at the pre-request version accepts;
+    - crossing, undo first: the request at the pre-undo version undoes the requester's
+      move;
+    - each crossing with another change in between, refused as stale;
+    - both crossing notes, and each order's audit events;
+    - a stale accept;
+    - accepting or declining by the requester, and with nothing pending;
+    - a decline, then asking again, and the opponent's undo after a decline undoing
+      their reply alone;
+    - the last answer, seen by the requester only and cleared by the next change;
+    - clearing by each other command;
+    - leaving the series, which keeps the request;
+    - a race between an accept and the requester's move, where exactly one succeeds;
+    - no request on a finished game;
+    - version increments and audit events;
+    - the per-viewer fields for both players, and the dashboard field;
+    - the migration on a database with games in progress.
+  - **Client:** unit tests for the online game state and dashboard mapping. Compose
+    tests for each player's controls in every state, every note, both dashboard rows, and
+    the two-pane layout with both tightest panels.
+
+### Verification
+
+- `.\gradlew.bat :server:test --rerun-tasks` with `TEST_DATABASE_URL` set (Docker
+  PostgreSQL).
+- `.\gradlew.bat :chess-app:testDebugUnitTest`.
+- `.\gradlew.bat :chess-app:assembleDebugAndroidTest`, and run the new and changed
+  Compose classes on a device or emulator.
+- `.\gradlew.bat build`.
+- `git diff --check`.

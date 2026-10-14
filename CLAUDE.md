@@ -150,7 +150,7 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - Removing a friend affects the friends list only (`D053`, superseding `D013`; was: it disabled the next rematch and closed the series after the current game). It does not end a series, alter a game, or touch table/group membership. A series ends only when a participant explicitly leaves it.
 - Groups are MVP (`D076`, superseding `D049`'s "deck-builder only"). Any member of a group may Play any other member, friend or not. Membership mirrors friendship: immediate, no owner, and leaving is the only exit.
 - A normal move may be undone by its player while it remains the latest unanswered move.
-- Once the opponent moves, the prior move is locked.
+- Once the opponent moves, the prior move is locked against undo by its player alone. Its player may then send an undo request on their turn, asking for that move and the reply to be undone. The opponent accepts or declines; the opponent's own Undo counts as accepting while the request waits. A request has no cancel and no timeout. Any other change to the game clears it, and an accept counts only at the version it was asked at. The one exception is a request and the opponent's undo that cross: they are combined, whichever arrives first (`D091`, amending `D016`).
 - If the opponent undoes their move, the previous player's move becomes undoable again.
 - A game-ending move is immediately final and cannot be undone.
 - In a game against the computer, Undo is a takeback instead (`D086`). It takes back the computer's reply and the human move before it, repeatably. If the computer has not replied yet, it takes back the pending human move alone. A game-ending move is still final.
