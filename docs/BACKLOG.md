@@ -6865,10 +6865,10 @@ done.
 
 The server, the database and the chess rules are deliberately unchanged. `M21.1`–
 `M21.13` add device-authoritative local games and the AI opponent; `M21.15`–
-`M21.18` add Android presentation and clarity work across local and online game
-screens. Nothing in this milestone touches Ktor, PostgreSQL, `game_events` or any
-server query, and the polish does not change automatic-rematch, retry, undo or draw
-semantics.
+`M21.18` and `M21.20` add Android presentation, clarity and dashboard-freshness work
+across local and online game screens. Nothing in this milestone touches Ktor,
+PostgreSQL, `game_events` or any server query, and the polish does not change
+automatic-rematch, retry, undo or draw semantics.
 
 *Split 2026-09-30:* the three tasks first scheduled became seven, before any work
 began, so each has a single testable outcome and leaves the app working. The
@@ -6897,6 +6897,7 @@ pass-and-play's missing last-move highlight, after it.
 | `M21.17` | Consistent move feedback on every playable board   |                |
 | `M21.18` | Explain Undo and draw claims                       |                |
 | `M21.19` | Undo requests: ask to undo an answered move        | M21.18         |
+| `M21.20` | Refresh turn sections after playing online         | M14.2, M14.11, M14.12 |
 
 `M21.5` depends on nothing, but lowest-number-first selection takes `M21.1`–`M21.4`
 first.
@@ -6927,6 +6928,12 @@ database: a migration, three new commands, a change to the undo command, and new
 per-viewer game and dashboard fields.
 The other tasks' statement above, that nothing in this milestone touches Ktor or
 PostgreSQL, holds for them and not for `M21.19`. `chess-core` is still unchanged.
+
+*Added 2026-10-14 (dashboard freshness):* the project owner reported that a game
+opened from **Your Turn** stayed there after the player moved and returned with Back.
+`M21.20` makes the dashboard read the server's current turn classification when the
+player returns from an online game. It does not infer whose turn it is on the client
+or change the realtime payload, server API or database.
 
 ## M21.1 — The local game store
 
@@ -8518,5 +8525,62 @@ or declines (`D091`, amending `D016`). Online games only.
 - `.\gradlew.bat :chess-app:testDebugUnitTest`.
 - `.\gradlew.bat :chess-app:assembleDebugAndroidTest`, and run the new and changed
   Compose classes on a device or emulator.
+- `.\gradlew.bat build`.
+- `git diff --check`.
+
+## M21.20 — Refresh turn sections after playing online
+
+**Status:** TODO
+
+**Depends on:** M14.2, M14.11, M14.12
+
+### Objective
+
+When a player returns to the dashboard after acting in an online game, show that
+game under the turn section the server currently reports. In particular, a game
+opened from **Your Turn** must move to **Their Turn** after the player makes a normal
+non-final move and presses Back.
+
+### The Gap
+
+The accepted command response replaces the online game on screen, but it does not
+refresh the separately cached dashboard. Back only restores the previous destination,
+so the old `DashboardEntry.yourTurn` remains visible. A `game-updated` message for the
+same game can still reload that no-longer-visible game instead of the dashboard,
+because the retained game state is treated as the game being shown after navigation
+has returned home.
+
+### Acceptance Criteria
+
+- Returning with Back from an online game to the dashboard requests a fresh
+  `GET /dashboard`; once it arrives, the game appears in **Your Turn** or **Their
+  Turn** exactly as the returned `DashboardEntry.yourTurn` says.
+- The reported reproduction is covered end to end at the view-model boundary: load
+  a dashboard entry in **Your Turn**, open it, make an accepted non-final move, press
+  Back, and verify that the refreshed entry is in **Their Turn** and no longer in
+  **Your Turn**.
+- A `game-updated` message for that game, whether it arrives before or after Back,
+  cannot suppress the dashboard refresh or leave the old turn section in place. A
+  game is treated as the open game for realtime routing only while its destination is
+  actually being shown.
+- The Android client does not derive, toggle or optimistically patch whose turn it is.
+  The server's dashboard response remains authoritative (`D004`, `D022`), and an
+  older dashboard response cannot overwrite a newer one (`M16.1`).
+- A failed dashboard refresh keeps the existing dashboard error/retry behavior. It
+  does not fabricate a new turn classification, repeat an online command, or prevent
+  the player from navigating back.
+- The correction applies to accepted online commands whose canonical result may
+  change the dashboard — move, Undo, resignation and draw claim — without changing
+  command eligibility, automatic-rematch behavior, the WebSocket payload, any server
+  endpoint or database state.
+- **Tests:** application-flow tests cover the move-and-Back reproduction, the
+  before/after-Back realtime timing cases, and at least one non-move accepted command;
+  existing stale-response and network-interruption tests continue to pass.
+
+### Verification
+
+- The targeted `ChessAppViewModel`, stale-response-ordering and network-interruption
+  unit tests.
+- `.\gradlew.bat :chess-app:testDebugUnitTest`.
 - `.\gradlew.bat build`.
 - `git diff --check`.
