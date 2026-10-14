@@ -46,18 +46,23 @@ Glance* come from the same triage. `F1`–`F32` were numbered in this order that
 day. Numbers are stable from then on: an item added later takes the next free
 number and is placed by the same rule, and a later reordering moves entries and
 leaves their numbers alone. After either, *At a Glance* and the tiers follow
-this order, not the numbers. `MVP.md` lists the same items by topic.
+this order, not the numbers. `MVP.md` lists the same items by topic. `F38`–`F42`
+were added on 2026-10-14 from a usability review and placed by the same rule.
 
 ## At a Glance
 
 | ID    | Item                                        | Topic (`MVP.md`)      | Effort        | Value to players   |
 | ----- | ------------------------------------------- | --------------------- | ------------- | ------------------ |
+| `F38` | At most one active series per party         | Series and Statistics | S–M           | Medium             |
 | `F1`  | Win/loss/draw record per friend             | Series and Statistics | M             | High               |
 | `F2`  | Draw offers by agreement                    | Chess Play            | M             | High               |
+| `F39` | Readable notation and board coordinates     | Chess Play            | M             | Medium–high        |
 | `F3`  | Drag-and-drop moves                         | Chess Play            | S–M           | Medium             |
 | `F4`  | Turning automatic rematches off by hand     | Series and Statistics | S             | Medium             |
 | `F5`  | Username changes                            | Identity and Accounts | M             | Medium             |
 | `F6`  | Detailed profiles                           | Social                | M             | Medium             |
+| `F41` | Online ply-by-ply review                    | Chess Play            | M             | Medium             |
+| `F40` | Complete board accessibility                | Presentation          | S–M           | Low now            |
 | `F8`  | Custom themes                               | Presentation          | S–M           | Low                |
 | `F9`  | Elaborate animations                        | Presentation          | M             | Low                |
 | `F10` | Clocks                                      | Chess Play            | L             | Low–medium         |
@@ -65,6 +70,7 @@ this order, not the numbers. `MVP.md` lists the same items by topic.
 | `F12` | Remove the "All users" page                 | Identity and Accounts | S–M           | None (testing aid) |
 | `F13` | Account recovery UI                         | Identity and Accounts | L             | High               |
 | `F35` | User settings, opened from the username     | Identity and Accounts | not estimated | not estimated      |
+| `F42` | Optional sound and haptic feedback          | Presentation          | S–M           | Low–medium         |
 | `F14` | Approval for friend requests, game invites  | Identity and Accounts | M             | Low                |
 | `F15` | Blocking                                    | Social                | M             | Low now            |
 | `F16` | Chat                                        | Social                | L             | Medium             |
@@ -95,6 +101,39 @@ this order, not the numbers. `MVP.md` lists the same items by topic.
 
 No dependency outside this tier. The most value to players for the cost.
 
+### F38 — At most one active series per party
+
+- **Source:** the project owner, 2026-10-14, from a usability review. Parallel
+  series against one opponent cannot be told apart: the dashboard shows each as the
+  opponent's name and the same detail ("White • Move 2"), History heads each with
+  the same name, and the Friends row links to only one of them. It reverses rule 1
+  of `D053`, which dropped `D011`'s `game_series_one_active_per_pair` index.
+- **Value:** Medium. It removes an ambiguity players can already reach, and the
+  code that offers a second series.
+- **Effort:** Small–medium. For chess: a migration that restores the pair index;
+  Play always opens the pair's active series; `PlayOffer`, `startAnotherSeries` and
+  the series offer (`POST /series?another=true`) are removed.
+- **Depends on:** nothing.
+- **Rule:** a party is the exact set of a series' participants; for chess, the
+  two players. A party has at most one active series. Another may start only once
+  it has ended.
+- **Until it is scheduled, `D053` stays binding:** parallel series remain allowed,
+  and `CLAUDE.md`'s product rule is unchanged. Scheduling it needs a decision that
+  supersedes `D053` rule 1 (rule 2, unfriending, stays), with the same change to
+  `CLAUDE.md`'s product rules and `PRODUCT.md`.
+- **Why first in its tier:** every parallel series created before it lands is one
+  more for its migration to resolve, and it settles most of `F1`'s open question.
+- **Open decisions:**
+  - what happens to pairs that already have several active series when the index
+    returns (migrations must be safe on live data);
+  - whether a series a player has left, with its last game still being played
+    (`D068`), still counts as the party's active series;
+  - what an older APK gets when it asks to start another series;
+  - for the Deck Builder, how uniqueness over a table's participant set is
+    enforced. That is designed with `F26`, not before (`D044`).
+- **Affects:** `F1` (a friend's record and their one series mostly coincide) and
+  `F31` (reviving a party's earlier series).
+
 ### F1 — Win/loss/draw record per friend
 
 - **Source:** `MVP.md`. Split from `F30` (detailed statistics) on 2026-09-23.
@@ -102,7 +141,8 @@ No dependency outside this tier. The most value to players for the cost.
 - **Effort:** Medium. Results are already stored; this is a query and a screen.
 - **Depends on:** nothing.
 - **Open decisions:** where the record shows (dashboard, friends list, series),
-  and whether it counts one series or every game with that friend.
+  and whether it counts one series or every game with that friend. `F38` would
+  make the two mostly the same.
 
 ### F2 — Draw offers by agreement
 
@@ -140,6 +180,32 @@ No dependency outside this tier. The most value to players for the cost.
     both viewers, including DTO projection, stable ordering, YOUR TURN / THEIR TURN
     grouping, and row rendering of both requests.
 
+### F39 — Readable move notation and board coordinates
+
+- **Source:** the project owner, 2026-10-14, from a usability review. Move lists
+  print `Move.toString()` (`GameControls`): `e2e4`, castling as `e1g1`, promotion
+  as `e7e8q`. `BoardRendering.fileLabels` and `rankLabels` exist, but nothing draws
+  them.
+- **Value:** Medium–high. Every game shows a move list.
+- **Effort:** Medium.
+- **Depends on:** nothing.
+- **Scope:**
+  - Standard algebraic notation (`Nf3`, `O-O`, `Nbd2`, `exd8=Q+`, `Qh7#`) in every
+    move list, and wherever else the app names a move, such as the declared-move
+    draw claim.
+  - The formatter is in `chess-core`, a pure function of the position and the
+    move, because disambiguation and the check and mate suffixes need legal moves.
+    Compose holds no rule. Notation is for display only, never stored or sent as
+    canonical data (`ARCHITECTURE.md` §19).
+  - Online, positions come from `OnlineGame.replayOf`. An older client whose replay
+    fails keeps coordinate notation.
+  - File and rank labels on every board, drawn inside the edge squares so the board
+    keeps its size. The labels name the true squares. Pass-and-play, always White
+    at the bottom (`D087`), reads them from White's side; an online or computer
+    board turned for Black shows the files from h to a.
+- **Open decisions:** whether the move list pairs moves by number (`1. e4 e5`), and
+  the labels' style.
+
 ### F3 — Drag-and-drop moves
 
 - **Source:** `PRODUCT.md`
@@ -174,10 +240,43 @@ No dependency outside this tier. The most value to players for the cost.
 - **Depends on:** `F1` (something worth showing).
 - **Open decisions:** what a profile shows, and to whom.
 
+### F41 — Online ply-by-ply review
+
+- **Source:** the project owner, 2026-10-14, from a usability review. `M21.16` left
+  it an open product decision: ply-by-ply review exists only for saved local games
+  (`M21.3`).
+- **Value:** Medium. Most useful from History, where a finished online game opens
+  read-only.
+- **Effort:** Medium. `LocalGameReview`'s Start, Previous, Next and End controls can
+  be reused. Its positions come from replaying the server's move list, which is for
+  display only and does not conflict with `D061`.
+- **Depends on:** nothing. Better after `F39`, so the move list it steps through is
+  readable.
+- **Open decisions:** where review is offered: at the end of a game, from History,
+  or both; and whether an unfinished game can be reviewed too.
+
 ## 2. Higher cost, or lower value
 
-No unfinished dependency. Worth doing, but each costs more or does less for
-players than tier 1.
+No unfinished dependency outside this tier. Worth doing, but each costs more or
+does less for players than tier 1.
+
+### F40 — Complete board accessibility
+
+- **Source:** the project owner, 2026-10-14, from a usability review. Squares
+  expose `selected` and their highlights as a state description, and no feedback
+  is told apart by colour alone (`M21.17`). A square does not say its own name or
+  its piece. The piece is a glyph, and both sides use the solid glyphs, so a screen
+  reader is likely to read White's queen as "black chess queen".
+- **Value:** Low now: no tester is known to use TalkBack. High for any player who
+  does.
+- **Effort:** Small for each square's spoken description ("e4, White pawn, last
+  move", from `BoardRendering.nameFor`). Medium with the full pass: predictable
+  focus order, and large-text and TalkBack acceptance testing on a device.
+- **Depends on:** nothing. Reads better after `F39`, since a screen reader speaks
+  the move list.
+- **Why first in its tier:** the cheapest worthwhile item here. The small slice
+  could be scheduled earlier on its own.
+- **Open decisions:** whether the small slice is scheduled ahead of the full pass.
 
 ### F8 — Custom themes
 
@@ -264,9 +363,20 @@ The task's acceptance criteria:
 - **Value:** not estimated. The screen's value depends on which settings it holds.
 - **Effort:** not estimated until its initial contents are decided.
 - **Depends on:** the feature or features chosen for its initial contents; possible
-  contents already include `F4`, `F5`, `F8`, and `F14`.
+  contents already include `F4`, `F5`, `F8`, `F14`, and `F42`.
 - **Open decisions:** which settings it contains. Its entry point is decided:
   tapping the username at the right-hand end of the dashboard's top row.
+
+### F42 — Optional sound and haptic feedback
+
+- **Source:** the project owner, 2026-10-14, from a usability review.
+- **Value:** Low–medium. Most of it is hearing an opponent's move arrive while the
+  app is open.
+- **Effort:** Small–medium. Sounds need assets whose licence allows shipping them.
+- **Depends on:** `F35`, for the on/off switch. Haptics alone need not wait:
+  Compose's `HapticFeedback` follows Android's own touch-feedback setting.
+- **Open decisions:** which moments: a move, a capture, check, the end of a game,
+  an opponent's move arriving; and whether sound is on by default.
 
 ## 3. Social
 

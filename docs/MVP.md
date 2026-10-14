@@ -185,11 +185,15 @@ the MVP's definition of done.
 - `F3` drag-and-drop moves (`PRODUCT.md`)
 - `F10` clocks
 - `F11` dead-position detection by search (`D038`)
+- `F39` readable move notation and board coordinates
+- `F41` online ply-by-ply review (`M21.16`)
 
 ### Presentation
 
 - `F8` custom themes (`PRODUCT.md`)
 - `F9` elaborate animations (`PRODUCT.md`)
+- `F40` complete board accessibility
+- `F42` optional sound and haptic feedback
 
 ### Identity and Accounts
 
@@ -217,6 +221,7 @@ the MVP's definition of done.
 - `F22` ratings
 - `F30` detailed statistics, including per-table statistics (`D048`)
 - `F31` series revival (`D048`)
+- `F38` at most one active series per party (reverses `D053` rule 1)
 
 ### Public Play
 
