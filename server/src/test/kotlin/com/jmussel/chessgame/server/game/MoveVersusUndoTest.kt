@@ -243,10 +243,11 @@ class MoveVersusUndoTest {
 
                 if (undoResult is CommandResult.Applied) {
                     assertEquals(
-                        ChessGame.newGame(),
-                        stored.game,
+                        ChessGame.newGame().state,
+                        stored.game.state,
                         "round $round: the undo won, so the game is back at the start",
                     )
+                    assertEquals(emptyList(), stored.game.history, "round $round: with no move played")
                     assertEquals(Side.WHITE, stored.game.sideToMove)
                 } else {
                     assertEquals(

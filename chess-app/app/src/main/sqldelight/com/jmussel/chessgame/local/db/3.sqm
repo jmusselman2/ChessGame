@@ -1,0 +1,4 @@
+-- Redo (D092, M21.21): an unfinished local game keeps the Undo operations Redo can restore,
+-- instead of deleting what an Undo took back. Every existing game starts with none. A
+-- finished game has none either: completing a game writes the path empty.
+ALTER TABLE local_games ADD COLUMN redo_path TEXT NOT NULL DEFAULT '[]';

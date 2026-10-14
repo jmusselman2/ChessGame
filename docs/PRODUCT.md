@@ -316,8 +316,8 @@ Computer*).
 
 ### Redo
 
-Redo is scheduled by `M21.21` for pass-and-play, games against the computer, and
-online games (`D092`). It restores exactly the accepted Undo or computer takeback
+Redo is in pass-and-play, games against the computer, and online games (`D092`, built
+by `M21.21`): a button labelled "Redo", offered only when there is an Undo to restore. It restores exactly the accepted Undo or computer takeback
 that immediately preceded it, as one operation:
 
 - one pass-and-play or unilateral online ply;
@@ -552,7 +552,7 @@ against the computer. It never uses the server.
   player's move before it, returning the player to their previous turn. It can be
   repeated back to the player's first move. If the computer has not replied yet, Undo
   stops it and takes back the player's move alone. A game-ending move is still
-  final, whoever made it. `M21.21` adds Redo: a two-ply takeback restores that exact
+  final, whoever made it. Redo (`M21.21`): a two-ply takeback restores that exact
   human move and recorded computer reply without another engine search; a one-ply
   takeback restores the human move and then resumes the ordinary computer turn.
 - **Draws and resignation.** The player may resign, with the usual confirmation, and

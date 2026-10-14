@@ -75,6 +75,7 @@ class LocalGameSession(
                         LocalGameChange.Move -> store.recordMove(id, after)
                         is LocalGameChange.TakeBack -> store.takeBack(id, change.plies)
                         LocalGameChange.Result -> store.recordResult(id, after)
+                        LocalGameChange.Redo -> store.redo(id)
                     }
                 }
             } catch (cancelled: CancellationException) {

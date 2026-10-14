@@ -59,4 +59,29 @@ class LocalGameChangeTest {
             LocalGameChange.between(opening, ChessGame.newGame().play("d2d4", "d7d5", "c2c4"))
         }
     }
+
+    @Test
+    fun restoringTheNextUndoneOperationIsARedo() {
+        val undone = ChessRules.undoLastMove(ChessRules.undoLastMove(opening))
+
+        assertEquals(LocalGameChange.Redo, LocalGameChange.between(undone, ChessRules.redo(undone)))
+        assertEquals(LocalGameChange.Redo, LocalGameChange.between(ChessRules.undoLastMoves(opening, 2), opening))
+    }
+
+    @Test
+    fun theSameCoordinatesPlayedByHandAreAMoveNotARedo() {
+        val undone = ChessRules.undoLastMove(ChessRules.undoLastMove(opening))
+
+        assertEquals(LocalGameChange.Move, LocalGameChange.between(undone, undone.play("e2e4")))
+    }
+
+    @Test
+    fun theLastOnePlyOperationRedoneOrReplayedByHandIsTheSameMove() {
+        val undone = ChessRules.undoLastMove(opening)
+
+        // Both give exactly the opening, with no path left, and are saved alike.
+        assertEquals(opening, ChessRules.redo(undone))
+        assertEquals(LocalGameChange.Move, LocalGameChange.between(undone, ChessRules.redo(undone)))
+        assertEquals(LocalGameChange.Move, LocalGameChange.between(undone, undone.play("e7e5")))
+    }
 }

@@ -204,7 +204,7 @@ class LocalGameStoreTest {
 
         val takenBack = store.takeBack(id, plies = 2)
 
-        assertEquals(ChessRules.undoLastMove(ChessRules.undoLastMove(played)), takenBack)
+        assertEquals("one two-ply operation (D092)", ChessRules.undoLastMoves(played, plies = 2), takenBack)
         assertEquals(takenBack, openStore().activeGame(LocalGameKind.COMPUTER)!!.game)
         assertEquals(Side.WHITE, takenBack.sideToMove)
     }
@@ -216,9 +216,12 @@ class LocalGameStoreTest {
         store.playAndRecord(id, ChessGame.newGame(), "e2e4", "e7e5")
 
         store.takeBack(id)
-        assertEquals(ChessGame.newGame(), store.takeBack(id))
+        assertEquals(ChessGame.newGame().state, store.takeBack(id).state)
         assertThrows(IllegalArgumentException::class.java) { store.takeBack(id) }
-        assertEquals(ChessGame.newGame(), store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.game)
+        val atTheStart = store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.game
+        assertEquals(ChessGame.newGame().state, atTheStart.state)
+        assertTrue(atTheStart.history.isEmpty())
+        assertEquals("both moves are kept for Redo (D092)", 2, atTheStart.redoPath.size)
     }
 
     @Test

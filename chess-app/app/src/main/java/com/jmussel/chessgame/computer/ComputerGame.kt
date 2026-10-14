@@ -70,6 +70,14 @@ data class ComputerGameUiState(
     val canTakeBack: Boolean
         get() = !game.isOver && game.history.any { it.positionBefore.sideToMove == humanSide }
 
+    /**
+     * Whether Redo is offered (`D092`): on the human's turn in an unfinished game, with a
+     * takeback to restore. Every takeback leaves the human to move, so that is where Redo
+     * starts; while the computer thinks there is nothing to redo.
+     */
+    val canRedo: Boolean
+        get() = humansTurn && ChessRules.redoableSide(game) == humanSide
+
     companion object {
         /**
          * What Undo says (`M21.18`), whether it takes back the pending move alone or the move
@@ -107,7 +115,10 @@ sealed interface ComputerSetup {
  * - **The human waits.** On the computer's turn the board ignores the human, who may still
  *   resign or take back.
  * - **Takeback** removes the computer's reply and the human move before it, or, while the
- *   computer is still thinking, the human move alone.
+ *   computer is still thinking, the human move alone, as one Undo operation.
+ * - **Redo** restores the latest takeback exactly (`D092`): a recorded computer reply comes
+ *   back as it was, with no search. A takeback of the human move alone hands the turn back
+ *   to the computer, which then searches as on any of its turns.
  * - **Everything is saved** through [session], in order, as it happens.
  *
  * Everything here runs on [scope]'s thread, the main thread in the app; only the engine runs
@@ -256,7 +267,8 @@ class ComputerGame(
                 stopSearching()
                 accept(current, next)
             }
-            is LocalGameChange.TakeBack -> return
+            // Takeback and Redo follow the computer's own rules: [takeBack], [redo].
+            is LocalGameChange.TakeBack, LocalGameChange.Redo -> return
         }
     }
 
@@ -271,8 +283,22 @@ class ComputerGame(
         val plies = if (game.lastMover == current.humanSide) 1 else 2
 
         stopSearching()
-        val after = (1..plies).fold(game) { taken, _ -> ChessRules.undoLastMove(taken) }
+        val after = ChessRules.undoLastMoves(game, plies)
         accept(current, BoardUiState(after, orientation = current.humanSide))
+    }
+
+    /**
+     * Restores the latest takeback, as it was recorded (`D092`). Any search in progress stops
+     * first, and can no longer land. A restored computer reply is never chosen again; if the
+     * takeback was of the human move alone, the computer now has its turn and searches once.
+     */
+    fun redo() {
+        val current = state ?: return
+        if (!current.canRedo) return
+
+        stopSearching()
+        accept(current, BoardUiState(ChessRules.redo(current.game), orientation = current.humanSide))
+        thinkIfItsTheComputersTurn()
     }
 
     private fun show(read: suspend () -> StoredLocalGame?) {

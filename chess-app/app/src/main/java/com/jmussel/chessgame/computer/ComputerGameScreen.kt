@@ -36,6 +36,8 @@ import com.jmussel.chessgame.ui.board.ResignConfirmation
 data class ComputerGameActions(
     val onUpdate: (BoardUiState) -> Unit = {},
     val onTakeBack: () -> Unit = {},
+    /** Restores the latest takeback as it was recorded (`D092`). */
+    val onRedo: () -> Unit = {},
     val onConfirmNewGame: () -> Unit = {},
     val onChoose: (Difficulty) -> Unit = {},
     val onPlayAgain: () -> Unit = {},
@@ -157,6 +159,7 @@ private fun Game(
 
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (state.canTakeBack) Button(onClick = actions.onTakeBack) { Text(text = ComputerGameUiState.TAKE_BACK_LABEL) }
+                if (state.canRedo) Button(onClick = actions.onRedo) { Text(text = GameControls.REDO_LABEL) }
                 if (!board.game.isOver) Button(onClick = { resigning = true }) { Text(text = "Resign") }
             }
 

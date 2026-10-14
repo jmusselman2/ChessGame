@@ -160,6 +160,7 @@ class ChessAppTest {
         canUndo: Boolean = false,
         canRequestUndo: Boolean = false,
         undoRequestFromYou: Boolean? = null,
+        canRedo: Boolean = false,
         claims: List<String> = emptyList(),
         yourTurn: Boolean = true,
         removalOutcome: String = "Removed",
@@ -211,6 +212,7 @@ class ChessAppTest {
                                     canUndo = canUndo,
                                     canRequestUndo = canRequestUndo,
                                     undoRequestFromYou = undoRequestFromYou,
+                                    canRedo = canRedo,
                                     claims = claims,
                                     yourTurn = yourTurn,
                                     nextGameId = nextGameId,
@@ -243,6 +245,7 @@ class ChessAppTest {
         val canUndo: Boolean = false,
         val canRequestUndo: Boolean = false,
         val undoRequestFromYou: Boolean? = null,
+        val canRedo: Boolean = false,
         val claims: List<String> = emptyList(),
         val yourTurn: Boolean = true,
         val nextGameId: String? = null,
@@ -274,6 +277,7 @@ class ChessAppTest {
             path.endsWith("/leave") -> series("Alex", replies.currentGameId).replace("ACTIVE", "CLOSED")
             path.endsWith("/moves") -> playedGame(path.removePrefix("/games/").removeSuffix("/moves"))
             path.endsWith("/undo") -> gameView(path.removePrefix("/games/").removeSuffix("/undo"), canUndo = false)
+            path.endsWith("/redo") -> playedGame(path.removePrefix("/games/").removeSuffix("/redo"))
             path.endsWith("/undo-request") ->
                 gameView(path.removePrefix("/games/").removeSuffix("/undo-request"), undoRequestFromYou = true)
             path.contains("/undo-request/") -> gameView(path.removePrefix("/games/").substringBefore("/"))
@@ -286,6 +290,7 @@ class ChessAppTest {
                     canUndo = replies.canUndo,
                     canRequestUndo = replies.canRequestUndo,
                     undoRequestFromYou = replies.undoRequestFromYou,
+                    canRedo = replies.canRedo,
                     claims = replies.claims,
                     yourTurn = replies.yourTurn,
                     yourSide =
@@ -350,6 +355,7 @@ class ChessAppTest {
         canUndo: Boolean = false,
         canRequestUndo: Boolean = false,
         undoRequestFromYou: Boolean? = null,
+        canRedo: Boolean = false,
         claims: List<String> = emptyList(),
         yourTurn: Boolean = true,
         yourSide: String = "WHITE",
@@ -369,7 +375,7 @@ class ChessAppTest {
              "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
              "moves":[],"moveNumber":1,"halfmoveClock":0,"canUndo":${canUndo && !finished},
              "availableDrawClaims":${claims.joinToString(",", "[", "]") { "\"$it\"" }},"seriesActive":$seriesActive,
-             "canRequestUndo":${canRequestUndo && !finished}$request$ending}
+             "canRequestUndo":${canRequestUndo && !finished},"canRedo":${canRedo && !finished}$request$ending}
             """.trimIndent()
     }
 
@@ -1841,6 +1847,87 @@ class ChessAppTest {
             ChessServerConfig().baseUrl,
         )
     }
+
+    @Test
+    fun redoIsSentOnlyWhenTheServerSaysThisPlayerMay() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.redo()
+            viewModel.moveJob?.join()
+
+            assertEquals(listOf("/games/game-7"), paths)
+        }
+
+    @Test
+    fun anEligibleRedoIsSentOnceWithItsVersionAndTheAnswerBecomesTheScreen() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(canRedo = true))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.redo()
+            assertTrue((viewModel.game as OnlineGameState.Ready).submitting)
+            // A second tap while the first is on its way sends nothing.
+            viewModel.redo()
+            viewModel.moveJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals(listOf("/games/game-7", "/games/game-7/redo"), paths)
+            assertTrue(sentBodies.last().contains("\"expectedVersion\":1"))
+            assertEquals("the restored move is the server's", listOf("e2e4"), ready.game.moves)
+            assertFalse(ready.submitting)
+        }
+
+    @Test
+    fun aRefusedRedoIsExplainedAndNotSentAgain() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            canRedo = true,
+                            refusals = 1,
+                            refusalPath = "/games/game-7/redo",
+                            refusalStatus = HttpStatusCode.Conflict,
+                            refusalBody = """{"reason":"NOTHING_TO_REDO","message":"You have nothing to redo"}""",
+                        ),
+                )
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.redo()
+            viewModel.moveJob?.join()
+
+            assertEquals("There is nothing to redo.", (viewModel.game as OnlineGameState.Ready).message)
+            assertEquals(1, paths.count { it.endsWith("/redo") })
+        }
+
+    @Test
+    fun aRedoWhoseAnswerIsLostIsReportedAndNeverResent() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            canRedo = true,
+                            refusals = 1,
+                            refusalPath = "/games/game-7/redo",
+                            refusalStatus = HttpStatusCode.ServiceUnavailable,
+                        ),
+                )
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.redo()
+            viewModel.moveJob?.join()
+            runCurrent()
+
+            assertEquals("never sent again on its own", 1, paths.count { it.endsWith("/redo") })
+            assertFalse((viewModel.game as OnlineGameState.Ready).submitting)
+        }
 
     @Test
     fun anUndoRequestIsSentOnlyWhenTheServerSaysThisPlayerMayAsk() =

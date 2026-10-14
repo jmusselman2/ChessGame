@@ -356,6 +356,9 @@ object OnlineGame {
     /** What Undo says (`M21.18`): it takes back the player's own latest move, and only that. */
     const val UNDO_LABEL = "Undo your move"
 
+    /** What Redo says (`D092`): it restores what the latest Undo took back. */
+    const val REDO_LABEL = "Redo"
+
     /** What asking the opponent to undo an answered move says (`D091`). */
     const val ASK_TO_UNDO_LABEL = "Ask to undo"
 
@@ -513,6 +516,7 @@ object OnlineGame {
             NOTHING_TO_UNDO -> NOTHING_BACK
             CANNOT_REQUEST_UNDO -> CANNOT_ASK
             NO_UNDO_REQUEST -> NO_REQUEST
+            NOTHING_TO_REDO -> NOTHING_AHEAD
             else -> refusal.rejection.message.ifBlank { REFUSED_COMMAND }
         }
 
@@ -610,6 +614,7 @@ object OnlineGame {
     private const val NOTHING_TO_UNDO = "NOTHING_TO_UNDO"
     private const val CANNOT_REQUEST_UNDO = "CANNOT_REQUEST_UNDO"
     private const val NO_UNDO_REQUEST = "NO_UNDO_REQUEST"
+    private const val NOTHING_TO_REDO = "NOTHING_TO_REDO"
     private const val THREEFOLD = "THREEFOLD_REPETITION"
     private const val FIFTY_MOVE = "FIFTY_MOVE_RULE"
     private const val NOT_YOURS = "This game is not yours to look at."
@@ -624,6 +629,7 @@ object OnlineGame {
     private const val NOTHING_BACK = "There is nothing to take back."
     private const val CANNOT_ASK = "You cannot ask to undo now."
     private const val NO_REQUEST = "No undo request is waiting for you."
+    private const val NOTHING_AHEAD = "There is nothing to redo."
     private const val UNREACHABLE = "Could not reach the server. Check your connection and try again."
     private const val REFRESH_UNREACHABLE = "Could not reach the server. The board is as it was when it last loaded."
     private const val LOADING = "Loading the game…"

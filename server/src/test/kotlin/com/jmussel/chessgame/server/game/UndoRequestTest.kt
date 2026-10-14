@@ -283,7 +283,15 @@ class UndoRequestTest {
 
             assertIs<CommandResult.Applied>(result)
             val after = fixture.game()
-            assertEquals(before, after.game, "board, side to move, castling and draw-rule state all restored")
+            assertEquals(before.state, after.game.state, "board, side to move, castling and draw-rule state all restored")
+            assertEquals(before.history, after.game.history)
+            assertEquals(
+                listOf(uci("g1f3"), uci("b8c6")),
+                after.game.redoPath
+                    .single()
+                    .moves,
+                "one two-ply operation for Redo (D092)",
+            )
             assertEquals(Side.WHITE, after.game.sideToMove, "Jordan to move")
             assertEquals(6, after.version, "one increment")
             assertNull(after.undo.pendingFrom, "the request is cleared")
@@ -339,7 +347,15 @@ class UndoRequestTest {
             val result = fixture.commands.undoMove(fixture.alex, fixture.gameId, 3)
 
             assertIs<CommandResult.Applied>(result)
-            assertEquals(ChessGame.newGame(), fixture.game().game, "both moves are undone")
+            assertEquals(ChessGame.newGame().state, fixture.game().game.state, "both moves are undone")
+            assertEquals(
+                listOf(uci("g1f3"), uci("b8c6")),
+                fixture
+                    .game()
+                    .game.redoPath
+                    .single()
+                    .moves,
+            )
             assertEquals(4, fixture.version)
             assertEquals(
                 listOf("MoveMade", "MoveMade", "UndoRequested", "UndoAccepted"),
@@ -431,7 +447,13 @@ class UndoRequestTest {
             val result = fixture.commands.undoMove(fixture.alex, fixture.gameId, 2)
 
             assertIs<CommandResult.Applied>(result, "stale by exactly the request, so it accepts it")
-            assertEquals(ChessGame.newGame(), fixture.game().game)
+            assertEquals(ChessGame.newGame().state, fixture.game().game.state)
+            assertTrue(
+                fixture
+                    .game()
+                    .game.history
+                    .isEmpty(),
+            )
             assertEquals(Side.WHITE, fixture.game().game.sideToMove)
             assertEquals(4, fixture.version, "each command increments the version once")
 
@@ -459,7 +481,13 @@ class UndoRequestTest {
             val result = fixture.request(at = 2)
 
             assertIs<CommandResult.Applied>(result, "stale by exactly the undo, so it completes it")
-            assertEquals(ChessGame.newGame(), fixture.game().game)
+            assertEquals(ChessGame.newGame().state, fixture.game().game.state)
+            assertTrue(
+                fixture
+                    .game()
+                    .game.history
+                    .isEmpty(),
+            )
             assertEquals(4, fixture.version)
             assertNull(fixture.game().undo.pendingFrom, "completed at once, so nothing is pending")
 

@@ -8683,7 +8683,7 @@ eligibility or rematch behaviour changed.
 
 ## M21.21 — Redo
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M21.19, M21.20
 
@@ -8877,3 +8877,111 @@ availability boundaries.
   Compose classes on a supported device or emulator.
 - `.\gradlew.bat build`.
 - `git diff --check`.
+
+### Completion Note
+
+2026-10-14. `chess-core`, server, PostgreSQL, SQLDelight and Android.
+
+- **Core (`chess-core`).** `ChessGame` carries a `redoPath` of `UndoneOperation`s: the
+  move records an Undo removed, each with its `positionBefore`, and the `stateAfter` it
+  left, the next to restore last. `ChessGame` equality includes it.
+  - `ChessRules.undoLastMoves(game, plies)` records one operation of one or two plies.
+    `undo`, `undoLastMove`, the computer takeback and an accepted undo request all go
+    through it.
+  - `undoLastMoveJoiningNext` joins a crossed request's move to the reply the opponent
+    had undone, so both `D091` orders leave the same two-ply operation.
+  - `redoableSide`/`canRedo` (the query) and `redo` (the transition) restore the next
+    operation from its recorded records and state. Redo belongs to the side to move, and
+    is refused in a finished game and when the operation does not start from the current
+    position. Nothing is replayed.
+  - `applyMove`, `claimDraw` and `resign` clear the path. A move with the next recorded
+    coordinates is still a new continuation.
+  - No generic history framework: this is chess's `ChessGame`, with one query and
+    transition pair.
+- **Undo corrections.** No Undo path destroys what it took back any more:
+  - `LocalGameStore.takeBack` truncates `local_moves` but keeps the removed rows, with the
+    position they left, as one operation in `local_games.redo_path`, in the same
+    transaction.
+  - `GameRepository.save` still rewrites the active move history, and writes
+    `games.redo_path` in the same statement as state and version, so the inactive
+    forward suffix and its exact states are retained.
+  - The computer takeback is one operation of two plies (or one before a reply), not two
+    single undos. An accepted undo request is one two-ply operation, and so are both
+    crossing orders.
+  - Undo-request status changes (asking, declining) keep the path; Redo clears a pending
+    request and the last answer (`D091`'s next-change rule).
+- **PostgreSQL (`V13`).** `games.redo_path jsonb not null default '[]'` (no row
+  rewritten, so every game in progress starts with no path), checks that it is an array
+  and empty on a finished game, and `REDO` in `games_last_change_kind`. A crossing
+  against an undo recorded before `V13` (no operation to join) is refused as stale.
+- **SQLDelight (schema version 4).** `3.sqm` adds `local_games.redo_path TEXT NOT NULL
+  DEFAULT '[]'`, with snapshot `databases/4.db`. SQLDelight's analyser rejects a column
+  `CHECK` on an `ALTER TABLE ADD COLUMN`, so "a finished game has no path" is kept by the
+  store: `complete` writes `'[]'`, and Redo refuses a finished game. The unused
+  `firstAfter` query is gone. Starting a game still replaces only its own kind's game
+  and path (`D090`).
+- **Server.** `GameCommandService.redo` and `POST /games/{gameId}/redo` with
+  `expectedVersion`:
+  - checked in the locked transaction: participant, version, running game, side to move,
+    then `canRedo`;
+  - typed refusal `NothingToRedo` (409 `NOTHING_TO_REDO`);
+  - one version increment per operation, `ChangeKind.REDO`;
+  - one `MoveRedone` audit event with actor, series, `moves` and `plies`;
+  - the existing version announcement.
+
+  `GameView.canRedo` is the only new field; the path, snapshots and records never leave
+  the server. The dashboard is unchanged: `pendingRequest` stays singular and
+  undo-only, `F2` still owns `pendingRequests`, and no draw offer was added.
+- **Android.** A "Redo" button (Material `Button`, role Button) on the same row as Undo
+  on all three screens, shown only while an operation is available, one tap:
+  - pass-and-play: `GameControls.canRedo`/`redo`, saved through `LocalGameChange.Redo`
+    → `LocalGameStore.redo`;
+  - computer: `ComputerGameUiState.canRedo` (the human's turn only) and
+    `ComputerGame.redo`. It stops any search first, never asks the engine for a recorded
+    reply, and searches once after a human-only operation;
+  - online: `ChessAppViewModel.redo` through `sendCommand`. It is disabled while
+    submitting, and a refusal or lost answer is reported, never resent.
+
+  A one-ply Redo that empties the path gives exactly the game that playing the same move
+  by hand gives, and is saved as that move. Found in review: classifying it as a Redo made
+  the computer screen ignore a human move replayed by hand.
+- **Tests.**
+  - `chess-core`: `RedoTest` (13). The undo tests that compared an undone game with the
+    earlier one now compare position and history (`assertSamePlay`), because the undone
+    game also holds its path (`D092`). `MoveHistoryTest`'s round trips now also prove
+    Redo restores them.
+  - Server, against Docker PostgreSQL, `--rerun-tasks`, none skipped: `RedoTest` (20) and
+    `RedoPathMigrationTest` (2). Eight existing undo assertions were changed the same way,
+    and now also check the recorded operation.
+  - Android unit tests:
+    - `LocalRedoStoreTest` (10, a real SQLite file: reopen, rollback, migration from the
+      version-3 snapshot, `D090`);
+    - `ComputerRedoTest` (9);
+    - new tests in `LocalGamePersistenceTest` (4), `LocalGameChangeTest` (3),
+      `GameControlsTest` (2) and `ChessAppTest` (4);
+    - six existing equality assertions changed as above.
+  - Compose: `RedoUiTest` (8), plus every existing class under `ui`, on the
+    `ChessPlayerM5Api36` emulator (API 36). The full `ui` run, 58 tests, failed one:
+    `theFullestOnlinePanelWithRedoFitsWithTwoPanes`. Redo on a row of its own pushed
+    Resign out of view in a two-pane window. Redo now shares one row with "Undo your
+    move" and "Ask to undo", which never appear together. That test and the other online
+    screen classes were run again, all green: `RedoUiTest`, `UndoRequestUiTest`,
+    `ActionExplanationUiTest`, `OnlineGameLayoutUiTest`, `OnlineGameConnectionUiTest`,
+    `MoveFeedbackUiTest` and `GameEndUiTest`.
+  - **Not run:** a physical Pixel (none attached) and the Fire HD 8 (not authorised).
+- **The required interaction tests**, where each is proved:
+  1. Undo, Undo, Redo, Redo: core, server, store, pass-and-play view model, computer.
+  2. Undo, Undo, Redo, Undo: the same five.
+  3. A different move clears the path: core, server, store, view model, computer.
+  4. Resignation and a draw claim clear it: core, server and store; resignation also in
+     the view model and the computer game.
+  5. Back, process death and restart keep it: store reopen, view model Back and restart,
+     computer reopen; online, a new repository and service and a second installation.
+  6. A computer Redo makes no engine call: `ComputerRedoTest`.
+  7. An accepted request is redone as two plies at once: server.
+  8. Both crossing orders give the same operation: server.
+  9. A stale or concurrent Redo applies at most once: server.
+  10. No finished game offers Redo: core, server, store, computer and Compose.
+- `.\gradlew.bat build`: BUILD SUCCESSFUL. Unit tests: `chess-app` 739, `chess-ai` 20,
+  `chess-core` 407, and `server` 660, run with `--rerun-tasks` against Docker PostgreSQL,
+  0 skipped. None failing. `git diff --check`: clean.

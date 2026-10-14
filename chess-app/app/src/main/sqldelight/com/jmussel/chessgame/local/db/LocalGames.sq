@@ -3,6 +3,11 @@
 -- `state` is the canonical current position, or the final one once the game has ended,
 -- as JSON (LocalStateDocument). The result is also kept in its own columns, so the list
 -- of finished games needs no JSON. Times are milliseconds since the epoch.
+--
+-- `redo_path` is the Undo operations Redo can restore, the next one last, as JSON
+-- (LocalRedoPathDocument): the moves each took back, the position each was played from,
+-- and the position after the last of them (D092). It is written with `state`, in the same
+-- statement, and completing a game writes it empty.
 CREATE TABLE local_games (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     kind TEXT NOT NULL CHECK (kind IN ('PASS_AND_PLAY', 'COMPUTER')),
@@ -14,6 +19,7 @@ CREATE TABLE local_games (
     termination_reason TEXT,
     human_side TEXT CHECK (human_side IN ('WHITE', 'BLACK')),
     difficulty INTEGER,
+    redo_path TEXT NOT NULL DEFAULT '[]',
     CHECK (
         (status = 'ACTIVE' AND completed_at IS NULL AND outcome IS NULL AND termination_reason IS NULL) OR
         (status = 'COMPLETED' AND completed_at IS NOT NULL AND outcome IS NOT NULL AND termination_reason IS NOT NULL)
@@ -41,11 +47,12 @@ byId:
 SELECT * FROM local_games WHERE id = :id;
 
 updateState:
-UPDATE local_games SET state = :state WHERE id = :id AND status = 'ACTIVE';
+UPDATE local_games SET state = :state, redo_path = :redoPath WHERE id = :id AND status = 'ACTIVE';
 
 complete:
 UPDATE local_games
 SET state = :state,
+    redo_path = '[]',
     status = 'COMPLETED',
     completed_at = :completedAt,
     outcome = :outcome,

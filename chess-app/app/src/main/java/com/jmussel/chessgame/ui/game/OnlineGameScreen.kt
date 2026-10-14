@@ -59,6 +59,7 @@ fun OnlineGameScreen(
     onChoosePromotion: (PieceType) -> Unit = {},
     onCancelPromotion: () -> Unit = {},
     onUndo: () -> Unit = {},
+    onRedo: () -> Unit = {},
     undoRequests: UndoRequestActions = UndoRequestActions(),
     onClaimDraw: (String) -> Unit = {},
     onAskToResign: () -> Unit = {},
@@ -100,6 +101,7 @@ fun OnlineGameScreen(
                 onChoosePromotion = onChoosePromotion,
                 onCancelPromotion = onCancelPromotion,
                 onUndo = onUndo,
+                onRedo = onRedo,
                 undoRequests = undoRequests,
                 onClaimDraw = onClaimDraw,
                 onAskToResign = onAskToResign,
@@ -174,6 +176,7 @@ private fun Game(
     onChoosePromotion: (PieceType) -> Unit,
     onCancelPromotion: () -> Unit,
     onUndo: () -> Unit,
+    onRedo: () -> Unit,
     undoRequests: UndoRequestActions,
     onClaimDraw: (String) -> Unit,
     onAskToResign: () -> Unit,
@@ -232,16 +235,24 @@ private fun Game(
                 )
             }
 
-            // Offered only while the server's own answer says this player may take a move back
-            // (`D016`); the server decides again when the command arrives.
-            if (game.canUndo) {
-                Button(onClick = onUndo, enabled = !state.submitting) { Text(text = OnlineGame.UNDO_LABEL) }
-            }
-
-            // Asking the opponent to undo an answered move (`D091`). Never offered with "Undo your
-            // move": the server offers each in a different state.
-            if (game.canRequestUndo) {
-                Button(onClick = undoRequests.onAsk, enabled = !state.submitting) { Text(text = OnlineGame.ASK_TO_UNDO_LABEL) }
+            // Undo, Ask to undo and Redo share one row, so the densest panel still fits two panes
+            // (`D073`). Each is offered only when the server says this player may, and it decides again when
+            // the command arrives: Undo while their
+            // move is unanswered (`D016`), Ask to undo once it has been answered (`D091`, never with
+            // Undo), and Redo when there is an Undo to restore (`D092`). All wait while a command is
+            // on its way, so a second tap sends nothing.
+            if (game.canUndo || game.canRequestUndo || game.canRedo) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (game.canUndo) {
+                        Button(onClick = onUndo, enabled = !state.submitting) { Text(text = OnlineGame.UNDO_LABEL) }
+                    }
+                    if (game.canRequestUndo) {
+                        Button(onClick = undoRequests.onAsk, enabled = !state.submitting) { Text(text = OnlineGame.ASK_TO_UNDO_LABEL) }
+                    }
+                    if (game.canRedo) {
+                        Button(onClick = onRedo, enabled = !state.submitting) { Text(text = OnlineGame.REDO_LABEL) }
+                    }
+                }
             }
 
             // The pending request: a status for the player who asked, who has nothing to cancel, and

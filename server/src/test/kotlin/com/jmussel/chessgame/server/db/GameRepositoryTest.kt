@@ -277,7 +277,18 @@ class GameRepositoryTest {
             fixture.repository.save(id, expectedVersion = 0, game = afterUndo)
 
             assertEquals(0, fixture.moveRowCount(id))
-            assertEquals(ChessGame.newGame(), fixture.repository.load(id)?.game)
+            assertEquals(
+                ChessGame.newGame().state,
+                fixture.repository
+                    .load(id)
+                    ?.game
+                    ?.state,
+            )
+            assertEquals(
+                afterUndo,
+                fixture.repository.load(id)?.game,
+                "what the undo took back is kept with the game for Redo (D092), not in the active history",
+            )
         }
     }
 

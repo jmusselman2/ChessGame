@@ -244,10 +244,23 @@ class ComputerGameTest {
             game.takeBack()
             advanceUntilIdle()
 
-            assertEquals(ChessGame.newGame(), game.state!!.game)
+            assertEquals(ChessGame.newGame().state, game.state!!.game.state)
+            assertTrue(
+                game.state!!
+                    .game.history
+                    .isEmpty(),
+            )
             assertFalse(game.state!!.thinking)
             assertEquals(0, engine.calls)
-            assertEquals(ChessGame.newGame(), store.activeGame(LocalGameKind.COMPUTER)!!.game)
+            assertEquals(game.state!!.game, store.activeGame(LocalGameKind.COMPUTER)!!.game)
+            assertEquals(
+                "the human move alone is kept for Redo",
+                listOf(Move.of("e2", "e4")),
+                game.state!!
+                    .game.redoPath
+                    .single()
+                    .moves,
+            )
         }
 
     @Test
@@ -262,8 +275,14 @@ class ComputerGameTest {
             advanceUntilIdle()
 
             assertEquals(1, engine.calls)
-            assertEquals(ChessGame.newGame(), game.state!!.game)
-            assertEquals(ChessGame.newGame(), store.activeGame(LocalGameKind.COMPUTER)!!.game)
+            assertEquals(ChessGame.newGame().state, game.state!!.game.state)
+            assertTrue(
+                "the cancelled search's reply never landed",
+                game.state!!
+                    .game.history
+                    .isEmpty(),
+            )
+            assertEquals(game.state!!.game, store.activeGame(LocalGameKind.COMPUTER)!!.game)
         }
 
     @Test

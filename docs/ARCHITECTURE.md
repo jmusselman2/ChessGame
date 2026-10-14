@@ -357,6 +357,7 @@ Recorded in `game_events`:
 ```text
 MoveMade
 MoveUndone
+MoveRedone
 UndoRequested
 UndoAccepted
 UndoDeclined
@@ -379,7 +380,8 @@ non-user participant produces audited actions, and is not made before then
 (`D082` point 12).
 
 An `UndoAccepted` that completes a crossed request and undo, or an `UndoRequested` that
-is completed at once by one, carries `"crossing": true` in its payload (`D091`).
+is completed at once by one, carries `"crossing": true` in its payload (`D091`). A
+`MoveRedone` names the restored `moves` and their count, `plies` (1 or 2) (`D092`).
 
 `SeriesClosed` was recorded until `M19.5` removed the path that closed a series
 after its current game; leaving a series records `SeriesLeft` (`D068`). Friendship
@@ -497,8 +499,14 @@ PostgreSQL, and it works when server startup fails.
   takeback truncates and restores the recorded prior position. Each change touching
   state and history is one transaction, so the stored board always matches the
   stored history.
-- **Restoring never replays rules.** `ChessGame(state, history)` is rebuilt from the
-  stored state and move records (`D029`). Persistence models stay in `chess-app`.
+- **What a takeback truncates is kept for Redo** (`D092`, built by `M21.21`). It
+  becomes one Undo operation in `local_games.redo_path`, in the same transaction, and
+  `LocalGameStore.redo` appends its records again and restores its recorded state. A
+  move or a result writes the path empty. Schema version 4's `3.sqm` adds the column
+  with the default `'[]'`, so every existing game starts with no path.
+- **Restoring never replays rules.** `ChessGame(state, history, redoPath)` is rebuilt
+  from the stored state, move records and Redo path (`D029`). Persistence models stay
+  in `chess-app`.
 - **Excluded from backup.** The database is excluded from Android cloud backup and
   device transfer, so local games stay on the installation that made them.
 - **The computer's moves** come from a `ChessEngine` (`chess-ai`, `D086`), run off
@@ -534,7 +542,8 @@ PostgreSQL, and it works when server startup fails.
   its own kind since `M21.13`) and creates the new one in one transaction. `recordMove` appends one record and updates
   the state, and completes the game if the move ended it. `recordResult` completes a
   game ended by resignation or a claim. `takeBack(plies)` truncates and restores the
-  position recorded before the first removed ply. Each refuses a finished game, and a
+  position recorded before the first removed ply, keeping the removed plies as one Undo
+  operation, and `redo` restores the next one (`D092`). Each refuses a finished game, and a
   move or result that does not follow from the stored position. `activeGame`, `game`
   and `completedGames` (newest first) read. Calls block, so callers run them off the
   main thread.
@@ -1048,8 +1057,9 @@ was may send an undo request (`requestUndo`) on their turn. The opponent accepts
 (`acceptUndo`) or declines (`declineUndo`), and each command increments the version.
 While a request waits on the opponent, the opponent's `UndoMove` at the request's
 version is an accept. Accepting restores the position before the requester's move:
-`ChessRules.undo` for the opponent's side, then for the requester's. Restoring never
-replays. An accept succeeds only at the version the request was made at, with one
+the opponent's reply and the requester's move are taken back together, as one two-ply
+Undo operation that Redo restores whole (`ChessRules.undoLastMoves`, `D092`). Restoring
+never replays. An accept succeeds only at the version the request was made at, with one
 exception. A request and the opponent's `UndoMove` that cross, each stale by exactly
 the other, are combined in either order: the second completes the first. The game row
 records the last accepted change (kind, actor, version applied to, and the move an
@@ -1062,6 +1072,25 @@ Both stay outside `GameState` and `chess-core`, and are projected per viewer
 keeps meaning "it is your move".
 
 An undone move disappears from active chess history but remains represented in audit history.
+
+**Redo (`D092`, built by `M21.21`).** An Undo no longer discards what it took back.
+`ChessGame` carries a `redoPath`: the accepted Undo operations, each an
+`UndoneOperation` holding the move records it removed (each with its `positionBefore`)
+and the `stateAfter` it left, the next to restore last. `ChessRules.undoLastMoves`
+records one operation of one or two plies; `undoLastMoveJoiningNext` joins a crossed
+undo request's move to the reply the opponent had undone, so both `D091` orders leave
+the same two-ply operation. `redoableSide`/`canRedo` and `redo` are the query and
+transition: Redo belongs to the side to move, restores the recorded records and state
+without replaying anything, and is never offered in a finished game. `applyMove`,
+`claimDraw` and `resign` clear the path; a move with the same coordinates as the next
+recorded one is still a new continuation.
+
+Online, `Redo` (`POST /games/{gameId}/redo`, `expectedVersion`) is validated in the
+locked transaction like every command, increments the version once whether it
+restores one ply or two, records `ChangeKind.REDO` as the last change, clears a pending
+undo request and the last answer, and writes one `MoveRedone` audit event. The path is
+`games.redo_path` (`V13`), written in the same statement as state and history; the
+per-viewer view exposes only `canRedo` (`D069`).
 
 ## 22. Final Moves
 

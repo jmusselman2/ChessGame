@@ -184,6 +184,7 @@ class LocalGameTest {
         var unwound = state
         repeat(4) { unwound = GameControls.undo(unwound) }
 
-        assertEquals(BoardUiState.newGame().game, unwound.game)
+        assertEquals(BoardUiState.newGame().game.state, unwound.game.state)
+        assertTrue(unwound.game.history.isEmpty())
     }
 }

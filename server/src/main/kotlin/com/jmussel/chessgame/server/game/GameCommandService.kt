@@ -15,6 +15,10 @@ import com.jmussel.chessgame.server.db.UndoAnswerKind
 import com.jmussel.chessgame.server.db.UndoRecord
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.series.SeriesService
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.ExperimentalUuidApi
@@ -78,6 +82,11 @@ sealed interface CommandResult {
 
     /** No undo request waits on this player to answer it (`D091`). */
     data class NoUndoRequest(
+        val game: StoredGame,
+    ) : CommandResult
+
+    /** This player has no Undo operation to restore right now (`D092`). */
+    data class NothingToRedo(
         val game: StoredGame,
     ) : CommandResult
 }
@@ -432,7 +441,10 @@ class GameCommandService(
         kind: UndoAnswerKind,
     ): CommandResult {
         val answer = answerOf(stored, stored.opponentOf(userId), kind)
-        val undone = ChessRules.undo(ChessRules.undo(stored.game, side), side.opposite)
+        // The reply and the requester's move go together, as one operation Redo restores whole
+        // (`D092`). The reply is [userId]'s latest move; the move before it is the requester's.
+        require(ChessRules.canUndo(stored.game, side)) { "$side has no reply to take back" }
+        val undone = ChessRules.undoLastMoves(stored.game, plies = 2)
 
         try {
             games.save(
@@ -471,7 +483,9 @@ class GameCommandService(
             games.save(
                 id = stored.id,
                 expectedVersion = stored.version,
-                game = ChessRules.undo(stored.game, side),
+                // Joined to the reply the opponent undid, so the crossing leaves the same two-ply
+                // operation as an accepted request (`D092`).
+                game = ChessRules.undoLastMoveJoiningNext(stored.game),
                 auditEvent = UNDO_REQUESTED,
                 actor = userId,
                 change = ChangeKind.UNDO_REQUEST,
@@ -525,7 +539,12 @@ class GameCommandService(
             change.appliedTo == expectedVersion &&
             stored.version == expectedVersion + 1 &&
             change.undoneMove != null &&
-            ChessRules.canUndo(stored.game, side)
+            ChessRules.canUndo(stored.game, side) &&
+            // The reply's undo is the operation Redo would restore next, so the requester's move
+            // can join it. A game whose undo came before `V13` kept no operation, and is stale.
+            stored.game.redoPath
+                .lastOrNull()
+                ?.moves == listOf(change.undoneMove)
     }
 
     /** The answer to the request pending in [stored], which is about its two latest moves. */
@@ -543,6 +562,53 @@ class GameCommandService(
             replyMove = moves.last(),
         )
     }
+
+    /**
+     * Restores the Undo operation [userId] may redo in [gameId] (`D092`): its recorded moves
+     * rejoin the history and its recorded position becomes the game's. Nothing is replayed.
+     *
+     * Only the player to move may redo, because Redo continues from the position the Undo
+     * left them. One Redo is one accepted change, whether it restores one ply or two, so it
+     * increments the version once; and like any change to the board it clears a pending undo
+     * request and the last answer (`D091`).
+     */
+    fun redo(
+        userId: Uuid,
+        gameId: Uuid,
+        expectedVersion: Long,
+    ): CommandResult =
+        transaction(database) {
+            val stored = games.loadForUpdate(gameId) ?: return@transaction CommandResult.NoSuchGame
+
+            sideOf(stored, userId)?.let { side ->
+                validate(stored, side, expectedVersion)?.let { return@transaction it }
+
+                if (!ChessRules.canRedo(stored.game, side)) return@transaction CommandResult.NothingToRedo(stored)
+
+                val restored = stored.game.redoPath.last()
+
+                try {
+                    games.save(
+                        id = gameId,
+                        expectedVersion = expectedVersion,
+                        game = ChessRules.redo(stored.game),
+                        auditEvent = MOVE_REDONE,
+                        actor = userId,
+                        change = ChangeKind.REDO,
+                        auditDetail =
+                            buildJsonObject {
+                                putJsonArray("moves") { restored.moves.forEach { add(it.toString()) } }
+                                put("plies", restored.records.size)
+                            },
+                    )
+                } catch (_: StaleGameVersionException) {
+                    return@transaction CommandResult.StaleVersion(reload(gameId, stored))
+                }
+
+                recordAction(userId)
+                CommandResult.Applied(reload(gameId, stored))
+            } ?: CommandResult.NotAParticipant
+        }
 
     /** The canonical game as [userId] may see it, or why they may not. */
     fun load(
@@ -564,8 +630,8 @@ class GameCommandService(
      *
      * It is also where the actor's `last_action_at` is recorded (`M19.11`), because this is
      * the one place that means "a mutation from this user was accepted" — [load] answers
-     * `Applied` as well and is a read. [undoMove] and the undo-request commands do not come
-     * through here, because an undo can never finish a game, so they record their own.
+     * `Applied` as well and is a read. [undoMove], [redo] and the undo-request commands do not
+     * come through here, because none of them can finish a game, so they record their own.
      */
     private fun applied(
         userId: Uuid,
@@ -638,6 +704,12 @@ class GameCommandService(
 
         /** The audit event a declined undo request records. */
         const val UNDO_DECLINED: String = "UndoDeclined"
+
+        /**
+         * The audit event a Redo records (`D092`). Its payload names the restored moves and
+         * whether there were one or two.
+         */
+        const val MOVE_REDONE: String = "MoveRedone"
 
         /**
          * Whether the player on [side] may send an undo request in [stored] (`D091`): the game

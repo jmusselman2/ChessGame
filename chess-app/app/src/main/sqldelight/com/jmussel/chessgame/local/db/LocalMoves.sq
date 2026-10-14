@@ -4,7 +4,9 @@
 -- whole position it was played from, as JSON (LocalStateDocument). Together they are the
 -- core's MoveRecord, so a game is rebuilt from rows without replaying a move (D061).
 --
--- The history is only ever appended to or truncated from the end, never rewritten.
+-- The history is only ever appended to or truncated from the end, never rewritten. What a
+-- takeback truncates is not lost: it moves to `local_games.redo_path` in the same
+-- transaction, for Redo (D092).
 CREATE TABLE local_moves (
     game_id INTEGER NOT NULL REFERENCES local_games (id) ON DELETE CASCADE,
     ply INTEGER NOT NULL CHECK (ply >= 1),
@@ -22,10 +24,6 @@ SELECT ply, move, position_before FROM local_moves WHERE game_id = :gameId ORDER
 
 count:
 SELECT count(*) FROM local_moves WHERE game_id = :gameId;
-
--- The first ply after :keep: the move a takeback to :keep plies undoes first.
-firstAfter:
-SELECT position_before FROM local_moves WHERE game_id = :gameId AND ply = :keep + 1;
 
 truncate:
 DELETE FROM local_moves WHERE game_id = :gameId AND ply > :keep;

@@ -309,6 +309,11 @@ data class GameView(
     val canUndo: Boolean = false,
     /** Whether the viewer may send an undo request right now (`D091`). */
     val canRequestUndo: Boolean = false,
+    /**
+     * Whether the viewer may Redo right now (`D092`): restore the operation the latest Undo took
+     * back. Only whether; the recorded path itself never leaves the server (`D069`).
+     */
+    val canRedo: Boolean = false,
     /** The undo request pending in this game, whichever player sent it, or `null`. */
     val undoRequest: UndoRequestView? = null,
     /** What the viewer is told about the last undo request, or `null`. */
@@ -377,6 +382,9 @@ data class GameView(
                 canRequestUndo =
                     com.jmussel.chessgame.server.game.GameCommandService
                         .mayRequestUndo(stored, yourSide),
+                canRedo =
+                    com.jmussel.chessgame.core.chess.ChessRules
+                        .canRedo(stored.game, yourSide),
                 undoRequest = undoRequestOf(stored, viewer),
                 undoNote = undoNoteOf(stored, viewer),
                 availableDrawClaims =
@@ -468,6 +476,9 @@ enum class RejectionReason {
 
     /** No undo request waits on this player to answer (`D091`). */
     NO_UNDO_REQUEST,
+
+    /** This player has nothing to redo right now (`D092`). */
+    NOTHING_TO_REDO,
 }
 
 /**

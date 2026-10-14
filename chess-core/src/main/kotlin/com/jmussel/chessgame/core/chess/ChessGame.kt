@@ -15,6 +15,37 @@ data class MoveRecord(
 )
 
 /**
+ * One accepted Undo operation, kept so Redo can restore it exactly (`D092`).
+ *
+ * [records] are the moves the Undo took back, oldest first, each with the position it was
+ * played from; [stateAfter] is the position after the last of them, which is the position the
+ * Undo left. Together they hold every state the operation passed through, so restoring it
+ * replays nothing (`D061`). One Undo is one operation, whether it took back one ply or two
+ * (a computer takeback, an accepted undo request): Redo restores it whole.
+ */
+class UndoneOperation(
+    records: List<MoveRecord>,
+    val stateAfter: GameState,
+) {
+    val records: List<MoveRecord> = Collections.unmodifiableList(records.toList())
+
+    init {
+        require(this.records.isNotEmpty()) { "An Undo takes back at least one move" }
+    }
+
+    /** The moves the operation took back, oldest first. */
+    val moves: List<Move>
+        get() = records.map { it.move }
+
+    override fun equals(other: Any?): Boolean =
+        this === other || (other is UndoneOperation && records == other.records && stateAfter == other.stateAfter)
+
+    override fun hashCode(): Int = 31 * records.hashCode() + stateAfter.hashCode()
+
+    override fun toString(): String = "UndoneOperation(records=$records, stateAfter=$stateAfter)"
+}
+
+/**
  * A game in progress: the current position plus the moves that produced it.
  *
  * [GameState] is the position alone. Undo eligibility — who may take a move back, and
@@ -30,8 +61,16 @@ data class MoveRecord(
 class ChessGame(
     val state: GameState,
     history: List<MoveRecord> = emptyList(),
+    redoPath: List<UndoneOperation> = emptyList(),
 ) {
     val history: List<MoveRecord> = Collections.unmodifiableList(history.toList())
+
+    /**
+     * The Undo operations Redo can restore, in the order they were undone: the next one to
+     * restore is last (`D092`). Undo adds to it and Redo takes from it; any other change to the
+     * game's moves or result clears it, because play has diverged from it.
+     */
+    val redoPath: List<UndoneOperation> = Collections.unmodifiableList(redoPath.toList())
 
     val isOver: Boolean
         get() = state.isOver
@@ -54,17 +93,20 @@ class ChessGame(
     val lastMover: Side?
         get() = history.lastOrNull()?.positionBefore?.sideToMove
 
-    /** Returns a copy with [state] and [history] replaced. */
+    /** Returns a copy with [state], [history] and [redoPath] replaced. */
     fun copy(
         state: GameState = this.state,
         history: List<MoveRecord> = this.history,
-    ): ChessGame = ChessGame(state, history)
+        redoPath: List<UndoneOperation> = this.redoPath,
+    ): ChessGame = ChessGame(state, history, redoPath)
 
-    override fun equals(other: Any?): Boolean = this === other || (other is ChessGame && state == other.state && history == other.history)
+    override fun equals(other: Any?): Boolean =
+        this === other ||
+            (other is ChessGame && state == other.state && history == other.history && redoPath == other.redoPath)
 
-    override fun hashCode(): Int = 31 * state.hashCode() + history.hashCode()
+    override fun hashCode(): Int = 31 * (31 * state.hashCode() + history.hashCode()) + redoPath.hashCode()
 
-    override fun toString(): String = "ChessGame(state=$state, history=$history)"
+    override fun toString(): String = "ChessGame(state=$state, history=$history, redoPath=$redoPath)"
 
     companion object {
         /** A new game from the standard starting position, with no moves played. */

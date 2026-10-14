@@ -784,6 +784,22 @@ class ChessAppViewModel(
     }
 
     /**
+     * Restores the latest Undo, if the server says this player may (`D092`). The path is the
+     * server's: the board becomes whatever comes back, and an answer that is lost is reported,
+     * never sent again (`D037`).
+     */
+    fun redo() {
+        val ready = game as? OnlineGameState.Ready ?: return
+        if (!ready.game.canRedo || ready.submitting) return
+
+        game = ready.copy(selected = null, pendingPromotion = null, submitting = true, message = null)
+
+        sendCommand(ready.game) { api, decidedAt ->
+            api.redo(gameId = decidedAt.gameId, expectedVersion = decidedAt.version)
+        }
+    }
+
+    /**
      * Sends an undo request, if the server says this player may (`D091`): asks the opponent to
      * undo this player's move and their reply. The board stays playable while it waits.
      */

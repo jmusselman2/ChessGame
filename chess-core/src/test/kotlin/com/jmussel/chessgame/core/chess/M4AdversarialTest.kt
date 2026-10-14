@@ -75,7 +75,7 @@ class M4AdversarialTest {
         assertTrue(ChessRules.canClaimDraw(third.state, DrawClaim.THREEFOLD_REPETITION))
 
         val restored = ChessRules.undo(third, Side.BLACK)
-        assertEquals(position, restored)
+        assertSamePlay(position, restored)
         assertFalse(ChessRules.canClaimDraw(restored.state, DrawClaim.THREEFOLD_REPETITION))
 
         val replayed = ChessRules.applyMove(restored, returnToStart)

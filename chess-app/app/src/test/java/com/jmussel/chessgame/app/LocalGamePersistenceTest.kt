@@ -704,4 +704,82 @@ class LocalGamePersistenceTest {
             assertFalse(viewModel.localReview!!.faceToFace)
             assertEquals(Side.BLACK, viewModel.localReview!!.orientation)
         }
+
+    // --- Redo (D092) ------------------------------------------------------------------
+
+    @Test
+    fun undoUndoRedoRedoIsSavedAtEveryStep() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+            tap(viewModel, "e2", "e4", "e7", "e5")
+            val played = viewModel.localGame.boardState.game
+
+            change(viewModel, GameControls::undo)
+            change(viewModel, GameControls::undo)
+            assertEquals(viewModel.localGame.boardState.game, savedGame)
+            change(viewModel, GameControls::redo)
+            assertEquals(viewModel.localGame.boardState.game, savedGame)
+            change(viewModel, GameControls::redo)
+
+            assertEquals(played, viewModel.localGame.boardState.game)
+            assertEquals(played, savedGame)
+        }
+
+    @Test
+    fun undoUndoRedoUndoKeepsThePathThroughBackAndARestart() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+            tap(viewModel, "e2", "e4", "e7", "e5")
+            val played = viewModel.localGame.boardState.game
+            change(viewModel, GameControls::undo)
+            change(viewModel, GameControls::undo)
+            val twiceUndone = viewModel.localGame.boardState.game
+            change(viewModel, GameControls::redo)
+            change(viewModel, GameControls::undo)
+            assertEquals(twiceUndone, savedGame)
+
+            assertTrue(viewModel.back())
+            openLocalGame(viewModel)
+            assertTrue("Back keeps Redo", GameControls.canRedo(viewModel.localGame.boardState))
+
+            // A new model on the same store: the app after process death or a restart.
+            val restarted = openLocalGame(viewModel())
+            assertEquals(twiceUndone, restarted.localGame.boardState.game)
+            change(restarted, GameControls::redo)
+            change(restarted, GameControls::redo)
+            assertEquals(played, restarted.localGame.boardState.game)
+            assertEquals(played, savedGame)
+        }
+
+    @Test
+    fun aDifferentMoveAfterUndoClearsThePath() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+            tap(viewModel, "e2", "e4", "e7", "e5")
+            change(viewModel, GameControls::undo)
+
+            tap(viewModel, "d7", "d5")
+
+            assertFalse(GameControls.canRedo(viewModel.localGame.boardState))
+            assertTrue(savedGame!!.redoPath.isEmpty())
+        }
+
+    @Test
+    fun resigningAfterUndoClearsThePathAndTheFinishedGameOffersNoRedo() =
+        runTest(dispatcher) {
+            val viewModel = openLocalGame()
+            tap(viewModel, "e2", "e4")
+            change(viewModel, GameControls::undo)
+            val id = store.activeGame(LocalGameKind.PASS_AND_PLAY)!!.id
+
+            change(viewModel) { GameControls.resign(it, Side.WHITE) }
+
+            assertFalse(GameControls.canRedo(viewModel.localGame.boardState))
+            assertTrue(
+                store
+                    .game(id)!!
+                    .game.redoPath
+                    .isEmpty(),
+            )
+        }
 }

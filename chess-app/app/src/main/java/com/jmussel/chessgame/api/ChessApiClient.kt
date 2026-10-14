@@ -275,6 +275,8 @@ data class GameViewDto(
     val seriesActive: Boolean = true,
     /** Whether the player may send an undo request now (`D091`). */
     val canRequestUndo: Boolean = false,
+    /** Whether the player may Redo now (`D092`); the server keeps the path itself. */
+    val canRedo: Boolean = false,
     /** The undo request pending in this game, whichever player sent it. */
     val undoRequest: UndoRequestDto? = null,
     /** What the player is told about the last undo request. */
@@ -440,6 +442,16 @@ class ChessApiClient(
         gameId: String,
         expectedVersion: Long,
     ): GameViewDto = command("/games/$gameId/undo", VersionedRequestDto(expectedVersion))
+
+    /**
+     * Restores the operation the caller's latest Undo took back (`D092`), and returns the game
+     * as it stands after it. The version makes it unique, so a retry after it landed is
+     * refused as stale rather than restoring a second operation.
+     */
+    suspend fun redo(
+        gameId: String,
+        expectedVersion: Long,
+    ): GameViewDto = command("/games/$gameId/redo", VersionedRequestDto(expectedVersion))
 
     /**
      * Asks the opponent to undo the caller's move and their reply to it (`D091`), and returns

@@ -163,7 +163,7 @@ class M3AdversarialTest {
         val undoableSide = ChessRules.undoableSide(afterMove)
         assertEquals(Side.WHITE, undoableSide)
         assertTrue(ChessRules.canUndo(afterMove, requireNotNull(undoableSide)))
-        assertEquals(ChessGame.newGame(), ChessRules.undo(afterMove, undoableSide))
+        assertSamePlay(ChessGame.newGame(), ChessRules.undo(afterMove, undoableSide))
     }
 
     @Test

@@ -136,7 +136,9 @@ class GameControlsTest {
         val played = tap(BoardUiState.newGame(), "e2", "e4")
         val restored = GameControls.undo(played)
 
-        assertEquals(BoardUiState.newGame().game, restored.game)
+        assertEquals(BoardUiState.newGame().game.state, restored.game.state)
+        assertTrue(restored.game.history.isEmpty())
+        assertEquals(played.game, GameControls.redo(restored).game)
         assertEquals(Side.WHITE, restored.orientation)
         assertNull(restored.selectedSquare)
     }
@@ -297,5 +299,28 @@ class GameControlsTest {
     fun theResignLabelNamesTheSideGivingUp() {
         assertEquals("Resign as White", GameControls.resignLabelFor(Side.WHITE))
         assertEquals("Resign as Black", GameControls.resignLabelFor(Side.BLACK))
+    }
+
+    @Test
+    fun redoIsOfferedOnlyAfterAnUndoAndRestoresIt() {
+        val played = tap(tap(BoardUiState.newGame(), "e2", "e4"), "e7", "e5")
+        assertFalse(GameControls.canRedo(played))
+
+        val undone = GameControls.undo(played)
+        assertTrue(GameControls.canRedo(undone))
+        assertEquals("Redo", GameControls.REDO_LABEL)
+
+        val redone = GameControls.redo(undone)
+        assertEquals(played.game, redone.game)
+        assertFalse(GameControls.canRedo(redone))
+        assertEquals(Side.WHITE, redone.orientation)
+        assertEquals("the restored side to move and status", "WHITE to move", GameControls.statusFor(redone.game))
+    }
+
+    @Test
+    fun redoIsNotOfferedOnceTheGameIsOver() {
+        val undone = GameControls.undo(tap(BoardUiState.newGame(), "e2", "e4"))
+
+        assertFalse(GameControls.canRedo(GameControls.resign(undone, Side.WHITE)))
     }
 }

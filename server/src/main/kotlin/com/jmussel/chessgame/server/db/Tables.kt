@@ -203,6 +203,9 @@ object GamesTable : Table("games") {
     val lastChangeVersion = long("last_change_version").nullable()
     val lastChangeMove = text("last_change_move").nullable()
 
+    /** The Undo operations Redo can restore, the next one last (`V13`, `D092`). Never shown to a client. */
+    val redoPath = jsonb<List<UndoneOperationDocument>>("redo_path", StorageJson)
+
     override val primaryKey = PrimaryKey(id)
 }
 

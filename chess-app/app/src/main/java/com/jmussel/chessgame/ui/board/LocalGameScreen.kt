@@ -130,10 +130,22 @@ fun LocalGameScreen(
                 )
             }
 
-            // Named for the side whose move it takes back, which `chess-core` decides (`M21.18`).
-            GameControls.undoLabelFor(game)?.let { label ->
-                Button(onClick = { play(GameControls.undo(game)) }) {
-                    Text(text = label)
+            // Undo is named for the side whose move it takes back, which `chess-core` decides
+            // (`M21.18`); Redo restores what the latest Undo took back (`D092`). Side by side, so
+            // both fit the narrowest panel.
+            val undoLabel = GameControls.undoLabelFor(game)
+            if (undoLabel != null || GameControls.canRedo(game)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    undoLabel?.let { label ->
+                        Button(onClick = { play(GameControls.undo(game)) }) {
+                            Text(text = label)
+                        }
+                    }
+                    if (GameControls.canRedo(game)) {
+                        Button(onClick = { play(GameControls.redo(game)) }) {
+                            Text(text = GameControls.REDO_LABEL)
+                        }
+                    }
                 }
             }
 

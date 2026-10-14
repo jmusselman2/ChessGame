@@ -52,7 +52,10 @@ class UndoRequestsMigrationTest {
             )
             assertIs<CommandResult.Applied>(commands.requestUndo(white, game, 2))
             assertIs<CommandResult.Applied>(commands.acceptUndo(black, game, 3))
-            assertEquals(ChessGame.newGame(), assertNotNull(games.load(game)).game)
+            val accepted = assertNotNull(games.load(game)).game
+            assertEquals(ChessGame.newGame().state, accepted.state)
+            assertEquals(emptyList(), accepted.history)
+            assertEquals(listOf(Move.of("e2", "e4"), Move.of("e7", "e5")), accepted.redoPath.single().moves)
         }
     }
 

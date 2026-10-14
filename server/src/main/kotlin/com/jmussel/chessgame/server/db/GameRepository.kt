@@ -122,6 +122,7 @@ class GameRepository(
                 row[GamesTable.createdAt] = now
                 row[GamesTable.updatedAt] = now
                 row[GamesTable.endedAt] = if (game.isOver) now else null
+                row[GamesTable.redoPath] = game.redoPath.map(UndoneOperationDocument::of)
             }
 
             participants.forEachIndexed { seat, participant ->
@@ -254,7 +255,12 @@ class GameRepository(
             sequenceNumber = row[GamesTable.sequenceNumber],
             participants = participantsOfGames(listOf(row[GamesTable.id]))[row[GamesTable.id]].orEmpty(),
             version = row[GamesTable.version],
-            game = ChessGame(state = row[GamesTable.state].toGameState(), history = readHistory(row[GamesTable.id])),
+            game =
+                ChessGame(
+                    state = row[GamesTable.state].toGameState(),
+                    history = readHistory(row[GamesTable.id]),
+                    redoPath = row[GamesTable.redoPath].map(UndoneOperationDocument::toUndoneOperation),
+                ),
             endedAt = row[GamesTable.endedAt],
             undo = undoRecordOf(row),
             lastChange = lastChangeOf(row),
@@ -308,7 +314,11 @@ class GameRepository(
      * pending and no answer, is what every command but the undo-request ones writes, which is
      * how any other accepted change clears them in its own transaction. [change] is recorded
      * as the game's [LastChange], applied to [expectedVersion]; without one, none is kept.
-     * [crossing] marks the audit event as completing a request and an undo that crossed.
+     * [crossing] marks the audit event as completing a request and an undo that crossed, and
+     * [auditDetail] adds fields of the command's own to its audit event's payload.
+     *
+     * The game's Redo path (`D092`) is written with its state and history, in the same
+     * statement, so a committed game never has a path that disagrees with its position.
      */
     fun save(
         id: Uuid,
@@ -320,6 +330,7 @@ class GameRepository(
         undo: UndoRecord = UndoRecord(),
         undoneMove: Move? = null,
         crossing: Boolean = false,
+        auditDetail: JsonObject? = null,
     ): Long =
         transaction(database) {
             val current =
@@ -338,6 +349,7 @@ class GameRepository(
             val now = Instant.now().atOffset(java.time.ZoneOffset.UTC)
             val lastChange = change?.let { LastChange(it, requireNotNull(actor) { "A change has an actor" }, expectedVersion, undoneMove) }
             require(undo.pendingFrom == null || !game.isOver) { "A finished game has no undo request pending" }
+            require(game.redoPath.isEmpty() || !game.isOver) { "A finished game offers no Redo" }
 
             // A game that was already finished keeps the moment it ended; this write is
             // what ends it only if it found the game still running.
@@ -363,6 +375,7 @@ class GameRepository(
                     row[GamesTable.lastChangeActor] = lastChange?.actor
                     row[GamesTable.lastChangeVersion] = lastChange?.appliedTo
                     row[GamesTable.lastChangeMove] = lastChange?.undoneMove?.let(::storedMove)
+                    row[GamesTable.redoPath] = game.redoPath.map(UndoneOperationDocument::of)
                 }
 
             if (updated == 0) {
@@ -386,6 +399,7 @@ class GameRepository(
                     buildJsonObject {
                         put("version", nextVersion)
                         if (crossing) put("crossing", true)
+                        auditDetail?.forEach { (key, value) -> put(key, value) }
                     },
                 )
             }

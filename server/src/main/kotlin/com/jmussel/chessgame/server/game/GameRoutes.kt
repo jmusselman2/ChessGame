@@ -48,6 +48,12 @@ data class UndoMoveRequest(
     val expectedVersion: Long,
 )
 
+/** A request to restore the operation the latest Undo took back (`D092`). */
+@Serializable
+data class RedoRequest(
+    val expectedVersion: Long,
+)
+
 /** Sending, accepting or declining an undo request (`D091`). */
 @Serializable
 data class UndoRequestCommand(
@@ -68,8 +74,8 @@ data class ClaimDrawRequest(
 )
 
 /**
- * Reading a game, playing a move in it, taking one back, asking for and answering an undo
- * request, claiming a draw, and resigning.
+ * Reading a game, playing a move in it, taking one back and redoing it, asking for and
+ * answering an undo request, claiming a draw, and resigning.
  *
  * The client sends what it wants to happen; [GameCommandService] decides whether it may.
  * Nothing here trusts the request beyond its shape.
@@ -118,6 +124,19 @@ fun Route.gameRoutes(
 
         call.respondTo(
             commands.undoMove(caller.userId, gameId, request.expectedVersion).also { realtime.announce(it) },
+            caller,
+            views,
+        )
+    }
+
+    post("/games/{gameId}/redo") {
+        val caller = call.authenticatedUser()
+        val gameId = call.gameId() ?: return@post
+
+        val request = call.receive<RedoRequest>()
+
+        call.respondTo(
+            commands.redo(caller.userId, gameId, request.expectedVersion).also { realtime.announce(it) },
             caller,
             views,
         )
@@ -298,6 +317,16 @@ private suspend fun ApplicationCall.respondTo(
                 caller,
                 views,
             )
+
+        is CommandResult.NothingToRedo ->
+            reject(
+                HttpStatusCode.Conflict,
+                RejectionReason.NOTHING_TO_REDO,
+                "You have nothing to redo",
+                result.game,
+                caller,
+                views,
+            )
     }
 }
 
@@ -342,6 +371,7 @@ private fun CommandResult.gameOrNull(): StoredGame? =
         is CommandResult.NothingToUndo -> game
         is CommandResult.CannotRequestUndo -> game
         is CommandResult.NoUndoRequest -> game
+        is CommandResult.NothingToRedo -> game
         CommandResult.NoSuchGame, CommandResult.NotAParticipant -> null
     }
 

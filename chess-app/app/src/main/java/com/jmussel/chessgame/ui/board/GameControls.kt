@@ -14,7 +14,7 @@ data class MoveListRow(
 )
 
 /**
- * The controls beside the board: the move list, Undo, Claim Draw, and Resign.
+ * The controls beside the board: the move list, Undo, Redo, Claim Draw, and Resign.
  *
  * Whether a control is offered is decided by `chess-core` — the UI does not keep its own
  * idea of when a move may be taken back or a draw claimed.
@@ -66,6 +66,28 @@ object GameControls {
             orientation = state.orientation,
         )
     }
+
+    /**
+     * What the Redo control says, on every board (`D092`). Plain: it restores what the latest
+     * Undo took back, and the board shows what that was.
+     */
+    const val REDO_LABEL = "Redo"
+
+    /**
+     * Whether Redo is offered: an unfinished game with an Undo to restore, which `chess-core`
+     * decides (`D092`). On one device whoever is to move is at the board.
+     */
+    fun canRedo(state: BoardUiState): Boolean = ChessRules.redoableSide(state.game) != null
+
+    /** The state after the player restores the latest Undo, exactly as it was recorded. */
+    fun redo(state: BoardUiState): BoardUiState =
+        BoardUiState(
+            game = ChessRules.redo(state.game),
+            selectedSquare = null,
+            pendingPromotion = null,
+            declaredMove = null,
+            orientation = state.orientation,
+        )
 
     /** The draws that may validly be claimed right now, which is what to offer. */
     fun availableDrawClaims(state: BoardUiState): Set<DrawClaim> = ChessRules.availableDrawClaims(state.game)

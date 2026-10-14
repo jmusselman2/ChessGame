@@ -26,7 +26,7 @@ class UndoEligibilityTest {
 
         val restored = ChessRules.undo(afterWhitesFirstMove, Side.WHITE)
 
-        assertEquals(fresh, restored)
+        assertSamePlay(fresh, restored)
     }
 
     @Test
@@ -53,7 +53,7 @@ class UndoEligibilityTest {
 
         val restored = ChessRules.undo(afterBlacksReply, Side.BLACK)
 
-        assertEquals(afterWhitesFirstMove, restored)
+        assertSamePlay(afterWhitesFirstMove, restored)
     }
 
     @Test
@@ -62,7 +62,7 @@ class UndoEligibilityTest {
 
         assertTrue(ChessRules.canUndo(afterBlackTakesItBack, Side.WHITE))
         assertFalse(ChessRules.canUndo(afterBlackTakesItBack, Side.BLACK))
-        assertEquals(fresh, ChessRules.undo(afterBlackTakesItBack, Side.WHITE))
+        assertSamePlay(fresh, ChessRules.undo(afterBlackTakesItBack, Side.WHITE))
     }
 
     @Test
@@ -100,7 +100,7 @@ class UndoEligibilityTest {
         assertTrue(ChessRules.canUndo(position, Side.WHITE))
         position = ChessRules.undo(position, Side.WHITE)
 
-        assertEquals(fresh, position)
+        assertSamePlay(fresh, position)
         assertNull(ChessRules.undoableSide(position))
     }
 

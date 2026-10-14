@@ -150,7 +150,14 @@ class UndoMoveTest {
 
             val after = fixture.game()
 
-            assertEquals(ChessGame.newGame(), after.game, "the position is exactly what it was")
+            assertEquals(ChessGame.newGame().state, after.game.state, "the position is exactly what it was")
+            assertEquals(
+                listOf(Move.of("g1", "f3")),
+                after.game.redoPath
+                    .single()
+                    .moves,
+                "and the move is kept for Redo (D092)",
+            )
             assertTrue(after.game.moves.isEmpty())
         }
     }

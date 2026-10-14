@@ -238,7 +238,12 @@ object ChessRules {
         declaredMove: Move,
     ): Set<DrawClaim> = availableDrawClaims(game.state, declaredMove)
 
-    /** [game] after [move] is played, with the prior position recorded in the history. */
+    /**
+     * [game] after [move] is played, with the prior position recorded in the history.
+     *
+     * A played move starts a new continuation, so it clears the Redo path, even when it is the
+     * move Redo would have restored next (`D092`): only [redo] restores a recorded move.
+     */
     fun applyMove(
         game: ChessGame,
         move: Move,
@@ -248,38 +253,118 @@ object ChessRules {
             history = game.history + MoveRecord(move, game.state),
         )
 
-    /** [game] drawn by a valid [claim]. The move history is unaffected. */
+    /**
+     * [game] drawn by a valid [claim]. The move history is unaffected, and the Redo path is
+     * cleared: a claimed draw is final (`D019`, `D092`).
+     */
     fun claimDraw(
         game: ChessGame,
         claim: DrawClaim,
-    ): ChessGame = game.copy(state = claimDraw(game.state, claim))
+    ): ChessGame = game.copy(state = claimDraw(game.state, claim), redoPath = emptyList())
 
     /**
      * [game] drawn by a valid [claim] declared together with [declaredMove]. The declared
-     * move is not played, so the move history is unaffected.
+     * move is not played, so the move history is unaffected; the Redo path is cleared.
      */
     fun claimDraw(
         game: ChessGame,
         claim: DrawClaim,
         declaredMove: Move,
-    ): ChessGame = game.copy(state = claimDraw(game.state, claim, declaredMove))
+    ): ChessGame = game.copy(state = claimDraw(game.state, claim, declaredMove), redoPath = emptyList())
 
-    /** [game] resigned by [side]. The move history is unaffected. */
+    /** [game] resigned by [side]. The move history is unaffected; the Redo path is cleared (`D018`, `D092`). */
     fun resign(
         game: ChessGame,
         side: Side,
-    ): ChessGame = game.copy(state = resign(game.state, side))
+    ): ChessGame = game.copy(state = resign(game.state, side), redoPath = emptyList())
 
     /**
      * [game] with its most recent move taken back, restoring the position exactly as it
-     * was before that move.
+     * was before that move. The move is kept as one Undo operation Redo can restore (`D092`).
      *
      * This is the mechanical restoration. Whether the move may be taken back at all is
      * [canUndo].
      */
-    fun undoLastMove(game: ChessGame): ChessGame {
+    fun undoLastMove(game: ChessGame): ChessGame = undoLastMoves(game, plies = 1)
+
+    /**
+     * [game] with its latest [plies] moves taken back as one Undo operation, restoring the
+     * position exactly as it was before the first of them (`D061`). Redo restores the
+     * operation whole (`D092`): a computer takeback of a move and its reply (`D086`), or an
+     * accepted undo request (`D091`), is one action, not two.
+     *
+     * Mechanical, like [undoLastMove]: who may take the moves back is the caller's rule.
+     */
+    fun undoLastMoves(
+        game: ChessGame,
+        plies: Int,
+    ): ChessGame {
+        require(plies >= 1 && plies <= game.history.size) { "Cannot take back $plies of ${game.history.size} moves" }
+        val kept = game.history.size - plies
+        val removed = game.history.subList(kept, game.history.size)
+
+        return ChessGame(
+            state = removed.first().positionBefore,
+            history = game.history.subList(0, kept),
+            redoPath = game.redoPath + UndoneOperation(removed, game.state),
+        )
+    }
+
+    /**
+     * [game] with its latest move taken back and joined to the front of the operation Redo
+     * would restore next, so the two are restored together (`D092`).
+     *
+     * This is how an undo request that crossed the opponent's undo of the reply completes it
+     * (`D091`): the reply's undo came first, the requester's move follows, and the result is
+     * the same two-ply operation as an accepted request.
+     */
+    fun undoLastMoveJoiningNext(game: ChessGame): ChessGame {
         val last = requireNotNull(game.history.lastOrNull()) { "There is no move to undo" }
-        return ChessGame(state = last.positionBefore, history = game.history.dropLast(1))
+        val next = requireNotNull(game.redoPath.lastOrNull()) { "There is no undone operation to join" }
+        require(next.records.first().positionBefore == game.state) { "The undone operation does not follow this move" }
+
+        return ChessGame(
+            state = last.positionBefore,
+            history = game.history.dropLast(1),
+            redoPath = game.redoPath.dropLast(1) + UndoneOperation(listOf(last) + next.records, next.stateAfter),
+        )
+    }
+
+    /**
+     * The side that may Redo right now, or `null` when nobody may (`D092`).
+     *
+     * Redo restores the operation the latest Undo took back, from the position that Undo
+     * left, so it belongs to the side to move there. A finished game has nothing to redo,
+     * and neither does a game whose position is not where the next operation starts.
+     */
+    fun redoableSide(game: ChessGame): Side? {
+        if (game.isOver) return null
+        val next = game.redoPath.lastOrNull() ?: return null
+        return if (next.records.first().positionBefore == game.state) game.sideToMove else null
+    }
+
+    /** Whether [side] may Redo in [game]. */
+    fun canRedo(
+        game: ChessGame,
+        side: Side,
+    ): Boolean = redoableSide(game) == side
+
+    /**
+     * [game] with the next Undo operation restored: its recorded moves rejoin the history and
+     * its recorded state becomes the position. Nothing is replayed through the rules, and a
+     * recorded computer reply is never chosen again (`D061`, `D092`).
+     *
+     * Someone must be able to redo; check with [redoableSide] or [canRedo] first.
+     */
+    fun redo(game: ChessGame): ChessGame {
+        require(redoableSide(game) != null) { "There is nothing to redo" }
+        val next = game.redoPath.last()
+
+        return ChessGame(
+            state = next.stateAfter,
+            history = game.history + next.records,
+            redoPath = game.redoPath.dropLast(1),
+        )
     }
 
     /**
@@ -312,7 +397,7 @@ object ChessRules {
         side: Side,
     ): ChessGame {
         require(canUndo(game, side)) { "$side has no move to take back" }
-        return undoLastMove(game)
+        return undoLastMoves(game, plies = 1)
     }
 
     /** The termination a granted [claim] ends the game with. */

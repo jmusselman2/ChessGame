@@ -1,12 +1,14 @@
 package com.jmussel.chessgame.local
 
 import com.jmussel.chessgame.core.chess.ChessGame
+import com.jmussel.chessgame.core.chess.ChessRules
 import com.jmussel.chessgame.core.chess.GameOutcome
 import com.jmussel.chessgame.core.chess.GameResult
 import com.jmussel.chessgame.core.chess.GameState
 import com.jmussel.chessgame.core.chess.MoveRecord
 import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.TerminationReason
+import com.jmussel.chessgame.core.chess.UndoneOperation
 import com.jmussel.chessgame.local.db.LocalGameDatabase
 import com.jmussel.chessgame.local.db.Local_games
 
@@ -68,8 +70,12 @@ data class LocalGameSummary(
  * - **Writes append and truncate.** A move appends one record and updates the state; a
  *   takeback removes records from the end and restores the position recorded before the
  *   first of them. The history is never rewritten.
+ * - **Nothing a takeback removes is lost** (`D092`). It becomes one Undo operation on the
+ *   game's Redo path, with the position after it, in the same transaction; [redo] puts the
+ *   next operation back exactly as it was. A move or a result clears the path, and a
+ *   finished game has none.
  * - **Each change is one transaction**, so a committed database never holds a board that
- *   disagrees with its move history.
+ *   disagrees with its move history or its Redo path.
  * - **Restoring never replays a move** (`D029`, `D061`): the stored state and the stored
  *   records, each with its recorded prior position, are the `ChessGame`.
  *
@@ -158,6 +164,7 @@ class LocalGameStore(
                 "Game $id has $plies moves stored; recording one more cannot give ${game.history.size}"
             }
             require(record.positionBefore == stored) { "The move was not played from game $id's stored position" }
+            require(game.redoPath.isEmpty()) { "A played move starts a new continuation, with no Redo path (D092)" }
 
             moves.append(
                 gameId = id,
@@ -196,20 +203,47 @@ class LocalGameStore(
      * before the first of them, in one transaction. One ply is an ordinary undo; two are a
      * takeback against the computer (`D086`). Whether the player may take the moves back is
      * the caller's rule; a finished game's moves are final here too.
+     *
+     * The removed records, with the position they left, become one operation on the game's
+     * Redo path in the same transaction, so [redo] can restore them whole (`D092`).
      */
     fun takeBack(
         id: Long,
         plies: Int = 1,
     ): ChessGame =
         games.transactionWithResult {
-            activeRow(id)
-            val stored = moves.count(id).executeAsOne()
+            val before = restore(activeRow(id)).game
+            val stored = before.history.size
             require(plies >= 1 && plies <= stored) { "Game $id has $stored moves; cannot take back $plies" }
-            val keep = stored - plies
+            val after = ChessRules.undoLastMoves(before, plies)
 
-            val restored = moves.firstAfter(id, keep).executeAsOne()
-            moves.truncate(id, keep)
-            check(games.updateState(state = restored, id = id).value == 1L) { "Game $id is no longer unfinished" }
+            moves.truncate(id, after.history.size.toLong())
+            writeState(id, after.state, after.redoPath)
+
+            restore(games.byId(id).executeAsOne()).game
+        }
+
+    /**
+     * Restores the next Undo operation of the unfinished game [id] and returns the game as it
+     * now is (`D092`): its recorded records are appended again and its recorded position
+     * becomes the state, while it leaves the Redo path, in one transaction. Nothing is
+     * replayed, and a recorded computer reply comes back as it was.
+     */
+    fun redo(id: Long): ChessGame =
+        games.transactionWithResult {
+            val before = restore(activeRow(id)).game
+            require(ChessRules.redoableSide(before) != null) { "Game $id has nothing to redo" }
+            val after = ChessRules.redo(before)
+
+            after.history.drop(before.history.size).forEachIndexed { index, record ->
+                moves.append(
+                    gameId = id,
+                    ply = before.history.size + index + 1L,
+                    move = record.move.toString(),
+                    positionBefore = LocalStateDocument.encode(record.positionBefore),
+                )
+            }
+            writeState(id, after.state, after.redoPath)
 
             restore(games.byId(id).executeAsOne()).game
         }
@@ -223,11 +257,12 @@ class LocalGameStore(
     private fun writeState(
         id: Long,
         state: GameState,
+        redoPath: List<UndoneOperation> = emptyList(),
     ) {
         val result = state.result
         val updated =
             if (result == null) {
-                games.updateState(state = LocalStateDocument.encode(state), id = id)
+                games.updateState(state = LocalStateDocument.encode(state), redoPath = LocalRedoPathDocument.encode(redoPath), id = id)
             } else {
                 games.complete(
                     state = LocalStateDocument.encode(state),
@@ -253,6 +288,7 @@ class LocalGameStore(
                         moves.forGame(row.id).executeAsList().map {
                             MoveRecord(moveFromCoordinates(it.move), LocalStateDocument.decode(it.position_before))
                         },
+                    redoPath = LocalRedoPathDocument.decode(row.redo_path),
                 ),
         )
 

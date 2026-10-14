@@ -30,7 +30,7 @@ Four Gradle modules (`settings.gradle.kts`):
 - `chess-app` — the Android app (Jetpack Compose); source under
   `chess-app/app/src/main/java/com/jmussel/chessgame/`.
 
-Plus `database/migrations/` (Flyway `V1`–`V12`), `Dockerfile` and `render.yaml`
+Plus `database/migrations/` (Flyway `V1`–`V13`), `Dockerfile` and `render.yaml`
 (the beta deploy), `scripts/` (beta verification), `evals/` (evaluator reports)
 and `docs/`.
 
@@ -52,7 +52,9 @@ will be written, and you will not find it yet.
   en passant target, `DrawRuleState` (halfmove clock plus repetition counts) and
   `result`.
 - `ChessGame` is a `GameState` plus history: `MoveRecord(move, positionBefore)`.
-  Undo restores `positionBefore`; it never replays moves (`D061`).
+  Undo restores `positionBefore`; it never replays moves (`D061`). It also carries a
+  `redoPath` of `UndoneOperation`s (records plus `stateAfter`), which Undo adds to and
+  `ChessRules.redo` restores from; a move, a resignation or a claim clears it (`D092`).
 - Every action is a query/transition pair (`isLegal`/`applyMove`,
   `canClaimDraw`/`claimDraw`, `canUndo`/`undo`). A transition `require`s its
   query and throws `IllegalArgumentException` when called without it.
@@ -81,7 +83,7 @@ Under `server/src/main/kotlin/com/jmussel/chessgame/server/`:
 
 Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/groups`,
 `/series`, `/series/{id}/leave`, `/games/{id}` and its
-`moves|undo|undo-request|undo-request/accept|undo-request/decline|resignation|draw-claims`, `/dashboard`, `/history`, `/ws`.
+`moves|undo|redo|undo-request|undo-request/accept|undo-request/decline|resignation|draw-claims`, `/dashboard`, `/history`, `/ws`.
 
 ### `chess-app` — the client
 
@@ -113,9 +115,10 @@ Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/groups`,
   read-only ply-by-ply review built from the stored positions.
 - `local/` — the device-authoritative store for local games (`D084`, `D085`).
   `LocalGameStore` over the SQLDelight `LocalGameDatabase` generated from
-  `src/main/sqldelight` (`local_games`, `local_moves`; schema version 3: `1.sqm` moved
-  stored Hard from level 3 to 4 for `D089`'s four levels, and `2.sqm` made the
-  unfinished-game index one per kind for `D090`); positions as JSON in
+  `src/main/sqldelight` (`local_games`, `local_moves`; schema version 4: `1.sqm` moved
+  stored Hard from level 3 to 4 for `D089`'s four levels, `2.sqm` made the
+  unfinished-game index one per kind for `D090`, and `3.sqm` added
+  `local_games.redo_path` for `D092`); positions as JSON in
   `LocalStateDocument`; `openLocalGameStore(context)` opens `local_games.db`, which
   the backup rules exclude. `LocalGameSession` keeps the store in step with the game
   on screen, and `LocalGameChange` says what a screen update did to the game.
@@ -161,8 +164,18 @@ Local games do not wait for any of this: the startup screen offers them througho
 5. After the commit, `RealtimeHub` announces the new version to both players'
    sockets.
 
-Undo, undo requests, resignation and draw claims follow the same path through their
-own endpoints.
+Undo, Redo, undo requests, resignation and draw claims follow the same path through
+their own endpoints.
+
+### Redo
+
+Every Undo keeps what it took back as one operation on `ChessGame.redoPath`, and Redo
+restores the next one from its recorded states (`D092`, `M21.21`). The server stores
+the path in `games.redo_path` (`V13`) and the app in `local_games.redo_path`, each in the
+same write as state and history. Pass-and-play's Undo and Redo are `GameControls`
+transitions saved through `LocalGameChange`'s `TakeBack` and `Redo`; the computer's are
+`ComputerGame.takeBack` and `redo`, which never asks the engine for a recorded reply;
+online it is `ChessAppViewModel.redo` → `POST /games/{id}/redo`.
 
 ### Undo requests
 
@@ -286,7 +299,9 @@ commit.
   history.
 - **Use the `ChessGame` overloads** for anything that must stay undoable. The
   `GameState` `applyMove` records no history.
-- **Do not turn undo into replay** (`D061`).
+- **Do not turn undo into replay** (`D061`), nor Redo: it restores recorded states.
+- **`ChessGame` equality includes the Redo path.** An undone game is no longer equal to
+  the game before the move; compare `state` and `history` when that is what you mean.
 - **Legal moves are regenerated often:** about half a dozen full generations per
   tap, and `terminalResult` alone does two. That is harmless for people; `M21`'s
   engine should call `ChessRules` directly and keep any speed-up inside it.

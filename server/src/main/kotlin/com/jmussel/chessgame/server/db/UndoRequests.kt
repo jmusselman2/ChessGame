@@ -61,6 +61,9 @@ enum class ChangeKind {
     UNDO_DECLINE,
     DRAW_CLAIM,
     RESIGNATION,
+
+    /** A Redo restored an Undo operation (`D092`). */
+    REDO,
 }
 
 /**

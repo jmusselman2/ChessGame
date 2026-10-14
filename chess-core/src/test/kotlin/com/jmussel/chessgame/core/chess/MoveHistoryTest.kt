@@ -39,7 +39,12 @@ class MoveHistoryTest {
 
         assertEquals(before.state, restored.state, "restoring $move")
         assertEquals(before.history, restored.history, "history after restoring $move")
-        assertEquals(before, restored)
+        assertEquals(
+            listOf(UndoneOperation(listOf(MoveRecord(move, before.state)), after.state)),
+            restored.redoPath,
+            "the undone move is kept for Redo (D092)",
+        )
+        assertEquals(after, ChessRules.redo(restored), "and Redo restores exactly what was undone")
     }
 
     @Test
@@ -183,7 +188,7 @@ class MoveHistoryTest {
         assertEquals(before.state.drawRuleState, restored.state.drawRuleState)
         assertEquals(before.state.halfmoveClock, restored.state.halfmoveClock)
         assertEquals(before.state.fullmoveNumber, restored.state.fullmoveNumber)
-        assertEquals(before, restored)
+        assertSamePlay(before, restored)
     }
 
     @Test
@@ -201,7 +206,7 @@ class MoveHistoryTest {
 
         assertEquals(1, after.state.drawRuleState.positionCounts.size)
         assertEquals(2, Repetition.occurrences(position.state))
-        assertEquals(position, restored)
+        assertSamePlay(position, restored)
     }
 
     @Test
@@ -219,7 +224,7 @@ class MoveHistoryTest {
         assertTrue(after.isOver)
         assertFalse(restored.isOver)
         assertNull(restored.result)
-        assertEquals(before, restored)
+        assertSamePlay(before, restored)
     }
 
     @Test
@@ -239,10 +244,11 @@ class MoveHistoryTest {
 
         snapshots.reversed().drop(1).forEach { expected ->
             position = ChessRules.undoLastMove(position)
-            assertEquals(expected, position)
+            assertSamePlay(expected, position)
         }
 
-        assertEquals(ChessGame.newGame(), position)
+        assertSamePlay(ChessGame.newGame(), position)
+        assertEquals(snapshots.size - 1, position.redoPath.size, "every unwound move is kept for Redo (D092)")
     }
 
     @Test

@@ -122,6 +122,7 @@ class MainActivity : ComponentActivity() {
                         ComputerGameActions(
                             onUpdate = viewModel.computerGame::update,
                             onTakeBack = viewModel.computerGame::takeBack,
+                            onRedo = viewModel.computerGame::redo,
                             onConfirmNewGame = viewModel.computerGame::confirmNewGame,
                             onChoose = viewModel.computerGame::choose,
                             onPlayAgain = viewModel.computerGame::playAgain,
@@ -174,6 +175,7 @@ class MainActivity : ComponentActivity() {
                         onChoosePromotion = viewModel::choosePromotion,
                         onCancelPromotion = viewModel::cancelPromotion,
                         onUndo = viewModel::undoMove,
+                        onRedo = viewModel::redo,
                         undoRequests =
                             UndoRequestActions(
                                 onAsk = viewModel::requestUndo,
