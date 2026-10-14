@@ -180,7 +180,9 @@ must answer, while `yourTurn` keeps meaning "your move".
 ### Realtime updates
 
 The socket message carries only `gameId` and `version`. The client then fetches
-the game over HTTPS (`D022`). The socket is a hint, not a source of truth; a
+the game over HTTPS (`D022`): the game if its screen is showing, otherwise the
+dashboard. Back from an online game to the dashboard reads the dashboard again, so
+the game is listed under the turn the server now reports (`M21.20`). The socket is a hint, not a source of truth; a
 dropped socket is reconnected and the screen refreshed.
 
 The game screen says what it is doing (`M21.15`). `OnlineGameState.Loading` is a

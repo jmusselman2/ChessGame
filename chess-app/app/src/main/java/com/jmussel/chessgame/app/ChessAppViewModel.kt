@@ -511,15 +511,22 @@ class ChessAppViewModel(
      * it off [OnlineGameState.Ready] alone made a `game-updated` for a game still opening
      * look like news about some other game, and the read already in flight — decided before
      * the move that prompted the message — then landed as the answer (`M14-01`).
+     *
+     * Only while the game's screen is actually showing, though (`M21.20`). The last game stays
+     * in [game] after Back, and treating it as open then made a `game-updated` for it reload a
+     * game nobody could see instead of the dashboard the player had returned to.
      */
     private val shownGameId: String?
-        get() =
-            when (val showing = game) {
+        get() {
+            if (navigation.current !is Destination.OnlineGame) return null
+
+            return when (val showing = game) {
                 is OnlineGameState.Loading -> showing.gameId
                 is OnlineGameState.Ready -> showing.game.gameId
                 is OnlineGameState.Failed -> showing.gameId
                 null -> null
             }
+        }
 
     /** Loads the game showing now again, which is what "try again" does. */
     fun reloadGame() {
@@ -1913,7 +1920,12 @@ class ChessAppViewModel(
         if (navigation.current == Destination.LocalGame) localGameJob?.cancel()
         // Leaving a game against the computer stops it thinking; opening it again resumes it.
         if (navigation.current == Destination.ComputerGame) computerGame.leave()
+        val leftOnlineGame = navigation.current is Destination.OnlineGame
         navigation = previous
+        // The dashboard behind an online game was read before whatever was played in it, so it
+        // may list the game under the wrong turn. It is read again rather than patched: whose
+        // turn it is stays the server's answer (`D004`, `M21.20`).
+        if (leftOnlineGame && navigation.current == Destination.Dashboard) loadDashboard()
         return true
     }
 

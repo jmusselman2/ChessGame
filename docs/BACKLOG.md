@@ -8593,7 +8593,7 @@ or declines (`D091`, amending `D016`). Online games only.
 
 ## M21.20 — Refresh turn sections after playing online
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M14.2, M14.11, M14.12
 
@@ -8647,3 +8647,27 @@ has returned home.
 - `.\gradlew.bat :chess-app:testDebugUnitTest`.
 - `.\gradlew.bat build`.
 - `git diff --check`.
+
+### Completion Note
+
+2026-10-14. Android only. No server endpoint, database state, WebSocket payload, command
+eligibility or rematch behaviour changed.
+
+- **Back refreshes.** `ChessAppViewModel.back` reads the dashboard again when it leaves an
+  online game for the dashboard, whatever was done in the game: a move, Undo, a
+  resignation or a draw claim. The rows are re-sorted only from the server's
+  `DashboardEntry.yourTurn` (`D004`); nothing is patched or toggled. `fetchDashboard`'s
+  freshest-read rule still keeps an older answer from landing on a newer one (`M16.1`).
+- **Realtime routing.** `shownGameId` now answers only while the destination is an online
+  game. The last game stays in `game` after Back, and before this it counted as open, so a
+  `game-updated` for it reloaded a game nobody could see instead of the dashboard.
+  Before Back the message still reloads the game; after Back it refreshes the dashboard,
+  and a read already running is followed by another (`dashboardReloadWanted`).
+- **Failure.** A failed refresh keeps the dashboard's existing message and retry, keeps
+  the last answer's sections, sends no command again, and does not stop Back.
+- **Tests.** `TurnSectionsRefreshTest` (6): the reported reproduction (YOUR TURN, open,
+  move, Back, THEIR TURN), Back always reading `/dashboard`, a `game-updated` before Back
+  and after Back, an accepted Undo (not a move) moving the game back under YOUR TURN, and a
+  failed refresh. All six fail without the change. The existing stale-response and
+  network-interruption tests pass unchanged.
+- `.\gradlew.bat build`: BUILD SUCCESSFUL. `git diff --check`: clean.
