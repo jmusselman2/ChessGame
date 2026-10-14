@@ -777,6 +777,40 @@ class ChessAppViewModel(
     }
 
     /**
+     * Sends an undo request, if the server says this player may (`D091`): asks the opponent to
+     * undo this player's move and their reply. The board stays playable while it waits.
+     */
+    fun requestUndo() {
+        val ready = game as? OnlineGameState.Ready ?: return
+        if (!ready.game.canRequestUndo || ready.submitting) return
+
+        game = ready.copy(selected = null, pendingPromotion = null, submitting = true, message = null)
+
+        sendCommand(ready.game) { api, decidedAt ->
+            api.requestUndo(gameId = decidedAt.gameId, expectedVersion = decidedAt.version)
+        }
+    }
+
+    /** Accepts the undo request waiting on this player, in one tap (`D091`). */
+    fun acceptUndo() {
+        answerUndo { api, decidedAt -> api.acceptUndo(gameId = decidedAt.gameId, expectedVersion = decidedAt.version) }
+    }
+
+    /** Declines the undo request waiting on this player, in one tap (`D091`). */
+    fun declineUndo() {
+        answerUndo { api, decidedAt -> api.declineUndo(gameId = decidedAt.gameId, expectedVersion = decidedAt.version) }
+    }
+
+    private fun answerUndo(command: suspend (ChessApiClient, GameViewDto) -> GameViewDto) {
+        val ready = game as? OnlineGameState.Ready ?: return
+        if (!OnlineGame.mustAnswerUndo(ready.game) || ready.submitting) return
+
+        game = ready.copy(selected = null, pendingPromotion = null, submitting = true, message = null)
+
+        sendCommand(ready.game, command)
+    }
+
+    /**
      * Claims a draw the canonical state says is available (`D019`).
      *
      * The app offers only the claims the server listed and never decides that a game is

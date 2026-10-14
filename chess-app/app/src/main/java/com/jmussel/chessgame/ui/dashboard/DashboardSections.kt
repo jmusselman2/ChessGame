@@ -50,11 +50,14 @@ data class FriendRow(
  * Pure, so the grouping and wording are tested without a screen.
  */
 object DashboardSections {
-    /** The games waiting on the player, in the order the server sent them. */
-    fun yourTurn(entries: List<DashboardEntryDto>): List<DashboardRow> = rowsOf(entries.filter { it.yourTurn })
+    /**
+     * The games waiting on the player, in the order the server sent them: their move, or an
+     * undo request for them to answer (`D091`).
+     */
+    fun yourTurn(entries: List<DashboardEntryDto>): List<DashboardRow> = rowsOf(entries.filter { it.waitingOnYou })
 
     /** The games waiting on the opponent, in the order the server sent them. */
-    fun theirTurn(entries: List<DashboardEntryDto>): List<DashboardRow> = rowsOf(entries.filterNot { it.yourTurn })
+    fun theirTurn(entries: List<DashboardEntryDto>): List<DashboardRow> = rowsOf(entries.filterNot { it.waitingOnYou })
 
     /**
      * Every friend, each with the game already under way with them if there is one.
@@ -82,15 +85,21 @@ object DashboardSections {
     }
 
     /**
-     * `"White • Move 18"`, or just the colour before the first move is numbered, and
-     * `"• Last game"` when a player has left the series (`D068`).
+     * `"White • Move 18"`, or just the colour before the first move is numbered, then
+     * `"• Last game"` when a player has left the series (`D068`), and the undo request pending:
+     * `"• Jordan asks to undo"` for the player who must answer, `"• Undo requested"` for the
+     * one who asked (`D091`).
      */
     fun detailFor(entry: DashboardEntryDto): String {
         val side = entry.yourSide?.let(::sideLabel)
         val move = entry.moveNumber?.let { "Move $it" }
         val last = LAST_GAME.takeUnless { entry.seriesActive }
+        val request =
+            entry.pendingRequest?.let { pending ->
+                if (pending.waitingOnYou) "${entry.opponent.username} $ASKS_TO_UNDO" else UNDO_REQUESTED
+            }
 
-        return listOfNotNull(side, move, last).joinToString(separator = SEPARATOR)
+        return listOfNotNull(side, move, last, request).joinToString(separator = SEPARATOR)
     }
 
     private fun rowsOf(entries: List<DashboardEntryDto>): List<DashboardRow> = entries.mapNotNull(::rowOf)
@@ -122,5 +131,7 @@ object DashboardSections {
 
     private const val SEPARATOR = " • "
     private const val LAST_GAME = "Last game"
+    private const val ASKS_TO_UNDO = "asks to undo"
+    private const val UNDO_REQUESTED = "Undo requested"
     private const val BUILD_PREFIX = "Build "
 }

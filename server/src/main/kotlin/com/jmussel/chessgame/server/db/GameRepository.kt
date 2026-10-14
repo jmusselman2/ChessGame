@@ -41,6 +41,10 @@ data class StoredGame(
     val game: ChessGame,
     /** When the game was finalized, and `null` while it is still running. */
     val endedAt: OffsetDateTime? = null,
+    /** The pending undo request and the last answer (`D091`). */
+    val undo: UndoRecord = UndoRecord(),
+    /** The last accepted change, or `null` before the first or for one made before `V12`. */
+    val lastChange: LastChange? = null,
 ) {
     val whiteUserId: Uuid
         get() = requireNotNull(participants[ChessSeats.WHITE].userId) { "Chess is played by people" }
@@ -252,7 +256,33 @@ class GameRepository(
             version = row[GamesTable.version],
             game = ChessGame(state = row[GamesTable.state].toGameState(), history = readHistory(row[GamesTable.id])),
             endedAt = row[GamesTable.endedAt],
+            undo = undoRecordOf(row),
+            lastChange = lastChangeOf(row),
         )
+
+    private fun undoRecordOf(row: ResultRow): UndoRecord =
+        UndoRecord(
+            pendingFrom = row[GamesTable.undoRequestedBy],
+            answer =
+                row[GamesTable.undoAnswer]?.let { kind ->
+                    UndoAnswer(
+                        kind = UndoAnswerKind.valueOf(kind),
+                        requester = requireNotNull(row[GamesTable.undoAnswerRequester]),
+                        requesterMove = parseStoredMove(requireNotNull(row[GamesTable.undoAnswerRequesterMove])),
+                        replyMove = parseStoredMove(requireNotNull(row[GamesTable.undoAnswerReplyMove])),
+                    )
+                },
+        )
+
+    private fun lastChangeOf(row: ResultRow): LastChange? =
+        row[GamesTable.lastChangeKind]?.let { kind ->
+            LastChange(
+                kind = ChangeKind.valueOf(kind),
+                actor = requireNotNull(row[GamesTable.lastChangeActor]),
+                appliedTo = requireNotNull(row[GamesTable.lastChangeVersion]),
+                undoneMove = row[GamesTable.lastChangeMove]?.let(::parseStoredMove),
+            )
+        }
 
     /**
      * Replaces the stored game and its history with [game], moving the version on by one.
@@ -273,6 +303,12 @@ class GameRepository(
      *
      * Both events name [actor], the player whose command this write is, and the game's
      * series (`D078`).
+     *
+     * [undo] replaces the game's undo request and last answer (`D091`). Its default, nothing
+     * pending and no answer, is what every command but the undo-request ones writes, which is
+     * how any other accepted change clears them in its own transaction. [change] is recorded
+     * as the game's [LastChange], applied to [expectedVersion]; without one, none is kept.
+     * [crossing] marks the audit event as completing a request and an undo that crossed.
      */
     fun save(
         id: Uuid,
@@ -280,6 +316,10 @@ class GameRepository(
         game: ChessGame,
         auditEvent: String? = null,
         actor: Uuid? = null,
+        change: ChangeKind? = null,
+        undo: UndoRecord = UndoRecord(),
+        undoneMove: Move? = null,
+        crossing: Boolean = false,
     ): Long =
         transaction(database) {
             val current =
@@ -296,6 +336,8 @@ class GameRepository(
 
             val nextVersion = expectedVersion + 1
             val now = Instant.now().atOffset(java.time.ZoneOffset.UTC)
+            val lastChange = change?.let { LastChange(it, requireNotNull(actor) { "A change has an actor" }, expectedVersion, undoneMove) }
+            require(undo.pendingFrom == null || !game.isOver) { "A finished game has no undo request pending" }
 
             // A game that was already finished keeps the moment it ended; this write is
             // what ends it only if it found the game still running.
@@ -312,6 +354,15 @@ class GameRepository(
                     row[GamesTable.terminationReason] = game.result?.reason?.name
                     row[GamesTable.updatedAt] = now
                     row[GamesTable.endedAt] = if (game.isOver) previouslyEndedAt ?: now else null
+                    row[GamesTable.undoRequestedBy] = undo.pendingFrom
+                    row[GamesTable.undoAnswer] = undo.answer?.kind?.name
+                    row[GamesTable.undoAnswerRequester] = undo.answer?.requester
+                    row[GamesTable.undoAnswerRequesterMove] = undo.answer?.requesterMove?.let(::storedMove)
+                    row[GamesTable.undoAnswerReplyMove] = undo.answer?.replyMove?.let(::storedMove)
+                    row[GamesTable.lastChangeKind] = lastChange?.kind?.name
+                    row[GamesTable.lastChangeActor] = lastChange?.actor
+                    row[GamesTable.lastChangeVersion] = lastChange?.appliedTo
+                    row[GamesTable.lastChangeMove] = lastChange?.undoneMove?.let(::storedMove)
                 }
 
             if (updated == 0) {
@@ -326,7 +377,17 @@ class GameRepository(
             val seriesId = current[GamesTable.seriesId]
 
             auditEvent?.let { type ->
-                recordEvent(id, seriesId, actor, type, now, buildJsonObject { put("version", nextVersion) })
+                recordEvent(
+                    id,
+                    seriesId,
+                    actor,
+                    type,
+                    now,
+                    buildJsonObject {
+                        put("version", nextVersion)
+                        if (crossing) put("crossing", true)
+                    },
+                )
             }
 
             if (finalizing) {

@@ -192,6 +192,17 @@ object GamesTable : Table("games") {
     val updatedAt = timestampWithTimeZone("updated_at")
     val endedAt = timestampWithTimeZone("ended_at").nullable()
 
+    /** The undo request and its bookkeeping (`V12`, `D091`): see [UndoRecord] and [LastChange]. */
+    val undoRequestedBy = uuid("undo_requested_by").nullable()
+    val undoAnswer = text("undo_answer").nullable()
+    val undoAnswerRequester = uuid("undo_answer_requester").nullable()
+    val undoAnswerRequesterMove = text("undo_answer_requester_move").nullable()
+    val undoAnswerReplyMove = text("undo_answer_reply_move").nullable()
+    val lastChangeKind = text("last_change_kind").nullable()
+    val lastChangeActor = uuid("last_change_actor").nullable()
+    val lastChangeVersion = long("last_change_version").nullable()
+    val lastChangeMove = text("last_change_move").nullable()
+
     override val primaryKey = PrimaryKey(id)
 }
 

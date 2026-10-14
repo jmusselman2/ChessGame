@@ -135,6 +135,43 @@ data class DashboardEntryDto(
     val yourTurn: Boolean = false,
     /** `false` once a player has left the series: this game is its last (`D052`, `D068`). */
     val seriesActive: Boolean = true,
+    /**
+     * A request pending in the game, other than a move: an undo request (`D091`). One waiting
+     * on the player lists the game as theirs to act on; [yourTurn] still means only "your move".
+     */
+    val pendingRequest: PendingRequestDto? = null,
+) {
+    /** Whether the game needs this player: their move, or a request for them to answer. */
+    val waitingOnYou: Boolean
+        get() = yourTurn || pendingRequest?.waitingOnYou == true
+}
+
+/** A request pending in a game, as a dashboard line names it (`D091`). */
+@Serializable
+data class PendingRequestDto(
+    /** `UNDO` for an undo request, the only kind so far. */
+    val kind: String,
+    /** `true` when the player must answer it, `false` when they sent it. */
+    val waitingOnYou: Boolean,
+)
+
+/** An undo request pending in a game (`D091`): who sent it, and the two moves it would undo. */
+@Serializable
+data class UndoRequestDto(
+    val fromYou: Boolean,
+    val requesterMove: String,
+    val replyMove: String,
+)
+
+/**
+ * What the player is told about the last undo request until the game next changes (`D091`):
+ * `ACCEPTED`, `DECLINED`, `UNDONE_TOO` or `BOTH_UNDONE`, and the two moves it was about.
+ */
+@Serializable
+data class UndoNoteDto(
+    val kind: String,
+    val requesterMove: String,
+    val replyMove: String,
 )
 
 /** A group the caller is in, as the server lists it (`D049`, `D076`). */
@@ -236,6 +273,12 @@ data class GameViewDto(
     val canUndo: Boolean = false,
     /** `false` once a player has left the series: this game is its last (`D052`, `D068`). */
     val seriesActive: Boolean = true,
+    /** Whether the player may send an undo request now (`D091`). */
+    val canRequestUndo: Boolean = false,
+    /** The undo request pending in this game, whichever player sent it. */
+    val undoRequest: UndoRequestDto? = null,
+    /** What the player is told about the last undo request. */
+    val undoNote: UndoNoteDto? = null,
 ) {
     /** Whether the game is over, which is the server's word and never worked out here. */
     val isOver: Boolean
@@ -397,6 +440,27 @@ class ChessApiClient(
         gameId: String,
         expectedVersion: Long,
     ): GameViewDto = command("/games/$gameId/undo", VersionedRequestDto(expectedVersion))
+
+    /**
+     * Asks the opponent to undo the caller's move and their reply to it (`D091`), and returns
+     * the game as it stands after the request.
+     */
+    suspend fun requestUndo(
+        gameId: String,
+        expectedVersion: Long,
+    ): GameViewDto = command("/games/$gameId/undo-request", VersionedRequestDto(expectedVersion))
+
+    /** Accepts the undo request waiting on the caller: both moves are undone (`D091`). */
+    suspend fun acceptUndo(
+        gameId: String,
+        expectedVersion: Long,
+    ): GameViewDto = command("/games/$gameId/undo-request/accept", VersionedRequestDto(expectedVersion))
+
+    /** Declines the undo request waiting on the caller (`D091`). */
+    suspend fun declineUndo(
+        gameId: String,
+        expectedVersion: Long,
+    ): GameViewDto = command("/games/$gameId/undo-request/decline", VersionedRequestDto(expectedVersion))
 
     /**
      * Claims the draw [claim] allows, and returns the game as it stands after it.

@@ -8378,7 +8378,7 @@ decide what is offered.
 
 ## M21.19 — Undo requests: ask the opponent to undo an answered move
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M21.18
 
@@ -8527,6 +8527,69 @@ or declines (`D091`, amending `D016`). Online games only.
   Compose classes on a device or emulator.
 - `.\gradlew.bat build`.
 - `git diff --check`.
+
+### Completion Note
+
+2026-10-14. Server, database and Android. `chess-core` is unchanged.
+
+- **Storage (`V12`).** The game row gains nullable columns: the pending request
+  (`undo_requested_by`), the last answer and its two moves (`undo_answer*`), and the last
+  accepted change (`last_change_kind`, `_actor`, `_version`, and `_move`, the move an undo
+  took back, which the undo-first note names). Adding nullable columns with no default
+  rewrites no row. Check constraints keep a request off a finished game, a request and an
+  answer apart, and each group all-or-nothing. A game from before `V12` has no recorded
+  last change, so a crossing against it is refused as stale, as before.
+- **Model.** `db/UndoRequests.kt`: `UndoRecord` (pending, answer), `UndoAnswer`,
+  `UndoAnswerKind` (`ACCEPTED`, `DECLINED`, `CROSSED_REQUEST_FIRST`,
+  `CROSSED_UNDO_FIRST`), `ChangeKind` and `LastChange`. `StoredGame` carries `undo` and
+  `lastChange`. `GameRepository.save` takes `change`, `undo`, `undoneMove` and
+  `crossing`. Its default `undo` (nothing pending, no answer) is what clears both on every
+  other command, in that command's transaction.
+- **Commands.** `GameCommandService.requestUndo`, `acceptUndo` and `declineUndo`, and
+  `undoMove`'s two accept cases (a request pending, and the request-first crossing). Each
+  records `UndoRequested`, `UndoAccepted` or `UndoDeclined` with its actor and series
+  (`D078`), and records the actor's action (`M19.11`). A crossing's event carries
+  `"crossing": true`. The crossing check reads `StoredGame.lastChange` inside the locked
+  transaction, never the audit trail. New refusals: `CannotRequestUndo` and
+  `NoUndoRequest`, both 409 (`CANNOT_REQUEST_UNDO`, `NO_UNDO_REQUEST`).
+- **Endpoints.** `POST /games/{id}/undo-request`, `/undo-request/accept` and
+  `/undo-request/decline`, each with `expectedVersion`. Announced through the existing
+  version announcement (`D022`).
+- **Projection.** `GameView` adds `canRequestUndo`, `undoRequest` (`fromYou` and the two
+  moves) and `undoNote` (`ACCEPTED`, `DECLINED`, `UNDONE_TOO`, `BOTH_UNDONE`, with the two
+  moves). The requester hears every answer, and the opponent only of a crossing.
+  `DashboardEntry.pendingRequest` (`kind` `UNDO`, `waitingOnYou`) names what waits on the
+  viewer; `yourTurn` is unchanged.
+- **Android.** "Ask to undo"; "Undo requested. Waiting for Alex." with no cancel; for the
+  opponent, "Jordan asks to undo g1f3 and your b8c6" with Accept and Decline (one tap
+  each) beside "Undo your move", which accepts; every note in `D091`'s words until the
+  next change. The view model's `requestUndo`, `acceptUndo` and `declineUndo` go through
+  `sendCommand`, so refusals and lost answers are handled as for every command. The
+  dashboard lists a game under YOUR TURN when `DashboardEntryDto.waitingOnYou` (your move,
+  or a request to answer), with "Jordan asks to undo" or "Undo requested" in the row.
+- **Unchanged.** Pass-and-play, the computer takeback, unilateral undo with no request
+  waiting, finality, and the realtime payload. No draw offer was added, and nothing stops
+  one being pending beside an undo request.
+- **Tests.**
+  - Server, against Docker PostgreSQL: `UndoRequestTest` (33: every asking condition,
+    accept and the restored position, stale accept, answering by the requester or with
+    nothing pending, the opponent's undo as accept, both crossings with their notes and
+    audit events, each crossing with a change in between refused, decline then ask again
+    and undo the reply alone, the note seen by the requester only and cleared, clearing by
+    move, resignations and draw claim, leaving the series keeping the request, the
+    accept-versus-move race, finished games, version increments, audit actors and series,
+    last action, both players' views, the dashboard field, and the endpoints) and
+    `UndoRequestsMigrationTest` (2: a game in progress before `V12` carries on, and a
+    finished game cannot hold a request).
+  - Client unit: `UndoRequestTextTest` (7), `DashboardSectionsTest` (2 new), and six new
+    `ChessAppTest` view-model tests.
+  - Compose, run on the `ChessPlayerM5Api36` emulator: `UndoRequestUiTest` (7: each
+    player's controls, every note, both dashboard rows, and both tightest two-pane panels
+    in every two-pane window), plus `OnlineGameLayoutUiTest` and
+    `OnlineGameConnectionUiTest`, all passing.
+- `.\gradlew.bat build`: BUILD SUCCESSFUL. Unit tests: `chess-app` 702, `chess-ai` 20,
+  `chess-core` 394, `server` 638 (run against Docker PostgreSQL), none failing.
+  `git diff --check`: clean.
 
 ## M21.20 — Refresh turn sections after playing online
 

@@ -48,6 +48,12 @@ data class UndoMoveRequest(
     val expectedVersion: Long,
 )
 
+/** Sending, accepting or declining an undo request (`D091`). */
+@Serializable
+data class UndoRequestCommand(
+    val expectedVersion: Long,
+)
+
 /** A request to give up the game. Final once accepted (`D018`). */
 @Serializable
 data class ResignRequest(
@@ -62,7 +68,8 @@ data class ClaimDrawRequest(
 )
 
 /**
- * Reading a game, playing a move in it, taking one back, claiming a draw, and resigning.
+ * Reading a game, playing a move in it, taking one back, asking for and answering an undo
+ * request, claiming a draw, and resigning.
  *
  * The client sends what it wants to happen; [GameCommandService] decides whether it may.
  * Nothing here trusts the request beyond its shape.
@@ -111,6 +118,45 @@ fun Route.gameRoutes(
 
         call.respondTo(
             commands.undoMove(caller.userId, gameId, request.expectedVersion).also { realtime.announce(it) },
+            caller,
+            views,
+        )
+    }
+
+    post("/games/{gameId}/undo-request") {
+        val caller = call.authenticatedUser()
+        val gameId = call.gameId() ?: return@post
+
+        val request = call.receive<UndoRequestCommand>()
+
+        call.respondTo(
+            commands.requestUndo(caller.userId, gameId, request.expectedVersion).also { realtime.announce(it) },
+            caller,
+            views,
+        )
+    }
+
+    post("/games/{gameId}/undo-request/accept") {
+        val caller = call.authenticatedUser()
+        val gameId = call.gameId() ?: return@post
+
+        val request = call.receive<UndoRequestCommand>()
+
+        call.respondTo(
+            commands.acceptUndo(caller.userId, gameId, request.expectedVersion).also { realtime.announce(it) },
+            caller,
+            views,
+        )
+    }
+
+    post("/games/{gameId}/undo-request/decline") {
+        val caller = call.authenticatedUser()
+        val gameId = call.gameId() ?: return@post
+
+        val request = call.receive<UndoRequestCommand>()
+
+        call.respondTo(
+            commands.declineUndo(caller.userId, gameId, request.expectedVersion).also { realtime.announce(it) },
             caller,
             views,
         )
@@ -232,6 +278,26 @@ private suspend fun ApplicationCall.respondTo(
                 caller,
                 views,
             )
+
+        is CommandResult.CannotRequestUndo ->
+            reject(
+                HttpStatusCode.Conflict,
+                RejectionReason.CANNOT_REQUEST_UNDO,
+                "You cannot ask to undo now",
+                result.game,
+                caller,
+                views,
+            )
+
+        is CommandResult.NoUndoRequest ->
+            reject(
+                HttpStatusCode.Conflict,
+                RejectionReason.NO_UNDO_REQUEST,
+                "No undo request is waiting for you",
+                result.game,
+                caller,
+                views,
+            )
     }
 }
 
@@ -274,6 +340,8 @@ private fun CommandResult.gameOrNull(): StoredGame? =
         is CommandResult.IllegalMove -> game
         is CommandResult.NoSuchClaim -> game
         is CommandResult.NothingToUndo -> game
+        is CommandResult.CannotRequestUndo -> game
+        is CommandResult.NoUndoRequest -> game
         CommandResult.NoSuchGame, CommandResult.NotAParticipant -> null
     }
 

@@ -20,6 +20,7 @@ import com.jmussel.chessgame.computer.ComputerGameActions
 import com.jmussel.chessgame.ui.allusers.AllUsersActions
 import com.jmussel.chessgame.ui.dashboard.DashboardActions
 import com.jmussel.chessgame.ui.friends.FriendsActions
+import com.jmussel.chessgame.ui.game.UndoRequestActions
 import com.jmussel.chessgame.ui.groups.GroupActions
 import com.jmussel.chessgame.ui.groups.GroupsActions
 import com.jmussel.chessgame.ui.series.PlayOfferActions
@@ -173,6 +174,12 @@ class MainActivity : ComponentActivity() {
                         onChoosePromotion = viewModel::choosePromotion,
                         onCancelPromotion = viewModel::cancelPromotion,
                         onUndo = viewModel::undoMove,
+                        undoRequests =
+                            UndoRequestActions(
+                                onAsk = viewModel::requestUndo,
+                                onAccept = viewModel::acceptUndo,
+                                onDecline = viewModel::declineUndo,
+                            ),
                         onClaimDraw = viewModel::claimDraw,
                         onAskToResign = viewModel::askToResign,
                         onResign = viewModel::resign,

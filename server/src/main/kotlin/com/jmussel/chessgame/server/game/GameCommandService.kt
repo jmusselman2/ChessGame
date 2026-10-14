@@ -6,9 +6,13 @@ import com.jmussel.chessgame.core.chess.ChessRules
 import com.jmussel.chessgame.core.chess.DrawClaim
 import com.jmussel.chessgame.core.chess.Move
 import com.jmussel.chessgame.core.chess.Side
+import com.jmussel.chessgame.server.db.ChangeKind
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.StaleGameVersionException
 import com.jmussel.chessgame.server.db.StoredGame
+import com.jmussel.chessgame.server.db.UndoAnswer
+import com.jmussel.chessgame.server.db.UndoAnswerKind
+import com.jmussel.chessgame.server.db.UndoRecord
 import com.jmussel.chessgame.server.db.UserRepository
 import com.jmussel.chessgame.server.series.SeriesService
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -61,6 +65,19 @@ sealed interface CommandResult {
 
     /** This player has no move to take back right now (`D016`). */
     data class NothingToUndo(
+        val game: StoredGame,
+    ) : CommandResult
+
+    /**
+     * This player may not send an undo request now: there is no move of theirs answered by the
+     * opponent, or they already have one pending (`D091`).
+     */
+    data class CannotRequestUndo(
+        val game: StoredGame,
+    ) : CommandResult
+
+    /** No undo request waits on this player to answer it (`D091`). */
+    data class NoUndoRequest(
         val game: StoredGame,
     ) : CommandResult
 }
@@ -132,6 +149,7 @@ class GameCommandService(
                         game = played,
                         auditEvent = MOVE_MADE,
                         actor = userId,
+                        change = ChangeKind.MOVE,
                     )
                 } catch (_: StaleGameVersionException) {
                     // Another command won the race between the read and the write.
@@ -175,6 +193,7 @@ class GameCommandService(
                         game = claimed,
                         auditEvent = DRAW_CLAIMED,
                         actor = userId,
+                        change = ChangeKind.DRAW_CLAIM,
                     )
                 } catch (_: StaleGameVersionException) {
                     return@transaction CommandResult.StaleVersion(reload(gameId, stored))
@@ -216,6 +235,7 @@ class GameCommandService(
                         game = resigned,
                         auditEvent = PLAYER_RESIGNED,
                         actor = userId,
+                        change = ChangeKind.RESIGNATION,
                     )
                 } catch (_: StaleGameVersionException) {
                     return@transaction CommandResult.StaleVersion(reload(gameId, stored))
@@ -233,6 +253,11 @@ class GameCommandService(
      * never once the game has ended (`D017`). The undone move leaves the history, so the
      * previous move becomes takeable-back again by whoever made it.
      *
+     * While the opponent's undo request waits on this player, their Undo is an accept
+     * instead (`D091`): both moves go. So is an Undo sent from the version just before that
+     * request, when the request is the only change since: the two crossed, and both players
+     * wanted the reply undone.
+     *
      * An undo is an accepted mutation like any other, so it increments the version
      * (`D021`) — a client holding the old version cannot then play into a position that no
      * longer exists.
@@ -247,8 +272,15 @@ class GameCommandService(
 
             sideOf(stored, userId)?.let { side ->
                 when {
-                    stored.version != expectedVersion -> return@transaction CommandResult.StaleVersion(stored)
+                    stored.version != expectedVersion ->
+                        return@transaction if (crossedByRequest(stored, userId, expectedVersion)) {
+                            accept(stored, userId, side, UndoAnswerKind.CROSSED_REQUEST_FIRST)
+                        } else {
+                            CommandResult.StaleVersion(stored)
+                        }
                     stored.game.isOver -> return@transaction CommandResult.GameOver(stored)
+                    stored.undo.pendingFrom == stored.opponentOf(userId) ->
+                        return@transaction accept(stored, userId, side, UndoAnswerKind.ACCEPTED)
                     !ChessRules.canUndo(stored.game, side) ->
                         return@transaction CommandResult.NothingToUndo(stored)
                 }
@@ -262,6 +294,8 @@ class GameCommandService(
                         game = undone,
                         auditEvent = MOVE_UNDONE,
                         actor = userId,
+                        change = ChangeKind.UNDO,
+                        undoneMove = stored.game.moves.last(),
                     )
                 } catch (_: StaleGameVersionException) {
                     return@transaction CommandResult.StaleVersion(reload(gameId, stored))
@@ -271,6 +305,244 @@ class GameCommandService(
                 CommandResult.Applied(reload(gameId, stored))
             } ?: CommandResult.NotAParticipant
         }
+
+    /**
+     * Sends [userId]'s undo request in [gameId]: asks the opponent to undo [userId]'s move
+     * and the reply it got (`D091`).
+     *
+     * Only on [userId]'s turn, with the opponent's reply the latest move and [userId]'s move
+     * before it, and with no request of theirs already pending ([mayRequestUndo]).
+     *
+     * A request sent from the version just before the opponent undid that reply, when the
+     * undo is the only change since, crossed it. It is completed at once: [userId]'s move,
+     * now the latest, is undone, which [userId] could have done alone (`D016`).
+     */
+    fun requestUndo(
+        userId: Uuid,
+        gameId: Uuid,
+        expectedVersion: Long,
+    ): CommandResult =
+        transaction(database) {
+            val stored = games.loadForUpdate(gameId) ?: return@transaction CommandResult.NoSuchGame
+
+            sideOf(stored, userId)?.let { side ->
+                if (stored.version != expectedVersion) {
+                    return@transaction if (crossedByUndo(stored, userId, side, expectedVersion)) {
+                        completeCrossedRequest(stored, userId, side)
+                    } else {
+                        CommandResult.StaleVersion(stored)
+                    }
+                }
+                validate(stored, side, expectedVersion)?.let { return@transaction it }
+
+                if (!mayRequestUndo(stored, side)) return@transaction CommandResult.CannotRequestUndo(stored)
+
+                try {
+                    games.save(
+                        id = gameId,
+                        expectedVersion = expectedVersion,
+                        game = stored.game,
+                        auditEvent = UNDO_REQUESTED,
+                        actor = userId,
+                        change = ChangeKind.UNDO_REQUEST,
+                        undo = UndoRecord(pendingFrom = userId),
+                    )
+                } catch (_: StaleGameVersionException) {
+                    return@transaction CommandResult.StaleVersion(reload(gameId, stored))
+                }
+
+                recordAction(userId)
+                CommandResult.Applied(reload(gameId, stored))
+            } ?: CommandResult.NotAParticipant
+        }
+
+    /**
+     * Accepts the undo request waiting on [userId] in [gameId]: the opponent's move and
+     * [userId]'s reply are both undone (`D091`). Only at the version the request was made at,
+     * which is the current one while it waits, since any other change clears it.
+     */
+    fun acceptUndo(
+        userId: Uuid,
+        gameId: Uuid,
+        expectedVersion: Long,
+    ): CommandResult =
+        answerUndo(userId, gameId, expectedVersion) { stored, side ->
+            accept(stored, userId, side, UndoAnswerKind.ACCEPTED)
+        }
+
+    /**
+     * Declines the undo request waiting on [userId] in [gameId] (`D091`). Both moves stand, and
+     * the requester may ask again at once.
+     */
+    fun declineUndo(
+        userId: Uuid,
+        gameId: Uuid,
+        expectedVersion: Long,
+    ): CommandResult =
+        answerUndo(userId, gameId, expectedVersion) { stored, _ ->
+            val answer = answerOf(stored, stored.opponentOf(userId), UndoAnswerKind.DECLINED)
+
+            try {
+                games.save(
+                    id = stored.id,
+                    expectedVersion = stored.version,
+                    game = stored.game,
+                    auditEvent = UNDO_DECLINED,
+                    actor = userId,
+                    change = ChangeKind.UNDO_DECLINE,
+                    undo = UndoRecord(answer = answer),
+                )
+            } catch (_: StaleGameVersionException) {
+                return@answerUndo CommandResult.StaleVersion(reload(stored.id, stored))
+            }
+
+            recordAction(userId)
+            CommandResult.Applied(reload(stored.id, stored))
+        }
+
+    /** The checks Accept and Decline share, then [answer] inside the same locked transaction. */
+    private fun answerUndo(
+        userId: Uuid,
+        gameId: Uuid,
+        expectedVersion: Long,
+        answer: (StoredGame, Side) -> CommandResult,
+    ): CommandResult =
+        transaction(database) {
+            val stored = games.loadForUpdate(gameId) ?: return@transaction CommandResult.NoSuchGame
+
+            sideOf(stored, userId)?.let { side ->
+                when {
+                    stored.version != expectedVersion -> CommandResult.StaleVersion(stored)
+                    stored.game.isOver -> CommandResult.GameOver(stored)
+                    stored.undo.pendingFrom != stored.opponentOf(userId) -> CommandResult.NoUndoRequest(stored)
+                    else -> answer(stored, side)
+                }
+            } ?: CommandResult.NotAParticipant
+        }
+
+    /**
+     * Undoes the requester's move and [userId]'s reply to it, restoring the position before
+     * the requester's move with the requester to move. Each undo restores recorded state, so
+     * nothing is replayed (`D061`).
+     */
+    private fun accept(
+        stored: StoredGame,
+        userId: Uuid,
+        side: Side,
+        kind: UndoAnswerKind,
+    ): CommandResult {
+        val answer = answerOf(stored, stored.opponentOf(userId), kind)
+        val undone = ChessRules.undo(ChessRules.undo(stored.game, side), side.opposite)
+
+        try {
+            games.save(
+                id = stored.id,
+                expectedVersion = stored.version,
+                game = undone,
+                auditEvent = UNDO_ACCEPTED,
+                actor = userId,
+                change = ChangeKind.UNDO_ACCEPT,
+                undo = UndoRecord(answer = answer),
+                crossing = kind == UndoAnswerKind.CROSSED_REQUEST_FIRST,
+            )
+        } catch (_: StaleGameVersionException) {
+            return CommandResult.StaleVersion(reload(stored.id, stored))
+        }
+
+        recordAction(userId)
+        return CommandResult.Applied(reload(stored.id, stored))
+    }
+
+    /** Undoes [userId]'s move once the opponent's undo of the reply has crossed their request. */
+    private fun completeCrossedRequest(
+        stored: StoredGame,
+        userId: Uuid,
+        side: Side,
+    ): CommandResult {
+        val answer =
+            UndoAnswer(
+                kind = UndoAnswerKind.CROSSED_UNDO_FIRST,
+                requester = userId,
+                requesterMove = stored.game.moves.last(),
+                replyMove = requireNotNull(stored.lastChange?.undoneMove) { "A crossing undo names its move" },
+            )
+
+        try {
+            games.save(
+                id = stored.id,
+                expectedVersion = stored.version,
+                game = ChessRules.undo(stored.game, side),
+                auditEvent = UNDO_REQUESTED,
+                actor = userId,
+                change = ChangeKind.UNDO_REQUEST,
+                undo = UndoRecord(answer = answer),
+                crossing = true,
+            )
+        } catch (_: StaleGameVersionException) {
+            return CommandResult.StaleVersion(reload(stored.id, stored))
+        }
+
+        recordAction(userId)
+        return CommandResult.Applied(reload(stored.id, stored))
+    }
+
+    /**
+     * Whether an undo sent by [userId] from [expectedVersion] crossed the opponent's undo
+     * request: the request was applied to exactly that version, it is the only change since,
+     * and it is still pending (`D091`).
+     */
+    private fun crossedByRequest(
+        stored: StoredGame,
+        userId: Uuid,
+        expectedVersion: Long,
+    ): Boolean {
+        val change = stored.lastChange ?: return false
+        val requester = stored.opponentOf(userId)
+
+        return change.kind == ChangeKind.UNDO_REQUEST &&
+            change.actor == requester &&
+            change.appliedTo == expectedVersion &&
+            stored.version == expectedVersion + 1 &&
+            stored.undo.pendingFrom == requester &&
+            !stored.game.isOver
+    }
+
+    /**
+     * Whether an undo request sent by [userId] from [expectedVersion] crossed the opponent's
+     * undo of their reply: that undo was applied to exactly that version and is the only
+     * change since, and the move it uncovered is [userId]'s to undo (`D091`).
+     */
+    private fun crossedByUndo(
+        stored: StoredGame,
+        userId: Uuid,
+        side: Side,
+        expectedVersion: Long,
+    ): Boolean {
+        val change = stored.lastChange ?: return false
+
+        return change.kind == ChangeKind.UNDO &&
+            change.actor == stored.opponentOf(userId) &&
+            change.appliedTo == expectedVersion &&
+            stored.version == expectedVersion + 1 &&
+            change.undoneMove != null &&
+            ChessRules.canUndo(stored.game, side)
+    }
+
+    /** The answer to the request pending in [stored], which is about its two latest moves. */
+    private fun answerOf(
+        stored: StoredGame,
+        requester: Uuid,
+        kind: UndoAnswerKind,
+    ): UndoAnswer {
+        val moves = stored.game.moves
+
+        return UndoAnswer(
+            kind = kind,
+            requester = requester,
+            requesterMove = moves[moves.size - 2],
+            replyMove = moves.last(),
+        )
+    }
 
     /** The canonical game as [userId] may see it, or why they may not. */
     fun load(
@@ -292,8 +564,8 @@ class GameCommandService(
      *
      * It is also where the actor's `last_action_at` is recorded (`M19.11`), because this is
      * the one place that means "a mutation from this user was accepted" — [load] answers
-     * `Applied` as well and is a read. [undoMove] does not come through here, because an
-     * undo can never finish a game, so it records its own.
+     * `Applied` as well and is a read. [undoMove] and the undo-request commands do not come
+     * through here, because an undo can never finish a game, so they record their own.
      */
     private fun applied(
         userId: Uuid,
@@ -357,5 +629,28 @@ class GameCommandService(
 
         /** The audit event a resignation records. */
         const val PLAYER_RESIGNED: String = "PlayerResigned"
+
+        /** The audit event an undo request records (`D091`). */
+        const val UNDO_REQUESTED: String = "UndoRequested"
+
+        /** The audit event an accepted undo request records, by Accept or by Undo. */
+        const val UNDO_ACCEPTED: String = "UndoAccepted"
+
+        /** The audit event a declined undo request records. */
+        const val UNDO_DECLINED: String = "UndoDeclined"
+
+        /**
+         * Whether the player on [side] may send an undo request in [stored] (`D091`): the game
+         * is running, it is their turn, the opponent's reply is the latest move with theirs
+         * before it, and they have no request pending.
+         */
+        fun mayRequestUndo(
+            stored: StoredGame,
+            side: Side,
+        ): Boolean =
+            !stored.game.isOver &&
+                stored.game.sideToMove == side &&
+                stored.game.history.size >= 2 &&
+                stored.undo.pendingFrom == null
     }
 }

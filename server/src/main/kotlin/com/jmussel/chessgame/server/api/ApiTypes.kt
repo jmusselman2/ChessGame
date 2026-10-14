@@ -121,6 +121,12 @@ data class DashboardEntry(
     val moveNumber: Int? = null,
     val yourTurn: Boolean = false,
     val seriesActive: Boolean = true,
+    /**
+     * A request pending in this game, other than a move: an undo request now, and a draw offer
+     * once `F2` exists (`D091`). A request waiting on the viewer lists the game as needing
+     * them; [yourTurn] still means only "it is your move".
+     */
+    val pendingRequest: PendingRequest? = null,
 ) {
     companion object {
         fun of(view: com.jmussel.chessgame.server.db.ActiveSeriesView): DashboardEntry? {
@@ -136,9 +142,65 @@ data class DashboardEntry(
                 moveNumber = view.fullmoveNumber,
                 yourTurn = view.isYourTurn,
                 seriesActive = view.seriesActive,
+                pendingRequest =
+                    view.undoRequestedBy?.let { requester ->
+                        PendingRequest(kind = PendingRequest.UNDO, waitingOnYou = requester != view.viewer)
+                    },
             )
         }
     }
+}
+
+/** A request pending in a game, as a dashboard line names it (`D091`). */
+@Serializable
+data class PendingRequest(
+    /** What is asked: [UNDO] now, and a draw offer once `F2` exists. */
+    val kind: String,
+    /** `true` when the viewer must answer it, `false` when they sent it. */
+    val waitingOnYou: Boolean,
+) {
+    companion object {
+        const val UNDO: String = "UNDO"
+    }
+}
+
+/**
+ * An undo request pending in a game, as one of its players sees it (`D091`).
+ *
+ * [requesterMove] and [replyMove] are the two moves accepting would undo, the latest two.
+ */
+@Serializable
+data class UndoRequestView(
+    /** `true` for the player who asked, `false` for the one who must answer. */
+    val fromYou: Boolean,
+    val requesterMove: String,
+    val replyMove: String,
+)
+
+/**
+ * What a player is told about the last undo request, until the next accepted change
+ * (`D091`). Only the player it concerns is told.
+ */
+@Serializable
+data class UndoNoteView(
+    val kind: UndoNoteKind,
+    val requesterMove: String,
+    val replyMove: String,
+)
+
+@Serializable
+enum class UndoNoteKind {
+    /** To the requester: the opponent accepted, so both moves were undone. */
+    ACCEPTED,
+
+    /** To the requester: the opponent declined. */
+    DECLINED,
+
+    /** To the requester: the opponent had undone the reply, so the requester's move went too. */
+    UNDONE_TOO,
+
+    /** To the opponent: the request and their undo crossed, so both moves were undone. */
+    BOTH_UNDONE,
 }
 
 /** One finished game, as history lists it. */
@@ -240,8 +302,17 @@ data class GameView(
     val terminationReason: String? = null,
     /** The draws the viewer could claim right now, if it is their move (`D019`). */
     val availableDrawClaims: List<String> = emptyList(),
-    /** Whether the viewer may take their latest move back right now (`D016`). */
+    /**
+     * Whether the viewer may take their latest move back right now (`D016`). While an undo
+     * request waits on them, their Undo accepts it (`D091`).
+     */
     val canUndo: Boolean = false,
+    /** Whether the viewer may send an undo request right now (`D091`). */
+    val canRequestUndo: Boolean = false,
+    /** The undo request pending in this game, whichever player sent it, or `null`. */
+    val undoRequest: UndoRequestView? = null,
+    /** What the viewer is told about the last undo request, or `null`. */
+    val undoNote: UndoNoteView? = null,
     /**
      * Whether this game's series is still active. `false` once a player has left it (`D052`):
      * the game can still be finished, but it is the last one (`D068`).
@@ -303,6 +374,11 @@ data class GameView(
                     com.jmussel.chessgame.core.chess.ChessRules
                         .canUndo(stored.game, yourSide),
                 seriesActive = seriesActive,
+                canRequestUndo =
+                    com.jmussel.chessgame.server.game.GameCommandService
+                        .mayRequestUndo(stored, yourSide),
+                undoRequest = undoRequestOf(stored, viewer),
+                undoNote = undoNoteOf(stored, viewer),
                 availableDrawClaims =
                     if (state.sideToMove == yourSide) {
                         com.jmussel.chessgame.core.chess.ChessRules
@@ -312,6 +388,49 @@ data class GameView(
                     } else {
                         emptyList()
                     },
+            )
+        }
+
+        private fun undoRequestOf(
+            stored: com.jmussel.chessgame.server.db.StoredGame,
+            viewer: kotlin.uuid.Uuid,
+        ): UndoRequestView? {
+            val requester = stored.undo.pendingFrom ?: return null
+            val moves = stored.game.moves
+
+            return UndoRequestView(
+                fromYou = requester == viewer,
+                requesterMove = moves[moves.size - 2].toString(),
+                replyMove = moves.last().toString(),
+            )
+        }
+
+        /**
+         * The note [viewer] sees about the last answer. The requester hears every answer; the
+         * opponent hears only of a crossing, which undid one move more than they asked.
+         */
+        private fun undoNoteOf(
+            stored: com.jmussel.chessgame.server.db.StoredGame,
+            viewer: kotlin.uuid.Uuid,
+        ): UndoNoteView? {
+            val answer = stored.undo.answer ?: return null
+            val isRequester = answer.requester == viewer
+            val kind =
+                when (answer.kind) {
+                    com.jmussel.chessgame.server.db.UndoAnswerKind.ACCEPTED ->
+                        UndoNoteKind.ACCEPTED.takeIf { isRequester }
+                    com.jmussel.chessgame.server.db.UndoAnswerKind.DECLINED ->
+                        UndoNoteKind.DECLINED.takeIf { isRequester }
+                    com.jmussel.chessgame.server.db.UndoAnswerKind.CROSSED_REQUEST_FIRST ->
+                        if (isRequester) UndoNoteKind.ACCEPTED else UndoNoteKind.BOTH_UNDONE
+                    com.jmussel.chessgame.server.db.UndoAnswerKind.CROSSED_UNDO_FIRST ->
+                        if (isRequester) UndoNoteKind.UNDONE_TOO else UndoNoteKind.BOTH_UNDONE
+                } ?: return null
+
+            return UndoNoteView(
+                kind = kind,
+                requesterMove = answer.requesterMove.toString(),
+                replyMove = answer.replyMove.toString(),
             )
         }
     }
@@ -340,6 +459,15 @@ enum class RejectionReason {
 
     /** There is nothing for this player to take back right now (`D016`). */
     NOTHING_TO_UNDO,
+
+    /**
+     * This player may not send an undo request now: no move of theirs has been answered, or
+     * they already have one pending (`D091`).
+     */
+    CANNOT_REQUEST_UNDO,
+
+    /** No undo request waits on this player to answer (`D091`). */
+    NO_UNDO_REQUEST,
 }
 
 /**

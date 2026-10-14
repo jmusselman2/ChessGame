@@ -356,6 +356,51 @@ object OnlineGame {
     /** What Undo says (`M21.18`): it takes back the player's own latest move, and only that. */
     const val UNDO_LABEL = "Undo your move"
 
+    /** What asking the opponent to undo an answered move says (`D091`). */
+    const val ASK_TO_UNDO_LABEL = "Ask to undo"
+
+    /** Accepting an undo request, which takes one tap and undoes both moves (`D091`). */
+    const val ACCEPT_LABEL = "Accept"
+
+    /** Declining an undo request, which takes one tap and changes no move (`D091`). */
+    const val DECLINE_LABEL = "Decline"
+
+    /**
+     * The pending undo request, in words for the player who sent it or the one who must answer
+     * it, or `null` with none pending (`D091`). The requester has nothing to cancel, so their line
+     * is only a status.
+     */
+    fun undoRequestText(game: GameViewDto): String? {
+        val request = game.undoRequest ?: return null
+        val opponent = game.opponent.username
+
+        return if (request.fromYou) {
+            "Undo requested. Waiting for $opponent."
+        } else {
+            "$opponent asks to undo ${request.requesterMove} and your ${request.replyMove}"
+        }
+    }
+
+    /** Whether the player must answer an undo request now: Accept and Decline are theirs. */
+    fun mustAnswerUndo(game: GameViewDto): Boolean = game.undoRequest?.fromYou == false && !game.isOver
+
+    /**
+     * What the player is told about the last undo request, until the game next changes, or
+     * `null` (`D091`). The server says which note this player gets; this only words it.
+     */
+    fun undoNoteText(game: GameViewDto): String? {
+        val note = game.undoNote ?: return null
+        val opponent = game.opponent.username
+
+        return when (note.kind) {
+            "ACCEPTED" -> "$opponent accepted your undo request: ${note.requesterMove} and ${note.replyMove} undone"
+            "DECLINED" -> "$opponent declined your undo request"
+            "UNDONE_TOO" -> "$opponent had undone ${note.replyMove}, so ${note.requesterMove} was undone too"
+            "BOTH_UNDONE" -> "$opponent had asked to undo ${note.requesterMove}, so both moves were undone"
+            else -> null
+        }
+    }
+
     /**
      * What a draw claim is, and is not (`D019`, `M21.18`): not an offer, so nobody answers it,
      * and a valid one ends the game.
@@ -466,6 +511,8 @@ object OnlineGame {
             ILLEGAL_MOVE -> ILLEGAL
             NO_SUCH_CLAIM -> NO_CLAIM
             NOTHING_TO_UNDO -> NOTHING_BACK
+            CANNOT_REQUEST_UNDO -> CANNOT_ASK
+            NO_UNDO_REQUEST -> NO_REQUEST
             else -> refusal.rejection.message.ifBlank { REFUSED_COMMAND }
         }
 
@@ -561,6 +608,8 @@ object OnlineGame {
     private const val ILLEGAL_MOVE = "ILLEGAL_MOVE"
     private const val NO_SUCH_CLAIM = "NO_SUCH_CLAIM"
     private const val NOTHING_TO_UNDO = "NOTHING_TO_UNDO"
+    private const val CANNOT_REQUEST_UNDO = "CANNOT_REQUEST_UNDO"
+    private const val NO_UNDO_REQUEST = "NO_UNDO_REQUEST"
     private const val THREEFOLD = "THREEFOLD_REPETITION"
     private const val FIFTY_MOVE = "FIFTY_MOVE_RULE"
     private const val NOT_YOURS = "This game is not yours to look at."
@@ -573,6 +622,8 @@ object OnlineGame {
     private const val ILLEGAL = "That move is not legal here."
     private const val NO_CLAIM = "There is no draw to claim here."
     private const val NOTHING_BACK = "There is nothing to take back."
+    private const val CANNOT_ASK = "You cannot ask to undo now."
+    private const val NO_REQUEST = "No undo request is waiting for you."
     private const val UNREACHABLE = "Could not reach the server. Check your connection and try again."
     private const val REFRESH_UNREACHABLE = "Could not reach the server. The board is as it was when it last loaded."
     private const val LOADING = "Loading the game…"

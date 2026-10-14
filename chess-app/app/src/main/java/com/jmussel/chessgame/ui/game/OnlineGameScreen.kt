@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -58,6 +59,7 @@ fun OnlineGameScreen(
     onChoosePromotion: (PieceType) -> Unit = {},
     onCancelPromotion: () -> Unit = {},
     onUndo: () -> Unit = {},
+    undoRequests: UndoRequestActions = UndoRequestActions(),
     onClaimDraw: (String) -> Unit = {},
     onAskToResign: () -> Unit = {},
     onResign: () -> Unit = {},
@@ -98,6 +100,7 @@ fun OnlineGameScreen(
                 onChoosePromotion = onChoosePromotion,
                 onCancelPromotion = onCancelPromotion,
                 onUndo = onUndo,
+                undoRequests = undoRequests,
                 onClaimDraw = onClaimDraw,
                 onAskToResign = onAskToResign,
                 onResign = onResign,
@@ -112,6 +115,16 @@ fun OnlineGameScreen(
             )
     }
 }
+
+/**
+ * Asking the opponent to undo an answered move, and answering their request (`D091`). Each
+ * takes one tap, with no confirmation.
+ */
+class UndoRequestActions(
+    val onAsk: () -> Unit = {},
+    val onAccept: () -> Unit = {},
+    val onDecline: () -> Unit = {},
+)
 
 /** What a finished game offers next: the server's next game, another look for it, or the dashboard. */
 private class AfterGameActions(
@@ -161,6 +174,7 @@ private fun Game(
     onChoosePromotion: (PieceType) -> Unit,
     onCancelPromotion: () -> Unit,
     onUndo: () -> Unit,
+    undoRequests: UndoRequestActions,
     onClaimDraw: (String) -> Unit,
     onAskToResign: () -> Unit,
     onResign: () -> Unit,
@@ -223,6 +237,27 @@ private fun Game(
             if (game.canUndo) {
                 Button(onClick = onUndo, enabled = !state.submitting) { Text(text = OnlineGame.UNDO_LABEL) }
             }
+
+            // Asking the opponent to undo an answered move (`D091`). Never offered with "Undo your
+            // move": the server offers each in a different state.
+            if (game.canRequestUndo) {
+                Button(onClick = undoRequests.onAsk, enabled = !state.submitting) { Text(text = OnlineGame.ASK_TO_UNDO_LABEL) }
+            }
+
+            // The pending request: a status for the player who asked, who has nothing to cancel, and
+            // Accept and Decline for the one who must answer. Their "Undo your move" above accepts too.
+            OnlineGame.undoRequestText(game)?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium) }
+            if (OnlineGame.mustAnswerUndo(game)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = undoRequests.onAccept, enabled = !state.submitting) { Text(text = OnlineGame.ACCEPT_LABEL) }
+                    OutlinedButton(onClick = undoRequests.onDecline, enabled = !state.submitting) {
+                        Text(text = OnlineGame.DECLINE_LABEL)
+                    }
+                }
+            }
+
+            // How the last request ended, shown until the game next changes.
+            OnlineGame.undoNoteText(game)?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium) }
 
             // Only the claims the server said are available, each labelled by its own rule
             // (`D019`); an automatic draw needs no claim and never appears here. Not an offer:

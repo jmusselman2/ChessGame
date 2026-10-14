@@ -357,6 +357,9 @@ Recorded in `game_events`:
 ```text
 MoveMade
 MoveUndone
+UndoRequested
+UndoAccepted
+UndoDeclined
 DrawClaimed
 PlayerResigned
 GameEnded
@@ -374,6 +377,9 @@ participant (§18, `D067`). The long-term concept is an action performed by a
 participant, which may not be a person. The schema change is required before any
 non-user participant produces audited actions, and is not made before then
 (`D082` point 12).
+
+An `UndoAccepted` that completes a crossed request and undo, or an `UndoRequested` that
+is completed at once by one, carries `"crossing": true` in its payload (`D091`).
 
 `SeriesClosed` was recorded until `M19.5` removed the path that closed a series
 after its current game; leaving a series records `SeriesLeft` (`D068`). Friendship
@@ -1046,7 +1052,8 @@ version is an accept. Accepting restores the position before the requester's mov
 replays. An accept succeeds only at the version the request was made at, with one
 exception. A request and the opponent's `UndoMove` that cross, each stale by exactly
 the other, are combined in either order: the second completes the first. The game row
-records the last accepted change (kind, actor, version applied to) for that check.
+records the last accepted change (kind, actor, version applied to, and the move an
+undo took back, which the crossing's note names) for that check (`V12`).
 Every other accepted command on the game clears a pending request in the same
 transaction; leaving the series is not such a command. The game row stores the
 pending request and the last answer, which the next accepted command also clears.

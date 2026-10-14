@@ -1,6 +1,7 @@
 package com.jmussel.chessgame.ui.dashboard
 
 import com.jmussel.chessgame.api.DashboardEntryDto
+import com.jmussel.chessgame.api.PendingRequestDto
 import com.jmussel.chessgame.api.UserSummaryDto
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -21,6 +22,7 @@ class DashboardSectionsTest {
         yourSide: String? = "WHITE",
         moveNumber: Int? = 18,
         seriesActive: Boolean = true,
+        pendingRequest: PendingRequestDto? = null,
     ) = DashboardEntryDto(
         seriesId = "series-$opponent",
         opponent = UserSummaryDto(userId = "user-$opponent", username = opponent),
@@ -31,6 +33,7 @@ class DashboardSectionsTest {
         moveNumber = moveNumber,
         yourTurn = yourTurn,
         seriesActive = seriesActive,
+        pendingRequest = pendingRequest,
     )
 
     private fun person(username: String) = UserSummaryDto(userId = "user-$username", username = username)
@@ -298,5 +301,24 @@ class DashboardSectionsTest {
     fun theBuildLabelSaysWhateverTheBuildCallsItself() {
         // A development build is not special-cased: a report from one still names it.
         assertEquals("Build 1.0", DashboardSections.buildLabel("1.0"))
+    }
+
+    @Test
+    fun anUndoRequestWaitingOnYouListsTheGameUnderYourTurn() {
+        val waiting = entry("Jordan", yourTurn = false, pendingRequest = PendingRequestDto(kind = "UNDO", waitingOnYou = true))
+
+        assertEquals(listOf("game-Jordan"), DashboardSections.yourTurn(listOf(waiting)).map { it.gameId })
+        assertTrue(DashboardSections.theirTurn(listOf(waiting)).isEmpty())
+        assertEquals("White • Move 18 • Jordan asks to undo", DashboardSections.yourTurn(listOf(waiting)).single().detail)
+    }
+
+    @Test
+    fun theRequestersRowSaysUndoRequested() {
+        val asked = entry("Alex", yourTurn = true, pendingRequest = PendingRequestDto(kind = "UNDO", waitingOnYou = false))
+
+        val row = DashboardSections.yourTurn(listOf(asked)).single()
+
+        assertEquals("it is still Jordan's move", "game-Alex", row.gameId)
+        assertEquals("White • Move 18 • Undo requested", row.detail)
     }
 }

@@ -28,6 +28,10 @@ data class ActiveSeriesView(
     val fullmoveNumber: Int?,
     /** `false` for a series a player has left, shown only while its last game is unfinished (`D068`). */
     val seriesActive: Boolean = true,
+    /** Whose undo request is pending in the game, or `null` (`D091`). */
+    val undoRequestedBy: Uuid? = null,
+    /** Whose dashboard this line is on. */
+    val viewer: Uuid? = null,
 ) {
     /** Whether it is the viewer's move. */
     val isYourTurn: Boolean
@@ -71,6 +75,7 @@ class DashboardQueries(
                         GamesTable.version,
                         GamesTable.sideToMove,
                         GamesTable.state,
+                        GamesTable.undoRequestedBy,
                     ).where {
                         (GameSeriesTable.tableId inSubQuery tablesSeating(userId)) and
                             (
@@ -123,6 +128,8 @@ class DashboardQueries(
                     sideToMove = gameId?.let { row[GamesTable.sideToMove] },
                     fullmoveNumber = gameId?.let { row[GamesTable.state].fullmoveNumber },
                     seriesActive = row[GameSeriesTable.status] == ACTIVE_SERIES,
+                    undoRequestedBy = gameId?.let { row[GamesTable.undoRequestedBy] },
+                    viewer = userId,
                 )
             }
         }

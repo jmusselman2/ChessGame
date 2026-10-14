@@ -158,6 +158,8 @@ class ChessAppTest {
         friends: List<String> = emptyList(),
         games: List<String> = emptyList(),
         canUndo: Boolean = false,
+        canRequestUndo: Boolean = false,
+        undoRequestFromYou: Boolean? = null,
         claims: List<String> = emptyList(),
         yourTurn: Boolean = true,
         removalOutcome: String = "Removed",
@@ -207,6 +209,8 @@ class ChessAppTest {
                                     removalOutcome = removalOutcome,
                                     currentGameId = currentGameId,
                                     canUndo = canUndo,
+                                    canRequestUndo = canRequestUndo,
+                                    undoRequestFromYou = undoRequestFromYou,
                                     claims = claims,
                                     yourTurn = yourTurn,
                                     nextGameId = nextGameId,
@@ -237,6 +241,8 @@ class ChessAppTest {
         val removalOutcome: String = "Removed",
         val currentGameId: String? = "game-1",
         val canUndo: Boolean = false,
+        val canRequestUndo: Boolean = false,
+        val undoRequestFromYou: Boolean? = null,
         val claims: List<String> = emptyList(),
         val yourTurn: Boolean = true,
         val nextGameId: String? = null,
@@ -268,6 +274,9 @@ class ChessAppTest {
             path.endsWith("/leave") -> series("Alex", replies.currentGameId).replace("ACTIVE", "CLOSED")
             path.endsWith("/moves") -> playedGame(path.removePrefix("/games/").removeSuffix("/moves"))
             path.endsWith("/undo") -> gameView(path.removePrefix("/games/").removeSuffix("/undo"), canUndo = false)
+            path.endsWith("/undo-request") ->
+                gameView(path.removePrefix("/games/").removeSuffix("/undo-request"), undoRequestFromYou = true)
+            path.contains("/undo-request/") -> gameView(path.removePrefix("/games/").substringBefore("/"))
             path.endsWith("/draw-claims") -> drawnGame(path.removePrefix("/games/").removeSuffix("/draw-claims"))
             path.endsWith("/resignation") ->
                 resignedGame(path.removePrefix("/games/").removeSuffix("/resignation"), seriesActive = !replies.seriesLeft)
@@ -275,6 +284,8 @@ class ChessAppTest {
                 gameView(
                     gameId = path.removePrefix("/games/"),
                     canUndo = replies.canUndo,
+                    canRequestUndo = replies.canRequestUndo,
+                    undoRequestFromYou = replies.undoRequestFromYou,
                     claims = replies.claims,
                     yourTurn = replies.yourTurn,
                     yourSide =
@@ -337,6 +348,8 @@ class ChessAppTest {
     private fun gameView(
         gameId: String,
         canUndo: Boolean = false,
+        canRequestUndo: Boolean = false,
+        undoRequestFromYou: Boolean? = null,
         claims: List<String> = emptyList(),
         yourTurn: Boolean = true,
         yourSide: String = "WHITE",
@@ -344,13 +357,19 @@ class ChessAppTest {
         seriesActive: Boolean = true,
     ): String {
         val ending = if (finished) ""","result":"WHITE_WINS","terminationReason":"CHECKMATE"""" else ""
+        val request =
+            undoRequestFromYou
+                ?.let { fromYou ->
+                    ""","undoRequest":{"fromYou":$fromYou,"requesterMove":"g1f3","replyMove":"b8c6"}"""
+                }.orEmpty()
 
         return """
             {"gameId":"$gameId","seriesId":"series-1","opponent":${user("Alex")},"version":1,
              "yourSide":"$yourSide","sideToMove":"WHITE","yourTurn":${yourTurn && !finished},"inCheck":false,
              "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
              "moves":[],"moveNumber":1,"halfmoveClock":0,"canUndo":${canUndo && !finished},
-             "availableDrawClaims":${claims.joinToString(",", "[", "]") { "\"$it\"" }},"seriesActive":$seriesActive$ending}
+             "availableDrawClaims":${claims.joinToString(",", "[", "]") { "\"$it\"" }},"seriesActive":$seriesActive,
+             "canRequestUndo":${canRequestUndo && !finished}$request$ending}
             """.trimIndent()
     }
 
@@ -1822,6 +1841,104 @@ class ChessAppTest {
             ChessServerConfig().baseUrl,
         )
     }
+
+    @Test
+    fun anUndoRequestIsSentOnlyWhenTheServerSaysThisPlayerMayAsk() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.requestUndo()
+            viewModel.moveJob?.join()
+
+            assertEquals(listOf("/games/game-7"), paths)
+        }
+
+    @Test
+    fun anUndoRequestIsSentWithItsVersionAndTheAnswerBecomesTheScreen() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(canRequestUndo = true))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.requestUndo()
+            assertTrue((viewModel.game as OnlineGameState.Ready).submitting)
+            viewModel.moveJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals(listOf("/games/game-7", "/games/game-7/undo-request"), paths)
+            assertTrue(sentBodies.last().contains("\"expectedVersion\":1"))
+            assertEquals(true, ready.game.undoRequest?.fromYou)
+            assertEquals("Undo requested. Waiting for Alex.", OnlineGame.undoRequestText(ready.game))
+            assertFalse(ready.submitting)
+        }
+
+    @Test
+    fun acceptAndDeclineAreSentOnlyByThePlayerTheRequestWaitsOn() =
+        runTest(dispatcher) {
+            val asker = viewModel(httpClient = httpClient(undoRequestFromYou = true))
+            asker.openOnlineGame("game-7")
+            asker.gameJob?.join()
+
+            asker.acceptUndo()
+            asker.declineUndo()
+            asker.moveJob?.join()
+
+            assertEquals("the requester has nothing to answer", listOf("/games/game-7"), paths)
+        }
+
+    @Test
+    fun acceptIsSentInOneTapWithItsVersion() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(undoRequestFromYou = false))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.acceptUndo()
+            viewModel.moveJob?.join()
+
+            assertEquals(listOf("/games/game-7", "/games/game-7/undo-request/accept"), paths)
+            assertTrue(sentBodies.last().contains("\"expectedVersion\":1"))
+            assertEquals(null, (viewModel.game as OnlineGameState.Ready).game.undoRequest)
+        }
+
+    @Test
+    fun declineIsSentInOneTapWithItsVersion() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(undoRequestFromYou = false))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.declineUndo()
+            viewModel.moveJob?.join()
+
+            assertEquals(listOf("/games/game-7", "/games/game-7/undo-request/decline"), paths)
+            assertTrue(sentBodies.last().contains("\"expectedVersion\":1"))
+        }
+
+    @Test
+    fun aRefusedUndoRequestIsExplained() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            canRequestUndo = true,
+                            refusals = 1,
+                            refusalPath = "/games/game-7/undo-request",
+                            refusalStatus = HttpStatusCode.Conflict,
+                            refusalBody = """{"reason":"CANNOT_REQUEST_UNDO","message":"You cannot ask to undo now"}""",
+                        ),
+                )
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.requestUndo()
+            viewModel.moveJob?.join()
+
+            assertEquals("You cannot ask to undo now.", (viewModel.game as OnlineGameState.Ready).message)
+        }
 
     @Test
     fun undoIsSentOnlyWhenTheServerSaysThisPlayerMay() =

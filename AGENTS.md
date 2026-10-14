@@ -30,7 +30,7 @@ Four Gradle modules (`settings.gradle.kts`):
 - `chess-app` — the Android app (Jetpack Compose); source under
   `chess-app/app/src/main/java/com/jmussel/chessgame/`.
 
-Plus `database/migrations/` (Flyway `V1`–`V11`), `Dockerfile` and `render.yaml`
+Plus `database/migrations/` (Flyway `V1`–`V12`), `Dockerfile` and `render.yaml`
 (the beta deploy), `scripts/` (beta verification), `evals/` (evaluator reports)
 and `docs/`.
 
@@ -68,7 +68,7 @@ Under `server/src/main/kotlin/com/jmussel/chessgame/server/`:
   `SUPABASE_JWKS_URL`) and resolves it to a `users.id` through
   `user_auth_subjects`. Everything except `/health` sits behind it.
 - `game/` — `GameRoutes` (HTTP) and `GameCommandService` (validate with
-  `chess-core`, save, bump the version).
+  `chess-core`, save, bump the version), including undo requests (`D091`).
 - `series/` — `SeriesService` creates series and starts automatic rematches.
 - `user/`, `friends/`, `groups/`, `history/`, `dashboard/` — the social and
   listing endpoints.
@@ -81,7 +81,7 @@ Under `server/src/main/kotlin/com/jmussel/chessgame/server/`:
 
 Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/groups`,
 `/series`, `/series/{id}/leave`, `/games/{id}` and its
-`moves|undo|resignation|draw-claims`, `/dashboard`, `/history`, `/ws`.
+`moves|undo|undo-request|undo-request/accept|undo-request/decline|resignation|draw-claims`, `/dashboard`, `/history`, `/ws`.
 
 ### `chess-app` — the client
 
@@ -161,8 +161,21 @@ Local games do not wait for any of this: the startup screen offers them througho
 5. After the commit, `RealtimeHub` announces the new version to both players'
    sockets.
 
-Undo, resignation and draw claims follow the same path through their own
-endpoints.
+Undo, undo requests, resignation and draw claims follow the same path through their
+own endpoints.
+
+### Undo requests
+
+Once the opponent has replied, the player whose move it was may ask them to undo it
+and the reply (`D091`, `M21.19`). The request, its last answer and the game's last
+accepted change live in the game row's own columns (`V12`, `db/UndoRequests.kt`),
+never in `GameState`. `GameRepository.save` writes them with every command, and its
+default (nothing pending, no answer) is what clears them on any other change. The
+opponent's Undo while a request waits is an accept. A request and an undo that
+cross are combined, recognised from `StoredGame.lastChange`, never from the audit
+trail. `GameView` projects `canRequestUndo`, `undoRequest` and `undoNote` per viewer,
+and `DashboardEntry.pendingRequest` lists the game under YOUR TURN for the player who
+must answer, while `yourTurn` keeps meaning "your move".
 
 ### Realtime updates
 
@@ -292,7 +305,9 @@ commit.
   announcements for sockets connected to the other.
 - **Optimistic concurrency:** every accepted mutation bumps `version`, and a save
   with a stale `expectedVersion` is refused. A new command must go through
-  `GameRepository.save` with the version, not around it.
+  `GameRepository.save` with the version, not around it, and pass its `ChangeKind`:
+  `save` with no `undo` argument clears a pending undo request, which is right for
+  every command except the undo-request ones (`D091`).
 - **Identity is claim-by-username** with no verification (`D082`). Don't build
   anything that treats a username as proof of who is asking.
 
