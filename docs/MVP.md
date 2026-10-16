@@ -51,7 +51,8 @@ for task-level status.
 - Invalid claims are rejected.
 - Fivefold repetition ends automatically.
 - Seventy-five moves ends automatically.
-- Draw offers by agreement are not implemented.
+- Draw offers by agreement are not part of the MVP; they are scheduled as
+  post-MVP work in `M22.3` (`D097`).
 
 ### Undo
 
@@ -121,8 +122,8 @@ Groups are MVP (`D076`, superseding `D049`'s "deck-builder only"; `M17.11`).
 ### Multiplayer
 
 - Game series can be created/opened.
-- A pair may have several `ACTIVE` series; Play offers an existing one rather than
-  reusing it silently (`D053`, superseding `D011`'s one series per pair).
+- Post-MVP `M22.1` restores at most one active chess series per pair. Play opens
+  it rather than offering or creating another (`D095`, superseding `D053` rule 1).
 - Initial colors are random.
 - Server is authoritative.
 - `MakeMove` uses expected game version.
@@ -139,9 +140,9 @@ Groups are MVP (`D076`, superseding `D049`'s "deck-builder only"; `M17.11`).
 - Final move immediately finalizes game.
 - Completed result is persisted.
 - Exactly one next game is created when the series remains active.
-- A participant can leave a series. Leaving closes it at once; its current game
-  can still be finished, and no next game is created (`D053`, `D068`, `M19.8`;
-  this replaced `D013`'s "closing after the current game" state).
+- A participant can leave a series. Post-MVP `M22.1` makes leaving end its current
+  game too: a started game is a resignation by the leaver and an unstarted game
+  is deleted without a result. No rematch is created (`D095`, superseding `D068`).
 - Rematch colors alternate.
 - Series points to the new current game when rematch is created.
 - No rematch confirmation is required.
@@ -176,12 +177,14 @@ same `F` number (`D072`). The two lists hold the same items; changing one means
 changing both.
 
 Scheduled beyond the MVP: the AI opponent (formerly `F7`) and saved local games are
-backlog milestone `M21` (`D084`–`D086`). Draw offers by agreement, drag-and-drop
-moves, username changes, detailed profiles, the win/loss/draw record per friend,
-turning automatic rematches off by hand, one active series per party, readable move
-notation with board coordinates, and online ply-by-ply review (formerly `F1`–`F6`,
-`F38`, `F39` and `F41`) are milestone `M22`, scheduled on 2026-10-14. They are
-post-MVP work and do not change the MVP's definition of done.
+backlog milestone `M21` (`D084`–`D086`). Matching play through a retained Redo
+continuation, draw offers by agreement, drag-and-drop moves, detailed profiles,
+the win/loss/draw record per friend, turning automatic rematches off by hand, one
+active series per party, readable move notation with board coordinates, and online
+ply-by-ply review (formerly `F1`–`F4`, `F6`, `F38`, `F39` and `F41`) are milestone
+`M22`. They are post-MVP work and do not change the MVP's definition of done.
+Username changes returned to `F5` under `D098` and wait for real authentication
+(`F13`).
 
 ### Chess Play
 
@@ -197,6 +200,7 @@ post-MVP work and do not change the MVP's definition of done.
 
 ### Identity and Accounts
 
+- `F5` username changes (`D098`; depends on `F13`)
 - `F12` removing the "All users" page, or restricting it to admins (`D071`)
 - `F13` account recovery UI (`PRODUCT.md`)
 - `F14` approval setting for friend requests and game invites (`D047`, `D049`)
@@ -245,4 +249,5 @@ post-MVP work and do not change the MVP's definition of done.
 - `F36` replacing Exposed with jOOQ, with a database wipe
 
 Several active series per friend pair was on this list until `D053` made it MVP
-behaviour.
+behaviour. `D095` later reversed that rule and scheduled restoration of one active
+chess series per pair in `M22.1`.

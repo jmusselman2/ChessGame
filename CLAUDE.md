@@ -109,9 +109,20 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - Commands represent requested actions.
 - The server validates and applies commands using `chess-core`.
 - Every accepted game-state mutation increments the game version.
-- Persist current canonical state directly, plus active move history and append-only audit events.
+- Persist current canonical state directly, plus active move history and audit events
+  that are append-only during normal operation. While the product remains in beta,
+  intentional hard deletion may remove any beta data, including audit rows (`D101`).
 - Do not implement full event sourcing.
 - Canonical undo restoration never replays commands through the rules. It restores recorded full state, or, only after measurement, exact data-level deltas that execute no rules (`D061`).
+- Chess and the Deck Builder independently conform to one common history
+  architecture (`D101`): canonical current state, ruleset-specific structured
+  active history, retained recorded states for Undo and any Redo, separate
+  normally append-only audit, and a required player projection (server-produced online,
+  record-derived locally). Neither game follows the other's architecture. The
+  commonality is documented invariants, not a shared generic action or undo type. If
+  a ruleset retains a future, a submitted structured action with the exact recorded
+  predecessor advances it; a mismatch branches (`D102`). Each ruleset defines that
+  identity and snapshot with its own types.
 - Do not introduce microservices for the MVP.
 - Do not add speculative deck-building abstractions during the chess MVP.
 - ChessGame and the Deck Builder are separate Android apps in this one repository.
@@ -144,24 +155,48 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
   type.
 - Friends are added by username.
 - Friendships are mutual immediately.
+- Username changes wait for real authentication (`F13`, `D098`). When they exist,
+  an old normalized username remains permanently reserved as an unavailable,
+  non-searchable tombstone.
+- A ChessGame profile is visible only to a friend or current shared-group member.
+  It shows username, join month/year, the viewer-relative lifetime chess record and
+  shared groups only (`D099`).
 - `lastSeenAt` is tracked internally.
-- A pair may have more than one active game series at a time (`D053`, superseding `D011`; was: one active series per friend pair). "Play" against a friend with an existing series offers opening it or starting another.
+- A pair has at most one active chess series at a time (`D095`, superseding
+  `D053` rule 1). "Play" against someone with an active series opens it; it
+  never offers or creates a parallel series.
 - Initial colors are random.
 - Automatic rematches are the default in a series. A game against the computer has no series: it offers Play again, with colours swapped (`D086`).
 - Rematch colors alternate (the two-seat case of the general seat-rotation rule, `D050`).
-- Removing a friend affects the friends list only (`D053`, superseding `D013`; was: it disabled the next rematch and closed the series after the current game). It does not end a series, alter a game, or touch table/group membership. A series ends only when a participant explicitly leaves it.
+- Removing a friend affects the friends list only (`D053`, superseding `D013`; was: it disabled the next rematch and closed the series after the current game). It does not end a series, alter a game, or touch table/group membership. A series ends only when a participant explicitly leaves it. Leaving also ends its current chess game (`D095`): a started game is a resignation by the leaver; an unstarted game is deleted without a result.
 - Groups are MVP (`D076`, superseding `D049`'s "deck-builder only"). Any member of a group may Play any other member, friend or not. Membership mirrors friendship: immediate, no owner, and leaving is the only exit.
 - A normal move may be undone by its player while it remains the latest unanswered move.
 - Once the opponent moves, the prior move is locked against undo by its player alone. Its player may then send an undo request on their turn, asking for that move and the reply to be undone. The opponent accepts or declines; the opponent's own Undo counts as accepting while the request waits. A request has no cancel and no timeout. Any other change to the game clears it, and an accept counts only at the version it was asked at. The one exception is a request and the opponent's undo that cross: they are combined, whichever arrives first (`D091`, amending `D016`).
 - If the opponent undoes their move, the previous player's move becomes undoable again.
 - A game-ending move is immediately final and cannot be undone.
 - In a game against the computer, Undo is a takeback instead (`D086`). It takes back the computer's reply and the human move before it, repeatably. If the computer has not replied yet, it takes back the pending human move alone. A game-ending move is still final.
+- Redo restores the exact recorded Undo operation (`D092`). Post-MVP `M22.2` corrects
+  matching manual play under `D102`: if the submitted action and complete predecessor
+  equal the next retained action, it consumes that action and preserves the remaining
+  continuation. Only a different legal action branches and clears the suffix. Online
+  play never silently performs the opponent's retained reply; a recorded computer
+  reply is restored without an engine search when its turn arrives.
 - At most one local game of each kind is unfinished at a time: one pass-and-play game and one game against the computer may both be kept (`D090`, superseding `D084`'s one game of either kind; built by `M21.13`). A new game of a kind deletes that kind's unfinished game, never the other kind's. Finished local games are kept for review, with no local series or statistics (`D084`).
 - Resignation is immediately final after confirmation.
 - The next game is created automatically after a normally completed game when the series remains active.
 - Threefold repetition and the fifty-move rule are claimable draws.
 - Fivefold repetition and the seventy-five-move rule are automatic draws.
-- Draw offers by agreement are outside MVP.
+- Draw offers by agreement are outside MVP and scheduled as post-MVP work in
+  `M22.3` (`D097`). Either player may make one during an unfinished game. One
+  may be pending alongside an undo request; request-only changes preserve the
+  other request, while any board, history or result change invalidates both.
+- Every player-visible chess move uses required SAN. Coordinates remain canonical
+  move identity but are never a UI fallback. Online notation and finished-game
+  review are server projections of recorded move contexts and positions; Android
+  does not replay coordinates to manufacture them (`D101`).
+- Ply-by-ply online review is offered only for finished games, from both the game-end
+  screen and History (`D100`, `D101`). Active games keep only their live
+  authoritative view.
 
 ## Development Rules
 

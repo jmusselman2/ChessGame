@@ -352,7 +352,10 @@ The implementation does not need one universal generic command hierarchy if conc
 
 ## 9. Audit Events
 
-Persist an append-only audit history for meaningful changes.
+Persist an append-only audit history for meaningful changes during normal operation.
+While the product remains in beta, intentional hard deletion may remove any beta
+data, including audit rows (`D101`); append-only is not a beta-data preservation
+guarantee.
 
 Recorded in `game_events`:
 
@@ -401,7 +404,7 @@ canonical current state
 +
 active move history
 +
-append-only audit events
+normally append-only audit events
 ```
 
 ## 10. Game Versioning
@@ -503,9 +506,11 @@ PostgreSQL, and it works when server startup fails.
   stored history.
 - **What a takeback truncates is kept for Redo** (`D092`, built by `M21.21`). It
   becomes one Undo operation in `local_games.redo_path`, in the same transaction, and
-  `LocalGameStore.redo` appends its records again and restores its recorded state. A
-  move or a result writes the path empty. Schema version 4's `3.sqm` adds the column
-  with the default `'[]'`, so every existing game starts with no path.
+  `LocalGameStore.redo` appends its records again and restores its recorded state. As
+  built, a move or result writes the path empty. `M22.2` changes a move that exactly
+  matches the next retained action to consume that action and preserve the suffix;
+  only a divergent move or final result clears it (`D102`). Schema version 4's `3.sqm`
+  adds the column with the default `'[]'`, so every existing game starts with no path.
 - **Restoring never replays rules.** `ChessGame(state, history, redoPath)` is rebuilt
   from the stored state, move records and Redo path (`D029`). Persistence models stay
   in `chess-app`.
@@ -617,6 +622,21 @@ read through `LocalGameSession`, so they come after any save still in flight.
 `ChessGame(history[p].positionBefore, history.take(p))`, and the last ply is the stored
 game itself. Stepping reads the recorded positions and never replays a move. An
 unfinished game is not reviewed.
+
+**Online completed-game review (`D100`, scheduled in `M22.10`).** A finished game
+offers the same Start, Previous, Next and End interaction from its end screen and
+from History. The server returns a chess-specific review projection built from the
+stored `MoveRecord.positionBefore` values and final canonical state. The participant-
+only `GET /games/{gameId}/review` returns `CompletedGameReviewView`, identified by
+`gameId` and `version`: each `ReviewPlyView` contains a required-SAN `MoveView` and a
+safe `ReviewPositionView` (`board`, `sideToMove`, `inCheck`) projected from its
+recorded pre-move snapshot; a final position and result follow the plies. Its
+`inCheck` describes the displayed position even at final checkmate. Android steps
+through that projection and never runs old moves through its installed rules to
+manufacture past positions (`D101`). The server derives each SAN against that ply's
+own snapshot, not by replaying a historical chain. An active game cannot enter
+review. Missing or invalid move context makes Review unavailable while the ordinary
+read-only completed-game view remains.
 
 ## 12. Realtime Architecture
 
@@ -884,6 +904,16 @@ Eligibility is not the whole invite check. Whether the *table* is valid — its
 size within the game type's range, its participant set distinct — belongs with
 the table and is `M19.3` work.
 
+## 15.2 Relationship Profiles
+
+`M22.5` adds a per-viewer ChessGame profile addressed by immutable user ID
+(`D099`). Every read authorizes the current friendship or shared-group relationship
+and returns only username, UTC join month/year, viewer-relative chess record and the
+current group intersection. It returns `404` for both an unknown subject and a known
+subject without a qualifying relationship. The viewer's own group-member row is not
+a profile entry point. Profile responses are viewer-specific and are never cached
+across users (`D069`, `D070`).
+
 ## 16. Game Series Model
 
 A `GameSeries` represents the ongoing sequence of games at one **table**: an exact
@@ -922,19 +952,22 @@ read at table creation, and never assumed (`D063`). Chess is registered as exact
 Series identity is an **exact-set match**: the same people reach the same table,
 and a different set is a different table and a different series.
 
-For MVP:
+For chess after `M22.1`:
 
-- a table may have **several** `ACTIVE` series at once (`D053`, superseding
-  `D011`; `M19.4`),
-- "Play" never silently reuses one: `POST /series` starts a series and its first
-  game when the pair has none (`201`), and otherwise starts nothing and answers
-  `409` with a `SeriesOffer` listing the active series, newest first;
-  `POST /series?another=true` is the player choosing another (`D065`),
+- an exact participant pair has at most one `ACTIVE` series (`D095`, superseding
+  `D053` rule 1),
+- `POST /series` starts a series and its first game when the pair has none (`201`),
+  and otherwise returns the existing series; there is no `SeriesOffer` or supported
+  `another=true` path,
 - whether a table has a series is decided under the table row's lock, so two
   simultaneous first taps start one series, not two,
-- a participant leaves a series with `POST /series/{seriesId}/leave`, which closes it at
-  once and touches no game (`D052`, `D068`); the dashboard keeps a closed series while its
-  last game is unfinished, marked `seriesActive: false`,
+- the database enforces this for chess only by locking the table row in a trigger (or
+  an equivalently strong mechanism) and rejecting a second active chess series; no
+  global series constraint chooses behavior for another game type,
+- a participant leaves a series with `POST /series/{seriesId}/leave`. In the same
+  transaction it closes the series and ends its current game: a started game is
+  finalized as the leaver's resignation; a zero-move game is deleted without a
+  result (`D095`),
 - closed series remain historical,
 - creation does not check that the pair are friends (`D046`), so a series may
   outlive — or never have had — a friendship between its two players,
@@ -952,9 +985,17 @@ Removing a friend affects the friends list only (`D053`, superseding `D013`):
 A series persists independently of the friend graph. Friendship matters only when
 Play is first offered (`D046`, `D048`). A series ends only when a participant leaves
 it (`D052`, `M19.8`): `POST /series/{seriesId}/leave` closes it under its row lock and
-records `SeriesLeft`. Leaving is separate from resigning, which ends one game and lets the
-series carry on. A closed series lets its current game finish, gets no rematch, and stays
-readable as history (`D012`). Leaving is idempotent (`D068`).
+records `SeriesLeft`. Leaving also ends its current game (`D095`), unlike ordinary
+resignation, which ends one game while an active series carries on. A started game is
+finalized as a resignation; a zero-move game is deleted. Closed series have no
+unfinished game and remain readable as history when they contain finished games.
+Leaving remains idempotent. `games.has_started` records whether an ordinary move has
+ever been accepted and is never cleared by Undo or Redo, so an empty active move list
+cannot turn a played game into a zero-move game.
+
+Every command path that may end a game and settle its series locks the series row
+before the game row; Leave follows the same order. A shared helper owns this ordering
+so a Leave/game-end race cannot deadlock.
 
 Until `M19.5`, removal marked the pair's active series to close after its current
 game (`game_series.close_after_current_game`). `V7` dropped that column along with
@@ -976,6 +1017,7 @@ Game
 - version
 - currentState
 - result
+- hasStarted (`M22.1`: true after the first accepted ordinary move; never cleared)
 - createdAt
 - completedAt
 ```
@@ -1073,7 +1115,31 @@ Both stay outside `GameState` and `chess-core`, and are projected per viewer
 (`D069`). The dashboard names what waits on the viewer in its own field; `yourTurn`
 keeps meaning "it is your move".
 
+`M22.7` adds required `san` to the existing `MoveView` and changes
+`GameView.moves` from coordinate strings to `List<MoveView>`. The existing
+`from`/`to`/`promotion` fields remain the canonical move identity; SAN is derived by
+the server from the recorded `positionBefore`. Undo request and note fields use the
+same move view. Pending and declined requests use active move records; accepted and
+crossed notes use the retained Redo operation. Android always renders SAN. Missing
+SAN or position context is an invariant/protocol failure, not a coordinate fallback.
+The beta cutover clears pre-existing request and answer metadata plus
+`last_change_kind`, `last_change_actor`, `last_change_version` and `last_change_move`
+instead of carrying unrenderable or stale crossing metadata forward (`D101`). SAN
+remains derived display data, never canonical persistence.
+
 An undone move disappears from active chess history but remains represented in audit history.
+
+**History layers (`D101`).** Chess keeps canonical current state, active
+`MoveRecord`s, the retained `redoPath`, and normally append-only audit as different
+records with different lifecycles. Player move lists, undo wording and completed review are
+required server projections of the structured move records; they are not audit rows
+and are not recreated by client rule replay. Chess and the Deck Builder independently
+conform to `D101`'s common history layers. `D102` adds one common invariant for a
+retained future: a ruleset-specific structured action with the exact recorded
+predecessor advances that continuation, while a mismatch branches. The Deck Builder
+has its own action identity, snapshot policy and visibility projection; neither game
+follows the other's architecture. They may share infrastructure and presentation
+contracts, not a generic action schema.
 
 **Redo (`D092`, built by `M21.21`).** An Undo no longer discards what it took back.
 `ChessGame` carries a `redoPath`: the accepted Undo operations, each an
@@ -1083,9 +1149,20 @@ records one operation of one or two plies; `undoLastMoveJoiningNext` joins a cro
 undo request's move to the reply the opponent had undone, so both `D091` orders leave
 the same two-ply operation. `redoableSide`/`canRedo` and `redo` are the query and
 transition: Redo belongs to the side to move, restores the recorded records and state
-without replaying anything, and is never offered in a finished game. `applyMove`,
-`claimDraw` and `resign` clear the path; a move with the same coordinates as the next
-recorded one is still a new continuation.
+without replaying anything, and is never offered in a finished game. As built,
+`applyMove`, `claimDraw` and `resign` clear the path; a move with the same coordinates
+as the next recorded one is still a new continuation.
+
+`M22.2` implements `D102`'s correction. A submitted move whose canonical identity
+and complete current state match the next retained `MoveRecord` consumes that one
+record, restores its recorded resulting state, and preserves the remaining suffix. A
+different legal move clears the suffix. Partial consumption turns the unconsumed part
+of a two-ply operation into the next operation without silently moving for an online
+opponent. A recorded computer reply is restored by the computer-turn driver with no
+engine search. The locked online move transaction still increments the version once
+and audits the submitted move as `MoveMade`; `MoveRedone` remains exclusive to the
+explicit Redo command. Matching play is a board/history change and clears request
+metadata under `D091` and `D097`.
 
 Online, `Redo` (`POST /games/{gameId}/redo`, `expectedVersion`) is validated in the
 locked transaction like every command, increments the version once whether it
@@ -1132,7 +1209,20 @@ Invalid claims are rejected server-side.
 
 The engine must expose enough information to determine claim entitlement from the canonical history and any relevant prospective legal move condition.
 
-Draw offers by agreement are outside MVP.
+Draw offers by agreement are outside MVP and are scheduled in `M22.3` (`D097`).
+They are server-authoritative request metadata, not `chess-core` state. Either
+player may offer during an unfinished game; one draw offer may coexist with one
+undo request. Neither has a timer. Request-only changes preserve the other
+request. A move, Undo, Redo, resignation, draw claim, or any other board, history
+or result change invalidates both. Request validity therefore uses a persisted
+gameplay-state revision, or an equivalent check that ignores intervening
+request-only versions while rejecting any intervening gameplay change.
+
+`M22.3` replaces legacy undo-only `pendingRequest` with required, non-null
+`pendingRequests` in one beta contract cutover. The server always emits the field,
+including an empty list, and the client supplies no missing-field default or legacy
+fallback. Cross-version APK/server compatibility is not supported during this beta
+change.
 
 ## 24. Game Completion and Automatic Rematch
 
@@ -1149,19 +1239,9 @@ persist final action/move
 → set series.currentGameId
 ```
 
-If the series is already closed, because a participant left it while this game
-was under way (`D068`):
-
-```text
-persist final action/move
-→ finalize game
-→ persist result
-→ do not create next game
-→ leave the series CLOSED and untouched
-```
-
 A series is never closed by a game ending. It closes only when a participant
-leaves it, at once, under its row lock (§17).
+leaves it, at once, under its row lock (§17). Leaving and ending the current game
+are one transaction (`D095`), so a closed series never has an unfinished game.
 
 The operation must be safe under retries and concurrent observation.
 
@@ -1181,8 +1261,9 @@ For automatic rematches:
   across cycle boundaries too (`D066`).
 
 `SeatRotation` is pure. A series stores its place in the rotation in
-`game_series.seat_rotation`, per series rather than per table, because a table may
-hold parallel series (`D053`, `D066`).
+`game_series.seat_rotation`, per series rather than per table. Chess permits only
+one active series for an exact participant pair (`D095`), but historical series
+retain their own rotation state (`D066`).
 
 ## 26. Database Ownership
 

@@ -117,36 +117,44 @@ milestone that only has `M2.1`, `M2.2`) is selected the same way.
 # M22 — Play and Social Improvements
 
 Formerly tier 1 of [`FUTURE.md`](FUTURE.md) ("Low cost, high value"): `F38`, `F1`,
-`F2`, `F39`, `F3`, `F4`, `F5`, `F6` and `F41`, in the order that tier ranked them. The
-project owner scheduled them on 2026-10-14, and their `F` IDs are retired (`D072`).
+`F2`, `F39`, `F3`, `F4`, `F6` and `F41`. The project owner scheduled them on
+2026-10-14 and later chose the implementation sequence below; it is no longer merely
+the order in which the future-work tier ranked them. Their `F` IDs are retired
+(`D072`).
+Username changes were scheduled at the same time as `M22.9`, then returned to `F5`
+under `D098` because they depend on real authentication (`F13`).
 `F39` became three tasks, so each has a single testable outcome. It is post-MVP work
 and does not change the MVP's definition of done.
 
-Seven tasks wait on decisions only the owner can make. They are `BLOCKED`, and each
-lists exactly what would unblock it, with a recommendation that is **not** a
-decision. A `BLOCKED` task that touches a product rule `CLAUDE.md` marks "must not be
-changed silently", or a security decision, also needs a numbered decision before work
-starts. Larger tasks may be split further once they are unblocked, as `M21` was.
+The owner resolved the original M22 product decisions on 2026-10-14
+(`D095`–`D100`) and the retained-continuation correction on 2026-10-16 (`D102`).
+No remaining task is decision-blocked. Larger tasks may still be split during
+implementation, as `M21` was.
 
 | Task     | Outcome                                             | Depends on | Formerly | Status    |
 | -------- | --------------------------------------------------- | ---------- | -------- | --------- |
-| `M22.1`  | At most one active series per party                 | None       | `F38`    | `BLOCKED` |
-| `M22.2`  | Win/loss/draw record per friend                     | None       | `F1`     | `BLOCKED` |
-| `M22.3`  | Draw offers by agreement                            | None       | `F2`     | `BLOCKED` |
-| `M22.4`  | Standard algebraic notation in `chess-core`         | None       | `F39`    | `TODO`    |
-| `M22.5`  | Every move list and move wording in SAN             | M22.4      | `F39`    | `TODO`    |
-| `M22.6`  | Board coordinates                                   | None       | `F39`    | `TODO`    |
-| `M22.7`  | Drag-and-drop moves                                 | None       | `F3`     | `TODO`    |
-| `M22.8`  | Turning automatic rematches off by hand             | None       | `F4`     | `BLOCKED` |
-| `M22.9`  | Username changes                                    | None       | `F5`     | `BLOCKED` |
-| `M22.10` | Detailed profiles                                   | M22.2      | `F6`     | `BLOCKED` |
-| `M22.11` | Online ply-by-ply review                            | M22.5      | `F41`    | `BLOCKED` |
+| `M22.1`  | At most one active series per party                 | None       | `F38`    | `TODO`    |
+| `M22.2`  | Matching play advances the retained Redo continuation | M21.21   | —        | `TODO`    |
+| `M22.3`  | Draw offers by agreement                            | M22.2      | `F2`     | `TODO`    |
+| `M22.4`  | Win/loss/draw record per friend                     | None       | `F1`     | `TODO`    |
+| `M22.5`  | Detailed profiles                                   | M22.4      | `F6`     | `TODO`    |
+| `M22.6`  | Standard algebraic notation in `chess-core`         | None       | `F39`    | `TODO`    |
+| `M22.7`  | Every move list and move wording in SAN             | M22.6      | `F39`    | `TODO`    |
+| `M22.8`  | Turning automatic rematches off by hand             | None       | `F4`     | `DONE`    |
+| `M22.10` | Online ply-by-ply review                            | M22.7      | `F41`    | `TODO`    |
+| `M22.11` | Board coordinates                                   | None       | `F39`    | `TODO`    |
+| `M22.12` | Drag-and-drop moves                                 | M22.2      | `F3`     | `TODO`    |
 
 Every task's verification includes, besides its own targeted tests:
 
 - the affected modules' tests (`.\gradlew.bat :chess-core:test`,
   `:chess-app:testDebugUnitTest`, or `:server:test` with `TEST_DATABASE_URL` and
   `--rerun-tasks` for server work);
+- when a task adds or changes a Compose/device test, compile it with
+  `.\gradlew.bat :chess-app:assembleDebugAndroidTest` and run the relevant test
+  class on one provisioned device or emulator with
+  `:chess-app:connectedDebugAndroidTest`, exactly as `DEVELOPMENT.md` describes;
+  `build` alone does not compile or run `androidTest`;
 - `.\gradlew.bat build`;
 - `git diff --check`.
 
@@ -154,7 +162,7 @@ Every task's verification includes, besides its own targeted tests:
 
 ## M22.1 — At most one active series per party
 
-**Status:** BLOCKED
+**Status:** TODO
 
 **Depends on:** None
 
@@ -162,7 +170,7 @@ Every task's verification includes, besides its own targeted tests:
 
 ### Objective
 
-The project owner decided the rule on 2026-10-14: a party, meaning the exact set of
+The project owner decided the rule in `D095`: a party, meaning the exact set of
 a series' participants, has at most one active series. For chess, two people never
 have two games with each other at once. Another series may start only once the
 party's series has ended.
@@ -172,78 +180,171 @@ opponent cannot be told apart: the dashboard shows each as the opponent's name a
 the same detail ("White • Move 2"), History heads each with the same name, and the
 Friends row links to only one of them (`DashboardSections.friends`).
 
-### Blocked on
+### Decisions
 
-1. **Pairs that already have several active series when the migration runs.**
-   *Recommendation (not decided):* keep the newest active series. Mark the others
-   left (`D068`), so their current games can still be finished, start no rematch,
-   and delete nothing.
-2. **Whether a left series whose last game is still being played counts as the
-   party's active series.** *Recommendation (not decided):* yes, until that game
-   ends. Otherwise two games between the same people could coexist.
-3. **What an older APK gets when it asks to start another series**
-   (`POST /series?another=true`). *Recommendation (not decided):* answer it as a
-   plain Play and return the existing series, so the old client opens it.
+- A forward-only migration keeps the newest active series for each chess pair,
+  ordered deterministically by `created_at DESC, id DESC`, and deletes every older
+  conflicting series and all of its dependent data. Existing data is not preserved
+  merely for migration compatibility.
+- Play opens the one active series or creates it when none exists. The series offer
+  and `another=true` behavior are removed. An obsolete client that sends
+  `another=true` is refused with an update-required conflict; no compatibility path
+  may create a parallel series.
+- Leave series ends both the series and its current game atomically. If any move has
+  ever been accepted, the game ends as a resignation by the leaver. A game in which
+  no move has ever been accepted is deleted without a result. No closed series has
+  an unfinished game and no rematch follows.
+- `games.has_started` is the durable fact behind “ever accepted”: it becomes true in
+  the same transaction as the first accepted ordinary move and never becomes false,
+  including after Undo or Redo. The migration backfills it from durable evidence of
+  an accepted move (audit events, active history or redo history); absent evidence,
+  it remains false.
+- Every transaction that may end a game and settle its series locks the series row
+  before the game row. Leave uses that same order. The shared lock helper and order,
+  not timing assumptions, prevent a Leave/game-ending-command deadlock.
 
 ### Acceptance Criteria
 
-- A decision supersedes `D053` rule 1 (parallel series). `D053` rule 2, that
-  unfriending affects the friends list only, stays. `CLAUDE.md`'s *Product Rules*,
-  `PRODUCT.md` *Game Series* and `AGENTS.md` say the same.
-- A forward-only migration, safe on live data, restores the pair's uniqueness in the
-  database and resolves existing parallel series as decided above.
+- `D095` supersedes `D053` rule 1 (parallel series) and the game-preservation
+  behavior in `D068`. `D053` rule 2, that
+  unfriending affects the friends list only, stays. `CLAUDE.md`'s *Product Rules*
+  and `PRODUCT.md` *Game Series* say the same; `AGENTS.md` is updated with the code
+  because it describes what exists rather than planned behavior.
+- A forward-only migration deletes older conflicting active series and their
+  dependent rows, then enforces the invariant in the database for chess only. The
+  enforcement is a trigger (or equivalently strong database mechanism) that locks
+  the table row and rejects a second `ACTIVE` chess series for it; it does not impose
+  a cardinality rule on future game types.
 - Play always opens the pair's series: the existing one if there is one, otherwise a
   new one. `PlayOffer`, `startAnotherSeries` and the series offer are removed. An
-  older APK's request for another series gets the decided answer.
+  obsolete request for another series is refused and never creates one.
+- Leave is idempotent and participant-only. It closes the series and either records
+  the leaver's resignation in a started game or deletes a never-started game, in the
+  same locked transaction. A leave racing a game-ending command produces one final
+  result, a closed series and no rematch.
+- A game with all moves undone still has `has_started = true`; leaving it records a
+  resignation rather than deleting it.
 - The dashboard, Friends row and History each show at most one active series per
   opponent.
 - The Deck Builder's uniqueness over a table's participant set is not built here. It
   is designed with `F26`, not before (`D044`).
-- **Tests:** server tests for the constraint, the migration on a database holding
-  parallel series, Play with and without an existing series, the old request, and
-  the left-series case; client tests for Play and the removed offer.
+- **Tests:** server tests for the chess-scoped constraint, deterministic destructive
+  migration of parallel series, Play with and without an existing series, the
+  obsolete request, leaving a started game, move → Undo to empty → Leave, leaving a
+  zero-move game, repeat Leave and a bounded leave/game-end race that completes
+  without deadlock; client tests for Play, the removed offer and the final result
+  after Leave.
 
 ---
 
-## M22.2 — Win/loss/draw record per friend
+## M22.2 — Matching play advances the retained Redo continuation
 
-**Status:** BLOCKED
+**Status:** TODO
 
-**Depends on:** None
-
-**Formerly:** `F1`. Split from `F30` (detailed statistics) on 2026-09-23.
+**Depends on:** M21.21
 
 ### Objective
 
-Show a player their win, loss and draw record against each friend. Results are
-already stored; this is a query and a screen. Value: high.
+Correct `M21.21`/`D092`'s branching rule. Manually playing the next recorded future
+action currently clears the entire Redo path even when it exactly matches that
+action. Under `D102`, matching play advances through the retained continuation;
+only divergent play creates a new continuation and clears the remaining future.
 
-### Blocked on
-
-1. **Where the record shows** (dashboard, Friends list, series). *Recommendation
-   (not decided):* on the friend's row in the dashboard's FRIENDS section.
-2. **What it counts: one series, or every game with that friend.**
-   *Recommendation (not decided):* every finished game with that friend, across all
-   series. With `M22.1` there is one active series at a time, so the two mostly
-   coincide.
+The retained continuation is an ordered suffix of structured actions and recorded
+states. It is not merely a stack of Undo operations: explicit Undo and Redo keep
+their one- or two-ply operation boundaries, while matching manual play advances one
+structured action at a time.
 
 ### Acceptance Criteria
 
-- The record is computed by the server from stored results and reaches the client in
-  a DTO. The client does not count games itself.
-- Draws by every reason count as draws; a game still being played does not count.
-- The statistics model can be shared later with `F30` (detailed statistics) and
-  `F31` (series revival).
-- **Tests:** server tests for the counts across wins, losses, draws, several series
-  and games still being played; client tests for the display.
+- **Exact matching.** A submitted action matches only when its canonical structured
+  identity and complete recorded predecessor state match the next retained action.
+  For chess the identity is `from`, `to` and promotion. SAN, player-facing wording,
+  or visual board equality is never canonical identity. Castling rights, en passant,
+  halfmove state, repetition state, side to move and every other canonical field are
+  part of the predecessor comparison.
+- **Matching advances.** An accepted matching action appends/reactivates that recorded
+  action, consumes only it, preserves every action still ahead, and restores its
+  recorded resulting snapshot without executing the old action through current rules.
+  The consumed action is not still redoable. Consuming the final retained action leaves
+  no Redo available.
+- **Divergence branches.** An accepted legal action that does not match the next
+  retained action starts a genuine new continuation and clears the entire remaining
+  suffix atomically.
+- **Operations and actions stay distinct.** Explicit Redo continues to restore the
+  complete accepted Undo/takeback operation from `D092`. If matching manual play
+  consumes the first action of a retained two-ply operation, its recorded reply remains
+  as the next one-action continuation. No action is duplicated or silently discarded.
+- **Pass-and-play.** Either side may advance its matching retained action on its turn,
+  and the suffix remains available to the appropriate side.
+- **Computer games.** A repeated matching human move consumes that recorded action
+  without clearing the suffix. When its recorded computer reply becomes next, the
+  ordinary computer-turn driver restores that exact reply and snapshot with zero
+  `ChessEngine` calls. It invalidates any in-flight search first. With no matching
+  retained reply, the existing one-search flow applies.
+- **Online authority.** The server validates identity, predecessor, participant, turn,
+  live game and `expectedVersion` in the locked move transaction. It atomically writes
+  canonical state, active history, retained continuation, version and request metadata,
+  and increments the version once. A manual matching move is audited as `MoveMade`;
+  `MoveRedone` remains exclusive to the explicit Redo command. Stale and concurrent
+  submissions keep their existing behavior.
+- **No silent opponent action.** Matching the first action of a two-ply online
+  operation does not play the opponent's reply. That reply remains available to the
+  opponent, who may explicitly Redo it, manually repeat it to advance again, or make a
+  different legal move that clears the suffix.
+- **Requests.** A matching action still changes the board and active history, so it
+  invalidates pending undo-request metadata like any accepted move. `M22.3` applies the
+  same rule to a pending draw offer; request-only changes remain non-invalidating.
+- **Finality.** Resignation and a successful draw claim still clear the suffix. A
+  matching game-ending move finishes normally, clears any remaining future, and stays
+  final under `D017`–`D019`. Finished games never offer Undo or Redo past finality.
+- **Persistence and projection.** Partial consumption survives Back, refresh,
+  rotation, process death, restart, and another online installation. SQLDelight and
+  PostgreSQL preserve the remainder of a grouped operation atomically. Audit rows and
+  client rule replay are never used to reconstruct it, and no retained snapshot is
+  exposed to a client.
+- **Common architecture.** Matching versus divergence joins `D101`'s common history
+  invariants. Chess uses chess-specific move records and snapshots. The future Deck
+  Builder uses its own structured action identities and snapshots. Neither follows the
+  other's schema, and this task adds no generic action model.
+- **Tests:**
+  - Undo twice, manually repeat the next move, and prove the later move remains
+    redoable; then manually repeat the complete suffix and prove the original
+    continuation is reached with no Redo left.
+  - A different move clears the entire suffix; promotions distinguish otherwise
+    matching moves.
+  - Positions with the same visible board but different castling, en-passant,
+    repetition or move-count state do not falsely match.
+  - A partially consumed two-ply operation retains its reply; explicit Redo still
+    restores a complete accepted operation atomically.
+  - Pass-and-play covers both sides. Computer coverage proves zero new engine calls
+    for a retained reply and rejects a stale search result.
+  - Online coverage proves actor, version, `MoveMade` versus `MoveRedone`, persistence,
+    stale submission and concurrency behavior, and pending undo-request invalidation.
+  - `M22.3` explicitly covers draw-offer invalidation by a matching continuation move.
+  - Local and online recovery tests reopen a partially consumed continuation after
+    Back, process death/repository reconstruction and restart.
+  - Existing game-finality tests remain green.
+
+### Verification
+
+- `.\gradlew.bat :chess-core:test`.
+- `.\gradlew.bat :chess-app:testDebugUnitTest`, including real-file SQLDelight
+  persistence and controlled computer-engine tests.
+- `.\gradlew.bat :server:test --rerun-tasks` with `TEST_DATABASE_URL` against real
+  PostgreSQL; no database-backed test may be skipped.
+- Compile and run any affected Compose/device test as the M22 milestone gate above
+  requires.
+- `.\gradlew.bat build`.
+- `git diff --check`.
 
 ---
 
 ## M22.3 — Draw offers by agreement
 
-**Status:** BLOCKED
+**Status:** TODO
 
-**Depends on:** None
+**Depends on:** M22.2
 
 **Formerly:** `F2`. Source: `MVP.md`, `PRODUCT.md`, `D019`.
 
@@ -252,34 +353,39 @@ already stored; this is a query and a screen. Value: high.
 A player may offer a draw, and the opponent may accept or decline it. A new command
 and a pending-offer state. Value: high.
 
-### Blocked on
+### Decisions
 
-1. **When an offer expires, and how it interacts with undo and the game version.**
-   *Recommendation (not decided):* follow `D091`, as the undo request does: no
-   cancel and no timer; any other accepted change to the game clears it; an answer
-   counts only at the version it was asked at.
-2. **When an offer can be made.** *Recommendation (not decided):* either player, at
-   any time, with at most one pending offer per game.
+`D097` decides the request lifecycle:
+
+- either player may offer during an unfinished online game, regardless of turn;
+- at most one draw offer is pending per game and it has no timer or separate Cancel;
+- after a decline, no new draw offer may be made until an accepted move;
+- one draw offer and one undo request may coexist;
+- creating, declining or otherwise changing request metadata does not invalidate the
+  other request;
+- any board, active-history or result change invalidates both requests.
 
 A draw offer and an undo request (`M21.19`) may be pending in one game at the same
-time. `M21.19` implements only undo requests, so its dashboard contract remains the
-singular `pendingRequest` until this task introduces the second request type. This
-task owns the compatible replacement rather than changing that API speculatively
-beforehand. "Draw offers by agreement are outside MVP" stays true of the MVP; this is
-post-MVP work.
+time. This task replaces the undo-only dashboard field with the plural contract in
+one beta cutover. Old APK compatibility is not required. "Draw offers by agreement
+are outside MVP" stays true of the MVP; this is post-MVP work.
 
 ### Acceptance Criteria
 
-- A decision records the answers above and amends `D019`, whose "Draw offers by
+- `D097` records the answers above and amends `D019`, whose "Draw offers by
   agreement remain outside MVP" stays true of the MVP but no longer means they do
   not exist. `CLAUDE.md`'s *Product Rules* ("Draw offers by agreement are outside
   MVP"), `PRODUCT.md` (*Draw Semantics* and the *Deferred Features* list) and
   `MVP.md` (its "Draw offers by agreement are not implemented" line) are reworded
   to say draw offers are post-MVP work built in `M22.3`.
 - **Dashboard** (carried over from `F2` unchanged):
-  - The server and client dashboard DTOs replace the singular field with
-    `pendingRequests: List<PendingRequest> = emptyList()`, containing every request
-    pending in that game for the viewer.
+  - The server and client delete singular `pendingRequest` and use required, non-null
+    `pendingRequests: List<PendingRequest>`. The server always emits it, including an
+    empty list, and neither side gives it a wire default that could conceal a missing
+    field.
+  - There is no legacy fallback, dual-field period or later cleanup task. A new APK
+    against an old server is incompatible, and an old APK may lose request status
+    against the new server; both are acceptable during beta.
   - Simultaneous requests have one stable, tested display order: undo request before
     draw offer, independent of which direction each request is travelling.
   - `yourTurn` retains its chess-specific meaning: it is `true` only when it is the
@@ -291,12 +397,103 @@ post-MVP work.
   - Server and client tests cover an undo request and draw offer pending together for
     both viewers, including DTO projection, stable ordering, YOUR TURN / THEIR TURN
     grouping, and row rendering of both requests.
+  - Serialization tests prove the required plural field is emitted for both empty
+    and populated lists and that a missing field is rejected.
 - An accepted offer ends the game as a draw, immediately final, and settles the
   series (`SeriesService.settleAfter`) like any other ending.
+- Request answers remain valid through intervening request-only versions, but not
+  through any intervening board, active-history or result change. Persistence tracks
+  that distinction explicitly rather than treating every request-only version as a
+  gameplay-state change.
+- A declined offer records that no new draw offer is eligible until the next accepted
+  move. Undo or Redo alone does not lift that restriction.
+- **Tests:** cover either player offering off-turn, one pending offer, no timer, the
+  post-decline move gate, both request types in either direction, request-only
+  interleavings, and invalidation by move, Undo, Redo, resignation, draw claim and
+  either accepted request. A move that matches and advances `M22.2`'s retained
+  continuation is still a board/history change and invalidates both requests.
 
 ---
 
-## M22.4 — Standard algebraic notation in `chess-core`
+## M22.4 — Win/loss/draw record per friend
+
+**Status:** TODO
+
+**Depends on:** None
+
+**Formerly:** `F1`. Split from `F30` (detailed statistics) on 2026-09-23.
+
+### Objective
+
+Show a player their win, loss and draw record against each friend. Results are
+already stored; this is a query and a screen. Value: high.
+
+### Decisions
+
+`D096` puts a compact `W-L-D` record on each friend's row in the dashboard's
+FRIENDS section. It counts every finished chess game with that friend across every
+series, from the viewer's perspective.
+
+### Acceptance Criteria
+
+- The record is computed by the server from stored results and reaches the client in
+  a DTO. The client does not count games itself.
+- The wire record is required and non-null. The server always supplies explicit win,
+  loss and draw counts, including a real `0-0-0`; a missing field is an incompatible
+  server response, not a value the client defaults or hides.
+- Draws by every reason count as draws; a game still being played does not count.
+- The compact display is `<wins>-<losses>-<draws> W-L-D`; its accessibility
+  description speaks the three counts as wins, losses and draws.
+- The statistics model can be shared later with `F30` (detailed statistics) and
+  `F31` (series revival).
+- **Tests:** server tests for the counts across wins, losses, draws, several series
+  and games still being played; client tests for the display and a real `0-0-0`.
+
+---
+
+## M22.5 — Detailed profiles
+
+**Status:** TODO
+
+**Depends on:** M22.4
+
+**Formerly:** `F6`. Source: `PRODUCT.md`.
+
+### Objective
+
+A profile page for a player. Effort: medium.
+
+### Decisions
+
+`D099` makes this a relationship profile. It shows the username, join month/year,
+the lifetime record against the viewer (`M22.4`) and only groups the two users
+share. A viewer may open it only when they are friends with the subject or currently
+share a group.
+
+### Acceptance Criteria
+
+- A friend row and another user's shared-group member row can open the profile. The
+  viewer's own row is not a profile-navigation entry.
+- The route identifies the subject by immutable user ID, never by mutable username.
+- The server authorizes each read from current friendship/group membership and
+  returns only username, join month/year, the viewer-relative `W-L-D` record and
+  shared groups. It never returns the subject's complete group membership.
+- Join month/year is derived in UTC, so it does not change with server or device
+  timezone.
+- The record is the server-computed lifetime chess record from `M22.4`/`D096`.
+- A caller with neither relationship receives `404`, so the endpoint does not reveal
+  whether an arbitrary username exists.
+- If a relationship disappears after a row was loaded, the app treats the resulting
+  `404` as an ordinary unavailable-profile state with Back; it does not retry as an
+  authentication or server-wake failure.
+- **Tests:** server tests for immutable-ID lookup, UTC month boundaries, friend,
+  shared-group, unrelated, removed-friend and left-group viewers; Android tests for
+  both entry points, the non-clickable self row, every displayed field and stale-row
+  `404` handling.
+
+---
+
+## M22.6 — Standard algebraic notation in `chess-core`
 
 **Status:** TODO
 
@@ -308,7 +505,7 @@ post-MVP work.
 
 Move lists print `Move.toString()` (`GameControls.format`): `e2e4`, castling as
 `e1g1`, promotion as `e7e8q`. Players read standard algebraic notation (SAN). This
-task adds a formatter that turns a move into SAN. `M22.5` shows it.
+task adds a formatter that turns a move into SAN. `M22.7` shows it.
 
 ### Acceptance Criteria
 
@@ -334,36 +531,131 @@ task adds a formatter that turns a move into SAN. `M22.5` shows it.
 
 ---
 
-## M22.5 — Every move list and move wording in SAN
+## M22.7 — Every move list and move wording in SAN
 
 **Status:** TODO
 
-**Depends on:** M22.4
+**Depends on:** M22.6
 
 **Formerly:** `F39`, part 2
 
 ### Objective
 
-Show `M22.4`'s notation wherever the app shows a move to a player.
+Show `M22.6`'s notation wherever the app shows a move to a player.
 
 ### Acceptance Criteria
 
 - Pass-and-play, the computer game, the online game and the local review show their
   move lists in SAN. The existing numbered pairs stay (`1. e4 e5`).
 - The declared-move draw-claim wording (`GameControls.declaredClaimExplanation`), and
-  anything else that prints a move to a player, uses SAN. Only the stored and wire
-  forms keep `Move.toString()`.
-- Locally, the position before each move comes from its `MoveRecord`. Online, it
-  comes from `OnlineGame.replayOf`. When that replay fails, as it can on an older
-  client, the screen keeps coordinate notation rather than showing nothing.
+  anything else that prints a move to a player, uses SAN. Stored and wire forms keep
+  a coordinate representation as canonical move identity, but never as display
+  fallback.
+- Locally, the position before each move comes from its `MoveRecord`. Online, the
+  server adds required `san` to the existing chess `MoveView` (`from`, `to`,
+  `promotion`) and replaces `GameView.moves: List<String>` with
+  `List<MoveView>`. It derives each entry from the stored `MoveRecord` and its
+  `positionBefore`. `lastMove` uses the same type. Android renders `san` and does not
+  replay coordinates merely to produce notation.
+- Undo request and undo-note DTOs use those same required chess move views for the
+  requester move and reply. Pending and declined requests derive them from active
+  move records; accepted and crossed notes derive them from the retained Redo
+  operation. SAN remains derived display data, never canonical persistence.
+- There is no coordinate UI fallback, optional SAN field, legacy singular form or
+  mixed-version compatibility path. Missing SAN or its recorded context is an
+  invariant/protocol failure. The beta cutover deletes all pre-cutover pending undo
+  requests and last-answer notes and clears `last_change_kind`, `last_change_actor`,
+  `last_change_version` and `last_change_move` before the new DTOs are served.
 - Compose holds no rule. A move list is not recomputed in full on every
   recomposition.
-- **Tests:** host-side tests for each screen's move list, the replay-failure
-  fallback and the claim wording; Compose tests for at least one board.
+- **Tests:** host-side tests for each screen's move list, claim wording, required SAN
+  serialization, pending/declined/accepted/crossed undo wording and rejection of
+  missing display data; cutover tests prove all obsolete undo-request, answer and
+  last-change metadata is cleared; Compose tests prove at least one board renders
+  SAN and never coordinates.
 
 ---
 
-## M22.6 — Board coordinates
+## M22.8 — Turning automatic rematches off by hand
+
+**Status:** DONE
+
+**Depends on:** None
+
+**Formerly:** `F4`. Source: `PRODUCT.md`.
+
+### Objective
+
+Let a player stop the automatic rematch in a series. Effort: small.
+
+### Completion
+
+Closed as covered on 2026-10-14. `D095` makes Leave series end the current game,
+close the series and guarantee that no rematch follows. A second switch would offer
+no additional behavior. No implementation change belongs to this task; `M22.1`
+implements the decided Leave behavior.
+
+---
+
+`M22.9` is intentionally unused. Username changes formerly held that number, but
+`D098` removed them from M22 and returned them to `F5` until `F13` supplies real
+authentication. The number is not reused.
+
+---
+
+## M22.10 — Online ply-by-ply review
+
+**Status:** TODO
+
+**Depends on:** M22.7
+
+**Formerly:** `F41`
+
+### Objective
+
+`M21.16` left online review as an open product decision: ply-by-ply review exists
+only for saved local games (`M21.3`). Bring it to online games. It is most useful
+from History, where a finished online game opens read-only.
+
+### Decisions
+
+`D100` offers Review on a finished online game's end screen and when that game is
+opened from History. Only finished games may enter review; an active online game
+never offers it. `D101` requires the server to project recorded move contexts and
+forbids client reconstruction by replaying a historical move chain.
+
+### Acceptance Criteria
+
+- `LocalGameReview`'s Start, Previous, Next and End controls are reused.
+- The finished-game screen and History both offer Review. Active games do not.
+- `GET /games/{gameId}/review` accepts only a participant and only a finished game.
+  A missing game is `404`, a nonparticipant is `403`, and an active game is `409`.
+  It returns `CompletedGameReviewView`: `gameId`, `version`,
+  `plies: List<ReviewPlyView>`, `finalPosition: ReviewPositionView`, `result`, and
+  `terminationReason`. Each ply has `move: MoveView` and
+  `positionBefore: ReviewPositionView`. `ReviewPositionView` contains only `board`,
+  `sideToMove`, and `inCheck`; it is a safe chess projection, not a serialized
+  persistence snapshot. `inCheck` describes the displayed position even when that
+  position is the final checkmate.
+- The server derives each SAN independently from that move's own recorded pre-move
+  position, projects each position from that same snapshot, and projects
+  `finalPosition` and the result fields from the game's final canonical state. It
+  never constructs a historical chain by executing moves through current rules.
+  Missing or invalid move context is an invariant failure: Review remains
+  unavailable, the ordinary finished-game view remains usable, and coordinates are
+  not shown as a fallback.
+- The move list it steps through is in SAN (`M22.7`).
+- Local and online review map their recorded histories into one read-only Android
+  review model, without sharing persistence DTOs or replaying rules.
+- **Tests:** server tests for response identity, `404`/`403`/`409`, required SAN,
+  exact recorded pre-move positions, checked positions including final checkmate,
+  zero-move finished games, invalid move context, and exact final canonical
+  state/result; host-side tests for stepping and where Review is offered; a Compose
+  test for the controls.
+
+---
+
+## M22.11 — Board coordinates
 
 **Status:** TODO
 
@@ -392,11 +684,11 @@ file letters and rank numbers on every board.
 
 ---
 
-## M22.7 — Drag-and-drop moves
+## M22.12 — Drag-and-drop moves
 
 **Status:** TODO
 
-**Depends on:** None
+**Depends on:** M22.2
 
 **Formerly:** `F3`. Source: `PRODUCT.md`.
 
@@ -411,124 +703,15 @@ Let a player drag a piece to move it, as well as tapping.
   tap would, through `BoardInteraction`. Compose holds no rule; legality comes from
   `chess-core`.
 - An illegal or cancelled drop returns the piece and changes nothing.
+- Drag recognition does not steal ordinary vertical scrolling in a short one-pane
+  layout. A gesture that becomes scrolling or is cancelled changes no selection or
+  game state.
 - The promotion choice and the draw-entitling prompt (`D041`) still stop before the
   move is made.
 - It works on every board, including pass-and-play's upside-down pieces (`D087`),
   the computer game (only on the human's turn), and online, where legality is
   pre-validation only (`D004`).
 - **Tests:** host-side tests for the drop path; Compose tests for a legal drop, an
-  illegal drop and a promotion by drag.
-
----
-
-## M22.8 — Turning automatic rematches off by hand
-
-**Status:** BLOCKED
-
-**Depends on:** None
-
-**Formerly:** `F4`. Source: `PRODUCT.md`.
-
-### Objective
-
-Let a player stop the automatic rematch in a series. Effort: small.
-
-### Blocked on
-
-1. **Whether this is already covered.** Explicitly leaving a series (`M19.8`,
-   `D068`) already ends the series at once and leaves its current game to be
-   finished, so no rematch follows. *Recommendation (not decided):* the owner
-   confirms whether that covers this item. If it does, close this task as covered.
-   If not, the switch goes on the online game screen rather than waiting for
-   `F35` (user settings).
-
-### Acceptance Criteria
-
-To be written once the owner has answered: either closing this task as covered by
-`M19.8`, or a switch whose behaviour and position are decided.
-
----
-
-## M22.9 — Username changes
-
-**Status:** BLOCKED
-
-**Depends on:** None
-
-**Formerly:** `F5`. Source: `MVP.md`, `PRODUCT.md`.
-
-### Objective
-
-Let a player change their username. Effort: medium.
-
-### Blocked on
-
-This is a security decision, and a stop condition until the owner makes it.
-
-1. **What happens to the old name.** `D008` keeps lost names reserved.
-2. **How to prevent impersonation,** given that identity is claimed by username with
-   no verification (`D082`).
-
-*Recommendation (not decided):* decide this alongside `F13`, real authentication.
-Until then, a changed name is as easy to claim as any other.
-
-### Acceptance Criteria
-
-To be written once the owner has decided the above.
-
----
-
-## M22.10 — Detailed profiles
-
-**Status:** BLOCKED
-
-**Depends on:** M22.2
-
-**Formerly:** `F6`. Source: `PRODUCT.md`.
-
-### Objective
-
-A profile page for a player. Effort: medium.
-
-### Blocked on
-
-1. **What a profile shows, and to whom.** *Recommendation (not decided):* the
-   username, when they joined, the record with the viewer (`M22.2`) and the groups
-   they share. Visible to friends and to members of a shared group.
-
-### Acceptance Criteria
-
-To be written once the owner has decided the above.
-
----
-
-## M22.11 — Online ply-by-ply review
-
-**Status:** BLOCKED
-
-**Depends on:** M22.5
-
-**Formerly:** `F41`
-
-### Objective
-
-`M21.16` left online review as an open product decision: ply-by-ply review exists
-only for saved local games (`M21.3`). Bring it to online games. It is most useful
-from History, where a finished online game opens read-only.
-
-### Blocked on
-
-1. **Where review is offered.** *Recommendation (not decided):* both at the end of a
-   game and from History.
-2. **Which games can be reviewed.** *Recommendation (not decided):* finished games
-   only.
-
-### Acceptance Criteria
-
-- `LocalGameReview`'s Start, Previous, Next and End controls are reused.
-- Its positions come from replaying the server's move list through `chess-core`.
-  That is display only and does not restore canonical state, so it is consistent
-  with `D061`. When the replay fails on an older client, review is not offered.
-- The move list it steps through is in SAN (`M22.5`).
-- **Tests:** host-side tests for stepping, the replay failure and where it is
-  offered; a Compose test for the controls.
+  illegal drop, a promotion by drag, cancellation, and vertical scrolling that
+  starts over the board without making a move. A drag that repeats the next retained
+  action advances `M22.2`'s continuation exactly as the equivalent tap does.

@@ -171,15 +171,19 @@ These follow from finding 4:
 
 ### 6. History visibility
 
-- **The player-facing history view (`D056`)** is safe to show every participant *for this
-  ruleset*, because it reports only events that occurred and nothing is permanently hidden.
-  Raw `game_events` rows stay server-only: event payloads will record what was drawn before
-  it was revealed.
-- **Chess today** exposes a finished game's whole move list through `GET /games/{id}`, and
-  history lists results only. Both are complete-information surfaces.
+- **The player-facing history view (`D056`, `D101`)** is safe to show every participant
+  *for this ruleset*, because it reports only events that occurred and nothing is permanently
+  hidden. The server derives ruleset-specific structured display entries with required
+  wording; clients do not receive raw `game_events` rows or reconstruct the view through
+  rule replay.
+- **Chess** is complete information. `M22.7` makes SAN a required server projection of
+  stored move records, and `M22.10` projects recorded finished-game positions for review.
+  Those DTOs are explicit chess views, not persistence records.
 - **Undo snapshots** (`D061`) and `moves.position_before` are server-only. In chess the
-  latter is harmless because both players could see it. In a hidden-information game it *is*
-  the secret, so the rule is that the undo record is never projected, whatever the ruleset.
+  latter is harmless because both players could see it. A finished-chess review may expose
+  a purpose-built board projection derived from it; the raw persistence record does not
+  leave the server. In a hidden-information game a snapshot *is* the secrets, so raw undo
+  records are never projected and any review position needs a per-viewer projection.
 - A ruleset **with** permanent secrets would need the history view projected per viewer too
   (`D056`). Out of scope.
 
@@ -226,8 +230,9 @@ Moved here from `PLATFORM-REVIEW.md`, with the additions above.
 - **the seed and counter** — never leave the server, including logs;
 - **undo snapshots** (`D061`) and `position_before` — server-only; undo answers with a
   projection;
-- **raw `game_events`** — server-only; the derived history view (`D056`) is safe in a
-  no-permanent-secrets ruleset and needs per-viewer redaction otherwise;
+- **raw `game_events`** — server-only; the structured derived history view (`D056`,
+  `D101`) is safe in a no-permanent-secrets ruleset and needs per-viewer redaction
+  otherwise;
 - **refusal-attached state** — projected exactly like a read;
 - **realtime** — identity and version only, never state;
 - **payload identity** — `(gameId, version, viewer)`; `(gameId, version)` names a state;

@@ -56,7 +56,10 @@ Rules:
 - usernames are 3–24 characters.
 - allowed characters: letters, numbers, underscore, hyphen.
 - no spaces.
-- username changes are outside MVP.
+- username changes are outside MVP and wait for real authentication (`F13`,
+  `D098`). When implemented, the authenticated owner may rename the shared user;
+  every old normalized name remains permanently reserved as an unavailable,
+  non-searchable tombstone.
 - if an anonymous account is lost, its username remains reserved for MVP rather than being automatically recycled.
 - entering a username that already exists attaches this installation to that existing user, with no verification (`D082`). A lost username is regained by typing it again, and anyone else who types it reaches the same account. This is a deliberately insecure prototype behaviour that must be replaced before untrusted or public use. Implemented by `M20.4`.
 - an installation that already has a username cannot claim a different one, whether the other name is new or already someone's (`D083`). Entering its own name again changes nothing.
@@ -99,6 +102,11 @@ Supported:
 - remove friend,
 - start/open a game series with a friend.
 
+Post-MVP (`M22.4`, `D096`), each row in the dashboard's FRIENDS section also
+shows a compact `W-L-D` record. It counts every finished game with that friend
+across all chess series. Games still in progress do not count, and the server,
+not the client, computes the totals.
+
 For testing, the Friends screen also has "Browse all users": a page listing
 every user. People you could add come first, each with Add, then your friends,
 marked as friends. Each group is most recently active first. Add uses the same
@@ -121,6 +129,11 @@ Not included in the chess MVP:
 - contact syncing,
 - social feeds,
 - detailed profiles.
+
+Post-MVP (`M22.5`, `D099`), a friend or current shared-group member can open a
+relationship profile. It shows the username, join month/year, lifetime chess
+record against the viewer, and only groups they share. It is not public, and it
+does not expose the subject's other group memberships.
 
 ### Removing a Friend
 
@@ -191,15 +204,18 @@ The MVP does not need to prominently display last-seen information.
 A `GameSeries` represents an ongoing sequence of games between the same two
 players.
 
-For MVP:
+For chess:
 
-- a pair may have **more than one** `ACTIVE` series at a time (`D053`,
-  superseding `D011`), the same way two people could sit at two boards at once,
-- selecting Play for a friend who already has an active series **offers** opening
-  it or starting another; it does not silently reuse one,
+- a pair has at most one `ACTIVE` series at a time (`D095`, superseding `D053`
+  rule 1),
+- selecting Play for someone who already has an active series opens it,
 - closed historical series remain available for history,
 - a series ends only when a participant explicitly leaves it; removing a friend
   does not close it.
+
+Leaving ends the current game as well as the series (`D095`). A game in which a
+move has been played ends as a resignation by the leaver. A zero-move game is
+deleted without a result. No closed series has an unfinished game.
 
 Recommended lifecycle:
 
@@ -215,8 +231,8 @@ work; see `D048` and `docs/PLATFORM-REVIEW.md`. Chess remains two-player.
 ## Starting a Game
 
 A friend, or another member of a group you are in (`D076`), can be selected and
-the game starts directly. If they already have an active series with you, the player is offered opening it or starting another
-(`D053`); a new series is never silently reused or silently duplicated.
+the game starts directly. If they already have an active series with you, Play
+opens that series (`D095`); it never creates or offers a parallel one.
 
 No per-game invite code.
 
@@ -245,10 +261,9 @@ No:
 - acknowledgement,
 - waiting state.
 
-Future versions may allow automatic rematches to be disabled manually.
-
-For MVP, automatic rematches are always on for an active series (`D053`). A
-series stops producing rematches only when a participant explicitly leaves it.
+Automatic rematches are always on for an active series. A series stops producing
+rematches only when a participant explicitly leaves it. Leaving also ends its
+current game (`D095`), so there is no closed-series game left to finish.
 
 ## Takebacks / Undo
 
@@ -335,11 +350,20 @@ app restart. For an online game the server is authoritative, so another installa
 sees the same availability. Only the player whose turn it is before the Redo may use
 it online.
 
-An ordinary newly accepted move starts a new continuation and clears every remaining
-Redo operation, even if the player manually chooses the same coordinates as the next
-recorded move. Resignation, a successful draw claim, or a newly played game-ending
-move also clears it and remains final. Navigation, refresh, reconnect, recreation,
-and undo-request changes that do not change move history do not clear it.
+Post-MVP (`M22.2`, `D102`), an ordinary accepted move advances the retained
+continuation when its canonical structured identity and complete predecessor state
+exactly match the next recorded action. It consumes that action, restores its recorded
+result and preserves everything still ahead. A different legal move starts a new
+continuation and clears the remainder. Manual matching advances one action at a time;
+it does not silently play an online opponent's retained reply. A recorded computer
+reply is restored without another engine search when it becomes the computer's next
+action.
+
+Resignation, a successful draw claim, or a newly accepted game-ending move clears any
+remaining continuation and stays final. Navigation, refresh, reconnect, recreation,
+and undo-request changes that do not change move history do not clear it. A matching
+move does change board/history state, so it clears pending gameplay requests like any
+other accepted move.
 
 ### Final Moves
 
@@ -413,7 +437,12 @@ A claimable draw requires an explicit `ClaimDraw` action by an entitled player.
 
 The engine must determine whether a valid draw claim exists according to the game history and current/prospective legal move state.
 
-Draw offers by agreement are not part of MVP.
+Draw offers by agreement are not part of MVP. They are scheduled after the MVP
+in `M22.3` (`D097`): either player may offer during an unfinished game, one draw
+offer may be pending, and it has no timer. After a decline, neither player may
+offer again until an accepted move. A draw offer and an undo
+request may coexist. Request-only changes preserve the other request; any board,
+history or result change clears both.
 
 ## Dashboard
 
@@ -439,9 +468,9 @@ White • Move 24
 
 FRIENDS
 
-Alex       [Play/Open]
-Chris      [Play/Open]
-Sam        [Play/Open]
+Alex       12-7-3 W-L-D       [Play/Open]
+Chris       4-2-1 W-L-D       [Play/Open]
+Sam         0-0-0 W-L-D       [Play/Open]
 ```
 
 Completed games belong in history rather than dominating the home screen.
@@ -462,7 +491,7 @@ Display:
 - legal move highlights,
 - last move highlight,
 - check indication,
-- move history,
+- move history in standard algebraic notation (SAN),
 - Undo when legal,
 - Claim Draw when a valid claim is available,
 - Resign.
@@ -499,6 +528,15 @@ tap piece
 ```
 
 Drag-and-drop is not required for MVP.
+
+### Online Completed-Game Review
+
+Post-MVP (`M22.10`, `D100`), a finished online game offers Review both on its
+game-ending screen and when opened from History. Start, Previous, Next and End
+step through server-projected recorded positions and the SAN move list. Review never
+replays coordinate moves through the installed client rules and never shows
+coordinates as a notation fallback. Active online games never offer review and keep
+their live server-authoritative board (`D101`).
 
 ## Local Games
 
@@ -616,7 +654,7 @@ holds what is known about each item (`D072`).
 - contact syncing,
 - push notifications,
 - chess clocks,
-- draw offers by agreement,
+- draw offers by agreement (scheduled post-MVP as `M22.3`),
 - custom themes,
 - elaborate animations,
 - spectators,

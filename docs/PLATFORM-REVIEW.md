@@ -741,6 +741,10 @@ pair is **removed** (drop index `game_series_one_active_per_pair`, migration V3)
 and unfriending **no longer closes a series** (drop
 `game_series.close_after_current_game`). `D014` is kept as `D050`'s N = 2 case.
 
+*Later decision:* `D095` restores one active series per pair for chess and makes
+Leave end the current chess game. It does not decide the future Deck Builder's
+table/series cardinality. `D053`'s unfriending rule remains.
+
 ### Client legality, undo horizon, history view (2026-09-09 — see `D054`–`D056`)
 
 - **The deck-builder client computes legality locally**, in full, like chess
@@ -757,7 +761,15 @@ and unfriending **no longer closes a series** (drop
 - **Players get a readable history view** (`D056`) derived from `game_events`,
   with no per-viewer redaction, because this ruleset has no permanent secrets.
   The "audit never leaves the server" rule becomes: raw rows and canonical state
-  are server-only, a derived replay-equivalent view is a legitimate surface.
+  are server-only, a structured derived view with required human-readable wording
+  is a legitimate surface. `D101` makes these layers a common architecture that
+  Chess and the Deck Builder implement independently; neither follows the other.
+  `D102` adds the matching-versus-divergence invariant for a retained continuation,
+  using each ruleset's own structured action identity and exact snapshots. Each keeps
+  its own action types, recorded-state Undo/Redo and display projection; no client
+  reconstructs player-facing history or review by replaying rules and there is no
+  generic action union shared by the games. Chess's existing active-game replay for
+  local move preview remains a separate pre-validation aid.
 
 ### Still open
 

@@ -241,6 +241,10 @@ A normalized username must have a database uniqueness constraint.
 **Date:** 2026-08-21  
 **Status:** Accepted
 
+**Amended 2026-10-14 by `D098`:** after authenticated username changes exist, an
+old name remains permanently reserved as an unavailable tombstone. It is not a
+searchable alias and is never assigned to another user.
+
 ### Decision
 
 If an anonymous MVP account becomes inaccessible, do not automatically recycle its username.
@@ -509,6 +513,9 @@ in a closed series gets no rematch. Resigning never leaves a series.
 
 **Date:** 2026-08-21  
 **Status:** Accepted
+
+**Amended 2026-10-14 by `D097`:** draws by agreement remain outside the MVP but
+are scheduled as post-MVP work in `M22.3` with the request lifecycle defined there.
 
 ### Decision
 
@@ -3009,7 +3016,7 @@ silent drop.
 
 **Date:** 2026-09-09
 
-**Status:** Accepted
+**Status:** Accepted; rule 1 superseded by `D095` (2026-10-14). Rule 2 remains.
 
 **Relates to:** `D011` (removed), `D013` (removed), `D014` (kept, see `D050`),
 `D046`, `D047`, `CLAUDE.md` *Product Rules That Must Not Be Changed Silently*,
@@ -3262,6 +3269,11 @@ never sized. That sizing is a real task, not a footnote.
 
 **Status:** Accepted
 
+**Amended 2026-10-15 by `D101`:** the endpoint returns ruleset-specific
+structured display entries with required human-readable text, rather than bare
+formatted strings. The entries are derived from canonical actions and recorded
+outcomes; clients do not reconstruct them by replaying rules.
+
 **Relates to:** `D020`, `D022`, `D044`,
 `PLATFORM-REVIEW` *Randomness is materialised* (projection checklist),
 deck-builder design interview D4
@@ -3312,8 +3324,10 @@ hidden-info game from inheriting a rule that was safe only here.
 
 ### Consequences
 
-- A history-view endpoint derives from `game_events` server-side and returns
-  formatted lines, not rows.
+- A history-view endpoint derives ruleset-specific structured display entries
+  from canonical actions and recorded outcomes server-side. Each entry includes
+  required human-readable text. It returns neither raw `game_events` rows nor a
+  generic cross-ruleset event union.
 - `PLATFORM-REVIEW.md`'s projection checklist gains: "history view — safe to
   expose in a no-permanent-secrets ruleset; needs per-viewer redaction
   otherwise."
@@ -4134,7 +4148,7 @@ chess.
 
 **Date:** 2026-09-16
 
-**Status:** Accepted
+**Status:** Superseded by `D095` (2026-10-14).
 
 **Relates to:** `D011` (superseded by `D053`), `D021`, `D046`, `D053`, `D064`,
 `M16.4`, `M19.4`, `ARCHITECTURE` §16, `PRODUCT` *Starting a Game*
@@ -4353,7 +4367,8 @@ that, and a game type can seat its own characters as one of them.
 
 **Date:** 2026-09-16
 
-**Status:** Accepted
+**Status:** Superseded in part by `D095` (2026-10-14). Leaving now ends the
+current game; the participant-only, idempotent route remains.
 
 **Relates to:** `D004`, `D012`, `D015`, `D022`, `D049`, `D052`, `D053`, `M19.8`, `M20.2`,
 `ARCHITECTURE` §16, §17
@@ -4426,6 +4441,11 @@ game. A closed series never points at a game other than its newest.
 
 **Status:** Accepted
 
+**Amended 2026-10-15 by `D101`:** raw undo snapshots and persistence rows still
+never leave the server. A ruleset may expose a purpose-built, field-by-field
+position view derived from a recorded snapshot when that view passes the same
+visibility rules; completed chess review does so.
+
 **Relates to:** `D004`, `D022`, `D051`, `D054`, `D056`, `D061`, `D062`, `M19.10`,
 [`docs/GAME-STATE-VISIBILITY.md`](GAME-STATE-VISIBILITY.md) (findings 1–3, 6, 7)
 
@@ -4444,11 +4464,13 @@ makes sure only the right projection is serialized to each viewer.
 - **A projection is an allowlist.** Response types are built field by field from canonical
   state. No route serializes a stored state document, with or without fields removed. A
   field added to storage reaches no client until a projection is changed to carry it.
-- **Never projected, in any ruleset:** deck order (a deck is a count), the identity of any
+- **Never projected raw, in any ruleset:** deck order (a deck is a count), the identity of any
   card whose position the viewer does not know (absent or anonymous, never a flagged
-  identity), the seed and any counter, undo snapshots and `position_before` (`D061`; an
-  undo answers with the projection of the restored state), raw `game_events` rows (`D056`),
-  and `non_user_participants.state`. The seed and counter are also kept out of log lines.
+  identity), the seed and any counter, undo snapshot or `position_before` persistence
+  documents (`D061`), raw `game_events` rows (`D056`), and
+  `non_user_participants.state`. An undo or review answers with a purpose-built
+  allowlisted projection of a recorded position, never the stored document itself
+  (`D101`). The seed and counter are also kept out of log lines.
 - **Realtime messages carry no state**, only identity and version (`D022`), so they never
   need projecting.
 - **Visibility is decided by the viewer's role**, not by a seat index or a colour, and the
@@ -6450,12 +6472,16 @@ entry point's meaning: each resumes exactly one game.
 
 **Status:** Accepted
 
+**Amended 2026-10-14 by `D097`:** a draw offer may coexist with an undo request.
+Request-only changes preserve the other request; a board, active-history or result
+change invalidates both.
+
 **Amends:** `D016`. It adds an undo request, answered by the opponent, once the
 opponent has replied. `D016`'s unilateral undo is unchanged, except where an undo
 request is waiting (below).
 
 **Relates to:** `D016`, `D017`, `D018`, `D019`, `D021`, `D022`, `D029`, `D044`, `D061`,
-`D068`, `D069`, `D070`, `D078`, `F2`, `M21.19`
+`D068`, `D069`, `D070`, `D078`, `M21.19`, `M22.3`
 
 ### Decision
 
@@ -6581,18 +6607,17 @@ is not used for it, because `yourTurn` means "it is your move": it comes from th
 to move, and the game screen shows it as "Your move". Set for Alex, it would contradict
 the game, which says "Jordan to move". The row also needs to say why the game needs
 Alex. Jordan's own row says "Undo requested" while the request waits, from the same
-field. When `F2` adds draw offers, it replaces that singular field with
-`pendingRequests: List<PendingRequest> = emptyList()` so both request types can be
-represented at once; F2 owns that server-and-client API change and its ordering and
-rendering tests.
+field. When `M22.3` adds draw offers, it replaces that singular field with required
+plural `pendingRequests` so both request types can be represented at once; `D097`
+owns that beta contract break, ordering and rendering tests.
 
 **Activity.** Asking, accepting and declining are actions by that player, and record
 their last action as moves and undos do (`M19.11`).
 
-**Draw offers.** When `F2`'s draw offers are built, an undo request and a draw offer
-may both be pending in one game at the same time. `F2` records the plural dashboard
-contract and the required simultaneous-state tests; `M21.19` does not introduce that
-unused API shape before draw offers exist.
+**Draw offers.** `M21.19` does not introduce a draw offer or its unused plural API
+shape. `D097` later schedules draw offers in `M22.3`, where an undo request and a
+draw offer may both be pending in one game. That task owns the plural dashboard
+contract and the required simultaneous-state tests.
 
 ### Rationale
 
@@ -6663,11 +6688,15 @@ did not see.
 
 **Status:** Accepted
 
+**Amended 2026-10-16 by `D102`:** an accepted move that exactly matches the next
+retained action advances through that recorded continuation instead of branching.
+The original rule below records what `M21.21` implemented.
+
 **Amends:** `D016`, `D084`, `D086`, and `D091` only by defining what may follow an
 accepted Undo or takeback. Their eligibility and operation sizes are unchanged.
 
 **Relates to:** `D017`, `D018`, `D019`, `D021`, `D022`, `D029`, `D061`, `D069`,
-`D070`, `D085`, `D090`, `M21.19`, `M21.20`, `M21.21`, `F2`
+`D070`, `D085`, `D090`, `M21.19`, `M21.20`, `M21.21`, `M22.3`
 
 ### Decision
 
@@ -6735,9 +6764,9 @@ apply at most once.
 Per-viewer APIs expose only whether Redo is available and any safe display information
 the screen needs. They do not expose stored snapshots, another player's hidden data,
 or persistence details (`D069`, `D070`). Redo adds no dashboard request type and does
-not change `M21.19`'s singular undo-only `pendingRequest`. `F2` still owns the future
-`pendingRequests: List<PendingRequest> = emptyList()` contract when draw offers make
-simultaneous request types possible.
+not change `M21.19`'s singular undo-only `pendingRequest`. `M22.3` owns `D097`'s
+required plural replacement when draw offers make simultaneous request types
+possible.
 
 ### Rationale
 
@@ -6891,3 +6920,605 @@ The owner wants to choose when work reaches `main` and the beta.
   `codex-autopilot`.
 - `main` and `codex-autopilot` can lag `claude-autopilot` by any number of commits.
   The evaluator still fetches before it starts (`docs/INDEPENDENT-EVALUATION.md`).
+
+---
+
+## D095 — One Active Chess Series per Pair, and Leaving Ends Its Current Game
+
+**Date:** 2026-10-14
+
+**Status:** Accepted
+
+**Supersedes:** `D053` rule 1 (parallel chess series) and `D065`'s series-offer
+contract. It supersedes `D068` where that decision leaves the current game playable;
+`D068`'s participant-only, idempotent endpoint and realtime notification remain.
+
+**Relates to:** `D012`, `D014`, `D015`, `D021`, `D050`, `D053`, `D065`, `D068`,
+`D093`, `M19.4`, `M19.8`, `M22.1`, `M22.8`
+
+### Decision
+
+**One active chess series per exact participant pair.** Two chess players may have
+at most one `ACTIVE` series together. Play opens that series when it exists and
+creates one otherwise. There is no offer to start another and no supported
+`another=true` path. An obsolete client asking for another series receives a conflict
+that tells it to update; the server never creates the parallel series.
+
+This is a chess rule. Whether a future Deck Builder table permits more than one
+active series is designed with `F26`, not inferred from this decision.
+
+**Existing conflicts are deleted.** `M22.1` uses a forward-only migration that keeps
+the newest active chess series for each pair by deterministic
+`created_at DESC, id DESC` order and deletes every older conflicting series with all
+dependent games, moves, requests, state and audit/history rows. The project owner
+explicitly chose deletion over preservation or compatibility for data that obstructs
+this invariant. Closed historical series do not conflict and remain. After cleanup,
+the database enforces uniqueness for chess only: a trigger, or equivalently strong
+database mechanism, locks the table row and rejects a second `ACTIVE` chess series.
+It does not decide the cardinality of another game type.
+
+**Leaving ends the game and the series together.** `POST /series/{id}/leave` is one
+locked transaction:
+
+- if any move has ever been accepted in the current game, that game ends as a
+  resignation by the leaver, with the other player winning;
+- if no move has ever been accepted, the current game is deleted without a result;
+- the series closes and no rematch is created.
+
+An undone game whose active move list is empty is still a started game if a move was
+accepted earlier; leaving it is resignation rather than deletion. A closed series
+never has an unfinished game. Ordinary Resign remains different: it ends the current
+game but leaves an active series to create its automatic rematch.
+
+“Ever accepted” is stored as a durable `games.has_started` fact. The first accepted
+ordinary move sets it in the move transaction, and Undo, Redo, request changes and
+all later commands never clear it. Existing rows are backfilled from durable evidence
+of an accepted move, including audit events, active history or redo history; a row
+with no such evidence remains false.
+
+The operation remains participant-only and idempotent. Every transaction that may
+end a game and settle its series locks the series row before the game row; Leave uses
+the same order. Whichever wins, the committed outcome contains no unfinished game in
+a closed series and creates no game after the leave. The shared order is required so
+the race cannot deadlock.
+
+### Rationale
+
+Parallel series produced indistinguishable dashboard and history entries and made one
+friend row point arbitrarily at one game. More importantly, "Leave series" normally
+means the player has left the game being played, not that they intend to keep playing
+it while only disabling a future rematch. Ending both at once removes the otherwise
+surprising closed-series/unfinished-game state.
+
+Deleting never-started games avoids recording a loss for a game nobody played.
+Treating every started game as resignation gives a clear result and prevents leaving
+from erasing played activity.
+
+### Alternatives Considered
+
+- **Preserve or grandfather parallel series.** Rejected by the owner; obstructing
+  legacy data may be deleted.
+- **Return an existing series to obsolete `another=true` clients.** Rejected; no
+  compatibility behavior is required.
+- **Close the series but let its current game finish.** This was `D068` and was
+  rejected as contrary to the meaning of leaving.
+- **Delete every current game on leave.** Rejected for started games because it would
+  erase play and avoid a deserved resignation result.
+
+### Consequences
+
+- `M22.1` is unblocked. It owns the destructive migration, constraint, removal of
+  `SeriesOffer`/`startAnotherSeries`, atomic Leave behavior, UI changes and races.
+- `M22.8` is closed as covered: the owner confirmed that Leave is the control for
+  stopping rematches, so a second switch would add no behavior.
+- `D053` rule 2 remains: removing a friend changes only the friend graph.
+- Completed history remains readable. There is no dashboard projection for a closed
+  series with an unfinished game after `M22.1`.
+
+---
+
+## D096 — Friend Rows Show a Lifetime Chess W-L-D Record
+
+**Date:** 2026-10-14
+
+**Status:** Accepted
+
+**Relates to:** `D004`, `D048`, `D069`, `M22.1`, `M22.4`, `M22.5`, `F30`, `F31`
+
+### Decision
+
+Each friend row in the dashboard's FRIENDS section shows a compact chess record in
+the form `<wins>-<losses>-<draws> W-L-D`, from the viewer's perspective.
+
+The record counts every finished chess game between those two users across every
+series, active or closed. Every draw termination counts as a draw. Unfinished games,
+deleted zero-move games and games of another game type do not count.
+
+The server computes the totals from canonical stored results and returns them in the
+dashboard DTO. The Android client formats the supplied counts and exposes an
+accessibility description that speaks wins, losses and draws; it never derives the
+record from locally available history.
+
+The record is a required, non-null wire field. The server always supplies explicit
+counts, including a genuine `0-0-0`. A missing field is an incompatible response,
+not a value the client defaults or hides. Beta APK/server versions need not
+interoperate.
+
+### Rationale
+
+The FRIENDS row is where a player chooses whom to play and is the smallest useful
+place for the relationship's record. A lifetime count has one stable meaning even
+when several historical series exist, and the same statistics model can later feed
+detailed profiles and statistics.
+
+### Alternatives Considered
+
+- **Current or most recent series only.** Rejected: it makes the record change scope
+  when a series ends and hides the rest of the relationship.
+- **Show it only on the game screen or a future profile.** Rejected: the owner chose
+  the compact FRIENDS-row display.
+- **Count on Android.** Rejected: partial client history is not canonical.
+
+### Consequences
+
+- `M22.4` is unblocked and supplies `M22.5`'s head-to-head record dependency.
+- `F30` may add richer breakdowns later without changing this lifetime total.
+- Queries and indexes must be measured against the dashboard's whole friend list;
+  an N+1 query is not acceptable.
+
+---
+
+## D097 — Draw Offers Are Timeless Requests That May Coexist with Undo Requests
+
+**Date:** 2026-10-14
+
+**Status:** Accepted
+
+**Amends:** `D019` by adding post-MVP draws by agreement, and `D091` by allowing a
+draw offer and undo request to coexist instead of every request-only command clearing
+the other request.
+
+**Relates to:** `D004`, `D017`, `D018`, `D021`, `D022`, `D069`, `D070`, `D091`,
+`M21.19`, `M22.3`
+
+### Decision
+
+Draw offers apply to unfinished online chess games. Either participant may offer a
+draw at any time, whether or not it is their turn. At most one draw offer is pending
+per game. It has no timer and no separate Cancel action. The opponent accepts or
+declines it. Acceptance immediately finishes the game as an agreed draw and performs
+the ordinary atomic series settlement.
+
+After a decline, the game accepts no new draw offer until an ordinary chess move has
+been accepted. Undo or Redo does not lift that restriction. This prevents immediate
+repeat offers while keeping the rule visible and deterministic.
+
+**Requests coexist.** A game may hold one draw offer and one undo request at the same
+time, in either direction. Creating, declining, or otherwise changing request-only
+metadata does not invalidate the other request. The dashboard exposes all pending
+requests in a stable order: undo request, then draw offer. `yourTurn` continues to
+mean only whose turn it is to move; `waitingOnYou` also becomes true for any request
+the viewer must answer.
+
+**Gameplay changes invalidate both.** Any change to the board, active move history or
+result clears both pending requests in the same transaction. This includes a move,
+Undo, Redo, resignation, a draw claim, accepting an undo request, and accepting a draw
+offer. Declining either request is request-only and preserves the other.
+
+An answer remains valid through intervening request-only versions but never through
+an intervening gameplay change. Persistence therefore records a gameplay-state
+revision separate from the general observable version, or an equivalent durable fact
+that proves the board, active history and result are unchanged. The overall game
+version still increments for accepted request commands so realtime clients refresh.
+
+### Rationale
+
+Asynchronous games may wait much longer than a useful timer, so expiry by time would
+be arbitrary. Either player should be able to propose an agreement without waiting
+for their turn. Requiring a move after a decline prevents harassment by repeated
+offers. Draw and undo requests describe independent proposals, so merely creating or
+declining one should not silently erase the other.
+
+The existing single game version cannot by itself distinguish a request-only update
+from changed play. Making that distinction explicit preserves optimistic concurrency
+without contradicting the decision that both request types can coexist.
+
+### Alternatives Considered
+
+- **A timer.** Rejected for asynchronous play.
+- **Only the side to move may offer.** Rejected; an agreement is not a chess move.
+- **Allow another offer immediately after decline.** Rejected as request spam.
+- **Only one request of any kind.** Rejected; the owner chose coexistence.
+- **Invalidate one request whenever the other changes.** Rejected; request-only
+  changes do not invalidate each other.
+
+### Consequences
+
+- `M22.3` follows `M22.2` and owns storage, commands, audit events, per-viewer projection,
+  dashboard pluralization, UI, realtime refresh and tests.
+- `M22.3` makes one beta contract break: delete singular `pendingRequest` and replace
+  it with required, non-null `pendingRequests` in stable undo-then-draw order. The
+  server always emits the list, including when empty; the client has no default or
+  legacy fallback, so a missing field fails as an incompatible response. Old APKs
+  need not work with the new server, and new APKs need not work with an old server.
+- The implementation must test request-only interleavings and every gameplay change
+  that clears both requests, not only ordinary moves. A move that advances `D102`'s
+  retained continuation is still a gameplay change and clears both.
+
+---
+
+## D098 — Username Changes Wait for Real Authentication and Tombstone Old Names
+
+**Date:** 2026-10-14
+
+**Status:** Accepted
+
+**Amends:** `D008` by defining how a deliberately changed old username remains
+reserved.
+
+**Relates to:** `D006`, `D082`, `D083`, `D093`, `F5`, `F13`, `F35`, former `M22.9`
+
+### Decision
+
+Username changes are not implemented under the prototype claim-by-username identity
+model. They depend on `F13` replacing that model with real authentication. Once that
+exists, only the authenticated owner of the shared user may rename it.
+
+Every previous normalized username becomes a permanent unavailable tombstone. It is
+never assigned to another user, does not resolve to the renamed account in search,
+and is not accepted as a login or account-recovery alias. The immutable `users.id`
+continues to own friendships, groups, profiles, games and history.
+
+`M22.9` is removed from the scheduled milestone and restored to `docs/FUTURE.md` as
+`F5`, ordered after its `F13` dependency.
+
+### Rationale
+
+The current prototype lets anyone claim an account by typing its username. Allowing
+a security-sensitive rename under that model would make impersonation and account
+takeover easier, not solve them. A permanent tombstone prevents a later user from
+impersonating the old identity, while keeping the old name out of discovery respects
+the reason someone may have renamed themselves.
+
+### Alternatives Considered
+
+- **Implement renames before real authentication.** Rejected as insecure.
+- **Keep the old name as a searchable alias.** Rejected because a rename may be
+  intended to leave an old public identity behind.
+- **Release the old name immediately or after a delay.** Rejected because another
+  user could impersonate the identity known by that name.
+
+### Consequences
+
+- `F13` must define authenticated account ownership before `F5` can be scheduled.
+- The username schema will eventually need a tombstone/previous-name reservation
+  that participates in case-insensitive uniqueness without appearing in searches.
+- Existing friends continue to point to the same user ID and see the new name.
+
+---
+
+## D099 — Profiles Show Relationship Information to Friends and Shared-Group Members
+
+**Date:** 2026-10-14
+
+**Status:** Accepted
+
+**Relates to:** `D048`, `D069`, `D076`, `D082`, `D096`, `M22.4`, `M22.5`
+
+### Decision
+
+The ChessGame profile for another user shows exactly:
+
+- their current username;
+- the month and year they joined in UTC, not the exact timestamp;
+- their lifetime chess `W-L-D` record against the viewer (`D096`);
+- the groups the subject and viewer currently share.
+
+A viewer may open the profile only when the two users are current friends or current
+members of at least one shared group. The server checks that relationship for every
+read and returns only the intersection of their groups, never the subject's complete
+membership. An unrelated caller receives `404`, so the response does not confirm
+whether an arbitrary user or profile exists. The route identifies the subject by
+immutable user ID, never by mutable username.
+
+The profile is reachable from a friend row and another user's shared-group member
+row. The viewer's own member row is not a profile-navigation entry. Because the
+shared user spans products (`D082`), username and join date are shared identity data;
+the ChessGame app shows its chess-specific head-to-head record. If the qualifying
+relationship disappears after a row was loaded, the app presents the resulting
+`404` as an ordinary unavailable profile with Back.
+
+### Rationale
+
+These fields help players recognize the person and understand their existing playing
+relationship without creating a public profile system. Month/year is useful context
+without exposing an exact account-creation timestamp. Showing only shared groups
+avoids leaking unrelated memberships.
+
+### Alternatives Considered
+
+- **Public profiles for every signed-in user.** Rejected as unnecessary exposure.
+- **Friends only.** Rejected because a shared group already authorizes the players to
+  find and play each other.
+- **Show every group the subject belongs to.** Rejected as a privacy leak.
+- **Add avatars, biography, status or presence.** Deferred; none is needed for
+  `M22.5`'s relationship profile.
+
+### Consequences
+
+- `M22.5` is unblocked once its `M22.4` data dependency is complete.
+- Profile DTOs are per-viewer projections and must not be cached across viewers.
+- Losing the last qualifying relationship removes access immediately.
+
+---
+
+## D100 — Online Review Is for Finished Games from the End Screen and History
+
+**Date:** 2026-10-14
+
+**Status:** Accepted
+
+**Amended 2026-10-15 by `D101`:** review positions come from server projections
+of recorded positions, not from replaying coordinate moves through the client's
+rules.
+
+**Relates to:** `D004`, `D061`, `D069`, `D070`, `M21.3`, `M21.16`, `M22.7`,
+`M22.10`
+
+### Decision
+
+A finished online chess game offers ply-by-ply Review in both places a player expects
+it:
+
+- on the game-ending screen;
+- when the finished game is opened from History.
+
+Only finished games may enter review. An active online game always opens its live,
+server-authoritative board and never offers the review mode.
+
+Review reuses the local review's Start, Previous, Next and End interaction and shows
+the SAN move list from `M22.7`. For each ply, the server projects the move's
+canonical coordinate form and required SAN plus a safe board-position view derived
+from the recorded `MoveRecord.positionBefore`, then includes the view of the final
+canonical state and result. Raw persistence snapshots do not leave the server. These
+are the same records that make Undo exact; neither server nor client replays a
+historical move chain to construct them. The client only steps through that read-only
+projection. Missing or invalid move context is a server invariant failure and Review
+is unavailable; coordinate notation is never a player-facing fallback.
+
+### Rationale
+
+The end screen serves immediate review, while History makes it available later.
+Restricting it to completed games prevents a historical position from being confused
+with the live board or used as a second interaction mode during play.
+
+### Alternatives Considered
+
+- **History only.** Rejected because the natural moment to review is immediately
+  after the game.
+- **End screen only.** Rejected because review should remain available later.
+- **Review active games.** Rejected because the active screen must remain the clear
+  view of authoritative current play.
+
+### Consequences
+
+- `M22.10` is unblocked after `M22.7` supplies SAN move lists.
+- No new canonical game state or replay engine is introduced. The review endpoint
+  projects state already recorded for history and Undo.
+- Authorization remains the same as opening the completed game from History.
+
+---
+
+## D101 — Game History Uses Structured Actions, Recorded-State Undo, and Required Display Projections
+
+**Date:** 2026-10-15
+
+**Status:** Accepted
+
+**Amended 2026-10-16 by `D102`:** where a ruleset retains a future, a submitted
+structured action with the exact recorded predecessor advances it; a mismatch
+branches. Each ruleset defines matching with its own action and state types.
+
+**Amends:** `D020`'s audit-retention wording, `D056`, the snapshot-projection
+wording in `D069`, and the review-construction part of `D100`.
+
+**Relates to:** `D020`, `D029`, `D054`–`D056`, `D061`, `D069`, `D070`, `D092`,
+`F26`, `M22.2`, `M22.6`, `M22.7`, `M22.10`
+
+### Decision
+
+Chess and the Deck Builder independently implement this common game-history
+architecture with ruleset-specific types. Neither game's architecture is derived
+from, subordinate to, or the template for the other's:
+
+1. **Canonical current state** is stored directly and is never rebuilt by replaying
+   commands.
+2. **Active history** stores structured actions and the exact recorded state needed
+   to restore or inspect their boundaries. Chess uses `MoveRecord(move,
+   positionBefore)`; the Deck Builder uses its own ordered action records and full
+   snapshots at independently undoable boundaries (`D061`).
+3. **Undo retention** keeps complete removed operations and recorded states. Undo
+   restores a recorded snapshot. Where a ruleset offers Redo, it restores the exact
+   retained operation. Neither executes old actions through current rules.
+4. **Audit history** is append-only during normal operation and separate from active
+   history. Undo may remove an action from active play, but it never erases the fact
+   that the action, Undo or Redo occurred. While the product remains in beta,
+   intentional hard deletion may remove any beta data, including audit rows;
+   append-only is not a beta-data preservation guarantee.
+5. **Player-facing history** is a required projection of structured actions and
+   recorded outcomes. The server produces it for remotely coordinated games;
+   device-authoritative local games derive the same presentation from their local
+   records. It is not raw audit data and is not reconstructed by rule replay.
+
+For chess, every player-visible move is SAN produced from the move and its recorded
+pre-move position. Wire DTOs also carry the canonical coordinate form for identity
+and diagnostics, but SAN is required and the UI never falls back to coordinates.
+Active move lists, draw-claim wording, undo requests, undo notes and finished-game
+review all follow that rule. Accepted or crossed undo notes obtain their move context
+from the retained Redo operation; pending and declined requests obtain it from active
+move records.
+
+For the Deck Builder, the projection contains ruleset-specific semantic entries and
+required human-readable text derived from its action records and materialised random
+outcomes. Hidden information is projected or redacted under `D069`; raw snapshots,
+deck order, seeds and raw audit rows never leave the server.
+
+The common architecture does **not** mean one generic `Action`, `HistoryEntry` or
+wire DTO shared between the games. What is common is the layering and invariants
+above. Chess keeps chess moves and SAN; the Deck Builder keeps card actions,
+outcomes and its own wording.
+
+### Rationale
+
+Client replay makes display depend on the installed rules version and can produce a
+different past after a rules fix. Display strings used as canonical history lose the
+structure needed for Undo, validation and alternate presentation. One universal
+event type would instead couple unrelated rulesets. Structured ruleset history plus
+recorded states gives both games exact restoration, trustworthy review and consistent
+player wording without conflating their rules.
+
+### Consequences
+
+- `M22.7` adds required SAN to the chess `MoveView`, replaces online string move
+  lists with that structured view, and uses it for coordinate-only undo wording.
+  Missing SAN or its recorded context is an invariant/protocol failure, not a
+  fallback case.
+- The beta cutover deletes all pre-cutover pending undo requests and last-answer
+  notes and clears `last_change_kind`, `last_change_actor`, `last_change_version`
+  and `last_change_move` before the new DTOs are served. No compatibility DTO or
+  legacy coordinate display remains.
+- `M22.10` returns a finished-game review projection built from recorded positions.
+  Android steps through it but does not replay moves to manufacture positions.
+- `F26` must implement the common architecture by designing Deck Builder action
+  records, undo snapshots and history projection together. It may share
+  infrastructure and UI contracts with chess, but neither implementation delegates
+  to the other and there is no ruleset-neutral action schema.
+
+---
+
+## D102 — Matching Play Advances the Retained Continuation
+
+**Date:** 2026-10-16
+
+**Status:** Accepted
+
+**Amends:** `D092`'s rule that only the explicit Redo command consumes retained
+history and that manually repeating the same move always branches. `D092`'s Undo and
+Redo eligibility, accepted operation sizes, exact-state restoration, persistence and
+finality rules remain.
+
+**Relates to:** `D017`–`D019`, `D021`, `D029`, `D061`, `D069`, `D070`, `D086`,
+`D091`, `D092`, `D097`, `D101`, `M21.21`, `M22.2`, `M22.3`, `M22.12`, `F26`
+
+### Decision
+
+**A retained future is a continuation, not merely a Redo stack.** After Undo, the
+game retains an ordered suffix of structured actions, their exact recorded states,
+and the boundaries of the accepted Undo operations that removed them. Explicit Redo
+continues to restore the next complete one- or two-ply operation. An ordinary
+submitted action may instead advance one structured action along that same future.
+
+**Matching requires canonical identity and the exact predecessor.** A submitted
+action matches the next retained action only when its ruleset-specific structured
+identity matches and the complete current canonical state equals that action's
+recorded predecessor. For chess, identity is `from`, `to` and promotion. SAN,
+player-facing wording and visible-board equality are not identity. Side to move,
+castling rights, en passant, halfmove and repetition state, result and every other
+canonical field participate in the predecessor comparison.
+
+**Matching consumes one action and preserves the suffix.** The matching action is
+accepted as the player's current action, appended to active history, removed from the
+front of the retained continuation, and restored to its recorded resulting snapshot
+without executing the old action through current rules. Every later retained action
+stays in order. The consumed action is not still redoable; consuming the last action
+empties the continuation.
+
+Undo-operation boundaries and retained action boundaries remain distinct. If manual
+play consumes the first action of a retained two-ply operation, the recorded reply
+becomes the next one-action retained operation. Explicit Redo before that partial
+consumption still restores the original complete operation atomically. Nothing is
+duplicated, silently discarded or reconstructed from audit.
+
+**Only a mismatch branches.** A different legal action is accepted normally, starts
+a new continuation, and clears the entire retained suffix in the same atomic write.
+Resignation and a successful draw claim still clear it. A matching game-ending move
+is a newly accepted move: it produces its ordinary final result and clears anything
+still ahead. `D017`–`D019` remain final, and a finished game never offers Undo or
+Redo past that result.
+
+**Authority follows the game mode.** Pass-and-play lets the side to move advance its
+matching action. Online, the server checks participant, turn, version, canonical
+predecessor and action identity in the locked move transaction, increments the
+version once, and atomically writes state, active history, retained continuation and
+request metadata. A manually submitted matching move is audited as `MoveMade` because
+the actor used the move command; `MoveRedone` remains the event for explicit Redo.
+Stale and concurrent commands keep `D021`'s behavior.
+
+An online matching move never silently performs the opponent's retained reply. The
+reply remains for that opponent, who may explicitly Redo it, submit the same move to
+advance it, or make a different legal move and branch.
+
+In a computer game, a matching human move consumes only that action. When the
+recorded computer reply is next, the computer-turn driver restores that exact reply
+and snapshot with no `ChessEngine` search. It first invalidates any in-flight search.
+If no matching recorded reply remains, the ordinary one-search computer turn runs.
+
+**Gameplay invalidation is unchanged.** Matching play changes the board and active
+history. It clears pending undo-request metadata like every accepted move (`D091`),
+and after `M22.3` it clears any pending draw offer too (`D097`). Request-only changes
+still preserve the continuation and do not invalidate each other.
+
+**The rule is part of the common history architecture.** Under `D101`, a ruleset
+whose Undo retains a future distinguishes an action that matches that future from one
+that diverges. Chess uses chess move records and exact positions. The Deck Builder
+will use its own structured action identities, snapshots and barriers. Neither game
+inherits the other's concrete type or schema, and this decision creates no generic
+cross-game action model.
+
+### Rationale
+
+Repeating the exact action just undone does not create a different line of play. It
+returns to the recorded continuation the player already had. Discarding every later
+action in that case makes the retained history depend on whether the player pressed
+Redo or made the same choice on the board, even though both choices reach the same
+recorded action boundary.
+
+Matching only the structured action is insufficient: two positions can show the same
+pieces while differing in castling, en-passant, move-count or repetition state. The
+exact predecessor requirement prevents a visually similar but canonically different
+position from attaching to the wrong future. Restoring the recorded result retains
+`D061`'s protection from later rules changes.
+
+Consuming one action rather than silently restoring the rest of a grouped operation
+preserves player agency online. The operation boundary still matters to explicit
+Undo and Redo, while action boundaries define whether manual play follows or leaves
+the recorded line.
+
+### Alternatives Considered
+
+- **Keep `D092` unchanged.** Rejected: an identical action is not a genuine branch
+  and should not destroy later retained play.
+- **Compare SAN or visible boards.** Rejected: display is not identity, and hidden
+  canonical state affects future legality and draw rules.
+- **Restore the complete grouped operation after its first action matches.** Rejected
+  for online games because it would silently play the opponent's move.
+- **Replay the matched action through current rules.** Rejected by `D061`; canonical
+  restoration uses its recorded result.
+- **Create one generic continuation type for Chess and the Deck Builder.** Rejected
+  by `D044` and `D101`; only the history invariants are shared.
+
+### Consequences
+
+- `M22.2` is the second executable M22 task and implements this correction in
+  `chess-core`, local SQLDelight persistence, computer state, the authoritative
+  server/PostgreSQL path and Android behavior. It is not implemented by this
+  decision.
+- Persistence must support consuming part of a retained multi-action operation while
+  preserving its remaining records and exact snapshots atomically.
+- Move handling must distinguish a matching continuation from a divergent branch,
+  while explicit Redo keeps its existing complete-operation behavior.
+- `M22.3` tests that a matching continuation move clears both pending request types.
+  `M22.12` tests that tap and drag reach the same continuation logic.
+- The player UI needs no new command or confirmation. Existing Undo and Redo controls
+  remain; Redo stays available whenever a retained action remains for the side to
+  move.

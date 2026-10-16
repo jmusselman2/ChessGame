@@ -39,8 +39,9 @@ leaves keeps its ID in the git history, and the number is never given out again.
 
 **Scheduled items.** `F7` (AI opponent) was scheduled on 2026-09-28 as backlog
 milestone `M21`, under `D084`–`D086`. Its ID is retired. Tier 1 (`F38`, `F1`, `F2`,
-`F39`, `F3`, `F4`, `F5`, `F6` and `F41`) was scheduled on 2026-10-14 as milestone
-`M22`, and those IDs are retired too.
+`F39`, `F3`, `F4`, `F6` and `F41`) was scheduled on 2026-10-14 as milestone
+`M22`, and those IDs are retired too. `F5` was scheduled with them, then returned
+here the same day under `D098` because username changes require `F13` first.
 
 **Order.** The project owner's triage on 2026-09-23: value to players against
 cost, with every item after the items it depends on. The value ratings in *At a
@@ -63,6 +64,7 @@ same day, tier 1 moved to the backlog as `M22`; the other tiers did not move.
 | `F11` | Dead-position detection by search           | Chess Play            | M             | Low                |
 | `F12` | Remove the "All users" page                 | Identity and Accounts | S–M           | None (testing aid) |
 | `F13` | Account recovery UI                         | Identity and Accounts | L             | High               |
+| `F5`  | Username changes                            | Identity and Accounts | M             | Medium             |
 | `F35` | User settings, opened from the username     | Identity and Accounts | not estimated | not estimated      |
 | `F42` | Optional sound and haptic feedback          | Presentation          | S–M           | Low–medium         |
 | `F14` | Approval for friend requests, game invites  | Identity and Accounts | M             | Low                |
@@ -95,7 +97,8 @@ same day, tier 1 moved to the backlog as `M22`; the other tiers did not move.
 
 Scheduled on 2026-10-14 as backlog milestone
 [`M22`](BACKLOG.md#m22--play-and-social-improvements): `F38`, `F1`, `F2`, `F39`,
-`F3`, `F4`, `F5`, `F6` and `F41`. Their IDs are retired. The later tiers keep their
+`F3`, `F4`, `F6` and `F41`. Their IDs are retired. `F5` returned to tier 2 under
+`D098`. The later tiers keep their
 numbers.
 
 ## 2. Higher cost, or lower value
@@ -115,8 +118,8 @@ does less for players than tier 1.
 - **Effort:** Small for each square's spoken description ("e4, White pawn, last
   move", from `BoardRendering.nameFor`). Medium with the full pass: predictable
   focus order, and large-text and TalkBack acceptance testing on a device.
-- **Depends on:** nothing. Reads better after `M22.4`–`M22.6` (formerly `F39`),
-  since a screen reader speaks the move list.
+- **Depends on:** nothing. Reads better after `M22.6`, `M22.7` and `M22.11`
+  (formerly `F39`), since a screen reader speaks the move list.
 - **Why first in its tier:** the cheapest worthwhile item here. The small slice
   could be scheduled earlier on its own.
 - **Open decisions:** whether the small slice is scheduled ahead of the full pass.
@@ -200,14 +203,27 @@ The task's acceptance criteria:
   or public production use. Friendships, groups, games and `users.id` are
   unaffected.
 
+### F5 — Username changes
+
+- **Source:** `MVP.md`, `PRODUCT.md`, `D098`
+- **Value:** Medium
+- **Effort:** Medium
+- **Depends on:** `F13`. A rename is not implemented while identity can be claimed
+  by typing a username with no verification.
+- **Decided:** the old normalized username is permanently reserved as an
+  unavailable tombstone. It is never reassigned and is not a searchable alias.
+  Once `F13` provides real authentication, only the authenticated owner may rename
+  the shared user.
+- **Open decisions:** none beyond `F13`'s choice of authentication and recovery
+  method.
+
 ### F35 — User settings, opened from the username
 
 - **Source:** `PRODUCT.md`
 - **Value:** not estimated. The screen's value depends on which settings it holds.
 - **Effort:** not estimated until its initial contents are decided.
 - **Depends on:** the feature or features chosen for its initial contents; possible
-  contents already include `F8`, `F14` and `F42`, and the scheduled `M22.8` and
-  `M22.9` (formerly `F4` and `F5`).
+  contents already include `F5`, `F8`, `F14` and `F42`.
 - **Open decisions:** which settings it contains. Its entry point is decided:
   tapping the username at the right-hand end of the dashboard's top row.
 
@@ -258,7 +274,7 @@ gates the public play in tier 4.
 - **Source:** `PRODUCT.md`
 - **Value:** Low
 - **Effort:** Large
-- **Depends on:** `F15`, and `M22.10` (detailed profiles, formerly `F6`).
+- **Depends on:** `F15`, and `M22.5` (detailed profiles, formerly `F6`).
 - **Open decisions:** whether following needs consent.
 
 ### F18 — Social feeds
@@ -356,8 +372,16 @@ follows, because it needs `F26`'s first real rules.
 - **Open decisions:** the items `D082` defers until real Deck Builder code exists.
   They include creating `deck-core` and `deck-app`, extracting `client-common`,
   registering the game type, the `when (gameType)` dispatch and the Deck Builder's
-  own state document, and scoping dashboards, history and series lists by game
-  type.
+  own state document, scoping dashboards, history and series lists by game type,
+  and whether the Deck Builder offers Redo in addition to Undo.
+- **History and Undo constraint (`D101`):** independently implement the common
+  game-history architecture; do not follow or reuse ChessGame's architecture or
+  move schema. Store structured Deck Builder actions and recorded snapshots, restore
+  snapshots for Undo without rule replay, keep normally append-only audit separate,
+  and expose a required server-produced readable history projection. If it offers Redo,
+  Redo restores the retained operation rather than replaying it. The action DTOs,
+  wording, visibility filtering and shuffle barrier remain Deck Builder-specific;
+  do not invent a generic chess/card-game action union.
 
 ### F27 — "Suggest friends" for table co-participants
 
@@ -458,10 +482,10 @@ the real Deck Builder implementation:
 
 ### F30 — Detailed and per-table statistics
 
-- **Source:** `MVP.md`, `D048`. Split from `F1` (now `M22.2`) on 2026-09-23.
+- **Source:** `MVP.md`, `D048`. Split from `F1` (now `M22.4`) on 2026-09-23.
 - **Value:** Low–medium
 - **Effort:** not estimated. Per-table statistics need tables of three or more.
-- **Depends on:** `M22.2` (formerly `F1`), so both share one statistics model;
+- **Depends on:** `M22.4` (formerly `F1`), so both share one statistics model;
   `F26` for per-table statistics.
 - **Open decisions:** which statistics.
 
@@ -471,7 +495,7 @@ the real Deck Builder implementation:
   identity for statistics.
 - **Value:** Low
 - **Effort:** not estimated.
-- **Depends on:** `M22.2` (formerly `F1`) and `F30`, so all three share one
+- **Depends on:** `M22.4` (formerly `F1`) and `F30`, so all three share one
   statistics model; the deck-builder (`F26`).
 - **Open decisions:** when a new series counts as a revival.
 - **Affected by `M22.1`** (formerly `F38`): with at most one active series per party,
