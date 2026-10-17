@@ -12,6 +12,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -173,7 +174,8 @@ private fun Game(
             }
         },
         moveList = {
-            GameControls.moveListLines(board.game).forEach { line -> Text(text = line) }
+            val lines = remember(board.game.history) { GameControls.moveListLines(board.game) }
+            lines.forEach { line -> Text(text = line) }
         },
     )
 

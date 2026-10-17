@@ -13,6 +13,7 @@ import androidx.compose.ui.test.performClick
 import com.jmussel.chessgame.api.GameViewDto
 import com.jmussel.chessgame.api.MoveDto
 import com.jmussel.chessgame.api.UserSummaryDto
+import com.jmussel.chessgame.api.playedMoves
 import com.jmussel.chessgame.app.ChessApp
 import com.jmussel.chessgame.app.StartupState
 import com.jmussel.chessgame.navigation.AppNavigation
@@ -160,7 +161,7 @@ class OnlineGameConnectionUiTest {
     private fun assertBoardStays(what: String) {
         composeRule.onNodeWithTag(CHESS_BOARD_TAG).assertIsDisplayed().assertInsideViewport(composeRule, "$what: board")
         // The move list is still the canonical one.
-        composeRule.onNodeWithText("1. e2e4").assertExists()
+        composeRule.onNodeWithText("1. e4").assertExists()
     }
 
     private fun show(content: @Composable () -> Unit = { Screen() }) {
@@ -199,8 +200,8 @@ class OnlineGameConnectionUiTest {
             sideToMove = "BLACK",
             yourTurn = true,
             board = listOf("rnbqkbnr", "pppppppp", "........", "........", "....P...", "........", "PPPP.PPP", "RNBQKBNR"),
-            moves = listOf("e2e4"),
-            lastMove = MoveDto(from = "e2", to = "e4"),
+            moves = playedMoves("e2e4"),
+            lastMove = MoveDto(from = "e2", to = "e4", san = "e4"),
             moveNumber = 1,
         )
 

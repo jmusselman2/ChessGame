@@ -169,8 +169,8 @@ data class DrawOfferDto(
 @Serializable
 data class UndoRequestDto(
     val fromYou: Boolean,
-    val requesterMove: String,
-    val replyMove: String,
+    val requesterMove: MoveDto,
+    val replyMove: MoveDto,
 )
 
 /**
@@ -180,8 +180,8 @@ data class UndoRequestDto(
 @Serializable
 data class UndoNoteDto(
     val kind: String,
-    val requesterMove: String,
-    val replyMove: String,
+    val requesterMove: MoveDto,
+    val replyMove: MoveDto,
 )
 
 /**
@@ -274,6 +274,11 @@ data class MoveDto(
     val from: String,
     val to: String,
     val promotion: String? = null,
+    /**
+     * The move in standard algebraic notation, from the server (`D101`). Required: a move the
+     * server sends without it is an incompatible response, never shown as coordinates.
+     */
+    val san: String,
 )
 
 /**
@@ -295,7 +300,8 @@ data class GameViewDto(
     val inCheck: Boolean = false,
     /** Eight rows, rank 8 first, FEN-style letters with `.` for an empty square. */
     val board: List<String> = emptyList(),
-    val moves: List<String> = emptyList(),
+    /** The active move history, oldest first, each with its coordinates and SAN (`D101`). */
+    val moves: List<MoveDto> = emptyList(),
     val lastMove: MoveDto? = null,
     val moveNumber: Int = 1,
     val halfmoveClock: Int = 0,

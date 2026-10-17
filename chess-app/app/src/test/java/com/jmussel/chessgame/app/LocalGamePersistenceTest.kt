@@ -173,7 +173,7 @@ class LocalGamePersistenceTest {
 
             openLocalGame(viewModel)
             assertEquals(played, viewModel.localGame.boardState.game)
-            assertEquals(listOf("1. e2e4 e7e5"), GameControls.moveListLines(viewModel.localGame.boardState.game))
+            assertEquals(listOf("1. e4 e5"), GameControls.moveListLines(viewModel.localGame.boardState.game))
         }
 
     @Test

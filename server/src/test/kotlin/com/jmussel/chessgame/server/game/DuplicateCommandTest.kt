@@ -135,7 +135,7 @@ class DuplicateCommandTest {
 
             val game = readGame(mover, gameId)
 
-            assertEquals(listOf("e2e4"), game.moves, "the pawn did not move twice")
+            assertEquals(listOf("e4"), game.moves.map { it.san }, "the pawn did not move twice")
             assertEquals(1, game.version)
         }
     }
@@ -152,7 +152,7 @@ class DuplicateCommandTest {
 
             // The refusal carries the canonical state, so the client can see that the move
             // it was retrying is the one already played, without a second request.
-            assertEquals(listOf("e2e4"), current.moves)
+            assertEquals(listOf("e4"), current.moves.map { it.san })
             assertEquals(1, current.version)
         }
     }
@@ -167,7 +167,7 @@ class DuplicateCommandTest {
             // Sending the same squares at the version the game is *now* at is not a
             // duplicate — it is a legal knight move back, and it is meant to be allowed.
             assertEquals(HttpStatusCode.OK, move(mover, gameId, 2, "f3", "g1").status)
-            assertEquals(listOf("g1f3", "g8f6", "f3g1"), readGame(mover, gameId).moves)
+            assertEquals(listOf("Nf3", "Nf6", "Ng1"), readGame(mover, gameId).moves.map { it.san })
         }
     }
 
@@ -248,7 +248,7 @@ class DuplicateCommandTest {
             val opponentsView = readGame(waiter, gameId)
 
             assertTrue(opponentsView.yourTurn, "it is still their move, once")
-            assertEquals(listOf("d2d4"), opponentsView.moves)
+            assertEquals(listOf("d4"), opponentsView.moves.map { it.san })
             assertEquals(1, opponentsView.version)
         }
     }
@@ -265,7 +265,7 @@ class DuplicateCommandTest {
 
             val game = readGame(mover, gameId)
 
-            assertEquals(listOf("e2e4"), game.moves)
+            assertEquals(listOf("e4"), game.moves.map { it.san })
             assertEquals(1, game.version)
         }
     }

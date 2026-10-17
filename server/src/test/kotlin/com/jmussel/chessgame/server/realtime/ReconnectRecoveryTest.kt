@@ -49,7 +49,7 @@ class ReconnectRecoveryTest {
             val reloaded = second.readGame(gameId)
 
             assertEquals(3, reloaded.version)
-            assertEquals(listOf("e2e4", "e7e5", "g1f3"), reloaded.moves)
+            assertEquals(listOf("e4", "e5", "Nf3"), reloaded.moves.map { it.san })
             assertTrue(reloaded.yourTurn, "the reload knows whose move it is")
         }
     }
@@ -166,7 +166,7 @@ class ReconnectRecoveryTest {
             val current = assertNotNull(rejection.game, "a stale refusal shows the current game")
 
             assertEquals(1, current.version)
-            assertEquals(listOf("e2e4"), current.moves)
+            assertEquals(listOf("e4"), current.moves.map { it.san })
             assertEquals(
                 HttpStatusCode.OK,
                 second.move(gameId, current.version, "e7", "e5").status,
@@ -200,8 +200,8 @@ class ReconnectRecoveryTest {
 
             assertEquals(7, finished.version)
             assertEquals(
-                listOf("e2e4", "e7e5", "f1c4", "b8c6", "d1h5", "g8f6", "h5f7"),
-                finished.moves,
+                listOf("e4", "e5", "Bc4", "Nc6", "Qh5", "Nf6", "Qxf7#"),
+                finished.moves.map { it.san },
             )
             assertEquals("CHECKMATE", finished.terminationReason)
 

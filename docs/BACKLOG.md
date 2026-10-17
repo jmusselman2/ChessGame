@@ -139,7 +139,7 @@ implementation, as `M21` was.
 | `M22.4`  | Win/loss/draw record per friend                     | None       | `F1`     | `DONE`    |
 | `M22.5`  | Detailed profiles                                   | M22.4      | `F6`     | `DONE`    |
 | `M22.6`  | Standard algebraic notation in `chess-core`         | None       | `F39`    | `DONE`    |
-| `M22.7`  | Every move list and move wording in SAN             | M22.6      | `F39`    | `TODO`    |
+| `M22.7`  | Every move list and move wording in SAN             | M22.6      | `F39`    | `DONE`    |
 | `M22.8`  | Turning automatic rematches off by hand             | None       | `F4`     | `DONE`    |
 | `M22.10` | Online ply-by-ply review                            | M22.7      | `F41`    | `TODO`    |
 | `M22.11` | Board coordinates                                   | None       | `F39`    | `TODO`    |
@@ -649,7 +649,7 @@ castling with check, checkmate and en passant), `.\gradlew.bat build` and
 
 ## M22.7 — Every move list and move wording in SAN
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M22.6
 
@@ -689,6 +689,24 @@ Show `M22.6`'s notation wherever the app shows a move to a player.
   missing display data; cutover tests prove all obsolete undo-request, answer and
   last-change metadata is cleared; Compose tests prove at least one board renders
   SAN and never coordinates.
+
+### Completion
+
+Completed 2026-10-17. The server's `MoveView` gains required `san`, made by
+`MoveView.of(record)` from each `MoveRecord`'s `positionBefore`; `GameView.moves` is now
+`List<MoveView>` and `lastMove` the same view. `UndoRequestView` and `UndoNoteView` name
+their moves as `MoveView`s: pending and declined from the latest active records, accepted
+and crossed from the first records of the next Redo operation, and a missing record is an
+invariant failure rather than a fallback. `V16__san_cutover.sql` clears every pending undo
+request, last-answer note and last-change record. Android's `MoveDto` requires `san`, the
+online move list and undo wording use it, and the legality preview reads the coordinates.
+Pass-and-play, the computer game and local review build their lists from
+`ChessRules.san(record.positionBefore, record.move)`; the declared-move claim prompt names
+its move in SAN ("Play Ng8"), computed when the move is declared; each Compose move list is
+`remember`ed on its history. Verified with `:server:test --rerun-tasks` against PostgreSQL
+(new `SanProjectionTest` and `SanCutoverMigrationTest`), `:chess-app:testDebugUnitTest`,
+every device test on the Fire HD 8 (71 run, `LocalGameRotationTest` skipped without a
+server key; a check that a board shows `1. e4 e5` and never `1. e2e4 e7e5`), `.\gradlew.bat build` and `git diff --check`.
 
 ---
 

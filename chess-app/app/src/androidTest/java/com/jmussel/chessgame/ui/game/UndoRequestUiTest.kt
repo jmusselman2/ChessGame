@@ -11,10 +11,12 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import com.jmussel.chessgame.api.DashboardEntryDto
 import com.jmussel.chessgame.api.GameViewDto
+import com.jmussel.chessgame.api.MoveDto
 import com.jmussel.chessgame.api.PendingRequestDto
 import com.jmussel.chessgame.api.UndoNoteDto
 import com.jmussel.chessgame.api.UndoRequestDto
 import com.jmussel.chessgame.api.UserSummaryDto
+import com.jmussel.chessgame.api.playedMoves
 import com.jmussel.chessgame.ui.board.ALL_VIEWPORTS
 import com.jmussel.chessgame.ui.board.InViewport
 import com.jmussel.chessgame.ui.board.TWO_PANE_VIEWPORTS
@@ -81,7 +83,7 @@ class UndoRequestUiTest {
             )
         }
 
-        composeRule.onNodeWithText("Jordan asks to undo g1f3 and your b8c6").assertIsDisplayed()
+        composeRule.onNodeWithText("Jordan asks to undo Nf3 and your Nc6").assertIsDisplayed()
         composeRule.onNodeWithText(OnlineGame.UNDO_LABEL).assertIsDisplayed()
         composeRule.onNodeWithText(OnlineGame.ACCEPT_LABEL).performClick()
         composeRule.onNodeWithText(OnlineGame.DECLINE_LABEL).performClick()
@@ -97,10 +99,10 @@ class UndoRequestUiTest {
         show { OnlineGameScreen(state = state, onBack = {}) }
 
         listOf(
-            forJordan(note = note("ACCEPTED")) to "Alex accepted your undo request: g1f3 and b8c6 undone",
+            forJordan(note = note("ACCEPTED")) to "Alex accepted your undo request: Nf3 and Nc6 undone",
             forJordan(note = note("DECLINED"), canRequestUndo = true) to "Alex declined your undo request",
-            forJordan(note = note("UNDONE_TOO")) to "Alex had undone b8c6, so g1f3 was undone too",
-            forAlex(note = note("BOTH_UNDONE")) to "Jordan had asked to undo g1f3, so both moves were undone",
+            forJordan(note = note("UNDONE_TOO")) to "Alex had undone Nc6, so Nf3 was undone too",
+            forAlex(note = note("BOTH_UNDONE")) to "Jordan had asked to undo Nf3, so both moves were undone",
         ).forEach { (game, words) ->
             composeRule.runOnIdle { state = OnlineGameState.Ready(game) }
             composeRule.onNodeWithText(words).assertIsDisplayed()
@@ -116,7 +118,7 @@ class UndoRequestUiTest {
             listOf(
                 "Back",
                 OnlineGame.UNDO_LABEL,
-                "Jordan asks to undo g1f3 and your b8c6",
+                "Jordan asks to undo Nf3 and your Nc6",
                 OnlineGame.ACCEPT_LABEL,
                 OnlineGame.DECLINE_LABEL,
                 "Resign",
@@ -171,9 +173,19 @@ class UndoRequestUiTest {
         composeRule.waitForIdle()
     }
 
-    private fun request(fromYou: Boolean) = UndoRequestDto(fromYou = fromYou, requesterMove = "g1f3", replyMove = "b8c6")
+    private fun request(fromYou: Boolean) =
+        UndoRequestDto(
+            fromYou = fromYou,
+            requesterMove = MoveDto(from = "g1", to = "f3", san = "Nf3"),
+            replyMove = MoveDto(from = "b8", to = "c6", san = "Nc6"),
+        )
 
-    private fun note(kind: String) = UndoNoteDto(kind = kind, requesterMove = "g1f3", replyMove = "b8c6")
+    private fun note(kind: String) =
+        UndoNoteDto(
+            kind = kind,
+            requesterMove = MoveDto(from = "g1", to = "f3", san = "Nf3"),
+            replyMove = MoveDto(from = "b8", to = "c6", san = "Nc6"),
+        )
 
     /** Jordan's view: White, to move, with Alex's b8c6 the latest move. */
     private fun forJordan(
@@ -224,7 +236,7 @@ class UndoRequestUiTest {
         sideToMove = "WHITE",
         yourTurn = yourTurn,
         board = listOf("r.bqkbnr", "pppppppp", "..n.....", "........", "........", ".....N..", "PPPPPPPP", "RNBQKB.R"),
-        moves = listOf("g1f3", "b8c6"),
+        moves = playedMoves("g1f3", "b8c6"),
         moveNumber = 2,
         canUndo = canUndo,
         canRequestUndo = canRequestUndo,

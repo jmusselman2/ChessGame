@@ -223,8 +223,8 @@ data class DrawOfferView(
 data class UndoRequestView(
     /** `true` for the player who asked, `false` for the one who must answer. */
     val fromYou: Boolean,
-    val requesterMove: String,
-    val replyMove: String,
+    val requesterMove: MoveView,
+    val replyMove: MoveView,
 )
 
 /**
@@ -234,8 +234,8 @@ data class UndoRequestView(
 @Serializable
 data class UndoNoteView(
     val kind: UndoNoteKind,
-    val requesterMove: String,
-    val replyMove: String,
+    val requesterMove: MoveView,
+    val replyMove: MoveView,
 )
 
 @Serializable
@@ -307,19 +307,29 @@ data class SeriesHistoryEntry(
     }
 }
 
-/** One move, in the pieces a client needs to draw it: where it came from and where it went. */
+/**
+ * One played move (`D101`): its canonical coordinates, which are its identity, and its
+ * required standard algebraic notation, which is what a player reads. [san] is derived on
+ * the server from the move and the position it was recorded as played from; it is never
+ * stored, and a client never falls back to the coordinates for display.
+ */
 @Serializable
 data class MoveView(
     val from: String,
     val to: String,
     val promotion: String? = null,
+    val san: String,
 ) {
     companion object {
-        fun of(move: com.jmussel.chessgame.core.chess.Move): MoveView =
+        /** [record] as a player sees it, its notation worked out from its own recorded position. */
+        fun of(record: com.jmussel.chessgame.core.chess.MoveRecord): MoveView =
             MoveView(
-                from = move.from.toString(),
-                to = move.to.toString(),
-                promotion = move.promotion?.name,
+                from = record.move.from.toString(),
+                to = record.move.to.toString(),
+                promotion = record.move.promotion?.name,
+                san =
+                    com.jmussel.chessgame.core.chess.ChessRules
+                        .san(record.positionBefore, record.move),
             )
     }
 }
@@ -343,7 +353,8 @@ data class GameView(
     val inCheck: Boolean,
     /** Eight rows, rank 8 first, FEN-style letters with `.` for an empty square. */
     val board: List<String>,
-    val moves: List<String>,
+    /** The active move history, oldest first, each in coordinates and SAN (`D101`). */
+    val moves: List<MoveView>,
     /** The move just played, or `null` before the first one. */
     val lastMove: MoveView? = null,
     val moveNumber: Int,
@@ -419,9 +430,9 @@ data class GameView(
                         com.jmussel.chessgame.core.chess.Attacks
                             .isSideToMoveInCheck(state),
                 board = state.board.toString().lines(),
-                moves = stored.game.moves.map { it.toString() },
+                moves = stored.game.history.map(MoveView::of),
                 lastMove =
-                    stored.game.moves
+                    stored.game.history
                         .lastOrNull()
                         ?.let(MoveView::of),
                 moveNumber = state.fullmoveNumber,
@@ -468,12 +479,13 @@ data class GameView(
             viewer: kotlin.uuid.Uuid,
         ): UndoRequestView? {
             val requester = stored.undo.pendingFrom ?: return null
-            val moves = stored.game.moves
+            // A pending request is about the two latest active moves (`D101`).
+            val records = stored.game.history
 
             return UndoRequestView(
                 fromYou = requester == viewer,
-                requesterMove = moves[moves.size - 2].toString(),
-                replyMove = moves.last().toString(),
+                requesterMove = MoveView.of(records[records.size - 2]),
+                replyMove = MoveView.of(records.last()),
             )
         }
 
@@ -501,9 +513,35 @@ data class GameView(
 
             return UndoNoteView(
                 kind = kind,
-                requesterMove = answer.requesterMove.toString(),
-                replyMove = answer.replyMove.toString(),
+                requesterMove = MoveView.of(recordOf(stored, answer, answer.requesterMove)),
+                replyMove = MoveView.of(recordOf(stored, answer, answer.replyMove)),
             )
+        }
+
+        /**
+         * The recorded move an answer names, with the position it was played from (`D101`). A
+         * declined request's moves are still the latest active records; an accepted or crossed
+         * one's were undone, and are the first records of the next Redo operation. Missing
+         * context is an invariant failure, never a reason to show coordinates.
+         */
+        private fun recordOf(
+            stored: com.jmussel.chessgame.server.db.StoredGame,
+            answer: com.jmussel.chessgame.server.db.UndoAnswer,
+            move: com.jmussel.chessgame.core.chess.Move,
+        ): com.jmussel.chessgame.core.chess.MoveRecord {
+            val candidates =
+                if (answer.kind == com.jmussel.chessgame.server.db.UndoAnswerKind.DECLINED) {
+                    stored.game.history.takeLast(2)
+                } else {
+                    stored.game.redoPath
+                        .lastOrNull()
+                        ?.records
+                        .orEmpty()
+                }
+
+            return requireNotNull(candidates.firstOrNull { it.move == move }) {
+                "Game ${stored.id}: the undo note's $move has no recorded position"
+            }
         }
     }
 }

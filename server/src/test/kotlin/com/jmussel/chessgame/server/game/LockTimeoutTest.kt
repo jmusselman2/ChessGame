@@ -131,7 +131,7 @@ class LockTimeoutTest {
 
                 // The same command, sent again once the row is free, is played.
                 assertEquals(HttpStatusCode.OK, move(mover, gameId).status)
-                assertEquals(listOf("e2e4"), readGame(mover, gameId).moves)
+                assertEquals(listOf("e4"), readGame(mover, gameId).moves.map { it.san })
             }
         }
 

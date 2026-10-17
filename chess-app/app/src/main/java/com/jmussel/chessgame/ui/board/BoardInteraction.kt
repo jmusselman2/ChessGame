@@ -32,6 +32,8 @@ data class PendingPromotion(
 data class DeclaredMove(
     val move: Move,
     val claims: Set<DrawClaim>,
+    /** [move] in SAN from the position it would be played from, for the prompt's words (`D101`). */
+    val san: String,
 )
 
 /**
@@ -172,7 +174,14 @@ object BoardInteraction {
         val move = moves.single()
         val claims = prospectiveDrawClaims(state, move)
 
-        return if (claims.isEmpty()) applyMove(state, move) else state.copy(declaredMove = DeclaredMove(move, claims))
+        return if (claims.isEmpty()) {
+            applyMove(
+                state,
+                move,
+            )
+        } else {
+            state.copy(declaredMove = DeclaredMove(move, claims, ChessRules.san(state.game.state, move)))
+        }
     }
 
     /**

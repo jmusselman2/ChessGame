@@ -3,7 +3,7 @@ package com.jmussel.chessgame.ui.board
 import com.jmussel.chessgame.core.chess.ChessGame
 import com.jmussel.chessgame.core.chess.ChessRules
 import com.jmussel.chessgame.core.chess.DrawClaim
-import com.jmussel.chessgame.core.chess.Move
+import com.jmussel.chessgame.core.chess.MoveRecord
 import com.jmussel.chessgame.core.chess.Side
 
 /** One numbered line of the move list: White's move and Black's reply, if it has been made. */
@@ -20,13 +20,16 @@ data class MoveListRow(
  * idea of when a move may be taken back or a draw claimed.
  */
 object GameControls {
-    /** The moves played so far, paired into numbered rows. */
+    /**
+     * The moves played so far, paired into numbered rows, each in SAN worked out from the
+     * position its record says it was played from (`D101`): no move is replayed to name it.
+     */
     fun moveList(game: ChessGame): List<MoveListRow> =
-        game.moves.chunked(2).mapIndexed { index, movePair ->
+        game.history.chunked(2).mapIndexed { index, recordPair ->
             MoveListRow(
                 number = index + 1,
-                white = format(movePair.first()),
-                black = movePair.getOrNull(1)?.let(::format),
+                white = sanOf(recordPair.first()),
+                black = recordPair.getOrNull(1)?.let(::sanOf),
             )
         }
 
@@ -199,7 +202,7 @@ object GameControls {
      * the board, and the declared move is never played.
      */
     fun declaredClaimExplanation(declared: DeclaredMove): String =
-        "Playing ${declared.move} lets you claim a draw instead. Claiming ends the game now, and ${declared.move} is not played."
+        "Playing ${declared.san} lets you claim a draw instead. Claiming ends the game now, and ${declared.san} is not played."
 
     /** A short label for a draw claim. */
     fun labelFor(claim: DrawClaim): String =
@@ -208,7 +211,7 @@ object GameControls {
             DrawClaim.FIFTY_MOVE_RULE -> "Claim draw (fifty-move rule)"
         }
 
-    private fun format(move: Move): String = move.toString()
+    private fun sanOf(record: MoveRecord): String = ChessRules.san(record.positionBefore, record.move)
 
     private fun sideName(side: Side): String = if (side == Side.WHITE) "White" else "Black"
 

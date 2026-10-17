@@ -82,15 +82,15 @@ class GameControlsTest {
         val rows = GameControls.moveList(played.game)
 
         assertEquals(2, rows.size)
-        assertEquals(MoveListRow(1, "e2e4", "e7e5"), rows[0])
-        assertEquals(MoveListRow(2, "g1f3", null), rows[1])
+        assertEquals(MoveListRow(1, "e4", "e5"), rows[0])
+        assertEquals(MoveListRow(2, "Nf3", null), rows[1])
     }
 
     @Test
     fun theMoveListRendersOneLinePerNumberedMove() {
         val played = tap(BoardUiState.newGame(), "e2", "e4", "e7", "e5", "g1", "f3")
 
-        assertEquals(listOf("1. e2e4 e7e5", "2. g1f3"), GameControls.moveListLines(played.game))
+        assertEquals(listOf("1. e4 e5", "2. Nf3"), GameControls.moveListLines(played.game))
     }
 
     @Test
@@ -114,7 +114,7 @@ class GameControlsTest {
             )
         val promoted = BoardInteraction.choosePromotion(tap(position, "a7", "a8"), PieceType.KNIGHT)
 
-        assertEquals(listOf("1. a7a8n"), GameControls.moveListLines(promoted.game))
+        assertEquals(listOf("1. a8=N"), GameControls.moveListLines(promoted.game))
     }
 
     @Test

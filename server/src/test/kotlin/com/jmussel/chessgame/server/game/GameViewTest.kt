@@ -166,7 +166,8 @@ class GameViewTest {
             val view = read(whiteSubject, players.gameId)
 
             assertEquals("e7", assertNotNull(view.lastMove).from)
-            assertEquals(listOf("e2e4", "e7e5"), view.moves)
+            assertEquals(listOf("e4", "e5"), view.moves.map { it.san })
+            assertEquals(listOf("e2" to "e4", "e7" to "e5"), view.moves.map { it.from to it.to }, "coordinates stay the identity")
         }
     }
 

@@ -90,6 +90,6 @@ class LocalGameRotationTest {
         const val LOAD_MILLIS = 5_000L
         const val LOCAL_GAME = "Local game"
         const val CHOOSE_USERNAME = "Choose a username"
-        const val MOVES = "1. e2e4 e7e5"
+        const val MOVES = "1. e4 e5"
     }
 }

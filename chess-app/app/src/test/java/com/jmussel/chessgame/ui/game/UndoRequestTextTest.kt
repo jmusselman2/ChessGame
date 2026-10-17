@@ -3,9 +3,11 @@ package com.jmussel.chessgame.ui.game
 import com.jmussel.chessgame.api.ChessCommandRefusedException
 import com.jmussel.chessgame.api.CommandRejectionDto
 import com.jmussel.chessgame.api.GameViewDto
+import com.jmussel.chessgame.api.MoveDto
 import com.jmussel.chessgame.api.UndoNoteDto
 import com.jmussel.chessgame.api.UndoRequestDto
 import com.jmussel.chessgame.api.UserSummaryDto
+import com.jmussel.chessgame.api.playedMoves
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -30,17 +32,31 @@ class UndoRequestTextTest {
         version = 3,
         yourSide = "WHITE",
         sideToMove = "WHITE",
-        moves = listOf("g1f3", "b8c6"),
+        moves = playedMoves("g1f3", "b8c6"),
         undoRequest = request,
         undoNote = note,
         result = result,
     )
 
-    private fun note(kind: String) = UndoNoteDto(kind = kind, requesterMove = "g1f3", replyMove = "b8c6")
+    private fun note(kind: String) =
+        UndoNoteDto(
+            kind = kind,
+            requesterMove = MoveDto(from = "g1", to = "f3", san = "Nf3"),
+            replyMove = MoveDto(from = "b8", to = "c6", san = "Nc6"),
+        )
 
     @Test
     fun theRequesterWaitsWithNothingToCancel() {
-        val asked = game("Alex", request = UndoRequestDto(fromYou = true, requesterMove = "g1f3", replyMove = "b8c6"))
+        val asked =
+            game(
+                "Alex",
+                request =
+                    UndoRequestDto(
+                        fromYou = true,
+                        requesterMove = MoveDto(from = "g1", to = "f3", san = "Nf3"),
+                        replyMove = MoveDto(from = "b8", to = "c6", san = "Nc6"),
+                    ),
+            )
 
         assertEquals("Undo requested. Waiting for Alex.", OnlineGame.undoRequestText(asked))
         assertFalse("the requester answers nothing", OnlineGame.mustAnswerUndo(asked))
@@ -48,15 +64,34 @@ class UndoRequestTextTest {
 
     @Test
     fun theOpponentSeesBothMovesItWouldUndo() {
-        val asking = game("Jordan", request = UndoRequestDto(fromYou = false, requesterMove = "g1f3", replyMove = "b8c6"))
+        val asking =
+            game(
+                "Jordan",
+                request =
+                    UndoRequestDto(
+                        fromYou = false,
+                        requesterMove = MoveDto(from = "g1", to = "f3", san = "Nf3"),
+                        replyMove = MoveDto(from = "b8", to = "c6", san = "Nc6"),
+                    ),
+            )
 
-        assertEquals("Jordan asks to undo g1f3 and your b8c6", OnlineGame.undoRequestText(asking))
+        assertEquals("Jordan asks to undo Nf3 and your Nc6", OnlineGame.undoRequestText(asking))
         assertTrue(OnlineGame.mustAnswerUndo(asking))
     }
 
     @Test
     fun aFinishedGameAsksNothing() {
-        val over = game("Jordan", request = UndoRequestDto(fromYou = false, requesterMove = "g1f3", replyMove = "b8c6"), result = "DRAW")
+        val over =
+            game(
+                "Jordan",
+                request =
+                    UndoRequestDto(
+                        fromYou = false,
+                        requesterMove = MoveDto(from = "g1", to = "f3", san = "Nf3"),
+                        replyMove = MoveDto(from = "b8", to = "c6", san = "Nc6"),
+                    ),
+                result = "DRAW",
+            )
 
         assertFalse(OnlineGame.mustAnswerUndo(over))
     }
@@ -70,7 +105,7 @@ class UndoRequestTextTest {
     @Test
     fun eachAnswerReadsAsTheDecisionWordsIt() {
         assertEquals(
-            "Alex accepted your undo request: g1f3 and b8c6 undone",
+            "Alex accepted your undo request: Nf3 and Nc6 undone",
             OnlineGame.undoNoteText(game("Alex", note = note("ACCEPTED"))),
         )
         assertEquals("Alex declined your undo request", OnlineGame.undoNoteText(game("Alex", note = note("DECLINED"))))
@@ -79,11 +114,11 @@ class UndoRequestTextTest {
     @Test
     fun eachCrossingReadsAsTheDecisionWordsIt() {
         assertEquals(
-            "Alex had undone b8c6, so g1f3 was undone too",
+            "Alex had undone Nc6, so Nf3 was undone too",
             OnlineGame.undoNoteText(game("Alex", note = note("UNDONE_TOO"))),
         )
         assertEquals(
-            "Jordan had asked to undo g1f3, so both moves were undone",
+            "Jordan had asked to undo Nf3, so both moves were undone",
             OnlineGame.undoNoteText(game("Jordan", note = note("BOTH_UNDONE"))),
         )
     }

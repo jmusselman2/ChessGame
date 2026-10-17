@@ -13,6 +13,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -345,7 +346,8 @@ private fun Game(
             Text(text = OnlineGame.positionFor(game), style = MaterialTheme.typography.bodySmall)
         },
         moveList = {
-            OnlineGame.moveListLines(game).forEach { line ->
+            val lines = remember(game.moves) { OnlineGame.moveListLines(game) }
+            lines.forEach { line ->
                 Text(text = line, style = MaterialTheme.typography.bodySmall)
             }
         },
@@ -452,8 +454,8 @@ private fun OnlineGameScreenPreview() {
                                 "PPPP.PPP",
                                 "RNBQKBNR",
                             ),
-                        moves = listOf("e2e4", "e7e5"),
-                        lastMove = MoveDto(from = "e7", to = "e5"),
+                        moves = listOf(MoveDto(from = "e2", to = "e4", san = "e4"), MoveDto(from = "e7", to = "e5", san = "e5")),
+                        lastMove = MoveDto(from = "e7", to = "e5", san = "e5"),
                         moveNumber = 2,
                     ),
                 ),

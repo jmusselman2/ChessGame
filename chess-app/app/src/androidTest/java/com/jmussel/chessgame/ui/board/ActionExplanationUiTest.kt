@@ -12,6 +12,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import com.jmussel.chessgame.api.GameViewDto
 import com.jmussel.chessgame.api.UserSummaryDto
+import com.jmussel.chessgame.api.playedMoves
 import com.jmussel.chessgame.computer.ComputerGameActions
 import com.jmussel.chessgame.computer.ComputerGameScreen
 import com.jmussel.chessgame.computer.ComputerGameUiState
@@ -121,7 +122,7 @@ class ActionExplanationUiTest {
         sideToMove = "BLACK",
         yourTurn = false,
         board = listOf("rnbqkbnr", "pppppppp", "........", "........", "....P...", "........", "PPPP.PPP", "RNBQKBNR"),
-        moves = listOf("e2e4"),
+        moves = playedMoves("e2e4"),
         moveNumber = 1,
         canUndo = canUndo,
         availableDrawClaims = claims,

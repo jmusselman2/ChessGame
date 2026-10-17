@@ -29,26 +29,26 @@ class LocalDrawClaimUiTest {
 
         composeRule.setContent { ChessGameTheme { LocalGameScreen(initialState = declared) } }
 
-        composeRule.onNodeWithText("Playing f6g8", substring = true).assertExists()
+        composeRule.onNodeWithText("Playing Ng8", substring = true).assertExists()
         // The explanation is on screen where the choice is made (`M21.18`).
-        composeRule.onNodeWithText("f6g8 is not played", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText("Ng8 is not played", substring = true).assertIsDisplayed()
         composeRule.onNodeWithText("Claim draw (threefold repetition)").performClick()
 
         composeRule.onNodeWithText("Drawn by threefold repetition").assertExists()
         composeRule.onNodeWithText("Claim draw (threefold repetition)").assertDoesNotExist()
-        composeRule.onNodeWithText("Playing f6g8", substring = true).assertDoesNotExist()
-        composeRule.onNodeWithText("4. f3g1 f6g8").assertDoesNotExist()
+        composeRule.onNodeWithText("Playing Ng8", substring = true).assertDoesNotExist()
+        composeRule.onNodeWithText("4. Ng1 Ng8").assertDoesNotExist()
     }
 
     @Test
     fun theDeclaredMoveCanBePlayedInsteadOfClaimed() {
         composeRule.setContent { ChessGameTheme { LocalGameScreen(initialState = declaredThirdOccurrence()) } }
 
-        composeRule.onNodeWithText("Play f6g8").performClick()
+        composeRule.onNodeWithText("Play Ng8").performClick()
 
         composeRule.onNodeWithText("WHITE to move").assertExists()
-        composeRule.onNodeWithText("4. f3g1 f6g8").assertExists()
-        composeRule.onNodeWithText("Playing f6g8", substring = true).assertDoesNotExist()
+        composeRule.onNodeWithText("4. Ng1 Ng8").assertExists()
+        composeRule.onNodeWithText("Playing Ng8", substring = true).assertDoesNotExist()
     }
 
     @Test
@@ -58,9 +58,9 @@ class LocalDrawClaimUiTest {
         composeRule.onNodeWithText("Cancel").performClick()
 
         composeRule.onNodeWithText("BLACK to move").assertExists()
-        composeRule.onNodeWithText("Playing f6g8", substring = true).assertDoesNotExist()
+        composeRule.onNodeWithText("Playing Ng8", substring = true).assertDoesNotExist()
         composeRule.onNodeWithText("Claim draw (threefold repetition)").assertDoesNotExist()
-        composeRule.onNodeWithText("4. f3g1").assertExists()
+        composeRule.onNodeWithText("4. Ng1").assertExists()
     }
 
     /** `1. Nf3 Nf6 2. Ng1 Ng8 3. Nf3 Nf6 4. Ng1`, with Black's `f6g8` tapped out and declared. */

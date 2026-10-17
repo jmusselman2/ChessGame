@@ -64,7 +64,7 @@ class M5IndependentReevaluationTest {
                         assertClearedAfterMove(tapped)
                     } else {
                         assertEquals(game, tapped.game)
-                        assertEquals(DeclaredMove(move, prospectiveClaims), tapped.declaredMove)
+                        assertEquals(DeclaredMove(move, prospectiveClaims, ChessRules.san(game.state, move)), tapped.declaredMove)
                         assertEquals(prospectiveClaims, GameControls.declaredDrawClaims(tapped))
 
                         val played = BoardInteraction.playDeclaredMove(tapped)

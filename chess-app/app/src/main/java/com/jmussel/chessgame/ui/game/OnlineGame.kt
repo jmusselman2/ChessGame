@@ -3,6 +3,7 @@ package com.jmussel.chessgame.ui.game
 import com.jmussel.chessgame.api.ChessApiException
 import com.jmussel.chessgame.api.ChessCommandRefusedException
 import com.jmussel.chessgame.api.GameViewDto
+import com.jmussel.chessgame.api.MoveDto
 import com.jmussel.chessgame.core.chess.Board
 import com.jmussel.chessgame.core.chess.ChessGame
 import com.jmussel.chessgame.core.chess.ChessRules
@@ -277,9 +278,9 @@ object OnlineGame {
      * whether a move is legal either way.
      */
     fun replayOf(game: GameViewDto): ChessGame? =
-        game.moves.fold(ChessGame.newGame() as ChessGame?) { replayed, text ->
+        game.moves.fold(ChessGame.newGame() as ChessGame?) { replayed, played ->
             val position = replayed ?: return@fold null
-            val move = moveOf(text) ?: return@fold null
+            val move = moveOf(played) ?: return@fold null
 
             if (ChessRules.isLegal(position, move)) ChessRules.applyMove(position, move) else null
         }
@@ -380,7 +381,7 @@ object OnlineGame {
         return if (request.fromYou) {
             "Undo requested. Waiting for $opponent."
         } else {
-            "$opponent asks to undo ${request.requesterMove} and your ${request.replyMove}"
+            "$opponent asks to undo ${request.requesterMove.san} and your ${request.replyMove.san}"
         }
     }
 
@@ -413,10 +414,10 @@ object OnlineGame {
         val opponent = game.opponent.username
 
         return when (note.kind) {
-            "ACCEPTED" -> "$opponent accepted your undo request: ${note.requesterMove} and ${note.replyMove} undone"
+            "ACCEPTED" -> "$opponent accepted your undo request: ${note.requesterMove.san} and ${note.replyMove.san} undone"
             "DECLINED" -> "$opponent declined your undo request"
-            "UNDONE_TOO" -> "$opponent had undone ${note.replyMove}, so ${note.requesterMove} was undone too"
-            "BOTH_UNDONE" -> "$opponent had asked to undo ${note.requesterMove}, so both moves were undone"
+            "UNDONE_TOO" -> "$opponent had undone ${note.replyMove.san}, so ${note.requesterMove.san} was undone too"
+            "BOTH_UNDONE" -> "$opponent had asked to undo ${note.requesterMove.san}, so both moves were undone"
             else -> null
         }
     }
@@ -521,8 +522,8 @@ object OnlineGame {
     /** The moves played so far, numbered in pairs as a game is written down. */
     fun moveListLines(game: GameViewDto): List<String> =
         game.moves.chunked(2).mapIndexed { index, pair ->
-            val white = pair.first()
-            val black = pair.getOrNull(1)
+            val white = pair.first().san
+            val black = pair.getOrNull(1)?.san
 
             "${index + 1}. $white${black?.let { " $it" }.orEmpty()}"
         }
@@ -618,19 +619,17 @@ object OnlineGame {
         return ChessRules.legalMoves(replayed).filter { it.from == from }
     }
 
-    /** `"e2e4"`, or `"e7e8q"`, as `chess-core` writes a move. */
-    private fun moveOf(text: String): Move? {
-        val from = Square.parseOrNull(text.take(2)) ?: return null
-        val to = Square.parseOrNull(text.drop(2).take(2)) ?: return null
+    /** A played move's canonical coordinates, for the legality preview only (`D004`); never shown. */
+    private fun moveOf(played: MoveDto): Move? {
+        val from = Square.parseOrNull(played.from) ?: return null
+        val to = Square.parseOrNull(played.to) ?: return null
         val promotion =
-            text.drop(4).firstOrNull()?.let { letter ->
-                PieceType.PROMOTION_CHOICES.firstOrNull { it.letter.equalsIgnoringCase(letter) }
+            played.promotion?.let { name ->
+                PieceType.PROMOTION_CHOICES.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: return null
             }
 
         return runCatching { Move(from, to, promotion) }.getOrNull()
     }
-
-    private fun Char.equalsIgnoringCase(other: Char): Boolean = lowercaseChar() == other.lowercaseChar()
 
     private fun sideNamed(name: String): Side = if (name.equals(Side.BLACK.name, ignoreCase = true)) Side.BLACK else Side.WHITE
 

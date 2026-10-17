@@ -14,9 +14,11 @@ import androidx.compose.ui.test.performClick
 import com.jmussel.chessgame.api.DashboardEntryDto
 import com.jmussel.chessgame.api.DrawOfferDto
 import com.jmussel.chessgame.api.GameViewDto
+import com.jmussel.chessgame.api.MoveDto
 import com.jmussel.chessgame.api.PendingRequestDto
 import com.jmussel.chessgame.api.UndoRequestDto
 import com.jmussel.chessgame.api.UserSummaryDto
+import com.jmussel.chessgame.api.playedMoves
 import com.jmussel.chessgame.ui.board.ALL_VIEWPORTS
 import com.jmussel.chessgame.ui.board.InViewport
 import com.jmussel.chessgame.ui.board.TWO_PANE_VIEWPORTS
@@ -97,7 +99,12 @@ class DrawOfferUiTest {
                 yourSide = "BLACK",
                 yourTurn = false,
                 opponent = "Jordan",
-                request = UndoRequestDto(fromYou = false, requesterMove = "g1f3", replyMove = "b8c6"),
+                request =
+                    UndoRequestDto(
+                        fromYou = false,
+                        requesterMove = MoveDto(from = "g1", to = "f3", san = "Nf3"),
+                        replyMove = MoveDto(from = "b8", to = "c6", san = "Nc6"),
+                    ),
                 drawOffer = DrawOfferDto(fromYou = false),
                 canUndo = true,
             )
@@ -106,7 +113,7 @@ class DrawOfferUiTest {
         composeRule.onAllNodesWithText(OnlineGame.ACCEPT_LABEL).assertCountEquals(2)
         TWO_PANE_VIEWPORTS.forEach { window ->
             showIn(window)
-            listOf("Back", "Jordan asks to undo g1f3 and your b8c6", "Jordan offers a draw", "Resign").forEach { label ->
+            listOf("Back", "Jordan asks to undo Nf3 and your Nc6", "Jordan offers a draw", "Resign").forEach { label ->
                 composeRule.onNodeWithText(label).assertIsDisplayed().assertInsideViewport(composeRule, "$window: $label")
             }
         }
@@ -162,7 +169,7 @@ class DrawOfferUiTest {
         sideToMove = if (yourTurn) yourSide else opposite(yourSide),
         yourTurn = yourTurn,
         board = listOf("r.bqkbnr", "pppppppp", "..n.....", "........", "........", ".....N..", "PPPPPPPP", "RNBQKB.R"),
-        moves = listOf("g1f3", "b8c6"),
+        moves = playedMoves("g1f3", "b8c6"),
         moveNumber = 2,
         canUndo = canUndo,
         canOfferDraw = canOfferDraw,

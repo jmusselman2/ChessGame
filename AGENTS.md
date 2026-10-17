@@ -30,7 +30,7 @@ Four Gradle modules (`settings.gradle.kts`):
 - `chess-app` — the Android app (Jetpack Compose); source under
   `chess-app/app/src/main/java/com/jmussel/chessgame/`.
 
-Plus `database/migrations/` (Flyway `V1`–`V15`), `Dockerfile` and `render.yaml`
+Plus `database/migrations/` (Flyway `V1`–`V16`), `Dockerfile` and `render.yaml`
 (the beta deploy), `scripts/` (beta verification), `evals/` (evaluator reports)
 and `docs/`.
 
@@ -108,7 +108,8 @@ Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/profiles/{user
   overall per-request time limit (`D074`). `api/ChessRealtimeClient.kt` — the
   WebSocket.
 - `ui/board/` is shared by the local and the online game: `BoardInteraction`
-  (what a tap means), `GameControls` (undo, claims, resign, status, move list),
+  (what a tap means), `GameControls` (undo, claims, resign, status, move list in SAN
+  from each `MoveRecord`'s recorded position, `M22.7`),
   `ChessBoard`, `BoardRendering`, `GameLayout`. `LocalGameScreen` is
   pass-and-play. `BoardRendering.feedbackFor` decides each square's marks: last
   move, then check, then selection, with destination dots and rings on top. Every
@@ -161,8 +162,9 @@ Local games do not wait for any of this: the startup screen offers them througho
 
 ### An online move
 
-1. `OnlineGame.replayOf` replays the server's move list through `chess-core` to
-   preview legal destinations. This is pre-validation only.
+1. `OnlineGame.replayOf` replays the server's move list (its coordinates) through
+   `chess-core` to preview legal destinations. This is pre-validation only; what the
+   player reads is each `MoveView`'s server-made `san` (`D101`, `M22.7`).
 2. The app POSTs `/games/{id}/moves` with the move and the `expectedVersion` it
    last saw.
 3. `GameRoutes` → `GameCommandService.makeMove`, in one transaction: load the

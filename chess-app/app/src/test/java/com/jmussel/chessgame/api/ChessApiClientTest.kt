@@ -34,7 +34,7 @@ class ChessApiClientTest {
         {"gameId":"game-1","seriesId":"series-1","opponent":{"userId":"user-1","username":"Alex"},
          "version":8,"yourSide":"WHITE","sideToMove":"BLACK","yourTurn":false,"inCheck":false,
          "board":["rnbqkbnr","pppppppp","........","........","....P...","........","PPPP.PPP","RNBQKBNR"],
-         "moves":["e2e4"],"moveNumber":1,"halfmoveClock":0}
+         "moves":[{"from":"e2","to":"e4","san":"e4"}],"moveNumber":1,"halfmoveClock":0}
         """.trimIndent()
 
     private fun clientReplying(
@@ -212,6 +212,13 @@ class ChessApiClientTest {
             listOf("/games/game-1/draw-offer", "/games/game-1/draw-offer/accept", "/games/game-1/draw-offer/decline"),
             requests.map { it.url.encodedPath },
         )
+    }
+
+    @Test
+    fun aMoveWithoutSanIsAnIncompatibleResponse() {
+        val client = clientReplying(gameBody.replace("""{"from":"e2","to":"e4","san":"e4"}""", """{"from":"e2","to":"e4"}"""))
+
+        assertThrows(Exception::class.java) { runBlocking { client.game("game-1") } }
     }
 
     @Test

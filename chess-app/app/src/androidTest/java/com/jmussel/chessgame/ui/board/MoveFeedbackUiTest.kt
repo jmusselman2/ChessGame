@@ -16,6 +16,7 @@ import androidx.compose.ui.test.performClick
 import com.jmussel.chessgame.api.GameViewDto
 import com.jmussel.chessgame.api.MoveDto
 import com.jmussel.chessgame.api.UserSummaryDto
+import com.jmussel.chessgame.api.playedMoves
 import com.jmussel.chessgame.computer.ComputerGameActions
 import com.jmussel.chessgame.computer.ComputerGameScreen
 import com.jmussel.chessgame.computer.ComputerGameUiState
@@ -106,8 +107,8 @@ class MoveFeedbackUiTest {
                 yourTurn = true,
                 inCheck = true,
                 board = listOf("rnbqkbnr", "ppppp.pp", ".....p..", ".......Q", "....P...", "........", "PPPP.PPP", "RNB.KBNR"),
-                moves = listOf("e2e4", "f7f6", "d1h5"),
-                lastMove = MoveDto(from = "d1", to = "h5"),
+                moves = playedMoves("e2e4", "f7f6", "d1h5"),
+                lastMove = MoveDto(from = "d1", to = "h5", san = "Qh5+"),
                 moveNumber = 3,
             )
         show { OnlineGameScreen(state = OnlineGameState.Ready(checked, selected = Square.parse("g7")), onBack = {}) }

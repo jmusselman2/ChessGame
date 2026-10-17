@@ -461,8 +461,8 @@ class UndoRequestTest {
             assertEquals(UndoNoteKind.ACCEPTED, jordanNote.kind)
             val alexNote = assertNotNull(fixture.view(fixture.alex).undoNote)
             assertEquals(UndoNoteKind.BOTH_UNDONE, alexNote.kind)
-            assertEquals("g1f3", alexNote.requesterMove)
-            assertEquals("b8c6", alexNote.replyMove)
+            assertEquals("Nf3", alexNote.requesterMove.san)
+            assertEquals("Nc6", alexNote.replyMove.san)
 
             val events = fixture.games.auditEvents(fixture.gameId).takeLast(2)
             assertEquals(listOf("UndoRequested", "UndoAccepted"), events.map { it.type })
@@ -493,8 +493,8 @@ class UndoRequestTest {
 
             val jordanNote = assertNotNull(fixture.view(fixture.jordan).undoNote)
             assertEquals(UndoNoteKind.UNDONE_TOO, jordanNote.kind)
-            assertEquals("g1f3", jordanNote.requesterMove)
-            assertEquals("b8c6", jordanNote.replyMove)
+            assertEquals("Nf3", jordanNote.requesterMove.san)
+            assertEquals("Nc6", jordanNote.replyMove.san)
             assertEquals(UndoNoteKind.BOTH_UNDONE, fixture.view(fixture.alex).undoNote?.kind)
 
             val events = fixture.games.auditEvents(fixture.gameId).takeLast(2)
@@ -578,8 +578,8 @@ class UndoRequestTest {
 
             val note = assertNotNull(fixture.view(fixture.jordan).undoNote)
             assertEquals(UndoNoteKind.ACCEPTED, note.kind)
-            assertEquals("g1f3", note.requesterMove)
-            assertEquals("b8c6", note.replyMove)
+            assertEquals("Nf3", note.requesterMove.san)
+            assertEquals("Nc6", note.replyMove.san)
             assertNull(fixture.view(fixture.alex).undoNote)
             assertNotNull(fixture.view(fixture.jordan).undoNote, "it shows on every read, not once")
 
@@ -724,8 +724,8 @@ class UndoRequestTest {
             assertFalse(forJordan.canRequestUndo)
             assertEquals(true, forJordan.undoRequest?.fromYou)
             assertEquals(false, forAlex.undoRequest?.fromYou)
-            assertEquals("g1f3", forAlex.undoRequest?.requesterMove)
-            assertEquals("b8c6", forAlex.undoRequest?.replyMove)
+            assertEquals("Nf3", forAlex.undoRequest?.requesterMove?.san)
+            assertEquals("Nc6", forAlex.undoRequest?.replyMove?.san)
             assertTrue(forAlex.canUndo, "Alex's Undo stays, and accepts")
             assertTrue(forJordan.yourTurn, "Jordan can still play")
         }

@@ -5,6 +5,7 @@ import com.jmussel.chessgame.api.ChessServerConfig
 import com.jmussel.chessgame.api.RealtimeMessageDto
 import com.jmussel.chessgame.api.RealtimeSource
 import com.jmussel.chessgame.api.ServerWakePolicy
+import com.jmussel.chessgame.api.movesJson
 import com.jmussel.chessgame.auth.AnonymousSession
 import com.jmussel.chessgame.auth.InMemorySessionStore
 import com.jmussel.chessgame.auth.SessionStore
@@ -181,7 +182,14 @@ class AppRestartTest {
             relaunched.gameJob?.join()
 
             val ready = relaunched.game as OnlineGameState.Ready
-            assertEquals("nothing about a game is kept locally, so it all comes back", played.toList(), ready.game.moves)
+            assertEquals(
+                "nothing about a game is kept locally, so it all comes back",
+                played.toList(),
+                ready.game.moves.map {
+                    it.from +
+                        it.to
+                },
+            )
             assertEquals(3L, ready.game.version)
         }
 
@@ -372,7 +380,7 @@ class AppRestartTest {
         {"gameId":"$gameId","seriesId":"series-1","opponent":{"userId":"user-2","username":"Alex"},
          "version":${1 + played.size},"yourSide":"WHITE","sideToMove":"WHITE","yourTurn":true,"inCheck":false,
          "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
-         "moves":${played.joinToString(",", "[", "]") { "\"$it\"" }},"moveNumber":1,"halfmoveClock":0,
+         "moves":${movesJson(played)},"moveNumber":1,"halfmoveClock":0,
          "canUndo":false,"availableDrawClaims":[]}
         """.trimIndent()
 

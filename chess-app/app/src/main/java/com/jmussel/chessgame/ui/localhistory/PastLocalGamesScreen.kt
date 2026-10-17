@@ -13,6 +13,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.jmussel.chessgame.local.LocalGameSummary
@@ -109,7 +110,8 @@ fun LocalGameReviewScreen(
             }
         },
         moveList = {
-            GameControls.moveListLines(review.stored.game).forEach { line -> Text(text = line) }
+            val lines = remember(review.stored.game.history) { GameControls.moveListLines(review.stored.game) }
+            lines.forEach { line -> Text(text = line) }
         },
     )
 }

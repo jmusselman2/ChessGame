@@ -5,6 +5,7 @@ import com.jmussel.chessgame.api.ChessServerConfig
 import com.jmussel.chessgame.api.RealtimeMessageDto
 import com.jmussel.chessgame.api.RealtimeSource
 import com.jmussel.chessgame.api.ServerWakePolicy
+import com.jmussel.chessgame.api.movesJson
 import com.jmussel.chessgame.auth.AnonymousSession
 import com.jmussel.chessgame.auth.InMemorySessionStore
 import com.jmussel.chessgame.auth.SessionStore
@@ -205,7 +206,7 @@ class NetworkInterruptionTest {
 
             val ready = viewModel.game as OnlineGameState.Ready
             assertEquals("the update must not be lost behind the reload it interrupted", 2L, ready.game.version)
-            assertEquals(listOf("e7e5"), ready.game.moves)
+            assertEquals(listOf("e7e5"), ready.game.moves.map { it.from + it.to })
         }
 
     @Test
@@ -231,7 +232,7 @@ class NetworkInterruptionTest {
 
             val ready = viewModel.game as OnlineGameState.Ready
             assertEquals("an update received while the game opens must trigger a fresh read", 2L, ready.game.version)
-            assertEquals(listOf("e7e5"), ready.game.moves)
+            assertEquals(listOf("e7e5"), ready.game.moves.map { it.from + it.to })
         }
 
     @Test
@@ -338,7 +339,7 @@ class NetworkInterruptionTest {
             viewModel.gameJob?.join()
 
             val recovered = viewModel.game as OnlineGameState.Ready
-            assertEquals("the move is there", listOf("e2e4"), recovered.game.moves)
+            assertEquals("the move is there", listOf("e4"), recovered.game.moves.map { it.san })
             assertEquals(2L, recovered.game.version)
             assertEquals("and it was sent once", 1, paths.count { it == "/games/$GAME/moves" })
         }
@@ -374,7 +375,7 @@ class NetworkInterruptionTest {
 
             val ready = viewModel.game as OnlineGameState.Ready
             assertEquals("the delayed command response must not regress the screen", 3L, ready.game.version)
-            assertEquals(listOf("e2e4", "e7e5"), ready.game.moves)
+            assertEquals(listOf("e4", "e5"), ready.game.moves.map { it.san })
         }
 
     @Test
@@ -399,7 +400,7 @@ class NetworkInterruptionTest {
             assertEquals("the move is recorded once", listOf("e2e4"), played.toList())
             val ready = viewModel.game as OnlineGameState.Ready
             assertEquals("and the refusal corrected the screen", 2L, ready.game.version)
-            assertEquals(listOf("e2e4"), ready.game.moves)
+            assertEquals(listOf("e4"), ready.game.moves.map { it.san })
         }
 
     // --- A Render idle cold start -----------------------------------------------------
@@ -453,7 +454,7 @@ class NetworkInterruptionTest {
 
             assertTrue("connecting refreshes what is on screen", paths.size > before)
             val ready = viewModel.game as OnlineGameState.Ready
-            assertEquals("with what happened while the app was cut off", listOf("e7e5"), ready.game.moves)
+            assertEquals("with what happened while the app was cut off", listOf("e7e5"), ready.game.moves.map { it.from + it.to })
 
             viewModel.updatesJob?.cancel()
         }
@@ -560,7 +561,7 @@ class NetworkInterruptionTest {
 
             val ready = viewModel.game as OnlineGameState.Ready
             assertEquals("coming back shows the move without waiting for the socket", 2L, ready.game.version)
-            assertEquals(listOf("e7e5"), ready.game.moves)
+            assertEquals(listOf("e7e5"), ready.game.moves.map { it.from + it.to })
         }
 
     @Test
@@ -694,7 +695,7 @@ class NetworkInterruptionTest {
             viewModel.gameJob?.join()
 
             val refreshed = viewModel.game as OnlineGameState.Ready
-            assertEquals(listOf("e7e5"), refreshed.game.moves)
+            assertEquals(listOf("e7e5"), refreshed.game.moves.map { it.from + it.to })
             assertNull("and the status goes once the refresh has landed", refreshed.sync)
         }
 
@@ -720,7 +721,7 @@ class NetworkInterruptionTest {
             viewModel.gameJob?.join()
 
             val woken = viewModel.game as OnlineGameState.Ready
-            assertEquals(listOf("e7e5"), woken.game.moves)
+            assertEquals(listOf("e7e5"), woken.game.moves.map { it.from + it.to })
             assertNull(woken.sync)
         }
 
@@ -750,7 +751,7 @@ class NetworkInterruptionTest {
             viewModel.gameJob?.join()
 
             val retried = viewModel.game as OnlineGameState.Ready
-            assertEquals("trying again reads the game", listOf("e7e5"), retried.game.moves)
+            assertEquals("trying again reads the game", listOf("e7e5"), retried.game.moves.map { it.from + it.to })
             assertNull(retried.sync)
         }
 
@@ -782,7 +783,7 @@ class NetworkInterruptionTest {
             viewModel.gameJob?.join()
 
             val settled = viewModel.game as OnlineGameState.Ready
-            assertEquals("refreshing shows what became of it", listOf("e2e4"), settled.game.moves)
+            assertEquals("refreshing shows what became of it", listOf("e4"), settled.game.moves.map { it.san })
             assertNull(settled.sync)
             assertEquals("and still sends no second command", 1, paths.count { it == "/games/$GAME/moves" })
         }
@@ -860,7 +861,7 @@ class NetworkInterruptionTest {
             viewModel.gameJob?.join()
 
             val caughtUp = viewModel.game as OnlineGameState.Ready
-            assertEquals(listOf("e7e5"), caughtUp.game.moves)
+            assertEquals(listOf("e7e5"), caughtUp.game.moves.map { it.from + it.to })
             assertEquals("nothing left to say", emptyList<SyncNotice>(), OnlineGame.syncNoticesFor(caughtUp, viewModel.liveUpdates))
 
             viewModel.updatesJob?.cancel()
@@ -1087,7 +1088,7 @@ class NetworkInterruptionTest {
             {"gameId":"$gameId","seriesId":"series-1","opponent":{"userId":"user-2","username":"Alex"},
              "version":$version,"yourSide":"WHITE","sideToMove":"WHITE","yourTurn":true,"inCheck":false,
              "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
-             "moves":${played.joinToString(",", "[", "]") { "\"$it\"" }},"moveNumber":1,"halfmoveClock":0,
+             "moves":${movesJson(played)},"moveNumber":1,"halfmoveClock":0,
              "canUndo":false,"availableDrawClaims":[]$ending}
             """.trimIndent()
     }

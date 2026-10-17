@@ -4,6 +4,7 @@ import com.jmussel.chessgame.api.ChessApiException
 import com.jmussel.chessgame.api.GameViewDto
 import com.jmussel.chessgame.api.MoveDto
 import com.jmussel.chessgame.api.UserSummaryDto
+import com.jmussel.chessgame.api.playedMoves
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.Square
@@ -31,7 +32,7 @@ class OnlineGameTest {
         yourTurn: Boolean = true,
         inCheck: Boolean = false,
         board: List<String> = startingRows,
-        moves: List<String> = emptyList(),
+        moves: List<MoveDto> = emptyList(),
         lastMove: MoveDto? = null,
         moveNumber: Int = 1,
         version: Long = 1,
@@ -98,7 +99,7 @@ class OnlineGameTest {
 
     @Test
     fun theMoveJustPlayedIsTwoSquaresToHighlight() {
-        val squares = OnlineGame.lastMoveSquares(game(lastMove = MoveDto(from = "e2", to = "e4")))
+        val squares = OnlineGame.lastMoveSquares(game(lastMove = MoveDto(from = "e2", to = "e4", san = "e4")))
 
         assertEquals(setOf(Square.parse("e2"), Square.parse("e4")), squares)
     }
@@ -155,9 +156,9 @@ class OnlineGameTest {
 
     @Test
     fun theMovesAreNumberedInPairs() {
-        val lines = OnlineGame.moveListLines(game(moves = listOf("e2e4", "e7e5", "g1f3")))
+        val lines = OnlineGame.moveListLines(game(moves = playedMoves("e2e4", "e7e5", "g1f3")))
 
-        assertEquals(listOf("1. e2e4 e7e5", "2. g1f3"), lines)
+        assertEquals(listOf("1. e4 e5", "2. Nf3"), lines)
     }
 
     @Test
@@ -220,7 +221,8 @@ class OnlineGameTest {
     fun theCheckedKingIsTheServersCheckOnTheSideToMove() {
         // 1. e4 f6 2. Qh5+: Black is in check.
         val rows = listOf("rnbqkbnr", "ppppp.pp", ".....p..", ".......Q", "....P...", "........", "PPPP.PPP", "RNB.KBNR")
-        val checked = game(yourSide = "BLACK", sideToMove = "BLACK", board = rows, inCheck = true, lastMove = MoveDto("d1", "h5"))
+        val checked =
+            game(yourSide = "BLACK", sideToMove = "BLACK", board = rows, inCheck = true, lastMove = MoveDto("d1", "h5", san = "Qh5+"))
 
         assertEquals(Square.parse("e8"), OnlineGame.checkedKing(checked))
         assertEquals(setOf(Square.parse("d1"), Square.parse("h5")), OnlineGame.lastMoveSquares(checked))
@@ -261,8 +263,8 @@ class OnlineGameTest {
     fun aResignedGameKeepsTheLastMoveThatWasPlayed() {
         val resigned =
             game(
-                moves = listOf("e2e4", "e7e5"),
-                lastMove = MoveDto(from = "e7", to = "e5"),
+                moves = playedMoves("e2e4", "e7e5"),
+                lastMove = MoveDto(from = "e7", to = "e5", san = "e5"),
                 result = "BLACK_WINS",
                 terminationReason = "RESIGNATION",
             )

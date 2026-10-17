@@ -40,7 +40,15 @@ class DrawOffersMigrationTest {
                 .migrate()
             val (white, black, game) = aGameWithAPendingRequest(dataSource)
 
-            Migrations.migrate(dataSource)
+            // To V15 only: V16's SAN cutover clears pending requests on purpose (M22.7).
+            Flyway
+                .configure()
+                .dataSource(dataSource)
+                .locations(Migrations.LOCATION)
+                .table(Migrations.HISTORY_TABLE)
+                .target("15")
+                .load()
+                .migrate()
 
             val database = Databases.connect(dataSource)
             val games = GameRepository(database)

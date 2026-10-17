@@ -48,7 +48,7 @@ class LocalGameTest {
         assertEquals(white(PieceType.QUEEN), state.board.pieceAt(Square.parse("f7")))
         assertEquals(7, state.game.moves.size)
         assertEquals(
-            listOf("1. e2e4 e7e5", "2. f1c4 b8c6", "3. d1h5 g8f6", "4. h5f7"),
+            listOf("1. e4 e5", "2. Bc4 Nc6", "3. Qh5 Nf6", "4. Qxf7#"),
             GameControls.moveListLines(state.game),
         )
     }
@@ -83,7 +83,7 @@ class LocalGameTest {
         state = tap(state, "g1", "f3")
 
         assertEquals(3, state.game.moves.size)
-        assertEquals(listOf("1. e2e4 c7c5", "2. g1f3"), GameControls.moveListLines(state.game))
+        assertEquals(listOf("1. e4 c5", "2. Nf3"), GameControls.moveListLines(state.game))
     }
 
     @Test
@@ -169,7 +169,7 @@ class LocalGameTest {
 
         assertEquals(white(PieceType.KING), state.board.pieceAt(Square.parse("g1")))
         assertEquals(white(PieceType.ROOK), state.board.pieceAt(Square.parse("f1")))
-        assertEquals("4. e1g1", GameControls.moveListLines(state.game).last())
+        assertEquals("4. O-O", GameControls.moveListLines(state.game).last())
     }
 
     @Test

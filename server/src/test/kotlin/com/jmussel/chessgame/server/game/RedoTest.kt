@@ -702,7 +702,7 @@ class RedoTest {
             val response = redo("auth-1-tablet", fixture.gameId, fixture.version)
             assertEquals(HttpStatusCode.OK, response.status)
             val view = json.decodeFromString<GameView>(response.bodyAsText())
-            assertEquals(listOf("e2e4"), view.moves)
+            assertEquals(listOf("e4"), view.moves.map { it.san })
             assertEquals("e2", view.lastMove?.from)
             assertFalse(view.canRedo)
         }

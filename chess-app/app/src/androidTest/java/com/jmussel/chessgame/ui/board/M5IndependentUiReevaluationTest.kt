@@ -24,7 +24,7 @@ class M5IndependentUiReevaluationTest {
         tap("f2")
         tap("f3")
         composeRule.onNodeWithText("BLACK to move").assertExists()
-        composeRule.onNodeWithText("1. f2f3").assertExists()
+        composeRule.onNodeWithText("1. f3").assertExists()
 
         tap("e7")
         tap("e5")
@@ -34,7 +34,7 @@ class M5IndependentUiReevaluationTest {
         tap("h4")
 
         composeRule.onNodeWithText("Black won by checkmate").assertExists()
-        composeRule.onNodeWithText("2. g2g4 d8h4").assertExists()
+        composeRule.onNodeWithText("2. g4 Qh4#").assertExists()
         composeRule.onNodeWithText("Undo", substring = true).assertDoesNotExist()
         composeRule.onNodeWithText("Resign as White").assertDoesNotExist()
         composeRule.onNodeWithText("Resign as Black").assertDoesNotExist()
@@ -43,7 +43,7 @@ class M5IndependentUiReevaluationTest {
         // must ignore the tap and leave the final position and history unchanged.
         tap("e2")
         composeRule.onNodeWithText("Black won by checkmate").assertExists()
-        composeRule.onNodeWithText("2. g2g4 d8h4").assertExists()
+        composeRule.onNodeWithText("2. g4 Qh4#").assertExists()
     }
 
     /** Taps [name] on the local board, which always has White at the bottom (`D087`). */

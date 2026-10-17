@@ -18,8 +18,10 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import com.jmussel.chessgame.api.GameViewDto
+import com.jmussel.chessgame.api.MoveDto
 import com.jmussel.chessgame.api.UndoNoteDto
 import com.jmussel.chessgame.api.UserSummaryDto
+import com.jmussel.chessgame.api.playedMoves
 import com.jmussel.chessgame.computer.ComputerGameActions
 import com.jmussel.chessgame.computer.ComputerGameScreen
 import com.jmussel.chessgame.computer.ComputerGameUiState
@@ -59,7 +61,7 @@ class RedoUiTest {
         composeRule.onNodeWithText(GameControls.REDO_LABEL).assertDoesNotExist()
 
         composeRule.onNodeWithText("Undo Black's move").performClick()
-        composeRule.onNodeWithText("1. e2e4").assertIsDisplayed()
+        composeRule.onNodeWithText("1. e4").assertIsDisplayed()
 
         composeRule
             .onNodeWithText(GameControls.REDO_LABEL)
@@ -67,7 +69,7 @@ class RedoUiTest {
             .assert(isButton)
             .performClick()
 
-        composeRule.onNodeWithText("1. e2e4 e7e5").assertIsDisplayed()
+        composeRule.onNodeWithText("1. e4 e5").assertIsDisplayed()
         composeRule.onNodeWithText("WHITE to move").assertIsDisplayed()
         composeRule.onNodeWithText(GameControls.REDO_LABEL).assertDoesNotExist()
         assertSquare("e5", "last move")
@@ -207,7 +209,12 @@ class RedoUiTest {
             onlineGame(
                 canRedo = true,
                 canRequestUndo = true,
-                note = UndoNoteDto(kind = "DECLINED", requesterMove = "g1f3", replyMove = "b8c6"),
+                note =
+                    UndoNoteDto(
+                        kind = "DECLINED",
+                        requesterMove = MoveDto(from = "g1", to = "f3", san = "Nf3"),
+                        replyMove = MoveDto(from = "b8", to = "c6", san = "Nc6"),
+                    ),
                 claims = listOf("THREEFOLD_REPETITION"),
             )
         show { OnlineGameScreen(state = OnlineGameState.Ready(game), onBack = {}) }
@@ -279,7 +286,7 @@ class RedoUiTest {
         sideToMove = "WHITE",
         yourTurn = true,
         board = listOf("r.bqkbnr", "pppppppp", "..n.....", "........", "........", ".....N..", "PPPPPPPP", "RNBQKB.R"),
-        moves = listOf("g1f3", "b8c6"),
+        moves = playedMoves("g1f3", "b8c6"),
         moveNumber = 2,
         canRedo = canRedo,
         canRequestUndo = canRequestUndo,

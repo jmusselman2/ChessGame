@@ -56,10 +56,10 @@ class ActionExplanationTest {
 
     @Test
     fun aDeclaredClaimSaysTheDeclaredMoveIsNotPlayed() {
-        val declared = DeclaredMove(move("f6g8"), setOf(DrawClaim.THREEFOLD_REPETITION))
+        val declared = DeclaredMove(move("f6g8"), setOf(DrawClaim.THREEFOLD_REPETITION), san = "Ng8")
 
         assertEquals(
-            "Playing f6g8 lets you claim a draw instead. Claiming ends the game now, and f6g8 is not played.",
+            "Playing Ng8 lets you claim a draw instead. Claiming ends the game now, and Ng8 is not played.",
             GameControls.declaredClaimExplanation(declared),
         )
     }

@@ -124,7 +124,7 @@ class GameLayoutUiTest {
             composeRule.tapSquareAt(Square.parse("e2"), Side.WHITE)
             composeRule.onNodeWithTag(squareTag(Square.parse("e2"))).assertIsSelected()
             composeRule.tapSquareAt(Square.parse("e4"), Side.WHITE)
-            composeRule.onNodeWithText("1. e2e4").assertExists()
+            composeRule.onNodeWithText("1. e4").assertExists()
 
             // The board does not turn for Black (`D087`): e7 is still drawn with White at the bottom.
             composeRule.tapSquareAt(Square.parse("e7"), Side.WHITE)
@@ -247,7 +247,7 @@ class GameLayoutUiTest {
                     GameControls.labelFor(DrawClaim.THREEFOLD_REPETITION),
                     GameControls.resignLabelFor(Side.WHITE),
                     GameControls.resignLabelFor(Side.BLACK),
-                    "4. f3g1 f6g8",
+                    "4. Ng1 Ng8",
                 ).forEach { label -> composeRule.onNodeWithText(label).performScrollTo().assertIsDisplayed() }
                 assertEquals("$window at $scale: the board did not move", board, composeRule.boundsOf(CHESS_BOARD_TAG))
             }

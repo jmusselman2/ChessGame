@@ -13,6 +13,7 @@ import androidx.compose.ui.test.performClick
 import com.jmussel.chessgame.api.GameViewDto
 import com.jmussel.chessgame.api.MoveDto
 import com.jmussel.chessgame.api.UserSummaryDto
+import com.jmussel.chessgame.api.playedMoves
 import com.jmussel.chessgame.computer.ComputerGameActions
 import com.jmussel.chessgame.computer.ComputerGameScreen
 import com.jmussel.chessgame.computer.ComputerGameUiState
@@ -66,7 +67,7 @@ class GameEndUiTest {
             showIn(window)
             composeRule.onNodeWithText("Black won by checkmate").assertIsDisplayed().assertInsideViewport(composeRule, "$window: ending")
             composeRule.onNodeWithTag(CHESS_BOARD_TAG).assertIsDisplayed().assertInsideViewport(composeRule, "$window: board")
-            composeRule.onNodeWithText("2. g2g4 d8h4").assertExists()
+            composeRule.onNodeWithText("2. g4 Qh4#").assertExists()
         }
         listOf("Undo", "Resign as").forEach { composeRule.onNodeWithText(it, substring = true).assertDoesNotExist() }
 
@@ -101,7 +102,8 @@ class GameEndUiTest {
 
         composeRule.onNodeWithText("The computer won by resignation").assertIsDisplayed()
         composeRule.onNodeWithTag(CHESS_BOARD_TAG).assertIsDisplayed()
-        composeRule.onNodeWithText("1. e2e4 e7e5").assertExists()
+        composeRule.onNodeWithText("1. e4 e5").assertExists()
+        composeRule.onNodeWithText("1. e2e4 e7e5").assertDoesNotExist()
 
         listOf("Play again", "New game", "Review", "Leave").forEach { composeRule.onNodeWithText(it).assertIsDisplayed().performClick() }
         composeRule.runOnIdle { assertEquals(listOf("play again", "new game", "review", "leave"), pressed) }
@@ -170,8 +172,8 @@ class GameEndUiTest {
             sideToMove = "WHITE",
             yourTurn = false,
             board = listOf("rnbqkbnr", "pppp.ppp", "........", "....p...", "....P...", "........", "PPPP.PPP", "RNBQKBNR"),
-            moves = listOf("e2e4", "e7e5"),
-            lastMove = MoveDto(from = "e7", to = "e5"),
+            moves = playedMoves("e2e4", "e7e5"),
+            lastMove = MoveDto(from = "e7", to = "e5", san = "e5"),
             moveNumber = 2,
             result = "BLACK_WINS",
             terminationReason = "RESIGNATION",

@@ -156,7 +156,7 @@ class TwoClientGameTest {
             val finalView = first.readGame(gameId)
 
             assertEquals(4, finalView.version)
-            assertEquals(listOf("e2e4", "e7e5", "g1f3", "b8c6"), finalView.moves)
+            assertEquals(listOf("e4", "e5", "Nf3", "Nc6"), finalView.moves.map { it.san })
             assertTrue(finalView.yourTurn, "back to the player who started")
         }
     }
@@ -177,7 +177,7 @@ class TwoClientGameTest {
             val afterTheMove = second.readGame(gameId)
 
             assertTrue(afterTheMove.yourTurn, "the opponent's move handed them the turn")
-            assertEquals(listOf("d2d4"), afterTheMove.moves)
+            assertEquals(listOf("d4"), afterTheMove.moves.map { it.san })
             assertEquals(1, afterTheMove.version)
         }
     }

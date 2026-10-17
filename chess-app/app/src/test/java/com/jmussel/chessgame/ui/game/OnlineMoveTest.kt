@@ -3,7 +3,9 @@ package com.jmussel.chessgame.ui.game
 import com.jmussel.chessgame.api.ChessCommandRefusedException
 import com.jmussel.chessgame.api.CommandRejectionDto
 import com.jmussel.chessgame.api.GameViewDto
+import com.jmussel.chessgame.api.MoveDto
 import com.jmussel.chessgame.api.UserSummaryDto
+import com.jmussel.chessgame.api.playedMoves
 import com.jmussel.chessgame.core.chess.ChessGame
 import com.jmussel.chessgame.core.chess.ChessRules
 import com.jmussel.chessgame.core.chess.Move
@@ -25,14 +27,15 @@ import org.junit.Test
 class OnlineMoveTest {
     /** The game as it stands after [moves], described the way the server would describe it. */
     private fun game(
-        moves: List<String> = emptyList(),
+        moves: List<MoveDto> = emptyList(),
         yourSide: String = "WHITE",
         yourTurn: Boolean? = null,
         result: String? = null,
     ): GameViewDto {
         val replayed =
-            moves.fold(ChessGame.newGame()) { position, text ->
-                ChessRules.applyMove(position, moveOf(text))
+            moves.fold(ChessGame.newGame()) { position, played ->
+                val move = Move(Square.parse(played.from), Square.parse(played.to), played.promotion?.let(PieceType::valueOf))
+                ChessRules.applyMove(position, move)
             }
 
         return GameViewDto(
@@ -64,7 +67,7 @@ class OnlineMoveTest {
         )
 
     private fun ready(
-        moves: List<String> = emptyList(),
+        moves: List<MoveDto> = emptyList(),
         yourSide: String = "WHITE",
         yourTurn: Boolean? = null,
         result: String? = null,
@@ -78,7 +81,7 @@ class OnlineMoveTest {
 
     @Test
     fun theMovesTheServerListedReplayIntoThePositionItSent() {
-        val game = game(moves = listOf("e2e4", "e7e5", "g1f3"))
+        val game = game(moves = playedMoves("e2e4", "e7e5", "g1f3"))
 
         val replayed = OnlineGame.replayOf(game)
 
@@ -87,7 +90,7 @@ class OnlineMoveTest {
 
     @Test
     fun movesThatCannotBeReplayedCostThePreviewAndNothingElse() {
-        val nonsense = game().copy(moves = listOf("not-a-move"))
+        val nonsense = game().copy(moves = listOf(MoveDto(from = "not", to = "a-move", san = "?")))
 
         assertNull(OnlineGame.replayOf(nonsense))
         assertTrue(OnlineGame.legalDestinations(OnlineGameState.Ready(nonsense, selected = Square.parse("e2"))).isEmpty())
@@ -125,7 +128,7 @@ class OnlineMoveTest {
 
     @Test
     fun nothingHappensWhenItIsNotYourMove() {
-        val tap = OnlineGame.onSquareTapped(ready(moves = listOf("e2e4")), Square.parse("e7"))
+        val tap = OnlineGame.onSquareTapped(ready(moves = playedMoves("e2e4")), Square.parse("e7"))
 
         assertTrue(tap is BoardTap.Showing)
         assertNull(tap.state.selected)
@@ -150,7 +153,7 @@ class OnlineMoveTest {
     @Test
     fun aPawnReachingTheLastRankAsksWhichPieceItBecomes() {
         // A White pawn has captured its way to h7; taking the knight on g8 promotes it.
-        val moves = listOf("g2g4", "e7e5", "g4g5", "e5e4", "g5g6", "e4e3", "g6h7", "e3d2", "c1d2", "a7a6")
+        val moves = playedMoves("g2g4", "e7e5", "g4g5", "e5e4", "g5g6", "e4e3", "g6h7", "e3d2", "c1d2", "a7a6")
         val state = ready(moves = moves, selected = Square.parse("h7"))
 
         val tap = OnlineGame.onSquareTapped(state, Square.parse("g8"))
@@ -163,7 +166,7 @@ class OnlineMoveTest {
 
     @Test
     fun choosingThePromotionPieceSendsTheMoveWithIt() {
-        val moves = listOf("g2g4", "e7e5", "g4g5", "e5e4", "g5g6", "e4e3", "g6h7", "e3d2", "c1d2", "a7a6")
+        val moves = playedMoves("g2g4", "e7e5", "g4g5", "e5e4", "g5g6", "e4e3", "g6h7", "e3d2", "c1d2", "a7a6")
         val prompted = OnlineGame.onSquareTapped(ready(moves = moves, selected = Square.parse("h7")), Square.parse("g8"))
 
         val tap = OnlineGame.choosePromotion(prompted.state, PieceType.QUEEN)
@@ -176,7 +179,7 @@ class OnlineMoveTest {
 
     @Test
     fun backingOutOfThePromotionSendsNothing() {
-        val moves = listOf("g2g4", "e7e5", "g4g5", "e5e4", "g5g6", "e4e3", "g6h7", "e3d2", "c1d2", "a7a6")
+        val moves = playedMoves("g2g4", "e7e5", "g4g5", "e5e4", "g5g6", "e4e3", "g6h7", "e3d2", "c1d2", "a7a6")
         val prompted = OnlineGame.onSquareTapped(ready(moves = moves, selected = Square.parse("h7")), Square.parse("g8"))
 
         val cancelled = OnlineGame.cancelPromotion(prompted.state)

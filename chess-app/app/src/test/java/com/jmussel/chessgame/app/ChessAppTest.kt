@@ -398,7 +398,8 @@ class ChessAppTest {
         val request =
             undoRequestFromYou
                 ?.let { fromYou ->
-                    ""","undoRequest":{"fromYou":$fromYou,"requesterMove":"g1f3","replyMove":"b8c6"}"""
+                    ""","undoRequest":{"fromYou":$fromYou,"requesterMove":{"from":"g1","to":"f3","san":"Nf3"},""" +
+                        """"replyMove":{"from":"b8","to":"c6","san":"Nc6"}}"""
                 }.orEmpty()
         val offer = drawOfferFromYou?.let { ""","drawOffer":{"fromYou":$it}""" }.orEmpty()
 
@@ -454,7 +455,7 @@ class ChessAppTest {
         {"gameId":"$gameId","seriesId":"series-1","opponent":${user("Alex")},"version":2,
          "yourSide":"WHITE","sideToMove":"BLACK","yourTurn":false,"inCheck":false,
          "board":["rnbqkbnr","pppppppp","........","........","....P...","........","PPPP.PPP","RNBQKBNR"],
-         "moves":["e2e4"],"lastMove":{"from":"e2","to":"e4"},"moveNumber":1,"halfmoveClock":0}
+         "moves":[{"from":"e2","to":"e4","san":"e4"}],"lastMove":{"from":"e2","to":"e4","san":"e4"},"moveNumber":1,"halfmoveClock":0}
         """.trimIndent()
 
     /** A refusal carrying the canonical state, as the server sends one for a stale command. */
@@ -464,8 +465,10 @@ class ChessAppTest {
          {"gameId":"game-7","seriesId":"series-1","opponent":{"userId":"user-Alex","username":"Alex"},
           "version":9,"yourSide":"WHITE","sideToMove":"WHITE","yourTurn":true,"inCheck":false,
           "board":["rnbqkbnr","pppp.ppp","........","....p...","....P...","........","PPPP.PPP","RNBQKBNR"],
-          "moves":["e2e4","e7e5"],"lastMove":{"from":"e7","to":"e5"},"moveNumber":2,"halfmoveClock":0}}
-        """.trimIndent()
+          "moves":[{"from":"e2","to":"e4","san":"e4"},{"from":"e7","to":"e5","san":"e5"}],""" +
+            """
+            "lastMove":{"from":"e7","to":"e5","san":"e5"},"moveNumber":2,"halfmoveClock":0}}
+            """.trimIndent()
 
     private fun sentText(request: HttpRequestData): String = (request.body as TextContent).text
 
@@ -1553,7 +1556,7 @@ class ChessAppTest {
             viewModel.moveJob?.join()
 
             val ready = viewModel.game as OnlineGameState.Ready
-            assertEquals(listOf("e2e4"), ready.game.moves)
+            assertEquals(listOf("e4"), ready.game.moves.map { it.san })
             assertFalse(ready.submitting)
             assertEquals(listOf("/games/game-7", "/games/game-7/moves"), paths)
         }
@@ -1615,7 +1618,7 @@ class ChessAppTest {
 
             val ready = viewModel.game as OnlineGameState.Ready
             assertEquals("the canonical state came back with the refusal", 9, ready.game.version.toInt())
-            assertEquals(listOf("e2e4", "e7e5"), ready.game.moves)
+            assertEquals(listOf("e4", "e5"), ready.game.moves.map { it.san })
             assertTrue(ready.message.orEmpty().contains("moved on"))
             assertFalse(ready.submitting)
         }
@@ -1853,7 +1856,7 @@ class ChessAppTest {
             val ready = viewModel.game as OnlineGameState.Ready
             assertEquals(listOf("/games/game-7", "/games/game-7/redo"), paths)
             assertTrue(sentBodies.last().contains("\"expectedVersion\":1"))
-            assertEquals("the restored move is the server's", listOf("e2e4"), ready.game.moves)
+            assertEquals("the restored move is the server's", listOf("e4"), ready.game.moves.map { it.san })
             assertFalse(ready.submitting)
         }
 
@@ -2159,7 +2162,7 @@ class ChessAppTest {
 
             val ready = viewModel.game as OnlineGameState.Ready
             assertEquals(9, ready.game.version.toInt())
-            assertEquals(listOf("e2e4", "e7e5"), ready.game.moves)
+            assertEquals(listOf("e4", "e5"), ready.game.moves.map { it.san })
             assertTrue(ready.message.orEmpty().contains("moved on"))
         }
 

@@ -1123,8 +1123,9 @@ Both stay outside `GameState` and `chess-core`, and are projected per viewer
 (`D069`). The dashboard names what waits on the viewer in its own field; `yourTurn`
 keeps meaning "it is your move".
 
-`M22.7` adds required `san` to the existing `MoveView` and changes
-`GameView.moves` from coordinate strings to `List<MoveView>`. The existing
+`M22.7` added required `san` to the existing `MoveView` and changed
+`GameView.moves` from coordinate strings to `List<MoveView>`; `V16` dropped the
+pending requests, notes and last-change records that predated it. The existing
 `from`/`to`/`promotion` fields remain the canonical move identity; SAN is derived by
 the server from the recorded `positionBefore`. Undo request and note fields use the
 same move view. Pending and declined requests use active move records; accepted and

@@ -195,7 +195,8 @@ fun LocalGameScreen(
         },
         moveList = {
             // The moves played so far, newest last.
-            GameControls.moveListLines(game.game).forEach { line -> Text(text = line) }
+            val lines = remember(game.game.history) { GameControls.moveListLines(game.game) }
+            lines.forEach { line -> Text(text = line) }
         },
     )
 
@@ -268,7 +269,7 @@ internal fun DeclaredMovePrompt(
             Button(onClick = { onClaim(claim) }) { Text(text = GameControls.labelFor(claim)) }
         }
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onPlay) { Text(text = "Play ${declared.move}") }
+            Button(onClick = onPlay) { Text(text = "Play ${declared.san}") }
             TextButton(onClick = onCancel) { Text(text = "Cancel") }
         }
     }

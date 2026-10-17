@@ -337,7 +337,7 @@ class MakeMoveTest {
             assertEquals("WHITE", view.yourSide)
             assertEquals("BLACK", view.sideToMove)
             assertFalse(view.yourTurn)
-            assertEquals(listOf("e2e4"), view.moves)
+            assertEquals(listOf("e4"), view.moves.map { it.san })
         }
     }
 
