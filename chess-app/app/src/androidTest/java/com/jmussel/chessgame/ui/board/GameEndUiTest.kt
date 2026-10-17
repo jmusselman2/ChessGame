@@ -27,8 +27,8 @@ import com.jmussel.chessgame.ui.game.AfterGame
 import com.jmussel.chessgame.ui.game.OnlineGame
 import com.jmussel.chessgame.ui.game.OnlineGameScreen
 import com.jmussel.chessgame.ui.game.OnlineGameState
-import com.jmussel.chessgame.ui.localhistory.LocalGameReview
-import com.jmussel.chessgame.ui.localhistory.LocalGameReviewScreen
+import com.jmussel.chessgame.ui.review.GameReviewScreen
+import com.jmussel.chessgame.ui.review.GameReviews
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -144,10 +144,10 @@ class GameEndUiTest {
     fun theReviewOfAFinishedGameSaysHowItEndedAtTheFinalMove() {
         val mated = play("f2f3", "e7e5", "g2g4", "d8h4")
         val stored = StoredLocalGame(id = 5, computer = ComputerOpponent(Side.BLACK, 2), createdAt = 1, completedAt = 2, game = mated)
-        show { LocalGameReviewScreen(review = LocalGameReview(stored), onStep = {}) }
+        show { GameReviewScreen(review = GameReviews.ofLocal(stored), onStep = {}) }
 
         composeRule.onNodeWithText("You won by checkmate").assertIsDisplayed()
-        composeRule.onNodeWithText("After d8h4 (4 of 4)").assertExists()
+        composeRule.onNodeWithText("After Qh4# (4 of 4)").assertExists()
     }
 
     private fun show(content: @Composable () -> Unit) {

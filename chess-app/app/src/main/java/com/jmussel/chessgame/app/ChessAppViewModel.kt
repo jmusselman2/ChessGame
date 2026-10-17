@@ -46,11 +46,13 @@ import com.jmussel.chessgame.ui.groups.Groups
 import com.jmussel.chessgame.ui.groups.GroupsUiState
 import com.jmussel.chessgame.ui.history.HistoryMessages
 import com.jmussel.chessgame.ui.history.HistoryUiState
-import com.jmussel.chessgame.ui.localhistory.LocalGameReview
 import com.jmussel.chessgame.ui.localhistory.PastLocalGamesUiState
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import com.jmussel.chessgame.ui.onboarding.UsernameOnboarding
 import com.jmussel.chessgame.ui.profile.ProfileUiState
+import com.jmussel.chessgame.ui.review.GameReview
+import com.jmussel.chessgame.ui.review.GameReviews
+import com.jmussel.chessgame.ui.review.OnlineReviewState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -168,7 +170,7 @@ class ChessAppViewModel(
         private set
 
     /** The finished local game being looked back at, or `null` while it is being read. */
-    var localReview: LocalGameReview? by mutableStateOf(null)
+    var localReview: GameReview? by mutableStateOf(null)
         private set
 
     /** Reading past local games, or one of them, while that is under way. */
@@ -1927,7 +1929,7 @@ class ChessAppViewModel(
         pastLocalGamesJob =
             viewModelScope.launch {
                 // Only a finished game is reviewed; an unfinished one is played, not looked back at.
-                localReview = localGames.game(id)?.takeUnless { it.isActive }?.let(::LocalGameReview)
+                localReview = localGames.game(id)?.takeUnless { it.isActive }?.let(GameReviews::ofLocal)
             }
     }
 
@@ -1949,6 +1951,47 @@ class ChessAppViewModel(
     /** Shows the game under review at [ply]. */
     fun stepLocalReview(ply: Int) {
         localReview = localReview?.at(ply)
+    }
+
+    /** The finished online game under review, as the server projected it (`D100`). */
+    var onlineReview: OnlineReviewState by mutableStateOf(OnlineReviewState())
+        private set
+
+    /** The review read in flight, if any. Internal so tests can wait for it. */
+    internal var onlineReviewJob: Job? = null
+        private set
+
+    /**
+     * Opens the finished online game on screen in review (`D100`): from its game-end screen or
+     * from History, which opens a finished game on the same screen. A game still being played is
+     * never reviewed. If the server cannot project the review, the review says so; the finished
+     * game's own screen is untouched behind it.
+     */
+    fun openOnlineReview() {
+        val finished = (game as? OnlineGameState.Ready)?.game?.takeIf { it.isOver } ?: return
+
+        onlineReviewJob?.cancel()
+        onlineReview = OnlineReviewState(gameId = finished.gameId)
+        open(Destination.OnlineReview(finished.gameId))
+        onlineReviewJob =
+            viewModelScope.launch {
+                onlineReview =
+                    try {
+                        val read = waitingForServer { dependencies.chessApi.review(finished.gameId) }
+                        onlineReview.copy(review = GameReviews.ofOnline(finished, read))
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (refused: ChessApiException) {
+                        onlineReview.copy(unavailable = OnlineReviewState.UNAVAILABLE)
+                    } catch (unreachable: Exception) {
+                        onlineReview.copy(unavailable = OnlineGame.unreachableMessage())
+                    }
+            }
+    }
+
+    /** Shows the online game under review at [ply]. */
+    fun stepOnlineReview(ply: Int) {
+        onlineReview = onlineReview.copy(review = onlineReview.review?.at(ply))
     }
 
     /** Shows the local game [load] reads or starts, with nothing to tap until it has. */

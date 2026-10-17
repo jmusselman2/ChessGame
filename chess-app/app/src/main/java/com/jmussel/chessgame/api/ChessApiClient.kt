@@ -228,6 +228,36 @@ data class SharedGroupDto(
     val name: String,
 )
 
+/**
+ * A finished game, ply by ply, as the server projects it for review (`D100`, `D101`): each
+ * move with the position it was played from, and the final position and result. Nothing here
+ * is replayed on the device.
+ */
+@Serializable
+data class CompletedGameReviewDto(
+    val gameId: String,
+    val version: Long,
+    val plies: List<ReviewPlyDto>,
+    val finalPosition: ReviewPositionDto,
+    val result: String,
+    val terminationReason: String,
+)
+
+/** One ply of a review: the move, and the position it was played from. */
+@Serializable
+data class ReviewPlyDto(
+    val move: MoveDto,
+    val positionBefore: ReviewPositionDto,
+)
+
+/** A reviewed position: the board rows, whose move it is, and whether they are in check. */
+@Serializable
+data class ReviewPositionDto(
+    val board: List<String>,
+    val sideToMove: String,
+    val inCheck: Boolean,
+)
+
 /** A group the caller is in, as the server lists it (`D049`, `D076`). */
 @Serializable
 data class GroupSummaryDto(
@@ -417,6 +447,9 @@ class ChessApiClient(
 
     /** Everyone the caller is friends with (`D009`). */
     suspend fun friends(): List<FriendDto> = get("/friends")
+
+    /** The finished game [gameId], ply by ply, for review (`D100`). Refused for a game in progress. */
+    suspend fun review(gameId: String): CompletedGameReviewDto = get("/games/$gameId/review")
 
     /**
      * [userId]'s profile, by immutable id (`D099`). A `404` means the two are not friends or in a

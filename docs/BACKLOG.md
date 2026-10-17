@@ -141,7 +141,7 @@ implementation, as `M21` was.
 | `M22.6`  | Standard algebraic notation in `chess-core`         | None       | `F39`    | `DONE`    |
 | `M22.7`  | Every move list and move wording in SAN             | M22.6      | `F39`    | `DONE`    |
 | `M22.8`  | Turning automatic rematches off by hand             | None       | `F4`     | `DONE`    |
-| `M22.10` | Online ply-by-ply review                            | M22.7      | `F41`    | `TODO`    |
+| `M22.10` | Online ply-by-ply review                            | M22.7      | `F41`    | `DONE`    |
 | `M22.11` | Board coordinates                                   | None       | `F39`    | `TODO`    |
 | `M22.12` | Drag-and-drop moves                                 | M22.2      | `F3`     | `TODO`    |
 
@@ -739,7 +739,7 @@ authentication. The number is not reused.
 
 ## M22.10 — Online ply-by-ply review
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M22.7
 
@@ -786,6 +786,29 @@ forbids client reconstruction by replaying a historical move chain.
   zero-move finished games, invalid move context, and exact final canonical
   state/result; host-side tests for stepping and where Review is offered; a Compose
   test for the controls.
+
+### Completion
+
+Completed 2026-10-17. `GET /games/{gameId}/review` answers `CompletedGameReviewView`
+(`gameId`, `version`, `plies` of `move: MoveView` and `positionBefore: ReviewPositionView`,
+`finalPosition`, `result`, `terminationReason`) for a participant of a finished game: `404`
+for no game, `403` for anyone else, `409` for a game in play. Each SAN and position comes
+from that ply's own recorded `positionBefore` and the final fields from the final state;
+nothing is replayed. A recorded move that cannot be projected answers `500` "Review is not
+available for this game", with no coordinate fallback. Because `M22.7` made SAN required in
+every game view, such a game's ordinary view fails the same way; what stays usable is the
+finished-game screen the app already has, which the failed review leaves untouched. Android
+gains one read-only `GameReview` model (`ui/review/`) that local games map into from their
+stored records and online games from the projection, and one `GameReviewScreen` with the
+local review's Start, Previous, Next and End; the local review's position line is now SAN
+too ("After Qh4# (4 of 4)"). A finished online game's screen offers Review, which covers both
+the game-end screen and a game opened from History; a game in play does not. Verified with
+`:server:test --rerun-tasks` against PostgreSQL (new `ReviewTest`: identity, exact keys,
+`404`/`403`/`409`, required SAN, recorded positions, checks including the final checkmate,
+a zero-move game, invalid context), `:chess-app:testDebugUnitTest` (new
+`OnlineGameReviewTest`, view-model review flows), `OnlineReviewUiTest`,
+`PastLocalGamesUiTest` and `GameEndUiTest` on the Fire HD 8 (9 tests), `.\gradlew.bat build`
+and `git diff --check`.
 
 ---
 

@@ -92,7 +92,7 @@ Under `server/src/main/kotlin/com/jmussel/chessgame/server/`:
 
 Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/profiles/{userId}`, `/groups`,
 `/series`, `/series/{id}/leave`, `/games/{id}` and its
-`moves|undo|redo|undo-request|undo-request/accept|undo-request/decline|draw-offer|draw-offer/accept|draw-offer/decline|resignation|draw-claims`,
+`review|moves|undo|redo|undo-request|undo-request/accept|undo-request/decline|draw-offer|draw-offer/accept|draw-offer/decline|resignation|draw-claims`,
 `/dashboard`, `/history`, `/ws`.
 
 ### `chess-app` — the client
@@ -122,8 +122,12 @@ Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/profiles/{user
   results discarded, takeback, Play again and saving; `ChessAppViewModel.computerGame`
   owns it, and its `back()` returns from New game's questions to the game.
   `ComputerGameScreen` draws it with the local game's board and prompts.
-- `ui/localhistory/` — Past local games: the list, and `LocalGameReview`, a
-  read-only ply-by-ply review built from the stored positions.
+- `ui/localhistory/` — Past local games: the list.
+- `ui/review/` — the read-only ply-by-ply review every finished game shares (`M22.10`):
+  `GameReview`, which `GameReviews.ofLocal` builds from a local game's stored positions
+  and `GameReviews.ofOnline` from the server's `GET /games/{id}/review` projection, and
+  `GameReviewScreen` (Start, Previous, Next, End). A finished online game offers Review on
+  its screen, which is also where History opens it.
 - `local/` — the device-authoritative store for local games (`D084`, `D085`).
   `LocalGameStore` over the SQLDelight `LocalGameDatabase` generated from
   `src/main/sqldelight` (`local_games`, `local_moves`; schema version 4: `1.sqm` moved

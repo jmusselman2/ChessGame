@@ -546,6 +546,70 @@ data class GameView(
     }
 }
 
+/**
+ * A finished game, ply by ply, for review (`D100`, `D101`, `M22.10`): each move with the
+ * position it was played from, and the final position and result. Built from the recorded
+ * positions, never by replaying the moves; no persistence snapshot leaves the server.
+ */
+@Serializable
+data class CompletedGameReviewView(
+    val gameId: String,
+    val version: Long,
+    val plies: List<ReviewPlyView>,
+    val finalPosition: ReviewPositionView,
+    val result: String,
+    val terminationReason: String,
+) {
+    companion object {
+        /** [stored], which must be finished. Throws when a move's recorded context is invalid. */
+        fun of(stored: com.jmussel.chessgame.server.db.StoredGame): CompletedGameReviewView {
+            val result = requireNotNull(stored.game.result) { "Only a finished game is reviewed" }
+
+            return CompletedGameReviewView(
+                gameId = stored.id.toString(),
+                version = stored.version,
+                plies =
+                    stored.game.history.map { record ->
+                        ReviewPlyView(move = MoveView.of(record), positionBefore = ReviewPositionView.of(record.positionBefore))
+                    },
+                finalPosition = ReviewPositionView.of(stored.game.state),
+                result = result.outcome.name,
+                terminationReason = result.reason.name,
+            )
+        }
+    }
+}
+
+/** One ply of a review: the move, and the position it was played from. */
+@Serializable
+data class ReviewPlyView(
+    val move: MoveView,
+    val positionBefore: ReviewPositionView,
+)
+
+/**
+ * A position as review shows it: the board, whose move it is, and whether that side's king is
+ * in check, the final checkmate included. A chess projection, not a stored state document.
+ */
+@Serializable
+data class ReviewPositionView(
+    /** Eight rows, rank 8 first, FEN-style letters with `.` for an empty square. */
+    val board: List<String>,
+    val sideToMove: String,
+    val inCheck: Boolean,
+) {
+    companion object {
+        fun of(state: com.jmussel.chessgame.core.chess.GameState): ReviewPositionView =
+            ReviewPositionView(
+                board = state.board.toString().lines(),
+                sideToMove = state.sideToMove.name,
+                inCheck =
+                    com.jmussel.chessgame.core.chess.ChessRules
+                        .isInCheck(state),
+            )
+    }
+}
+
 /** Why a command was refused, in a form a client can branch on. */
 @Serializable
 enum class RejectionReason {

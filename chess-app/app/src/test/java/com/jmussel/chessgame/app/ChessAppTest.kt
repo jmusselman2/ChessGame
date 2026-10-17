@@ -30,6 +30,7 @@ import com.jmussel.chessgame.ui.game.OnlineGame
 import com.jmussel.chessgame.ui.game.OnlineGameState
 import com.jmussel.chessgame.ui.history.HistoryList
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
+import com.jmussel.chessgame.ui.review.OnlineReviewState
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -303,6 +304,7 @@ class ChessAppTest {
                 gameView(path.removePrefix("/games/").removeSuffix("/undo-request"), undoRequestFromYou = true)
             path.contains("/undo-request/") -> gameView(path.removePrefix("/games/").substringBefore("/"))
             path.endsWith("/draw-claims") -> drawnGame(path.removePrefix("/games/").removeSuffix("/draw-claims"))
+            path.endsWith("/review") && replies.finished -> reviewOf(path.removePrefix("/games/").removeSuffix("/review"))
             path.endsWith("/draw-offer") -> gameView(path.removePrefix("/games/").removeSuffix("/draw-offer"), drawOfferFromYou = true)
             path.endsWith("/draw-offer/accept") -> agreedDraw(path.removePrefix("/games/").removeSuffix("/draw-offer/accept"))
             path.endsWith("/draw-offer/decline") -> gameView(path.removePrefix("/games/").removeSuffix("/draw-offer/decline"))
@@ -426,6 +428,18 @@ class ChessAppTest {
          "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
          "moves":[],"moveNumber":1,"halfmoveClock":0,"seriesActive":$seriesActive,"hasStarted":$hasStarted,
          "result":"BLACK_WINS","terminationReason":"RESIGNATION"}
+        """.trimIndent()
+
+    /** The stubbed server's review of a finished game: one ply, `1. e4`, then checkmate on the board. */
+    private fun reviewOf(gameId: String): String =
+        """
+        {"gameId":"$gameId","version":2,
+         "plies":[{"move":{"from":"e2","to":"e4","san":"e4"},
+                   "positionBefore":{"board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
+                                     "sideToMove":"WHITE","inCheck":false}}],
+         "finalPosition":{"board":["rnbqkbnr","pppppppp","........","........","....P...","........","PPPP.PPP","RNBQKBNR"],
+                          "sideToMove":"BLACK","inCheck":false},
+         "result":"WHITE_WINS","terminationReason":"CHECKMATE"}
         """.trimIndent()
 
     /** The same game once both players have agreed to a draw (`D097`). */
@@ -1981,6 +1995,66 @@ class ChessAppTest {
 
             assertEquals(listOf("/games/game-7", "/games/game-7/undo-request/decline"), paths)
             assertTrue(sentBodies.last().contains("\"expectedVersion\":1"))
+        }
+
+    @Test
+    fun aFinishedGameOpensItsReviewFromTheServersProjection() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan", finished = true))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.openOnlineReview()
+            viewModel.onlineReviewJob?.join()
+
+            assertEquals(Destination.OnlineReview("game-7"), viewModel.navigation.current)
+            val review = viewModel.onlineReview.review!!
+            assertEquals(listOf("1. e4"), review.moveListLines())
+            assertEquals("You won by checkmate", review.status)
+            viewModel.stepOnlineReview(0)
+            assertEquals("Start of the game", viewModel.onlineReview.review!!.positionText)
+            assertTrue(viewModel.back())
+            assertEquals("the finished game is where it was", Destination.OnlineGame("game-7"), viewModel.navigation.current)
+        }
+
+    @Test
+    fun aGameStillBeingPlayedOffersNoReview() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan"))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.openOnlineReview()
+
+            assertEquals(Destination.OnlineGame("game-7"), viewModel.navigation.current)
+            assertFalse(paths.any { it.endsWith("/review") })
+        }
+
+    @Test
+    fun aReviewTheServerCannotProjectSaysSoAndLeavesTheGameAlone() =
+        runTest(dispatcher) {
+            val viewModel =
+                viewModel(
+                    httpClient =
+                        httpClient(
+                            username = "Jordan",
+                            finished = true,
+                            refusals = 1,
+                            refusalPath = "/games/game-7/review",
+                            refusalStatus = HttpStatusCode.InternalServerError,
+                            refusalBody = "Review is not available for this game",
+                        ),
+                )
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+            val shown = viewModel.game
+
+            viewModel.openOnlineReview()
+            viewModel.onlineReviewJob?.join()
+
+            assertNull(viewModel.onlineReview.review)
+            assertEquals(OnlineReviewState.UNAVAILABLE, viewModel.onlineReview.unavailable)
+            assertEquals("the finished game's screen is untouched", shown, viewModel.game)
         }
 
     @Test

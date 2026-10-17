@@ -7,6 +7,7 @@ import com.jmussel.chessgame.core.chess.Move
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.server.api.CommandRejection
+import com.jmussel.chessgame.server.api.CompletedGameReviewView
 import com.jmussel.chessgame.server.api.GameView
 import com.jmussel.chessgame.server.api.RejectionReason
 import com.jmussel.chessgame.server.auth.AuthenticatedUser
@@ -60,6 +61,9 @@ data class UndoRequestCommand(
     val expectedVersion: Long,
 )
 
+/** What a finished game whose recorded moves cannot be projected answers review with. */
+private const val REVIEW_UNAVAILABLE = "Review is not available for this game"
+
 /** A draw offer, or an answer to one, decided at [expectedVersion] (`D097`). */
 @Serializable
 data class DrawOfferCommand(
@@ -101,6 +105,30 @@ fun Route.gameRoutes(
         val gameId = call.gameId() ?: return@get
 
         call.respondTo(commands.load(caller.userId, gameId), caller, views)
+    }
+
+    // A finished game, ply by ply (`D100`, `M22.10`): participants only, and never a game still
+    // being played, whose live board is the only view of it. A move whose recorded context
+    // cannot be projected leaves review unavailable, never shown as coordinates.
+    get("/games/{gameId}/review") {
+        val caller = call.authenticatedUser()
+        val gameId = call.gameId() ?: return@get
+
+        when (val result = commands.load(caller.userId, gameId)) {
+            CommandResult.NoSuchGame -> call.respondText("No such game", status = HttpStatusCode.NotFound)
+            CommandResult.NotAParticipant -> call.respondText("You are not playing this game", status = HttpStatusCode.Forbidden)
+            is CommandResult.Applied ->
+                if (!result.game.isComplete) {
+                    call.respondText("A game being played has no review", status = HttpStatusCode.Conflict)
+                } else {
+                    val review = runCatching { CompletedGameReviewView.of(result.game) }
+                    review.getOrNull()?.let { call.respond(it) } ?: run {
+                        call.application.log.error("Game $gameId cannot be reviewed", review.exceptionOrNull())
+                        call.respondText(REVIEW_UNAVAILABLE, status = HttpStatusCode.InternalServerError)
+                    }
+                }
+            else -> call.respondText("No such game", status = HttpStatusCode.NotFound)
+        }
     }
 
     post("/games/{gameId}/moves") {

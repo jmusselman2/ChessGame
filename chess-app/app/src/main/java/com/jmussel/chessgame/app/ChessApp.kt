@@ -52,14 +52,15 @@ import com.jmussel.chessgame.ui.groups.GroupsScreen
 import com.jmussel.chessgame.ui.groups.GroupsUiState
 import com.jmussel.chessgame.ui.history.HistoryScreen
 import com.jmussel.chessgame.ui.history.HistoryUiState
-import com.jmussel.chessgame.ui.localhistory.LocalGameReview
-import com.jmussel.chessgame.ui.localhistory.LocalGameReviewScreen
 import com.jmussel.chessgame.ui.localhistory.PastLocalGamesScreen
 import com.jmussel.chessgame.ui.localhistory.PastLocalGamesUiState
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import com.jmussel.chessgame.ui.onboarding.UsernameScreen
 import com.jmussel.chessgame.ui.profile.ProfileScreen
 import com.jmussel.chessgame.ui.profile.ProfileUiState
+import com.jmussel.chessgame.ui.review.GameReview
+import com.jmussel.chessgame.ui.review.GameReviewScreen
+import com.jmussel.chessgame.ui.review.OnlineReviewState
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
 /**
@@ -95,7 +96,10 @@ fun ChessApp(
     onReviewLocalGame: () -> Unit = {},
     /** Finished local games, and the one being looked back at (`M21.3`). */
     pastLocalGames: PastLocalGamesUiState = PastLocalGamesUiState(),
-    localReview: LocalGameReview? = null,
+    localReview: GameReview? = null,
+    onlineReview: OnlineReviewState = OnlineReviewState(),
+    onStepOnlineReview: (Int) -> Unit = {},
+    onReviewOnlineGame: () -> Unit = {},
     onOpenPastLocalGames: () -> Unit = {},
     onOpenPastLocalGame: (Long) -> Unit = {},
     onStepLocalReview: (Int) -> Unit = {},
@@ -194,7 +198,14 @@ fun ChessApp(
                 )
             Destination.PastLocalGames ->
                 PastLocalGamesScreen(state = pastLocalGames, onOpenGame = { game -> onOpenPastLocalGame(game.id) })
-            is Destination.PastLocalGame -> LocalGameReviewScreen(review = localReview, onStep = onStepLocalReview, onBack = onBack)
+            is Destination.PastLocalGame -> GameReviewScreen(review = localReview, onStep = onStepLocalReview, onBack = onBack)
+            is Destination.OnlineReview ->
+                GameReviewScreen(
+                    review = onlineReview.review,
+                    onStep = onStepOnlineReview,
+                    onBack = onBack,
+                    unavailable = onlineReview.unavailable,
+                )
             Destination.LocalGame ->
                 LocalGameScreen(
                     state = localGame,
@@ -227,6 +238,7 @@ fun ChessApp(
                     onOpenNextGame = onOpenNextGame,
                     onFindNextGame = onFindNextGame,
                     onDone = onGameDone,
+                    onReview = onReviewOnlineGame,
                 )
         }
     }

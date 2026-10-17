@@ -61,6 +61,15 @@ sealed interface Destination {
         val gameId: Long,
     ) : Destination
 
+    /** A finished online game, read-only and ply by ply (`D100`). */
+    data class OnlineReview(
+        val gameId: String,
+    ) : Destination {
+        init {
+            require(gameId.isNotBlank()) { "A review needs a game id" }
+        }
+    }
+
     /** One server-owned game, identified the way the server identifies it. */
     data class OnlineGame(
         val gameId: String,

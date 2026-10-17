@@ -3,26 +3,16 @@ package com.jmussel.chessgame.ui.localhistory
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.jmussel.chessgame.local.LocalGameSummary
-import com.jmussel.chessgame.ui.board.BoardRendering
-import com.jmussel.chessgame.ui.board.ChessBoard
-import com.jmussel.chessgame.ui.board.GameBackButton
-import com.jmussel.chessgame.ui.board.GameControls
-import com.jmussel.chessgame.ui.board.GameEndHeadline
-import com.jmussel.chessgame.ui.board.GameLayout
 import java.text.DateFormat
 import java.util.Date
 
@@ -60,58 +50,4 @@ fun PastLocalGamesScreen(
             }
         }
     }
-}
-
-/**
- * One finished local game, read-only: the board at the chosen ply, stepped through with
- * the buttons, and the whole move list.
- *
- * A pass-and-play game is drawn face to face, as it was played (`D087`). Nothing on the
- * board can be tapped.
- */
-@Composable
-fun LocalGameReviewScreen(
-    review: LocalGameReview?,
-    onStep: (Int) -> Unit,
-    modifier: Modifier = Modifier,
-    onBack: (() -> Unit)? = null,
-) {
-    if (review == null) {
-        Column(modifier = modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            onBack?.let { GameBackButton(onClick = it) }
-            Text(text = "Loading…", style = MaterialTheme.typography.bodyMedium)
-        }
-        return
-    }
-
-    val game = review.game
-    GameLayout(
-        onBack = onBack,
-        modifier = modifier,
-        board = { side ->
-            ChessBoard(
-                board = game.state.board,
-                side = side,
-                lastMove = BoardRendering.lastMoveSquares(game),
-                checkedKing = BoardRendering.checkedKing(game),
-                orientation = review.orientation,
-                faceToFace = review.faceToFace,
-            )
-        },
-        controls = {
-            Text(text = PastLocalGames.opponentLabel(review.stored.computer))
-            review.ending?.let { GameEndHeadline(text = it) } ?: Text(text = GameControls.statusFor(game))
-            Text(text = review.position, style = MaterialTheme.typography.bodySmall)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { onStep(0) }, enabled = review.canStepBack) { Text(text = "Start") }
-                Button(onClick = { onStep(review.ply - 1) }, enabled = review.canStepBack) { Text(text = "Previous") }
-                Button(onClick = { onStep(review.ply + 1) }, enabled = review.canStepForward) { Text(text = "Next") }
-                Button(onClick = { onStep(review.plies) }, enabled = review.canStepForward) { Text(text = "End") }
-            }
-        },
-        moveList = {
-            val lines = remember(review.stored.game.history) { GameControls.moveListLines(review.stored.game) }
-            lines.forEach { line -> Text(text = line) }
-        },
-    )
 }

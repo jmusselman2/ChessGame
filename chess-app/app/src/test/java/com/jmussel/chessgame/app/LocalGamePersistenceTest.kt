@@ -419,14 +419,14 @@ class LocalGamePersistenceTest {
 
             val review = viewModel.localReview!!
             assertEquals(Destination.PastLocalGame(id), viewModel.navigation.current)
-            assertEquals(kept.game, review.game)
+            assertEquals(kept.game.state.board, review.position.board)
             assertEquals(4, review.ply)
             assertTrue(review.faceToFace)
 
             viewModel.stepLocalReview(1)
-            assertEquals(listOf(Move.of("f2", "f3")), viewModel.localReview!!.game.moves)
+            assertEquals("After f3 (1 of 4)", viewModel.localReview!!.positionText)
             viewModel.stepLocalReview(0)
-            assertEquals(ChessGame.newGame(), viewModel.localReview!!.game)
+            assertEquals(ChessGame.newGame().state.board, viewModel.localReview!!.position.board)
 
             // Looking back changes nothing that was kept.
             assertEquals(kept, store.game(id))
@@ -602,7 +602,7 @@ class LocalGamePersistenceTest {
             val review = viewModel.localReview!!
             assertEquals("at the final move", review.plies, review.ply)
             assertEquals(4, review.ply)
-            assertEquals("Black won by checkmate", review.ending)
+            assertEquals("Black won by checkmate", review.status)
 
             // Back returns to the finished game, where New game still starts another.
             assertTrue(viewModel.back())
@@ -648,7 +648,7 @@ class LocalGamePersistenceTest {
             assertEquals(Destination.PastLocalGame(game.id), viewModel.navigation.current)
             val review = viewModel.localReview!!
             assertEquals(review.plies, review.ply)
-            assertEquals("The computer won by resignation", review.ending)
+            assertEquals("The computer won by resignation", review.status)
 
             assertTrue(viewModel.back())
             assertEquals(Destination.ComputerGame, viewModel.navigation.current)

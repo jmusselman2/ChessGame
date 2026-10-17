@@ -18,6 +18,8 @@ import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.local.LocalGameSummary
 import com.jmussel.chessgame.local.StoredLocalGame
 import com.jmussel.chessgame.ui.board.squareTag
+import com.jmussel.chessgame.ui.review.GameReviewScreen
+import com.jmussel.chessgame.ui.review.GameReviews
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 import org.junit.Assert.assertEquals
 import org.junit.Rule
@@ -58,22 +60,22 @@ class PastLocalGamesUiTest {
     fun theReviewStepsThroughTheGameAndTheBoardIgnoresTaps() {
         composeRule.setContent {
             ChessGameTheme {
-                var review by remember { mutableStateOf(LocalGameReview(stored)) }
-                LocalGameReviewScreen(review = review, onStep = { review = review.at(it) })
+                var review by remember { mutableStateOf(GameReviews.ofLocal(stored)) }
+                GameReviewScreen(review = review, onStep = { review = review.at(it) })
             }
         }
 
         composeRule.onNodeWithText("Black won by checkmate").assertExists()
-        composeRule.onNodeWithText("After d8h4 (4 of 4)").assertExists()
+        composeRule.onNodeWithText("After Qh4# (4 of 4)").assertExists()
         composeRule.onNodeWithText("Next").assertIsNotEnabled()
 
         composeRule.onNodeWithText("Previous").performClick()
-        composeRule.onNodeWithText("After g2g4 (3 of 4)").assertExists()
+        composeRule.onNodeWithText("After g4 (3 of 4)").assertExists()
         composeRule.onNodeWithText("BLACK to move").assertExists()
 
         // A tap on the board does nothing: the game is finished and this is only a review.
         composeRule.onNodeWithTag(squareTag(Square.parse("d8"))).performClick()
-        composeRule.onNodeWithText("After g2g4 (3 of 4)").assertExists()
+        composeRule.onNodeWithText("After g4 (3 of 4)").assertExists()
 
         composeRule.onNodeWithText("Start").performClick()
         composeRule.onNodeWithText("Start of the game").assertExists()
@@ -81,6 +83,6 @@ class PastLocalGamesUiTest {
         composeRule.onNodeWithText("Previous").assertIsNotEnabled()
 
         composeRule.onNodeWithText("End").performClick()
-        composeRule.onNodeWithText("After d8h4 (4 of 4)").assertExists()
+        composeRule.onNodeWithText("After Qh4# (4 of 4)").assertExists()
     }
 }

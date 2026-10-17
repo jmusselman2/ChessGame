@@ -6,13 +6,15 @@ import com.jmussel.chessgame.core.chess.GameResult
 import com.jmussel.chessgame.core.chess.Move
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Side
+import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.core.chess.TerminationReason
 import com.jmussel.chessgame.local.ComputerOpponent
 import com.jmussel.chessgame.local.LocalGameSummary
 import com.jmussel.chessgame.local.StoredLocalGame
+import com.jmussel.chessgame.ui.board.GameEndings
+import com.jmussel.chessgame.ui.review.GameReviews
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -52,57 +54,60 @@ class PastLocalGamesTest {
     ) = StoredLocalGame(id = 7, computer = computer, createdAt = 1_000, completedAt = 2_000, game = game)
 
     @Test
-    fun theReviewRebuildsEveryRecordedPly() {
-        val review = LocalGameReview(stored())
+    fun theReviewShowsEveryRecordedPly() {
+        val review = GameReviews.ofLocal(stored())
         assertEquals(moves.size, review.plies)
 
         // The test may replay the moves; the review itself only reads the records.
         (0..moves.size).forEach { ply ->
             val replayed = moves.take(ply).fold(ChessGame.newGame()) { game, text -> ChessRules.applyMove(game, move(text)) }
-            val shown = review.at(ply).game
+            val shown = review.at(ply).position
 
-            assertEquals(replayed.history, shown.history)
-            assertEquals(replayed.state, shown.state.copy(result = if (ply < moves.size) shown.state.result else null))
+            assertEquals(replayed.state.board, shown.board)
+            assertEquals(replayed.state.sideToMove, shown.sideToMove)
+            assertEquals(ChessRules.isInCheck(replayed.state), shown.inCheck)
         }
     }
 
     @Test
     fun theReviewOpensOnTheFinishedGame() {
-        val review = LocalGameReview(stored())
+        val review = GameReviews.ofLocal(stored())
 
-        assertEquals(finished, review.game)
-        assertEquals(GameResult.resignation(Side.WHITE), review.game.result)
+        assertEquals(finished.state.board, review.position.board)
+        assertEquals(GameEndings.forSides(GameResult.resignation(Side.WHITE)), review.status)
         assertFalse(review.canStepForward)
         assertTrue(review.canStepBack)
     }
 
     @Test
-    fun earlierPliesAreGamesInProgressWithTheirOwnLastMove() {
-        val review = LocalGameReview(stored()).at(2)
+    fun earlierPliesAreGamesInProgressWithTheirOwnLastMoveInSan() {
+        val review = GameReviews.ofLocal(stored()).at(2)
 
-        assertNull(review.game.result)
-        assertEquals(move("g8f6"), review.game.lastMove)
-        assertEquals("After g8f6 (2 of ${moves.size})", review.position)
-        assertEquals("Start of the game", review.at(0).position)
+        assertEquals("WHITE to move", review.status)
+        assertEquals(setOf(Square.parse("g8"), Square.parse("f6")), review.lastMove)
+        assertEquals("After Nf6 (2 of ${moves.size})", review.positionText)
+        assertEquals("Start of the game", review.at(0).positionText)
+        assertEquals(emptySet<Square>(), review.at(0).lastMove)
         assertFalse(review.at(0).canStepBack)
+        assertEquals("1. e4 Nf6", review.moveListLines().first())
     }
 
     @Test
     fun steppingStaysWithinTheGame() {
-        val review = LocalGameReview(stored())
+        val review = GameReviews.ofLocal(stored())
 
         assertEquals(0, review.at(-3).ply)
         assertEquals(moves.size, review.at(moves.size + 5).ply)
-        assertThrows(IllegalArgumentException::class.java) { LocalGameReview(stored(), ply = moves.size + 1) }
+        assertThrows(IllegalArgumentException::class.java) { review.copy(ply = moves.size + 1) }
     }
 
     @Test
     fun passAndPlayIsReviewedFaceToFaceAndAComputerGameFromTheHumansSide() {
-        val passAndPlay = LocalGameReview(stored())
+        val passAndPlay = GameReviews.ofLocal(stored())
         assertTrue(passAndPlay.faceToFace)
         assertEquals(Side.WHITE, passAndPlay.orientation)
 
-        val computer = LocalGameReview(stored(computer = ComputerOpponent(Side.BLACK, 2)))
+        val computer = GameReviews.ofLocal(stored(computer = ComputerOpponent(Side.BLACK, 2)))
         assertFalse(computer.faceToFace)
         assertEquals(Side.BLACK, computer.orientation)
     }

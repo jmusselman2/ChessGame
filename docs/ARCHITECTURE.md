@@ -620,10 +620,10 @@ pass-and-play screen asks (`LocalGameUiState.replacingComputerGame`) before
 **Past local games, as built by `M21.3`.** `Destination.PastLocalGames` lists
 `LocalGameStore.completedGames()`; `Destination.PastLocalGame(id)` reviews one. Both
 read through `LocalGameSession`, so they come after any save still in flight.
-`LocalGameReview` (`ui/localhistory`) is the review: the game at ply `p` is
-`ChessGame(history[p].positionBefore, history.take(p))`, and the last ply is the stored
-game itself. Stepping reads the recorded positions and never replays a move. An
-unfinished game is not reviewed.
+The review is `ui/review`'s `GameReview` (`M22.10`), shared with online review:
+`GameReviews.ofLocal` takes each move's recorded `positionBefore` and the stored final
+state as its positions, with SAN from those same positions. Stepping reads the recorded
+positions and never replays a move. An unfinished game is not reviewed.
 
 **Online completed-game review (`D100`, scheduled in `M22.10`).** A finished game
 offers the same Start, Previous, Next and End interaction from its end screen and

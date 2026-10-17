@@ -73,6 +73,7 @@ fun OnlineGameScreen(
     onOpenNextGame: () -> Unit = {},
     onFindNextGame: () -> Unit = {},
     onDone: () -> Unit = {},
+    onReview: () -> Unit = {},
 ) {
     when (state) {
         is OnlineGameState.Loading ->
@@ -116,7 +117,13 @@ fun OnlineGameScreen(
                         onLeave = onLeaveSeries,
                         onCancel = onCancelLeaveSeries,
                     ),
-                after = AfterGameActions(onOpenNextGame = onOpenNextGame, onFindNextGame = onFindNextGame, onDone = onDone),
+                after =
+                    AfterGameActions(
+                        onOpenNextGame = onOpenNextGame,
+                        onFindNextGame = onFindNextGame,
+                        onDone = onDone,
+                        onReview = onReview,
+                    ),
             )
     }
 }
@@ -143,6 +150,7 @@ private class AfterGameActions(
     val onOpenNextGame: () -> Unit,
     val onFindNextGame: () -> Unit,
     val onDone: () -> Unit,
+    val onReview: () -> Unit = {},
 )
 
 /** Leaving the series, which is asked about first (`D052`). */
@@ -318,6 +326,12 @@ private fun Game(
 
             // What the series did next, which the server decided when it finalized this game
             // (`D014`); nothing here creates or confirms a rematch.
+            // A finished game can be reviewed ply by ply, here at its end and when History opens it
+            // (`D100`). A game still being played never offers it.
+            if (game.isOver) {
+                OutlinedButton(onClick = after.onReview) { Text(text = REVIEW) }
+            }
+
             state.after?.let { next ->
                 Text(text = OnlineGame.afterGameText(next, game), style = MaterialTheme.typography.bodyMedium)
 
@@ -422,6 +436,7 @@ private const val RESIGN = "Resign"
 private const val RESIGN_TITLE = "Resign?"
 private const val RESIGN_WARNING = "You lose this game. This cannot be undone."
 private const val KEEP_PLAYING = "Keep playing"
+private const val REVIEW = "Review"
 private const val LEAVE_SERIES = "Leave series"
 private const val LEAVE_TITLE = "Leave this series?"
 private const val STAY = "Stay"

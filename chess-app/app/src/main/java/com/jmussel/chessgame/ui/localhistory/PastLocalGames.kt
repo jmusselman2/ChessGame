@@ -2,13 +2,10 @@ package com.jmussel.chessgame.ui.localhistory
 
 import com.jmussel.chessgame.computer.computerLabel
 import com.jmussel.chessgame.computer.humanSideLabel
-import com.jmussel.chessgame.core.chess.ChessGame
 import com.jmussel.chessgame.core.chess.GameResult
-import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.local.ComputerOpponent
 import com.jmussel.chessgame.local.LocalGameKind
 import com.jmussel.chessgame.local.LocalGameSummary
-import com.jmussel.chessgame.local.StoredLocalGame
 import com.jmussel.chessgame.ui.board.GameEndings
 
 /** The list of finished local games, and what is happening to it (`M21.3`). */
@@ -18,69 +15,6 @@ data class PastLocalGamesUiState(
     /** Whether the list is still being read from the device. */
     val loading: Boolean = true,
 )
-
-/**
- * One finished local game being looked back at, at [ply]: the position after that many
- * moves, from `0` (the start) to every move played (the end).
- *
- * Read-only. Every position comes from what the store recorded, the `positionBefore` of
- * each move and the final state, so stepping through a game never replays a move through
- * the rules (`D029`, `D061`).
- */
-data class LocalGameReview(
-    val stored: StoredLocalGame,
-    val ply: Int = stored.game.history.size,
-) {
-    init {
-        require(ply in 0..plies) { "Game ${stored.id} has $plies moves; there is no ply $ply" }
-    }
-
-    /** How many moves the game has. */
-    val plies: Int
-        get() = stored.game.history.size
-
-    /**
-     * The game as it stood at [ply]: that position, with the moves that led to it. The last
-     * ply is the finished game itself, result included.
-     */
-    val game: ChessGame
-        get() {
-            val history = stored.game.history
-            return if (ply == plies) stored.game else ChessGame(history[ply].positionBefore, history.subList(0, ply))
-        }
-
-    /** A pass-and-play game is reviewed on the face-to-face board it was played on (`D087`). */
-    val faceToFace: Boolean
-        get() = stored.kind == LocalGameKind.PASS_AND_PLAY
-
-    /** Which side is at the bottom: White face to face, otherwise the human's side. */
-    val orientation: Side
-        get() = stored.computer?.humanSide ?: Side.WHITE
-
-    val canStepBack: Boolean
-        get() = ply > 0
-
-    val canStepForward: Boolean
-        get() = ply < plies
-
-    /** The review at [ply], kept within the game. */
-    fun at(ply: Int): LocalGameReview = copy(ply = ply.coerceIn(0, plies))
-
-    /**
-     * How the game ended, said as it was on the game's own screen (`M21.16`), at its final
-     * position only; `null` before it.
-     */
-    val ending: String?
-        get() {
-            val result = game.result ?: return null
-            val computer = stored.computer
-            return if (computer == null) GameEndings.forSides(result) else GameEndings.forComputer(result, computer.humanSide)
-        }
-
-    /** `"After e7e5 (2 of 24)"`, or `"Start of the game"` before the first move. */
-    val position: String
-        get() = if (ply == 0) "Start of the game" else "After ${stored.game.history[ply - 1].move} ($ply of $plies)"
-}
 
 /**
  * How past local games read. Pure, so the wording is tested without a screen.
