@@ -121,6 +121,9 @@ private fun Game(
                 checkedKing = BoardRendering.checkedKing(board.game),
                 orientation = state.humanSide,
                 onSquareClick = { square -> if (state.humansTurn) actions.onUpdate(BoardInteraction.onSquareTapped(board, square)) },
+                // Only the human's pieces, and only on the human's turn (`M22.12`).
+                dragDestinations = { square -> if (state.humansTurn) BoardInteraction.dragDestinations(board, square) else null },
+                onPieceDrop = { from, to -> if (state.humansTurn) actions.onUpdate(BoardInteraction.onPieceDropped(board, from, to)) },
             )
         },
         controls = {

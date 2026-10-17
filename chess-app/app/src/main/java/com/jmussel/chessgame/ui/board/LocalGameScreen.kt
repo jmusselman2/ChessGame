@@ -104,6 +104,8 @@ fun LocalGameScreen(
                 orientation = game.orientation,
                 faceToFace = true,
                 onSquareClick = { square -> play(BoardInteraction.onSquareTapped(game, square)) },
+                dragDestinations = { square -> BoardInteraction.dragDestinations(game, square) },
+                onPieceDrop = { from, to -> play(BoardInteraction.onPieceDropped(game, from, to)) },
             )
         },
         controls = {

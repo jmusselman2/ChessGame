@@ -7,12 +7,15 @@ import android.graphics.Typeface
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
@@ -21,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +38,8 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsPropertyKey
@@ -49,14 +55,18 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import com.jmussel.chessgame.core.chess.Board
+import com.jmussel.chessgame.core.chess.Piece
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.core.chess.StandardPosition
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
+import kotlin.math.floor
+import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.Path as ComposePath
 
 private val LightSquare = Color(0xFFF0D9B5)
@@ -108,6 +118,14 @@ fun squareTag(square: Square): String = "square-$square"
  * rings above them. [BoardRendering.feedbackFor] decides which apply and in what order;
  * each has its own shape as well as its colour, and each square says what it shows to a
  * screen reader.
+ *
+ * A piece may also be dragged (`M22.12`): held for a long press, then moved and dropped.
+ * [dragDestinations] says where the piece on a square may go, or `null` where no drag may
+ * start, and [onPieceDrop] is told where it was dropped; both belong to [BoardInteraction]
+ * or `OnlineGame`, as a tap's meaning does. The long press keeps an ordinary swipe across the
+ * board scrolling the screen, the Android convention for dragging inside scrolling content.
+ * While a piece is held the board shows it under the finger, its square selected and its
+ * destinations marked; none of that reaches the game until it is dropped.
  */
 @Composable
 fun ChessBoard(
@@ -122,8 +140,17 @@ fun ChessBoard(
     orientation: Side = Side.WHITE,
     faceToFace: Boolean = false,
     onSquareClick: (Square) -> Unit = {},
+    dragDestinations: (Square) -> Set<Square>? = { null },
+    onPieceDrop: (from: Square, to: Square) -> Unit = { _, _ -> },
 ) {
     val cellSize = side / Square.FILES
+    var drag by remember { mutableStateOf<PieceDrag?>(null) }
+    val currentBoard by rememberUpdatedState(board)
+    val currentOrientation by rememberUpdatedState(orientation)
+    val currentDestinations by rememberUpdatedState(dragDestinations)
+    val currentDrop by rememberUpdatedState(onPieceDrop)
+    val shownSelection = drag?.from ?: selectedSquare
+    val shownDestinations = drag?.destinations ?: legalDestinations
 
     // A piece is a picture of a piece, so it is sized with the square rather than with the
     // system font size: `toSp` undoes the font scale, non-linear scaling included.
@@ -132,41 +159,121 @@ fun ChessBoard(
     val labelSize = with(LocalDensity.current) { (cellSize * LABEL_SCALE).toSp() }
     val labels = rememberTextMeasurer()
 
-    Column(
+    Box(
         modifier =
             modifier
                 .size(side)
                 .clipToBounds()
-                .testTag(CHESS_BOARD_TAG),
+                .testTag(CHESS_BOARD_TAG)
+                .pointerInput(Unit) {
+                    fun squareUnder(at: Offset): Square? {
+                        val cell = size.width.toFloat() / Square.FILES
+                        return BoardRendering.squareDrawnAt(floor(at.y / cell).toInt(), floor(at.x / cell).toInt(), currentOrientation)
+                    }
+
+                    awaitEachGesture {
+                        // Watched before the squares see it, so a drag once started can be kept
+                        // from them; until then nothing is consumed and a tap or a scroll goes on.
+                        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                        val from = squareUnder(down.position) ?: return@awaitEachGesture
+                        val piece = currentBoard.pieceAt(from) ?: return@awaitEachGesture
+                        val destinations = currentDestinations(from) ?: return@awaitEachGesture
+
+                        // Lifted, moved away (a scroll, or a swipe) or taken by something else
+                        // before the long press: not a drag. Only a press held still picks it up.
+                        val endedEarly =
+                            withTimeoutOrNull(viewConfiguration.longPressTimeoutMillis) {
+                                do {
+                                    val change = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull { it.id == down.id }
+                                } while (
+                                    change != null &&
+                                    change.pressed &&
+                                    !change.isConsumed &&
+                                    (change.position - down.position).getDistance() <= viewConfiguration.touchSlop
+                                )
+                            }
+                        if (endedEarly != null) return@awaitEachGesture
+
+                        var dropped: Square? = null
+                        drag = PieceDrag(from, piece, destinations, down.position)
+                        try {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                                // A pointer the system cancels arrives already consumed: no drop.
+                                val cancelled = change.isConsumed
+                                event.changes.forEach { it.consume() }
+                                if (!change.pressed) {
+                                    if (!cancelled) dropped = squareUnder(change.position)
+                                    break
+                                }
+                                drag = drag?.copy(at = change.position)
+                            }
+                        } finally {
+                            drag = null
+                        }
+                        dropped?.takeIf { it != from }?.let { currentDrop(from, it) }
+                    }
+                },
     ) {
-        BoardRendering.rows(board, orientation).forEachIndexed { rowIndex, row ->
-            Row(
+        Column(modifier = Modifier.fillMaxSize()) {
+            BoardRendering.rows(board, orientation).forEachIndexed { rowIndex, row ->
+                Row(
+                    modifier =
+                        Modifier
+                            .fillMaxWidth()
+                            .weight(1f),
+                ) {
+                    row.forEachIndexed { columnIndex, square ->
+                        SquareCell(
+                            square = square,
+                            cellSize = cellSize,
+                            glyphSize = glyphSize,
+                            edgeLabels = BoardRendering.edgeLabels(rowIndex, columnIndex, orientation),
+                            labelStyle = TextStyle(fontSize = labelSize, color = if (square.isLight) DarkSquare else LightSquare),
+                            labels = labels,
+                            feedback = BoardRendering.feedbackFor(square, shownSelection, shownDestinations, lastMove, checkedKing),
+                            isUpsideDown = square.piece?.let { BoardRendering.isUpsideDown(it, orientation, faceToFace) } == true,
+                            // The held piece is drawn under the finger instead.
+                            isLifted = drag?.from == square.square,
+                            onClick = { onSquareClick(square.square) },
+                            modifier =
+                                Modifier
+                                    .weight(1f)
+                                    .fillMaxSize(),
+                        )
+                    }
+                }
+            }
+        }
+
+        drag?.let { held ->
+            Box(
                 modifier =
                     Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
+                        .offset {
+                            val half = (cellSize / 2).roundToPx()
+                            IntOffset(held.at.x.roundToInt() - half, held.at.y.roundToInt() - half)
+                        }.size(cellSize),
+                contentAlignment = Alignment.Center,
             ) {
-                row.forEachIndexed { columnIndex, square ->
-                    SquareCell(
-                        square = square,
-                        cellSize = cellSize,
-                        glyphSize = glyphSize,
-                        edgeLabels = BoardRendering.edgeLabels(rowIndex, columnIndex, orientation),
-                        labelStyle = TextStyle(fontSize = labelSize, color = if (square.isLight) DarkSquare else LightSquare),
-                        labels = labels,
-                        feedback = BoardRendering.feedbackFor(square, selectedSquare, legalDestinations, lastMove, checkedKing),
-                        isUpsideDown = square.piece?.let { BoardRendering.isUpsideDown(it, orientation, faceToFace) } == true,
-                        onClick = { onSquareClick(square.square) },
-                        modifier =
-                            Modifier
-                                .weight(1f)
-                                .fillMaxSize(),
-                    )
-                }
+                PieceGlyph(
+                    piece = held.piece,
+                    glyphSize = glyphSize,
+                    isUpsideDown = BoardRendering.isUpsideDown(held.piece, orientation, faceToFace),
+                )
             }
         }
     }
 }
+
+/** A piece being dragged: where it came from, where it may go, and where the finger is. */
+private data class PieceDrag(
+    val from: Square,
+    val piece: Piece,
+    val destinations: Set<Square>,
+    val at: Offset,
+)
 
 @Composable
 private fun SquareCell(
@@ -178,6 +285,7 @@ private fun SquareCell(
     labels: TextMeasurer,
     feedback: SquareFeedback,
     isUpsideDown: Boolean,
+    isLifted: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -200,27 +308,7 @@ private fun SquareCell(
                 },
         contentAlignment = Alignment.Center,
     ) {
-        square.piece?.let { piece ->
-            // Kept for every piece, not only upside-down ones: a capture can turn the same glyph
-            // over without laying the text out again.
-            var turnAbout by remember { mutableStateOf(TransformOrigin.Center) }
-            Text(
-                text = BoardRendering.glyphFor(piece.type).toString(),
-                color = if (piece.side == Side.WHITE) WhitePiece else BlackPiece,
-                fontSize = glyphSize,
-                textAlign = TextAlign.Center,
-                onTextLayout = { layout -> turnAbout = inkCentre(layout) },
-                modifier =
-                    if (isUpsideDown) {
-                        Modifier.graphicsLayer {
-                            rotationZ = UPSIDE_DOWN
-                            transformOrigin = turnAbout
-                        }
-                    } else {
-                        Modifier
-                    },
-            )
-        }
+        square.piece?.takeUnless { isLifted }?.let { piece -> PieceGlyph(piece, glyphSize, isUpsideDown) }
 
         // Drawn after the piece and the square treatments, so neither hides it: a dot marks an
         // empty destination, and a ring around the piece marks a capture.
@@ -244,6 +332,34 @@ private fun SquareCell(
             null -> Unit
         }
     }
+}
+
+/** One piece's glyph, upside down for the player across a face-to-face board (`D087`). */
+@Composable
+private fun PieceGlyph(
+    piece: Piece,
+    glyphSize: TextUnit,
+    isUpsideDown: Boolean,
+) {
+    // Kept for every piece, not only upside-down ones: a capture can turn the same glyph
+    // over without laying the text out again.
+    var turnAbout by remember { mutableStateOf(TransformOrigin.Center) }
+    Text(
+        text = BoardRendering.glyphFor(piece.type).toString(),
+        color = if (piece.side == Side.WHITE) WhitePiece else BlackPiece,
+        fontSize = glyphSize,
+        textAlign = TextAlign.Center,
+        onTextLayout = { layout -> turnAbout = inkCentre(layout) },
+        modifier =
+            if (isUpsideDown) {
+                Modifier.graphicsLayer {
+                    rotationZ = UPSIDE_DOWN
+                    transformOrigin = turnAbout
+                }
+            } else {
+                Modifier
+            },
+    )
 }
 
 /** The rank number in the top-left corner and the file letter in the bottom-right, never turned. */

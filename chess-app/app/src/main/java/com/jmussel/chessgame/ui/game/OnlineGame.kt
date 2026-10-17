@@ -338,6 +338,38 @@ object OnlineGame {
         return BoardTap.Showing(cleared.copy(selected = if (isOwnPiece) square else null))
     }
 
+    /**
+     * Where the player's piece on [square] may be dropped once picked up, or `null` when no drag
+     * may start there (`M22.12`): not the player's move, a command in flight, a promotion being
+     * chosen, or not one of the player's pieces. Like the tap's destinations, a preview only.
+     */
+    fun dragDestinations(
+        state: OnlineGameState.Ready,
+        square: Square,
+    ): Set<Square>? {
+        if (!canPlay(state) || state.pendingPromotion != null) return null
+        if (boardFrom(state.game.board).pieceAt(square)?.side != sideOf(state.game)) return null
+
+        return legalDestinations(state.copy(selected = square))
+    }
+
+    /**
+     * What dropping the piece dragged from [from] onto [to] comes to (`M22.12`): the same as
+     * tapping [from] and then [to] when [to] is a previewed destination, so the move is asked
+     * for or the promotion prompt raised; otherwise the piece goes back and nothing changes.
+     * The server still decides (`D004`).
+     */
+    fun onPieceDropped(
+        state: OnlineGameState.Ready,
+        from: Square,
+        to: Square,
+    ): BoardTap {
+        val destinations = dragDestinations(state, from) ?: return BoardTap.Showing(state)
+        if (to !in destinations) return BoardTap.Showing(state)
+
+        return onSquareTapped(state.copy(selected = from), to)
+    }
+
     /** The move to ask for once the player has picked [choice] for the pending promotion. */
     fun choosePromotion(
         state: OnlineGameState.Ready,

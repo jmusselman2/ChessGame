@@ -96,7 +96,7 @@ same day, tier 1 moved to the backlog as `M22`; the other tiers did not move.
 ## 1. Low cost, high value
 
 Scheduled on 2026-10-14 as backlog milestone
-[`M22`](BACKLOG.md#m22--play-and-social-improvements): `F38`, `F1`, `F2`, `F39`,
+[`M22`](backlog/M22.md): `F38`, `F1`, `F2`, `F39`,
 `F3`, `F4`, `F6` and `F41`. Their IDs are retired. `F5` returned to tier 2 under
 `D098`. The later tiers keep their
 numbers.

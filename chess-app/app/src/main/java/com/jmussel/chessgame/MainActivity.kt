@@ -170,6 +170,7 @@ class MainActivity : ComponentActivity() {
                         liveUpdates = viewModel.liveUpdates,
                         onReconnectNow = viewModel::reconnectNow,
                         onSquareTapped = viewModel::tapSquare,
+                        onPieceDropped = viewModel::dropPiece,
                         onChoosePromotion = viewModel::choosePromotion,
                         onCancelPromotion = viewModel::cancelPromotion,
                         onUndo = viewModel::undoMove,

@@ -11,6 +11,7 @@ import com.jmussel.chessgame.core.chess.ChessRules
 import com.jmussel.chessgame.core.chess.Move
 import com.jmussel.chessgame.core.chess.PieceType
 import com.jmussel.chessgame.core.chess.Square
+import com.jmussel.chessgame.ui.board.PendingPromotion
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -218,5 +219,48 @@ class OnlineMoveTest {
         val refusal = ChessCommandRefusedException(409, CommandRejectionDto(message = "Something else"))
 
         assertEquals("Something else", OnlineGame.messageFor(refusal))
+    }
+
+    @Test
+    fun aLegalDropAsksForTheMoveTheTwoTapsWould() {
+        val state = ready()
+
+        val drop = OnlineGame.onPieceDropped(state, Square.parse("e2"), Square.parse("e4"))
+
+        assertEquals(OnlineGame.onSquareTapped(state.copy(selected = Square.parse("e2")), Square.parse("e4")), drop)
+        assertEquals(Move.of("e2", "e4"), (drop as BoardTap.Submit).move)
+        assertTrue(drop.state.submitting)
+    }
+
+    @Test
+    fun anIllegalDropSendsNothingAndChangesNothing() {
+        val state = ready(selected = Square.parse("g1"))
+
+        val drop = OnlineGame.onPieceDropped(state, Square.parse("e2"), Square.parse("e5"))
+
+        assertEquals(BoardTap.Showing(state), drop)
+    }
+
+    @Test
+    fun aDropOntoTheLastRankAsksForThePromotionFirst() {
+        val moves = playedMoves("g2g4", "e7e5", "g4g5", "e5e4", "g5g6", "e4e3", "g6h7", "e3d2", "c1d2", "a7a6")
+
+        val drop = OnlineGame.onPieceDropped(ready(moves = moves), Square.parse("h7"), Square.parse("g8"))
+
+        assertTrue(drop is BoardTap.Showing)
+        assertEquals(PendingPromotion(Square.parse("h7"), Square.parse("g8")), drop.state.pendingPromotion)
+        assertFalse("nothing is sent until the piece is chosen", drop.state.submitting)
+    }
+
+    @Test
+    fun onlyThePlayersOwnPiecesOnTheirOwnTurnMayBePickedUp() {
+        assertEquals(setOf(Square.parse("e3"), Square.parse("e4")), OnlineGame.dragDestinations(ready(), Square.parse("e2")))
+        assertNull("the opponent's piece", OnlineGame.dragDestinations(ready(), Square.parse("e7")))
+        assertNull("not their turn", OnlineGame.dragDestinations(ready(yourTurn = false), Square.parse("e2")))
+        assertNull("a command in flight", OnlineGame.dragDestinations(ready(submitting = true), Square.parse("e2")))
+        assertNull("a finished game", OnlineGame.dragDestinations(ready(result = "BLACK_WINS"), Square.parse("e2")))
+
+        val notYours = ready(yourTurn = false)
+        assertEquals(BoardTap.Showing(notYours), OnlineGame.onPieceDropped(notYours, Square.parse("e2"), Square.parse("e4")))
     }
 }

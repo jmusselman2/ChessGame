@@ -84,6 +84,22 @@ object BoardRendering {
         return ranks.map { rank -> files.map { file -> squareAt(board, Square.of(file, rank)) } }
     }
 
+    /**
+     * The square drawn at [row] and [column], counted from the top left, with [orientation]'s
+     * side at the bottom, or `null` outside the board. Where a dragged piece is dropped (`M22.12`).
+     */
+    fun squareDrawnAt(
+        row: Int,
+        column: Int,
+        orientation: Side = Side.WHITE,
+    ): Square? {
+        if (row !in 0 until Square.RANKS || column !in 0 until Square.FILES) return null
+        val rank = if (orientation == Side.WHITE) Square.RANKS - 1 - row else row
+        val file = if (orientation == Side.WHITE) column else Square.FILES - 1 - column
+
+        return Square.of(file, rank)
+    }
+
     /** Every square in drawing order for [orientation]. */
     fun squares(
         board: Board,

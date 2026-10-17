@@ -527,7 +527,11 @@ tap piece
 → submit move
 ```
 
-Drag-and-drop is not required for MVP.
+Drag-and-drop is not required for MVP. Post-MVP (`M22.12`), a piece may also be
+dragged: held for a long press, moved and dropped. A drop onto a legal destination is
+the same move the two taps would make, promotion choice and draw-entitling prompt
+included; a drop anywhere else, or a drag that is cancelled, returns the piece and
+changes nothing. A quick swipe across the board still scrolls the screen.
 
 ### Online Completed-Game Review
 

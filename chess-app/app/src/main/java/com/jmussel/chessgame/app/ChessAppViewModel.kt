@@ -719,6 +719,16 @@ class ChessAppViewModel(
         act(OnlineGame.onSquareTapped(ready, square))
     }
 
+    /** Plays, or raises the promotion prompt for, a piece dragged from [from] to [to] (`M22.12`). */
+    fun dropPiece(
+        from: Square,
+        to: Square,
+    ) {
+        val ready = game as? OnlineGameState.Ready ?: return
+
+        act(OnlineGame.onPieceDropped(ready, from, to))
+    }
+
     /** Sends the pending promotion as the chosen piece. */
     fun choosePromotion(choice: PieceType) {
         val ready = game as? OnlineGameState.Ready ?: return

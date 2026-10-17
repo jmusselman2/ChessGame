@@ -110,6 +110,40 @@ object BoardInteraction {
         return cleared.copy(selectedSquare = if (isOwnPiece) square else null)
     }
 
+    /**
+     * Where the piece on [square] may be dropped once picked up, or `null` when no drag may
+     * start there (`M22.12`): not one of the moving side's pieces, a finished game, or a prompt
+     * waiting for an answer. A piece with no legal move may still be picked up, and goes back.
+     */
+    fun dragDestinations(
+        state: BoardUiState,
+        square: Square,
+    ): Set<Square>? {
+        if (state.game.isOver || state.pendingPromotion != null || state.declaredMove != null) return null
+        if (state.board.pieceAt(square)?.side != state.game.sideToMove) return null
+
+        return legalDestinations(state.copy(selectedSquare = square))
+    }
+
+    /**
+     * The state after the player drags the piece on [from] and drops it on [to] (`M22.12`).
+     *
+     * A drop onto a legal destination is the same as tapping [from] and then [to], so it plays
+     * the move, or raises the promotion prompt or the draw-entitling declaration (`D041`), exactly
+     * as those taps would. Any other drop returns the piece and leaves [state] as it was,
+     * selection included.
+     */
+    fun onPieceDropped(
+        state: BoardUiState,
+        from: Square,
+        to: Square,
+    ): BoardUiState {
+        val destinations = dragDestinations(state, from) ?: return state
+        if (to !in destinations) return state
+
+        return onSquareTapped(state.copy(selectedSquare = from), to)
+    }
+
     /** Whether [square] is the one the player has selected. */
     fun isSelected(
         state: BoardUiState,

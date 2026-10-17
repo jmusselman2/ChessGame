@@ -180,4 +180,22 @@ class BoardRenderingTest {
         assertTrue(labels.all { (square, it) -> it.rank == null || it.rank == square.rankNumber.toString() })
         assertEquals(15, labels.values.count { !it.isEmpty })
     }
+
+    @Test
+    fun aDropIsReadAsTheSquareDrawnThereWithEitherSideAtTheBottom() {
+        assertEquals(Square.parse("a8"), BoardRendering.squareDrawnAt(0, 0, Side.WHITE))
+        assertEquals(Square.parse("h1"), BoardRendering.squareDrawnAt(7, 7, Side.WHITE))
+        assertEquals(Square.parse("h1"), BoardRendering.squareDrawnAt(0, 0, Side.BLACK))
+        assertEquals(Square.parse("h8"), BoardRendering.squareDrawnAt(7, 0, Side.BLACK))
+        assertNull(BoardRendering.squareDrawnAt(-1, 3, Side.WHITE))
+        assertNull(BoardRendering.squareDrawnAt(2, 8, Side.BLACK))
+
+        Side.entries.forEach { orientation ->
+            BoardRendering.rows(StandardPosition.BOARD, orientation).forEachIndexed { row, squares ->
+                squares.forEachIndexed { column, drawn ->
+                    assertEquals("$orientation $row $column", drawn.square, BoardRendering.squareDrawnAt(row, column, orientation))
+                }
+            }
+        }
+    }
 }

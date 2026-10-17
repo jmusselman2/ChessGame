@@ -108,7 +108,7 @@ Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/profiles/{user
   overall per-request time limit (`D074`). `api/ChessRealtimeClient.kt` — the
   WebSocket.
 - `ui/board/` is shared by the local and the online game: `BoardInteraction`
-  (what a tap means), `GameControls` (undo, claims, resign, status, move list in SAN
+  (what a tap or a dropped piece means), `GameControls` (undo, claims, resign, status, move list in SAN
   from each `MoveRecord`'s recorded position, `M22.7`),
   `ChessBoard`, `BoardRendering`, `GameLayout`. `LocalGameScreen` is
   pass-and-play. `BoardRendering.feedbackFor` decides each square's marks: last
@@ -116,7 +116,11 @@ Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/profiles/{user
   board passes the checked king, from `chess-core` locally and from the server's
   `inCheck` online (`M21.17`). Every board also draws its coordinates inside the edge
   squares (`BoardRendering.edgeLabels`, `M22.11`), beneath every highlight and mark, and
-  out of what a screen reader says.
+  out of what a screen reader says. A piece may be dragged after a long press
+  (`M22.12`): `ChessBoard` only reports where it was dropped, and
+  `BoardInteraction.onPieceDropped` or `OnlineGame.onPieceDropped` treats a legal drop as
+  the two taps it stands for and any other as nothing. The long press is what keeps a
+  swipe across the board scrolling a short screen.
 - `ui/game/OnlineGame.kt` and `OnlineGameScreen.kt` — the online game.
 - `computer/` — playing the computer (`D086`). `ComputerGame`: the questions before a
   new game (`ComputerSetup`, from the entry or from New game, which keeps the game

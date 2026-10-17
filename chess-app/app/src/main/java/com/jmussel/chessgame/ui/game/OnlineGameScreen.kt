@@ -57,6 +57,8 @@ fun OnlineGameScreen(
     liveUpdates: LiveUpdates = LiveUpdates.Live,
     onReconnectNow: () -> Unit = {},
     onSquareTapped: (Square) -> Unit = {},
+    /** A piece dragged from the first square and dropped on the second (`M22.12`). */
+    onPieceDropped: (Square, Square) -> Unit = { _, _ -> },
     onChoosePromotion: (PieceType) -> Unit = {},
     onCancelPromotion: () -> Unit = {},
     onUndo: () -> Unit = {},
@@ -101,6 +103,7 @@ fun OnlineGameScreen(
                         onReconnectNow = onReconnectNow,
                     ),
                 onSquareTapped = onSquareTapped,
+                onPieceDropped = onPieceDropped,
                 onChoosePromotion = onChoosePromotion,
                 onCancelPromotion = onCancelPromotion,
                 onUndo = onUndo,
@@ -191,6 +194,7 @@ private fun Game(
     onBack: (() -> Unit)?,
     connection: Connection,
     onSquareTapped: (Square) -> Unit,
+    onPieceDropped: (Square, Square) -> Unit,
     onChoosePromotion: (PieceType) -> Unit,
     onCancelPromotion: () -> Unit,
     onUndo: () -> Unit,
@@ -219,6 +223,8 @@ private fun Game(
                 checkedKing = OnlineGame.checkedKing(game),
                 orientation = OnlineGame.sideOf(game),
                 onSquareClick = onSquareTapped,
+                dragDestinations = { square -> OnlineGame.dragDestinations(state, square) },
+                onPieceDrop = onPieceDropped,
             )
         },
         controls = {
