@@ -35,6 +35,15 @@ sealed interface Destination {
         }
     }
 
+    /** Another player's relationship profile, by immutable user id (`D099`). */
+    data class Profile(
+        val userId: String,
+    ) : Destination {
+        init {
+            require(userId.isNotBlank()) { "A profile needs a user id" }
+        }
+    }
+
     /** Games that are over. */
     data object History : Destination
 

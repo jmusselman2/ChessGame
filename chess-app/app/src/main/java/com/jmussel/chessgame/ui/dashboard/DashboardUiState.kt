@@ -32,6 +32,8 @@ data class DashboardActions(
     val onOpenGame: (DashboardRow) -> Unit = {},
     val onPlayFriend: (FriendRow) -> Unit = {},
     val onRetry: () -> Unit = {},
+    /** Opens a friend's profile from their row (`D099`). */
+    val onOpenProfile: (FriendRow) -> Unit = {},
 )
 
 /**

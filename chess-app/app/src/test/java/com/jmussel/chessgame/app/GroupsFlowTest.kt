@@ -10,6 +10,8 @@ import com.jmussel.chessgame.auth.InMemorySessionStore
 import com.jmussel.chessgame.auth.SupabaseConfig
 import com.jmussel.chessgame.local.inMemoryLocalGameStore
 import com.jmussel.chessgame.navigation.Destination
+import com.jmussel.chessgame.ui.dashboard.FriendRow
+import com.jmussel.chessgame.ui.profile.Profiles
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.respond
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
@@ -59,7 +61,9 @@ class GroupsFlowTest {
 
     @After
     fun releaseTheTestDispatcher() {
-        models.forEach { model -> listOf(model.groupsJob, model.groupJob, model.gameJob, model.updatesJob).forEach { it?.cancel() } }
+        models.forEach { model ->
+            listOf(model.groupsJob, model.groupJob, model.gameJob, model.updatesJob, model.profileJob).forEach { it?.cancel() }
+        }
         Dispatchers.resetMain()
     }
 
@@ -134,6 +138,8 @@ class GroupsFlowTest {
                             group!!.second -= "Taylor"
                             respond("Left the group; your games are unaffected", HttpStatusCode.OK)
                         }
+                        call == "GET /profiles/user-Gone" -> respond("No such profile", HttpStatusCode.NotFound)
+                        call.startsWith("GET /profiles/") -> json(profile(path.removePrefix("/profiles/user-")))
                         call == "POST /series" && existing -> json(series(sent, "game-old"), HttpStatusCode.OK)
                         call == "POST /series" -> json(series(sent, "game-new"), HttpStatusCode.Created)
                         path.startsWith("/games/") -> respond("Not now", HttpStatusCode.ServiceUnavailable)
@@ -148,6 +154,11 @@ class GroupsFlowTest {
         names.joinToString(",", "[", "]") { """{"userId":"user-$it","username":"$it","record":{"wins":0,"losses":0,"draws":0}}""" }
 
     private fun users(names: List<String>): String = names.joinToString(",", "[", "]") { """{"userId":"user-$it","username":"$it"}""" }
+
+    /** [name]'s profile as Taylor may see it (`D099`): joined September 2026, sharing Tuesday. */
+    private fun profile(name: String): String =
+        """{"userId":"user-$name","username":"$name","joinedYear":2026,"joinedMonth":9,""" +
+            """"record":{"wins":2,"losses":1,"draws":0},"sharedGroups":[{"groupId":"group-1","name":"Tuesday"}]}"""
 
     private fun summary(
         id: String,
@@ -196,6 +207,51 @@ class GroupsFlowTest {
         openGroup(groups.groups.first { it.name == "Tuesday" })
         groupJob?.join()
     }
+
+    @Test
+    fun anotherMembersProfileOpensByTheirIdWithTheServersAnswer() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.openTuesday()
+
+            viewModel.openProfile(viewModel.group.members.first { it.username == "Robin" })
+            viewModel.profileJob?.join()
+
+            assertEquals(Destination.Profile("user-Robin"), viewModel.navigation.current)
+            assertTrue(calls.contains("GET /profiles/user-Robin"))
+            val shown = viewModel.profile.profile!!
+            assertEquals("Robin", shown.username)
+            assertEquals("Joined September 2026", Profiles.joinedText(shown))
+            assertEquals(listOf("Tuesday"), shown.sharedGroups.map { it.name })
+            assertEquals(2, shown.record.wins)
+        }
+
+    @Test
+    fun aFriendsProfileOpensFromTheirDashboardRow() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+
+            viewModel.openProfile(FriendRow(username = "Alex", gameId = null, userId = "user-Alex"))
+            viewModel.profileJob?.join()
+
+            assertEquals(Destination.Profile("user-Alex"), viewModel.navigation.current)
+            assertEquals("Alex", viewModel.profile.profile?.username)
+        }
+
+    @Test
+    fun aProfileNoLongerAvailableSaysSoAndIsNotRetried() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+
+            viewModel.openProfile(FriendRow(username = "Gone", gameId = null, userId = "user-Gone"))
+            viewModel.profileJob?.join()
+
+            assertTrue(viewModel.profile.unavailable)
+            assertNull(viewModel.profile.profile)
+            assertNull("not a failure to explain", viewModel.profile.message)
+            assertEquals("one read, no wake or retry loop", 1, calls.count { it == "GET /profiles/user-Gone" })
+            assertTrue(viewModel.back())
+        }
 
     @Test
     fun openingGroupsShowsTheGroupsThePlayerIsIn() =

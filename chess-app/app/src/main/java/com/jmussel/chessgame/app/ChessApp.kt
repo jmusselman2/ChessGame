@@ -58,6 +58,8 @@ import com.jmussel.chessgame.ui.localhistory.PastLocalGamesScreen
 import com.jmussel.chessgame.ui.localhistory.PastLocalGamesUiState
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import com.jmussel.chessgame.ui.onboarding.UsernameScreen
+import com.jmussel.chessgame.ui.profile.ProfileScreen
+import com.jmussel.chessgame.ui.profile.ProfileUiState
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
 /**
@@ -81,6 +83,8 @@ fun ChessApp(
     allUsers: AllUsersUiState = AllUsersUiState(),
     groups: GroupsUiState = GroupsUiState(),
     group: GroupUiState = GroupUiState(),
+    profile: ProfileUiState = ProfileUiState(),
+    onRetryProfile: () -> Unit = {},
     dashboard: DashboardUiState = DashboardUiState(),
     history: HistoryUiState = HistoryUiState(),
     game: OnlineGameState? = null,
@@ -165,11 +169,13 @@ fun ChessApp(
                     onOpenGame = dashboardActions.onOpenGame,
                     onPlayFriend = dashboardActions.onPlayFriend,
                     onRetry = dashboardActions.onRetry,
+                    onOpenProfile = dashboardActions.onOpenProfile,
                 )
             Destination.Friends -> FriendsScreen(state = friends, actions = friendsActions)
             Destination.AllUsers -> AllUsersScreen(state = allUsers, actions = allUsersActions)
             Destination.Groups -> GroupsScreen(state = groups, actions = groupsActions)
             is Destination.Group -> GroupScreen(state = group, ownUserId = userId, actions = groupActions)
+            is Destination.Profile -> ProfileScreen(state = profile, onRetry = onRetryProfile, onBack = onBack)
             Destination.History ->
                 HistoryScreen(
                     series = history.series,

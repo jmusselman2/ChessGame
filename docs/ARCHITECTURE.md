@@ -915,7 +915,7 @@ the table and is `M19.3` work.
 ## 15.2 Relationship Profiles
 
 `M22.5` adds a per-viewer ChessGame profile addressed by immutable user ID
-(`D099`). Every read authorizes the current friendship or shared-group relationship
+(`D099`), `GET /profiles/{userId}` (`user/ProfileRoutes.kt`). Every read authorizes the current friendship or shared-group relationship
 and returns only username, UTC join month/year, viewer-relative chess record and the
 current group intersection. It returns `404` for both an unknown subject and a known
 subject without a qualifying relationship. The viewer's own group-member row is not

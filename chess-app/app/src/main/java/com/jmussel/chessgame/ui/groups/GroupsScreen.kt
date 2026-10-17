@@ -144,7 +144,8 @@ fun GroupScreen(
         Text(text = MEMBERS, style = MaterialTheme.typography.titleSmall)
 
         Groups.memberRows(state, ownUserId).forEach { row ->
-            PersonRow(name = row.member.username) {
+            // Another member's name opens their profile (`D099`); the player's own does nothing.
+            PersonRow(name = row.member.username, onOpenProfile = { actions.onOpenProfile(row.member) }.takeUnless { row.isYou }) {
                 if (row.isYou) {
                     Text(text = YOU, modifier = Modifier.padding(horizontal = 12.dp), style = MaterialTheme.typography.bodyMedium)
                 } else {
@@ -181,6 +182,7 @@ fun GroupScreen(
 @Composable
 private fun PersonRow(
     name: String,
+    onOpenProfile: (() -> Unit)? = null,
     action: @Composable () -> Unit,
 ) {
     Row(
@@ -188,11 +190,16 @@ private fun PersonRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(text = name, style = MaterialTheme.typography.bodyLarge)
+        Text(
+            text = name,
+            style = MaterialTheme.typography.bodyLarge,
+            modifier = onOpenProfile?.let { Modifier.clickable(onClickLabel = OPEN_PROFILE, onClick = it) } ?: Modifier,
+        )
         action()
     }
 }
 
+private const val OPEN_PROFILE = "Open profile"
 private const val CREATE_HEADING = "Create a group"
 private const val NAME = "Group name"
 private const val CREATE = "Create"

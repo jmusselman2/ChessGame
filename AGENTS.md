@@ -77,7 +77,10 @@ Under `server/src/main/kotlin/com/jmussel/chessgame/server/`:
 - `user/`, `friends/`, `groups/`, `history/`, `dashboard/` — the social and
   listing endpoints. `GET /friends` carries each friend's lifetime chess record against
   the caller (`D096`), counted by `DashboardQueries.chessRecordsFor`; the dashboard's
-  FRIENDS rows show it as `W-L-D`.
+  FRIENDS rows show it as `W-L-D`. `GET /profiles/{userId}` is the relationship profile
+  (`D099`), authorized on every read from current friendship or a shared group, `404`
+  otherwise; the app opens it from a friend's name on the dashboard or another member's
+  name in a group (`ui/profile/`).
 - `realtime/` — `RealtimeHub` (in-memory map of open sockets per user) and
   `/ws`.
 - `api/ApiTypes.kt` — the wire DTOs, including the per-viewer `GameViewDto`.
@@ -85,7 +88,7 @@ Under `server/src/main/kotlin/com/jmussel/chessgame/server/`:
   real schema. `GameStateDocument` is the `jsonb` shape a `GameState` is stored
   in.
 
-Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/groups`,
+Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/profiles/{userId}`, `/groups`,
 `/series`, `/series/{id}/leave`, `/games/{id}` and its
 `moves|undo|redo|undo-request|undo-request/accept|undo-request/decline|draw-offer|draw-offer/accept|draw-offer/decline|resignation|draw-claims`,
 `/dashboard`, `/history`, `/ws`.

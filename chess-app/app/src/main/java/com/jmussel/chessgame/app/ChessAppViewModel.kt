@@ -50,6 +50,7 @@ import com.jmussel.chessgame.ui.localhistory.LocalGameReview
 import com.jmussel.chessgame.ui.localhistory.PastLocalGamesUiState
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import com.jmussel.chessgame.ui.onboarding.UsernameOnboarding
+import com.jmussel.chessgame.ui.profile.ProfileUiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
@@ -1601,6 +1602,63 @@ class ChessAppViewModel(
         group = GroupUiState(group = summary)
         open(Destination.Group(summary.groupId))
         loadGroup()
+    }
+
+    /** Another player's profile, as the server last answered it (`D099`). */
+    var profile: ProfileUiState by mutableStateOf(ProfileUiState())
+        private set
+
+    /** The profile read in flight, if any. Internal so tests can wait for it. */
+    internal var profileJob: Job? = null
+        private set
+
+    /**
+     * Opens [userId]'s profile, from a friend row or another member's row in a group (`D099`).
+     * The server decides whether it may be seen, on every read.
+     */
+    fun openProfile(
+        userId: String,
+        username: String,
+    ) {
+        profileJob?.cancel()
+        profile = ProfileUiState(userId = userId, username = username, loading = true)
+        open(Destination.Profile(userId))
+        loadProfile()
+    }
+
+    /** Opens a friend's profile from their dashboard row. */
+    fun openProfile(row: FriendRow) = openProfile(row.userId, row.username)
+
+    /** Opens another group member's profile. */
+    fun openProfile(member: UserSummaryDto) = openProfile(member.userId, member.username)
+
+    /**
+     * Reads the open profile, which is what Try again does. A `404` is the ordinary "no longer
+     * related" answer: shown as unavailable with Back, and never retried as a failure (`D099`).
+     */
+    fun loadProfile() {
+        val userId = profile.userId ?: return
+        if (profileJob?.isActive == true) return
+
+        profileJob =
+            viewModelScope.launch {
+                profile = profile.copy(loading = true, message = null)
+                profile =
+                    try {
+                        val read = waitingForServer { dependencies.chessApi.profile(userId) }
+                        profile.copy(profile = read, loading = false, unavailable = false)
+                    } catch (refused: ChessApiException) {
+                        if (refused.status == OnlineGame.NOT_FOUND) {
+                            profile.copy(profile = null, loading = false, unavailable = true)
+                        } else {
+                            profile.copy(loading = false, message = refused.explanation.ifBlank { OnlineGame.unreachableMessage() })
+                        }
+                    } catch (cancelled: CancellationException) {
+                        throw cancelled
+                    } catch (unreachable: Exception) {
+                        profile.copy(loading = false, message = OnlineGame.unreachableMessage())
+                    }
+            }
     }
 
     /** Fetches the open group's members and the player's friends, which is what Try again does. */

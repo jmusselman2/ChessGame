@@ -46,6 +46,8 @@ data class StoredUser(
     val lastSeenAt: Instant?,
     val lastLoginAt: Instant? = null,
     val lastActionAt: Instant? = null,
+    /** When the user was created, which a profile shows as a UTC month and year (`D099`). */
+    val createdAt: Instant? = null,
 )
 
 /**
@@ -300,6 +302,7 @@ class UserRepository(
             lastSeenAt = row[UsersTable.lastSeenAt]?.toInstant(),
             lastLoginAt = row[UsersTable.lastLoginAt]?.toInstant(),
             lastActionAt = row[UsersTable.lastActionAt]?.toInstant(),
+            createdAt = row[UsersTable.createdAt].toInstant(),
         )
 }
 

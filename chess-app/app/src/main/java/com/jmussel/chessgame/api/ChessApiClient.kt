@@ -207,6 +207,27 @@ data class RecordDto(
     val draws: Int,
 )
 
+/**
+ * Another player's profile, as the server lets this player see it (`D099`): name, the UTC
+ * month and year they joined, the player's record against them and the groups the two share.
+ */
+@Serializable
+data class ProfileDto(
+    val userId: String,
+    val username: String,
+    val joinedYear: Int,
+    val joinedMonth: Int,
+    val record: RecordDto,
+    val sharedGroups: List<SharedGroupDto>,
+)
+
+/** A group the player and a profile's subject are both in. */
+@Serializable
+data class SharedGroupDto(
+    val groupId: String,
+    val name: String,
+)
+
 /** A group the caller is in, as the server lists it (`D049`, `D076`). */
 @Serializable
 data class GroupSummaryDto(
@@ -390,6 +411,12 @@ class ChessApiClient(
 
     /** Everyone the caller is friends with (`D009`). */
     suspend fun friends(): List<FriendDto> = get("/friends")
+
+    /**
+     * [userId]'s profile, by immutable id (`D099`). A `404` means the two are not friends or in a
+     * group together now; it is raised like any refusal.
+     */
+    suspend fun profile(userId: String): ProfileDto = get("/profiles/$userId")
 
     /**
      * The player with exactly this [username], matched however it is capitalised.

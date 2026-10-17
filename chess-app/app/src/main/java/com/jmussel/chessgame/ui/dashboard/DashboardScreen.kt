@@ -40,6 +40,7 @@ fun DashboardScreen(
     state: DashboardUiState = DashboardUiState(loaded = true),
     onOpenGame: (DashboardRow) -> Unit = {},
     onPlayFriend: (FriendRow) -> Unit = {},
+    onOpenProfile: (FriendRow) -> Unit = {},
     onRetry: () -> Unit = {},
     // What this build calls itself, so a tester's report can name it (`M17.2`). A parameter
     // with the real value as its default: the running app needs no wiring, and a preview or
@@ -79,6 +80,7 @@ fun DashboardScreen(
 
         FriendsSection(
             rows = DashboardSections.friends(friends, entries),
+            onOpenProfile = onOpenProfile,
             onPlayFriend = onPlayFriend,
         )
 
@@ -101,6 +103,7 @@ fun DashboardScreen(
 private fun FriendsSection(
     rows: List<FriendRow>,
     onPlayFriend: (FriendRow) -> Unit,
+    onOpenProfile: (FriendRow) -> Unit,
 ) {
     Text(text = FRIENDS, style = MaterialTheme.typography.titleSmall)
 
@@ -116,7 +119,12 @@ private fun FriendsSection(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text(text = row.username, style = MaterialTheme.typography.bodyLarge)
+                // The name opens their profile (`D099`); Play/Open stays its own button.
+                Text(
+                    text = row.username,
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.clickable(onClickLabel = OPEN_PROFILE) { onOpenProfile(row) },
+                )
                 // The lifetime record against this friend (`D096`), spoken as words.
                 val description = DashboardSections.recordDescription(row.record)
                 Text(
@@ -174,6 +182,7 @@ private fun DashboardRowItem(
     }
 }
 
+private const val OPEN_PROFILE = "Open profile"
 private const val YOUR_TURN = "YOUR TURN"
 private const val THEIR_TURN = "THEIR TURN"
 private const val FRIENDS = "FRIENDS"

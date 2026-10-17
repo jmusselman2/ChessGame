@@ -137,7 +137,7 @@ implementation, as `M21` was.
 | `M22.2`  | Matching play advances the retained Redo continuation | M21.21   | —        | `DONE`    |
 | `M22.3`  | Draw offers by agreement                            | M22.2      | `F2`     | `DONE`    |
 | `M22.4`  | Win/loss/draw record per friend                     | None       | `F1`     | `DONE`    |
-| `M22.5`  | Detailed profiles                                   | M22.4      | `F6`     | `TODO`    |
+| `M22.5`  | Detailed profiles                                   | M22.4      | `F6`     | `DONE`    |
 | `M22.6`  | Standard algebraic notation in `chess-core`         | None       | `F39`    | `TODO`    |
 | `M22.7`  | Every move list and move wording in SAN             | M22.6      | `F39`    | `TODO`    |
 | `M22.8`  | Turning automatic rematches off by hand             | None       | `F4`     | `DONE`    |
@@ -539,7 +539,7 @@ No Compose or device test changed.
 
 ## M22.5 — Detailed profiles
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M22.4
 
@@ -576,6 +576,23 @@ share a group.
   shared-group, unrelated, removed-friend and left-group viewers; Android tests for
   both entry points, the non-clickable self row, every displayed field and stale-row
   `404` handling.
+
+### Completion
+
+Completed 2026-10-17. `GET /profiles/{userId}` (`ProfileRoutes`) answers a `ProfileView`
+with exactly `userId`, `username`, UTC `joinedYear`/`joinedMonth` from `users.created_at`,
+the viewer's `record` (`DashboardQueries.chessRecordsFor`) and `sharedGroups`, the
+intersection of the two users' current groups. Every read requires a current friendship or
+a shared group; an unrelated caller, an unknown or malformed id and the caller's own id all
+get the same `404`. Android adds `Destination.Profile` and `ProfileScreen`, opened from a
+friend's name on the dashboard and from another member's name in a group; the player's own
+member row is not clickable. A `404` is shown as an unavailable profile with Back and is not
+retried. The device test found that `java.time` is missing on Android 5.1, so month names
+are spelled out in `Profiles.joinedText`. Verified with `:server:test --rerun-tasks`
+against PostgreSQL (new `ProfileTest`: immutable id, UTC month boundary, friend, shared
+group only, unrelated, unknown, self, removed friend, left group), `:chess-app:testDebugUnitTest`
+(`GroupsFlowTest` profile flows), the new `ProfileUiTest` on the Fire HD 8 (4 tests),
+`.\gradlew.bat build` and `git diff --check`.
 
 ---
 

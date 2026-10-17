@@ -64,6 +64,8 @@ data class GroupActions(
     val onConfirmLeave: () -> Unit = {},
     val onCancelLeave: () -> Unit = {},
     val onRetry: () -> Unit = {},
+    /** Opens another member's profile (`D099`); the player's own row has none. */
+    val onOpenProfile: (UserSummaryDto) -> Unit = {},
 )
 
 /** One member, and whether they are the player, who has nothing to do about themselves. */

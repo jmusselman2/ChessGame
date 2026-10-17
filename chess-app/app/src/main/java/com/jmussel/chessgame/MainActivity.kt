@@ -67,6 +67,7 @@ class MainActivity : ComponentActivity() {
                             onOpenGame = viewModel::openGame,
                             onPlayFriend = viewModel::playFriend,
                             onRetry = viewModel::loadDashboard,
+                            onOpenProfile = viewModel::openProfile,
                         )
                     }
 
@@ -105,6 +106,7 @@ class MainActivity : ComponentActivity() {
                             onConfirmLeave = viewModel::leaveGroup,
                             onCancelLeave = viewModel::cancelLeaveGroup,
                             onRetry = viewModel::loadGroup,
+                            onOpenProfile = viewModel::openProfile,
                         )
                     }
 
@@ -135,6 +137,8 @@ class MainActivity : ComponentActivity() {
                         allUsers = viewModel.allUsers,
                         groups = viewModel.groups,
                         group = viewModel.group,
+                        profile = viewModel.profile,
+                        onRetryProfile = viewModel::loadProfile,
                         dashboard = viewModel.dashboard,
                         history = viewModel.history,
                         game = viewModel.game,

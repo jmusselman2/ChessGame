@@ -29,6 +29,7 @@ import com.jmussel.chessgame.server.series.seriesRoutes
 import com.jmussel.chessgame.server.user.LastSeenTracker
 import com.jmussel.chessgame.server.user.allUsersRoutes
 import com.jmussel.chessgame.server.user.identityRoutes
+import com.jmussel.chessgame.server.user.profileRoutes
 import com.jmussel.chessgame.server.user.userLookupRoutes
 import com.jmussel.chessgame.server.user.usernameRoutes
 import io.ktor.http.HttpStatusCode
@@ -148,6 +149,7 @@ fun Application.module(
             allUsersRoutes(users, friendships)
             friendRoutes(users, friendships, dashboard)
             groupRoutes(users, groups)
+            profileRoutes(users, friendships, groups, dashboard)
             seriesRoutes(users, series, realtime)
             dashboardRoutes(dashboard)
             historyRoutes(history)

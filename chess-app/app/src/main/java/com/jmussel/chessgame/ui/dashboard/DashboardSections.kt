@@ -27,6 +27,8 @@ data class DashboardRow(
 data class FriendRow(
     val username: String,
     val gameId: String?,
+    /** Whose row it is, which is how their profile is opened (`D099`). */
+    val userId: String = "",
     /** The player's lifetime chess record against this friend, as the server counted it (`D096`). */
     val record: RecordDto = RecordDto(wins = 0, losses = 0, draws = 0),
 ) {
@@ -81,7 +83,14 @@ object DashboardSections {
 
         return friends
             .sortedBy { it.username.lowercase() }
-            .map { friend -> FriendRow(username = friend.username, gameId = gamesByOpponent[friend.userId], record = friend.record) }
+            .map { friend ->
+                FriendRow(
+                    username = friend.username,
+                    gameId = gamesByOpponent[friend.userId],
+                    userId = friend.userId,
+                    record = friend.record,
+                )
+            }
     }
 
     /**

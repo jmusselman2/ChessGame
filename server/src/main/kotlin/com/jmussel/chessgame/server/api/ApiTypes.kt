@@ -44,6 +44,29 @@ data class RecordView(
     }
 }
 
+/**
+ * Another user's ChessGame profile, as one viewer may see it (`D099`): their name, the UTC month
+ * and year they joined, the viewer's lifetime chess record against them (`D096`) and only the
+ * groups the two share. A per-viewer projection, never cached across viewers.
+ */
+@Serializable
+data class ProfileView(
+    val userId: String,
+    val username: String,
+    val joinedYear: Int,
+    /** 1 for January. */
+    val joinedMonth: Int,
+    val record: RecordView,
+    val sharedGroups: List<SharedGroupView>,
+)
+
+/** A group the viewer and a profile's subject are both in now. */
+@Serializable
+data class SharedGroupView(
+    val groupId: String,
+    val name: String,
+)
+
 /** [StoredUser] as the API shows it, or `null` when they have not claimed a username yet. */
 fun StoredUser.toSummaryOrNull(): UserSummary? = username?.let { UserSummary(userId = id.toString(), username = it) }
 
