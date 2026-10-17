@@ -12,7 +12,6 @@ import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpHeaders
-import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
@@ -133,8 +132,6 @@ data class DashboardEntryDto(
     val sideToMove: String? = null,
     val moveNumber: Int? = null,
     val yourTurn: Boolean = false,
-    /** `false` once a player has left the series: this game is its last (`D052`, `D068`). */
-    val seriesActive: Boolean = true,
     /**
      * A request pending in the game, other than a move: an undo request (`D091`). One waiting
      * on the player lists the game as theirs to act on; [yourTurn] still means only "your move".
@@ -191,28 +188,6 @@ data class SeriesSummaryDto(
     val status: String,
     val currentGameId: String? = null,
 )
-
-/** The series the server offers when Play finds the pair already has some (`D053`). Newest first. */
-@Serializable
-data class SeriesOfferDto(
-    val existing: List<SeriesSummaryDto>,
-)
-
-/** What tapping Play came to. */
-sealed interface SeriesOpening {
-    /** A new series was started, and its first game with it. */
-    data class Started(
-        val series: SeriesSummaryDto,
-    ) : SeriesOpening
-
-    /**
-     * Nothing was started, because the pair already has active series: the player chooses
-     * between opening one of these and starting another (`D053`).
-     */
-    data class Offered(
-        val existing: List<SeriesSummaryDto>,
-    ) : SeriesOpening
-}
 
 /** What a client asks the server to play: intent, never a board state. */
 @Serializable
@@ -271,8 +246,13 @@ data class GameViewDto(
     val terminationReason: String? = null,
     val availableDrawClaims: List<String> = emptyList(),
     val canUndo: Boolean = false,
-    /** `false` once a player has left the series: this game is its last (`D052`, `D068`). */
+    /** `false` once a player has left the series, which ended this game too (`D052`, `D095`). */
     val seriesActive: Boolean = true,
+    /**
+     * Whether a move has ever been accepted in this game, even if every move has since been
+     * undone (`D095`). Leaving the series resigns a started game and deletes one that has not.
+     */
+    val hasStarted: Boolean = false,
     /** Whether the player may send an undo request now (`D091`). */
     val canRequestUndo: Boolean = false,
     /** Whether the player may Redo now (`D092`); the server keeps the path itself. */
@@ -536,48 +516,18 @@ class ChessApiClient(
         )
 
     /**
-     * "Play with this friend": a new series, or the offer of the ones the pair already has.
-     *
-     * The server never silently reuses a series (`D053`). When the pair has one it answers
-     * `409` with the series it is offering, and nothing has been started; any other refusal
-     * is raised as usual.
+     * "Play with this friend": the pair's one series (`D095`), opened if they have it and started,
+     * with its first game, if they do not.
      */
-    suspend fun openSeries(username: String): SeriesOpening {
-        val response =
-            httpClient.post(config.url(SERIES)) {
-                header(HttpHeaders.Authorization, "Bearer ${accessToken()}")
-                setBody(username)
-            }
-
-        if (response.status.isSuccess()) return SeriesOpening.Started(response.body())
-
-        val text = response.bodyAsText()
-        val offer =
-            if (response.status == HttpStatusCode.Conflict) {
-                runCatching { Json.decodeFromString<SeriesOfferDto>(text) }.getOrNull()
-            } else {
-                null
-            }
-
-        if (offer != null) return SeriesOpening.Offered(offer.existing)
-
-        throw ChessApiException(
-            status = response.status.value,
-            explanation = text.trim(),
-            message = "Chess server refused $SERIES: ${response.status}",
-        )
-    }
+    suspend fun openSeries(username: String): SeriesSummaryDto = post(SERIES, username)
 
     /**
-     * Leaves [seriesId], which ends it for both players (`D052`), and returns it as it now is.
-     *
-     * Its own action, separate from resigning: no game is touched, the current one can still be
-     * finished, and no more follow it (`D068`). Leaving a series already ended is not refused.
+     * Leaves [seriesId], which ends it and its current game for both players (`D095`), and
+     * returns it as it now is. A game a move was played in is the leaver's resignation; a game
+     * nobody moved in is deleted, and the series then names no current game. Leaving a series
+     * already ended is not refused.
      */
     suspend fun leaveSeries(seriesId: String): SeriesSummaryDto = post("$SERIES/$seriesId/leave", "")
-
-    /** Starts another series with [username] after being offered the ones they already have. */
-    suspend fun startAnotherSeries(username: String): SeriesSummaryDto = post("$SERIES?another=true", username)
 
     private suspend inline fun <reified T> get(path: String): T =
         read(path) {

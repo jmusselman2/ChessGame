@@ -306,13 +306,11 @@ private fun Game(
                 }
             }
 
-            // Leaving the series is not resigning: it ends the series and leaves this game alone
-            // (`D052`). Offered while the server says the series goes on; afterwards, the note says
-            // this is the last game (`D068`).
+            // Leaving ends the series and this game with it (`D095`); the confirmation says how.
+            // Offered while the server says the series goes on.
             if (game.seriesActive) {
                 TextButton(onClick = series.onAsk, enabled = !state.submitting) { Text(text = LEAVE_SERIES) }
             }
-            OnlineGame.lastGameNoteFor(game)?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium) }
 
             // What the server was last asked, and what it said about it.
             if (state.submitting) Text(text = SUBMITTING, style = MaterialTheme.typography.bodyMedium)

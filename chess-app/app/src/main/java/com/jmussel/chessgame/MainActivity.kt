@@ -23,7 +23,6 @@ import com.jmussel.chessgame.ui.friends.FriendsActions
 import com.jmussel.chessgame.ui.game.UndoRequestActions
 import com.jmussel.chessgame.ui.groups.GroupActions
 import com.jmussel.chessgame.ui.groups.GroupsActions
-import com.jmussel.chessgame.ui.series.PlayOfferActions
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
 /**
@@ -108,15 +107,6 @@ class MainActivity : ComponentActivity() {
                         )
                     }
 
-                val playOfferActions =
-                    remember(viewModel) {
-                        PlayOfferActions(
-                            onOpen = viewModel::openOfferedGame,
-                            onStartAnother = viewModel::startAnotherSeries,
-                            onDismiss = viewModel::dismissPlayOffer,
-                        )
-                    }
-
                 val computerActions =
                     remember(viewModel) {
                         ComputerGameActions(
@@ -198,8 +188,6 @@ class MainActivity : ComponentActivity() {
                         groupsActions = groupsActions,
                         groupActions = groupActions,
                         dashboardActions = dashboardActions,
-                        playOffer = viewModel.playOffer,
-                        playOfferActions = playOfferActions,
                     )
                 }
             }

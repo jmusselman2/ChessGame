@@ -8,7 +8,6 @@ import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.inSubQuery
-import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -26,8 +25,6 @@ data class ActiveSeriesView(
     val yourSide: String?,
     val sideToMove: String?,
     val fullmoveNumber: Int?,
-    /** `false` for a series a player has left, shown only while its last game is unfinished (`D068`). */
-    val seriesActive: Boolean = true,
     /** Whose undo request is pending in the game, or `null` (`D091`). */
     val undoRequestedBy: Uuid? = null,
     /** Whose dashboard this line is on. */
@@ -52,10 +49,8 @@ class DashboardQueries(
     /**
      * Every active series [userId] is in, newest first, with the game each is at.
      *
-     * A series someone has left is included too while its last game is unfinished, marked as
-     * no longer active: leaving does not disturb a game in progress (`D052`), and a game the
-     * dashboard stopped listing could not be reached to finish it (`D068`). Once that game
-     * ends, the series drops off like any other closed series.
+     * A series someone has left is not listed: leaving ended its game too (`D095`), so there is
+     * nothing left in it to play.
      */
     fun activeSeriesFor(userId: Uuid): List<ActiveSeriesView> =
         transaction(database) {
@@ -70,21 +65,13 @@ class DashboardQueries(
                         GameSeriesTable.id,
                         GameSeriesTable.tableId,
                         GameSeriesTable.createdAt,
-                        GameSeriesTable.status,
                         GamesTable.id,
                         GamesTable.version,
                         GamesTable.sideToMove,
                         GamesTable.state,
                         GamesTable.undoRequestedBy,
                     ).where {
-                        (GameSeriesTable.tableId inSubQuery tablesSeating(userId)) and
-                            (
-                                (GameSeriesTable.status eq ACTIVE_SERIES) or
-                                    (
-                                        (GameSeriesTable.status eq CLOSED_SERIES) and
-                                            (GamesTable.status eq GameRepository.IN_PROGRESS_GAME)
-                                    )
-                            )
+                        (GameSeriesTable.tableId inSubQuery tablesSeating(userId)) and (GameSeriesTable.status eq ACTIVE_SERIES)
                     }.orderBy(GameSeriesTable.createdAt to SortOrder.DESC)
                     .toList()
 
@@ -127,7 +114,6 @@ class DashboardQueries(
                         },
                     sideToMove = gameId?.let { row[GamesTable.sideToMove] },
                     fullmoveNumber = gameId?.let { row[GamesTable.state].fullmoveNumber },
-                    seriesActive = row[GameSeriesTable.status] == ACTIVE_SERIES,
                     undoRequestedBy = gameId?.let { row[GamesTable.undoRequestedBy] },
                     viewer = userId,
                 )

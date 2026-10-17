@@ -183,7 +183,7 @@ sealed interface AfterGame {
         val gameId: String,
     ) : AfterGame
 
-    /** There will be no next game: a player left the series (`D052`). */
+    /** There will be no next game: a player left the series (`D052`, `D095`). */
     data object SeriesOver : AfterGame
 
     /**
@@ -464,21 +464,39 @@ object OnlineGame {
         }
     }
 
-    /** What the leave confirmation says leaving will do, and what it will not (`D052`, `D068`). */
-    fun leaveWarningFor(game: GameViewDto): String =
-        "No more games with ${game.opponent.username} will start in this series. " +
-            if (game.isOver) "Nothing that has been played changes." else "This game is not affected and can still be finished."
+    /**
+     * What the leave confirmation says leaving will do (`D095`): it ends the series and this game
+     * with it. A game a move was ever played in is the player's resignation; one nobody has moved
+     * in is removed; a finished game stays as it ended.
+     */
+    fun leaveWarningFor(game: GameViewDto): String {
+        val opponent = game.opponent.username
+        val noMore = "No more games with $opponent will start."
 
-    /** What a player reads once they have left, in the words of [leaveWarningFor]. */
-    fun leftSeriesMessage(game: GameViewDto): String = "You left the series. No more games with ${game.opponent.username} will start."
+        return when {
+            game.isOver -> "$noMore Nothing that has been played changes."
+            game.hasStarted -> "Leaving the series ends this game too: you resign it, and $opponent wins. $noMore"
+            else -> "Leaving the series ends this game too. No move has been played in it, so it is removed. $noMore"
+        }
+    }
 
     /**
-     * The note on a game whose series a player has left, or `null` while the series goes on.
-     *
-     * A finished game says nothing: [AfterGame.SeriesOver] already does.
+     * What a player reads once they have left, in the words of [leaveWarningFor]. [gameRemoved]
+     * is the server saying it deleted the game, which no longer has a screen to say it on.
      */
-    fun lastGameNoteFor(game: GameViewDto): String? =
-        if (game.seriesActive || game.isOver) null else "A player left the series. This is the last game with ${game.opponent.username}."
+    fun leftSeriesMessage(
+        game: GameViewDto,
+        gameRemoved: Boolean = false,
+    ): String =
+        when {
+            gameRemoved -> "You left the series with ${game.opponent.username}. The game had not started, so it was removed."
+            game.isOver || !game.hasStarted -> "You left the series. No more games with ${game.opponent.username} will start."
+            else -> "You left the series and resigned this game."
+        }
+
+    /** What the screen says when the game it was showing has been deleted (`D095`). */
+    fun removedGameMessage(game: GameViewDto): String =
+        "This game was removed: the series with ${game.opponent.username} was left before anyone moved."
 
     /** `"Move 18 • version 34"`, which is what a client has to send back with a command. */
     fun positionFor(game: GameViewDto): String = "Move ${game.moveNumber} $SEPARATOR version ${game.version}"
@@ -605,7 +623,7 @@ object OnlineGame {
     private const val YOUR_MOVE = "Your move"
     private const val CHECK = "Check"
     private const val FORBIDDEN = 403
-    private const val NOT_FOUND = 404
+    const val NOT_FOUND = 404
     private const val STALE_VERSION = "STALE_VERSION"
     private const val NOT_YOUR_TURN = "NOT_YOUR_TURN"
     private const val GAME_OVER = "GAME_OVER"

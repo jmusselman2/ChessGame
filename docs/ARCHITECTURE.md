@@ -389,7 +389,9 @@ is completed at once by one, carries `"crossing": true` in its payload (`D091`).
 `MoveRedone` names the restored `moves` and their count, `plies` (1 or 2) (`D092`).
 
 `SeriesClosed` was recorded until `M19.5` removed the path that closed a series
-after its current game; leaving a series records `SeriesLeft` (`D068`). Friendship
+after its current game; leaving a series records `SeriesLeft`, and a resignation it
+causes records `PlayerResigned` with `"leftSeries": true` (`D095`). A `SeriesLeft` for a
+zero-move game it deleted names that game as `deletedGameId`. Friendship
 and group changes are not events: their rows are kept rather than deleted, with
 `removed_at` and `left_at` saying what changed (§15, §15.1, §17).
 

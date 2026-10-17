@@ -3,7 +3,10 @@
 package com.jmussel.chessgame.server.series
 
 import com.jmussel.chessgame.core.chess.ChessGame
+import com.jmussel.chessgame.core.chess.ChessRules
+import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.server.db.CLOSED_SERIES
+import com.jmussel.chessgame.server.db.ChangeKind
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.GameSeriesRepository
 import com.jmussel.chessgame.server.db.GameTypes
@@ -12,6 +15,7 @@ import com.jmussel.chessgame.server.db.StoredGame
 import com.jmussel.chessgame.server.db.StoredSeries
 import com.jmussel.chessgame.server.db.TableRepository
 import com.jmussel.chessgame.server.db.userIds
+import com.jmussel.chessgame.server.game.GameCommandService
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.jetbrains.exposed.v1.jdbc.Database
@@ -21,33 +25,30 @@ import kotlin.random.Random
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
-/** What asking to play a friend came to (`D053`). */
-sealed interface PlayOutcome {
-    /** A new series was started, with its first game. */
-    data class Started(
-        val series: StoredSeries,
-    ) : PlayOutcome
+/** What asking to play a friend came to (`D095`). */
+data class PlayOutcome(
+    /** The pair's one active series. */
+    val series: StoredSeries,
+    /** Whether this request started it, with its first game, rather than finding it. */
+    val started: Boolean,
+)
 
-    /**
-     * The pair already has active series, so nothing was started: the player is offered
-     * opening one of these or starting another. Newest first.
-     */
-    data class Offered(
-        val existing: List<StoredSeries>,
-    ) : PlayOutcome
-}
-
-/** What asking to leave a series came to (`D052`). */
+/** What asking to leave a series came to (`D052`, `D095`). */
 sealed interface LeaveOutcome {
     /**
      * The caller is out of the series, which is over. [endedNow] is `false` when it had already
      * ended — a retry, or the other player leaving first — so nothing was written this time.
-     * [currentGame] is the series' last game, left exactly as it was.
+     *
+     * [currentGame] is the series' last game as the leave left it: finished as the leaver's
+     * resignation when a move had ever been played in it, or as it already was. It is `null`
+     * when the series has no game, which is so when the leave deleted a game nobody had moved
+     * in; [deletedGame] is that game as it was.
      */
     data class Left(
         val series: StoredSeries,
         val currentGame: StoredGame?,
         val endedNow: Boolean,
+        val deletedGame: StoredGame? = null,
     ) : LeaveOutcome
 
     /** No series with that id has the caller in it. */
@@ -62,9 +63,13 @@ sealed interface LeaveOutcome {
  * (`docs/PRODUCT.md`), so starting a series starts its first game with it. The colours for
  * that first game are a coin toss and every later game reverses them (`D014`).
  *
- * A pair may have several active series at once (`D053`), so Play never silently reuses one
- * and never silently duplicates one: when the pair already has a series it is offered back
- * ([PlayOutcome.Offered]) and a second series is started only when asked for.
+ * A chess pair has at most one active series (`D095`, superseding `D053`'s parallel series),
+ * so Play opens it when there is one and starts it when there is not. The database refuses a
+ * second one too (`V14`).
+ *
+ * **Lock order.** Every transaction that may end a game and settle its series locks the series
+ * row before the game row ([lockGameWithSeries]), and so does [leave]. Taking the two in one
+ * order is what lets a leave and a game-ending command race without deadlocking (`D095`).
  */
 class SeriesService(
     private val database: Database,
@@ -74,53 +79,48 @@ class SeriesService(
     private val tables: TableRepository = TableRepository(database),
 ) {
     /**
-     * Play [friend]: start a series with its first game, or offer the series they already have.
-     *
-     * With [startAnother] the player has already been offered the existing ones and chosen a
-     * new series, so one is started whatever exists.
+     * Play [friend]: open the pair's series, or start it with its first game when they have none.
      *
      * Both players tapping "Play" at the same moment is the case this has to survive. The
      * pair's table row is locked before deciding whether a series exists, so the second
-     * request waits for the first, sees the series it started, and is offered it — one tap
-     * each, one series, one game. The series, its first game, and the series pointing at that
-     * game are one transaction, so a series is never left claiming a game that was not
-     * written.
+     * request waits for the first and opens the series it started — one tap each, one series,
+     * one game. The series, its first game, and the series pointing at that game are one
+     * transaction, so a series is never left claiming a game that was not written.
      */
     fun play(
         caller: Uuid,
         friend: Uuid,
-        startAnother: Boolean = false,
     ): PlayOutcome {
         val table = tables.findOrCreate(GameTypes.CHESS, listOf(Participant.user(caller), Participant.user(friend)))
 
         return transaction(database) {
             tables.lockForUpdate(table.id)
 
-            val active = series.activeAt(table.id)
-
-            if (active.isNotEmpty() && !startAnother) {
-                PlayOutcome.Offered(active)
-            } else {
-                PlayOutcome.Started(startFirstGame(series.create(table)))
-            }
+            series.activeAt(table.id)?.let { PlayOutcome(it, started = false) }
+                ?: PlayOutcome(startFirstGame(series.create(table)), started = true)
         }
     }
 
     /**
-     * [caller] leaves [seriesId], which ends it for everyone at the table (`D052`).
+     * [caller] leaves [seriesId], which ends the series and its current game together (`D095`).
      *
-     * Leaving a series is its own action, separate from resigning a game (`D052`): a
-     * resignation ends one game and the series carries on to its rematch, and leaving ends the
-     * series without touching any game. The series' current game — under way, or a rematch no
-     * one has moved in yet — is left exactly as it is and can still be played to its end; it is
-     * simply the last one, because [settleAfter] gives a series that is no longer active no
-     * rematch (`D068`).
+     * In one locked transaction:
+     *
+     * - a current game in which a move has ever been accepted ([StoredGame.hasStarted]) ends as
+     *   the leaver's resignation, which the other player wins — even when every move has since
+     *   been undone;
+     * - a current game no move was ever accepted in is deleted, with no result;
+     * - the series closes, and no rematch follows, because [settleAfter] gives a series that is
+     *   no longer active none.
+     *
+     * Leaving is not resigning: an ordinary resignation ends one game and the active series goes
+     * on to its rematch.
      *
      * Idempotent: leaving a series that has already ended changes nothing, so a retry sees its
-     * own effect. The series row is locked while deciding, the same lock a finishing game's
-     * [settleAfter] takes, so a leave and a game ending at the same moment happen in one order
-     * or the other and never half of each: either no rematch is started, or the rematch
-     * already started becomes the last game.
+     * own effect. The series row is locked first and the game row second, the order every
+     * game-ending command takes ([lockGameWithSeries]), so a leave and a game ending at the same
+     * moment happen one after the other: whichever is second finds the game finished or the
+     * series closed, and either way there is one result, a closed series and no rematch.
      *
      * A series the caller is not in is reported as not existing, as a group is (`D049`).
      */
@@ -135,28 +135,91 @@ class SeriesService(
                 return@transaction LeaveOutcome.NoSuchSeries
             }
 
-            val lastGame = current.currentGameId?.let(games::load)
-
             if (!current.isActive) {
-                return@transaction LeaveOutcome.Left(current, lastGame, endedNow = false)
+                return@transaction LeaveOutcome.Left(current, current.currentGameId?.let(games::load), endedNow = false)
             }
 
+            val game = current.currentGameId?.let(games::loadForUpdate)
             val closedAt = Instant.now()
             series.close(seriesId, at = closedAt)
-            series.recordEvent(
-                seriesId = seriesId,
-                gameId = current.currentGameId,
-                actor = caller,
-                type = SERIES_LEFT,
-                payload = buildJsonObject { put("userId", caller.toString()) },
-            )
+            val closed = current.copy(status = CLOSED_SERIES, closedAt = closedAt)
 
-            LeaveOutcome.Left(
-                series = current.copy(status = CLOSED_SERIES, closedAt = closedAt),
-                currentGame = lastGame,
-                endedNow = true,
-            )
+            when {
+                game == null || game.isComplete -> {
+                    recordLeft(seriesId, game?.id, caller)
+                    LeaveOutcome.Left(closed, game, endedNow = true)
+                }
+
+                game.hasStarted -> {
+                    resignOnLeaving(game, caller)
+                    recordLeft(seriesId, game.id, caller)
+                    LeaveOutcome.Left(closed, games.load(game.id), endedNow = true)
+                }
+
+                else -> {
+                    series.detachCurrentGame(seriesId)
+                    games.delete(game.id)
+                    recordLeft(seriesId, gameId = null, caller, deletedGameId = game.id)
+                    LeaveOutcome.Left(
+                        series = closed.copy(currentGameId = null),
+                        currentGame = null,
+                        endedNow = true,
+                        deletedGame = game,
+                    )
+                }
+            }
         }
+
+    /**
+     * The game [gameId], locked for a command that may end it, with its series row locked first
+     * (`D095`). Inside a transaction; `null` when there is no such game.
+     *
+     * The series row comes first because [leave] takes it first and then needs the game's, and
+     * [settleAfter], which a finishing command calls, needs the series row too. Taking the game
+     * first would let a leave and a finishing move each hold one lock and wait for the other.
+     */
+    fun lockGameWithSeries(gameId: Uuid): StoredGame? {
+        val seriesId = games.seriesIdOf(gameId) ?: return null
+        series.findForUpdate(seriesId)
+        return games.loadForUpdate(gameId)
+    }
+
+    /** Ends [game] as [leaver]'s resignation, recorded as a resignation is (`D018`, `D095`). */
+    private fun resignOnLeaving(
+        game: StoredGame,
+        leaver: Uuid,
+    ) {
+        val side = if (leaver == game.whiteUserId) Side.WHITE else Side.BLACK
+
+        games.save(
+            id = game.id,
+            expectedVersion = game.version,
+            game = ChessRules.resign(game.game, side),
+            auditEvent = GameCommandService.PLAYER_RESIGNED,
+            actor = leaver,
+            change = ChangeKind.RESIGNATION,
+            auditDetail = buildJsonObject { put("leftSeries", true) },
+        )
+    }
+
+    private fun recordLeft(
+        seriesId: Uuid,
+        gameId: Uuid?,
+        caller: Uuid,
+        deletedGameId: Uuid? = null,
+    ) {
+        series.recordEvent(
+            seriesId = seriesId,
+            gameId = gameId,
+            actor = caller,
+            type = SERIES_LEFT,
+            payload =
+                buildJsonObject {
+                    put("userId", caller.toString())
+                    deletedGameId?.let { put("deletedGameId", it.toString()) }
+                },
+        )
+    }
 
     /** Whether [seriesId] is still active, for showing a game's player whether more will follow. */
     fun isActive(seriesId: Uuid): Boolean = series.isActive(seriesId)

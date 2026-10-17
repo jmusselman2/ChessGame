@@ -627,15 +627,19 @@ class UndoRequestTest {
     }
 
     @Test
-    fun leavingTheSeriesKeepsThePendingRequest() {
+    fun leavingTheSeriesEndsTheGameAndClearsThePendingRequest() {
         withGame { fixture ->
             fixture.answered()
             fixture.request()
 
             seriesService(fixture.database).leave(fixture.alex, fixture.seriesId)
 
-            assertEquals(fixture.jordan, fixture.game().undo.pendingFrom, "leaving is not a game command (D068)")
-            assertEquals(3, fixture.version)
+            // `D068` left the game and its request alone. Under `D095` leaving resigns the game,
+            // and a finished game has no request pending.
+            val game = fixture.game()
+            assertTrue(game.isComplete)
+            assertNull(game.undo.pendingFrom)
+            assertEquals(4, game.version)
         }
     }
 

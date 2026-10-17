@@ -5,7 +5,6 @@ package com.jmussel.chessgame.server.series
 import com.jmussel.chessgame.server.api.DashboardEntry
 import com.jmussel.chessgame.server.api.GameView
 import com.jmussel.chessgame.server.api.SeriesHistoryEntry
-import com.jmussel.chessgame.server.api.SeriesOffer
 import com.jmussel.chessgame.server.api.SeriesSummary
 import com.jmussel.chessgame.server.auth.TestTokens
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
@@ -36,6 +35,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
@@ -90,19 +90,12 @@ class SeriesIdempotencyTest {
             setBody(if (subject == JORDAN) "Alex" else "Jordan")
         }
 
-    /**
-     * Taps Play and lands in a series: the one it started, or — when the pair already has one
-     * and it is offered (`D053`) — the newest offered, which is what choosing "Open" does.
-     */
+    /** Taps Play and lands in the pair's one series, started or opened (`D095`). */
     private suspend fun ApplicationTestBuilder.play(subject: String): SeriesSummary {
         val response = tapPlay(subject)
 
-        return if (response.status == HttpStatusCode.Conflict) {
-            json.decodeFromString<SeriesOffer>(response.bodyAsText()).existing.first()
-        } else {
-            assertEquals(HttpStatusCode.Created, response.status)
-            json.decodeFromString(response.bodyAsText())
-        }
+        assertTrue(response.status == HttpStatusCode.Created || response.status == HttpStatusCode.OK, "${response.status}")
+        return json.decodeFromString(response.bodyAsText())
     }
 
     private suspend fun ApplicationTestBuilder.readGame(
@@ -162,34 +155,31 @@ class SeriesIdempotencyTest {
     }
 
     @Test
-    fun aSecondTapIsOfferedTheSeriesAndStartsNothing() {
+    fun aSecondTapOpensTheSeriesAndStartsNothing() {
         withFriends {
             val first = tapPlay(JORDAN)
             val second = tapPlay(JORDAN)
 
             assertEquals(HttpStatusCode.Created, first.status)
-            assertEquals(HttpStatusCode.Conflict, second.status, "not reused silently (`D053`)")
+            assertEquals(HttpStatusCode.OK, second.status, "opened, not offered (`D095`)")
             assertEquals(
-                listOf(json.decodeFromString<SeriesSummary>(first.bodyAsText())),
-                json.decodeFromString<SeriesOffer>(second.bodyAsText()).existing,
+                json.decodeFromString<SeriesSummary>(first.bodyAsText()),
+                json.decodeFromString<SeriesSummary>(second.bodyAsText()),
             )
             assertEquals(1, gameCount(), "the second tap started nothing")
         }
     }
 
     @Test
-    fun choosingAnotherStartsAParallelSeriesWithItsOwnGame() {
+    fun askingForAnotherSeriesStartsNothing() {
         withFriends {
-            val first = play(JORDAN)
+            play(JORDAN)
             val another = tapPlay(ALEX, another = true)
 
-            assertEquals(HttpStatusCode.Created, another.status)
-            val second = json.decodeFromString<SeriesSummary>(another.bodyAsText())
-            assertNotEquals(first.seriesId, second.seriesId)
-            assertNotEquals(first.currentGameId, second.currentGameId)
-            assertEquals(2, gameCount())
-            assertEquals(2, dashboard(JORDAN).size, "both series are live for both players")
-            assertEquals(2, dashboard(ALEX).size)
+            assertEquals(HttpStatusCode.Conflict, another.status)
+            assertEquals(1, gameCount())
+            assertEquals(1, dashboard(JORDAN).size, "one series for the pair (`D095`)")
+            assertEquals(1, dashboard(ALEX).size)
         }
     }
 
@@ -227,7 +217,7 @@ class SeriesIdempotencyTest {
                     }
                 }
 
-            assertEquals(1, opened.map { it.seriesId }.distinct().size, "one series: the later tap is offered it")
+            assertEquals(1, opened.map { it.seriesId }.distinct().size, "one series: the later tap opens it")
             assertEquals(1, opened.map { it.currentGameId }.distinct().size, "one game in it")
             assertEquals(1, gameCount())
         }

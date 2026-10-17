@@ -2,7 +2,6 @@
 
 package com.jmussel.chessgame.server.series
 
-import com.jmussel.chessgame.server.api.SeriesOffer
 import com.jmussel.chessgame.server.api.SeriesSummary
 import com.jmussel.chessgame.server.auth.TestTokens
 import com.jmussel.chessgame.server.db.ACTIVE_SERIES
@@ -41,7 +40,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
-import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -271,7 +269,7 @@ class OpenSeriesTest {
     }
 
     @Test
-    fun theEndpointOffersTheExistingSeriesTheSecondTime() {
+    fun theEndpointOpensTheExistingSeriesTheSecondTime() {
         withServer { fixture ->
             fixture.friends()
 
@@ -286,62 +284,53 @@ class OpenSeriesTest {
                     setBody("Jordan")
                 }
 
-            // Until `M19.4` the second call answered 200 with the same series, silently reusing
-            // it (`D011`). `D053` superseded that: it is offered, and nothing is started.
+            // `D053` answered the second call with an offer to open the series or start
+            // another. `D095` superseded it: a pair has one series, and Play opens it.
             assertEquals(HttpStatusCode.Created, created.status)
-            assertEquals(HttpStatusCode.Conflict, reopened.status, "an existing series is offered, not reused")
-            assertEquals(
-                listOf(json.decodeFromString<SeriesSummary>(created.bodyAsText()).seriesId),
-                json.decodeFromString<SeriesOffer>(reopened.bodyAsText()).existing.map { it.seriesId },
-            )
-            assertEquals(
-                "Jordan",
-                json
-                    .decodeFromString<SeriesOffer>(reopened.bodyAsText())
-                    .existing
-                    .single()
-                    .opponent.username,
-                "offered from the asker's side",
-            )
+            assertEquals(HttpStatusCode.OK, reopened.status, "the existing series is opened, not offered")
+            val first = json.decodeFromString<SeriesSummary>(created.bodyAsText())
+            val again = json.decodeFromString<SeriesSummary>(reopened.bodyAsText())
+            assertEquals(first.seriesId, again.seriesId)
+            assertEquals(first.currentGameId, again.currentGameId)
+            assertEquals("Jordan", again.opponent.username, "from the asker's side")
             assertEquals(1, fixture.seriesCount())
         }
     }
 
     @Test
-    fun theEndpointStartsAnotherSeriesWhenAskedTo() {
+    fun anObsoleteRequestForAnotherSeriesIsRefusedAndStartsNothing() {
         withServer { fixture ->
             fixture.friends()
 
-            val first =
-                client.post("/series") {
-                    header("Authorization", "Bearer ${tokens.tokenFor("auth-1")}")
-                    setBody("Alex")
-                }
+            client.post("/series") {
+                header("Authorization", "Bearer ${tokens.tokenFor("auth-1")}")
+                setBody("Alex")
+            }
             val another =
                 client.post("/series?another=true") {
                     header("Authorization", "Bearer ${tokens.tokenFor("auth-2")}")
                     setBody("Jordan")
                 }
-            val offered =
-                client.post("/series") {
+
+            assertEquals(HttpStatusCode.Conflict, another.status)
+            assertTrue(another.bodyAsText().contains("Update the app"), another.bodyAsText())
+            assertEquals(1, fixture.seriesCount(), "no parallel series (`D095`)")
+        }
+    }
+
+    @Test
+    fun anObsoleteRequestStartsNothingEvenWithNoSeriesYet() {
+        withServer { fixture ->
+            fixture.friends()
+
+            val another =
+                client.post("/series?another=true") {
                     header("Authorization", "Bearer ${tokens.tokenFor("auth-1")}")
                     setBody("Alex")
                 }
 
-            assertEquals(HttpStatusCode.Created, another.status)
-            val firstSeries = json.decodeFromString<SeriesSummary>(first.bodyAsText())
-            val anotherSeries = json.decodeFromString<SeriesSummary>(another.bodyAsText())
-            assertNotEquals(firstSeries.seriesId, anotherSeries.seriesId)
-            assertNotEquals(firstSeries.currentGameId, anotherSeries.currentGameId)
-            assertEquals("Jordan", anotherSeries.opponent.username)
-            assertEquals(2, fixture.seriesCount(), "two active series for one pair (`D053`)")
-
-            assertEquals(HttpStatusCode.Conflict, offered.status)
-            assertEquals(
-                listOf(anotherSeries.seriesId, firstSeries.seriesId),
-                json.decodeFromString<SeriesOffer>(offered.bodyAsText()).existing.map { it.seriesId },
-                "both are offered, newest first",
-            )
+            assertEquals(HttpStatusCode.Conflict, another.status)
+            assertEquals(0, fixture.seriesCount())
         }
     }
 

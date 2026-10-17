@@ -121,7 +121,7 @@ class SeriesLifecycleTest {
             val id = opened.id
             fixture.series.close(id)
 
-            assertTrue(fixture.series.activeAt(opened.tableId).isEmpty())
+            assertNull(fixture.series.activeAt(opened.tableId))
             assertNotNull(fixture.series.find(id), "it stays available for history")
         }
     }

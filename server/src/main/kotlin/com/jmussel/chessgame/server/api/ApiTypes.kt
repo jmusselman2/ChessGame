@@ -95,20 +95,10 @@ data class SeriesSummary(
 }
 
 /**
- * The answer to "Play" when the pair already has active series (`D053`): nothing was started,
- * and these are the series the player may open instead of starting another. Newest first.
- */
-@Serializable
-data class SeriesOffer(
-    val existing: List<SeriesSummary>,
-)
-
-/**
- * One dashboard line: a series, the game it is at, and whose move it is.
+ * One dashboard line: an active series, the game it is at, and whose move it is.
  *
- * Usually an active series. A series a player has left stays here while its last game is
- * unfinished, with [seriesActive] `false`, so that game can still be reached and played to its
- * end (`D068`).
+ * Only active series are listed: leaving a series ends its game too, so a series that has been
+ * left has nothing to finish (`D095`).
  */
 @Serializable
 data class DashboardEntry(
@@ -120,7 +110,6 @@ data class DashboardEntry(
     val sideToMove: String? = null,
     val moveNumber: Int? = null,
     val yourTurn: Boolean = false,
-    val seriesActive: Boolean = true,
     /**
      * A request pending in this game, other than a move: an undo request now, and a draw offer
      * once `F2` exists (`D091`). A request waiting on the viewer lists the game as needing
@@ -141,7 +130,6 @@ data class DashboardEntry(
                 sideToMove = view.sideToMove,
                 moveNumber = view.fullmoveNumber,
                 yourTurn = view.isYourTurn,
-                seriesActive = view.seriesActive,
                 pendingRequest =
                     view.undoRequestedBy?.let { requester ->
                         PendingRequest(kind = PendingRequest.UNDO, waitingOnYou = requester != view.viewer)
@@ -319,10 +307,15 @@ data class GameView(
     /** What the viewer is told about the last undo request, or `null`. */
     val undoNote: UndoNoteView? = null,
     /**
-     * Whether this game's series is still active. `false` once a player has left it (`D052`):
-     * the game can still be finished, but it is the last one (`D068`).
+     * Whether this game's series is still active. `false` once a player has left it (`D052`),
+     * which also ended this game (`D095`): no game follows it.
      */
     val seriesActive: Boolean = true,
+    /**
+     * Whether a move has ever been accepted in this game (`D095`), even if every move has since
+     * been undone. Leaving the series resigns a started game and deletes one that has not.
+     */
+    val hasStarted: Boolean = false,
 ) {
     val isOver: Boolean
         get() = result != null
@@ -379,6 +372,7 @@ data class GameView(
                     com.jmussel.chessgame.core.chess.ChessRules
                         .canUndo(stored.game, yourSide),
                 seriesActive = seriesActive,
+                hasStarted = stored.hasStarted,
                 canRequestUndo =
                     com.jmussel.chessgame.server.game.GameCommandService
                         .mayRequestUndo(stored, yourSide),

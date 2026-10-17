@@ -30,7 +30,7 @@ Four Gradle modules (`settings.gradle.kts`):
 - `chess-app` — the Android app (Jetpack Compose); source under
   `chess-app/app/src/main/java/com/jmussel/chessgame/`.
 
-Plus `database/migrations/` (Flyway `V1`–`V13`), `Dockerfile` and `render.yaml`
+Plus `database/migrations/` (Flyway `V1`–`V14`), `Dockerfile` and `render.yaml`
 (the beta deploy), `scripts/` (beta verification), `evals/` (evaluator reports)
 and `docs/`.
 
@@ -214,9 +214,20 @@ colours swapped (`D015`, `D050`), so no client can see a finished game without
 its successor. The series row is locked, so retries and races start one rematch
 at most.
 
+A pair has one active chess series (`D095`, `M22.1`). `POST /series` opens it (`200`)
+or starts it (`201`); `V14`'s trigger refuses a second, and an old app's
+`?another=true` is a `409`. Leave (`SeriesService.leave`) ends the series and its
+current game in one transaction: the leaver resigns a game with `games.has_started`
+(set by the first accepted move, never cleared by Undo or Redo), and a game without it
+is deleted. Every command that can end a game locks the series row before the game
+row (`SeriesService.lockGameWithSeries`), the order Leave takes, so the two never
+deadlock. The dashboard lists active series only.
+
 On the client, a game that ends on screen reads the dashboard to find that
 successor (`ChessAppViewModel.followSeries`, `AfterGame`). A game whose series
-was already left ends as `SeriesOver` without the read. A read that fails is
+was already left ends as `SeriesOver` without the read. Leaving a game nobody moved
+in closes its screen; the other player's screen, finding the game gone (`404`), says it
+was removed. A read that fails is
 `NotFound`, with Try again, and never taken as an ended series (`M21.16`). Every
 board words its ending through `ui/board/GameEndings`, and pass-and-play and the
 computer offer Review into `M21.3`'s read-only review.

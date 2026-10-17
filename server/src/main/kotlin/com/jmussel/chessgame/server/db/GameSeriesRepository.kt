@@ -63,21 +63,21 @@ data class OpenedSeries(
  * A series belongs to a table — the exact set of people playing it (`D048`) — so the same
  * people always reach their own series, and a different set reaches different ones.
  *
- * A table may have several `ACTIVE` series at once (`D053`). Nothing in the schema limits it,
- * so the decisions that depend on how many there are take the table's row lock first
- * ([TableRepository.lockForUpdate]). Closed series stay for history (`D012`).
+ * A chess table has at most one `ACTIVE` series (`D095`). The decisions that depend on whether
+ * there is one take the table's row lock first ([TableRepository.lockForUpdate]), and `V14`'s
+ * trigger, which takes the same lock, refuses a second. Closed series stay for history
+ * (`D012`).
  */
 class GameSeriesRepository(
     private val database: Database,
     private val tables: TableRepository = TableRepository(database),
 ) {
     /**
-     * The newest active series of the [gameType] table seating exactly [participants], or a
-     * new one when it has none.
+     * The active series of the [gameType] table seating exactly [participants], or a new one
+     * when it has none.
      *
-     * A storage primitive: whether a player should be *offered* an existing series instead is
-     * the product's question, and `SeriesService.play` asks it. The table is locked while
-     * deciding, so simultaneous calls agree on one series.
+     * A storage primitive; `SeriesService.play` is the product's Play. The table is locked
+     * while deciding, so simultaneous calls agree on one series.
      */
     fun openOrCreate(
         gameType: String,
@@ -88,7 +88,7 @@ class GameSeriesRepository(
         return transaction(database) {
             tables.lockForUpdate(table.id)
 
-            activeAt(table.id).firstOrNull()?.let { OpenedSeries(it, created = false) }
+            activeAt(table.id)?.let { OpenedSeries(it, created = false) }
                 ?: OpenedSeries(create(table), created = true)
         }
     }
@@ -100,21 +100,26 @@ class GameSeriesRepository(
         users: Collection<Uuid>,
     ): OpenedSeries = openOrCreate(gameType, users.map(Participant::user))
 
-    /** Every active series at [tableId], newest first. */
-    fun activeAt(tableId: Uuid): List<StoredSeries> =
+    /**
+     * The active series at [tableId], or `null`. A chess table has one at most (`D095`); for a
+     * game type whose cardinality is not decided yet (`F26`), the newest.
+     */
+    fun activeAt(tableId: Uuid): StoredSeries? =
         transaction(database) {
             GameSeriesTable
                 .selectAll()
                 .where { (GameSeriesTable.tableId eq tableId) and (GameSeriesTable.status eq ACTIVE_SERIES) }
-                .orderBy(GameSeriesTable.createdAt to SortOrder.DESC)
-                .map(::toSeries)
+                .orderBy(GameSeriesTable.createdAt to SortOrder.DESC, GameSeriesTable.id to SortOrder.DESC)
+                .limit(1)
+                .singleOrNull()
+                ?.let(::toSeries)
         }
 
     /**
      * A new active series at [table], with no game yet.
      *
-     * Always a new one: a table may have several (`D053`). Callers deciding whether to make
-     * one should hold the table's lock while they decide.
+     * Callers decide whether to make one under the table's lock; at a chess table that already
+     * has an active series the database refuses it (`D095`).
      */
     fun create(table: StoredTable): StoredSeries =
         transaction(database) {
@@ -213,6 +218,15 @@ class GameSeriesRepository(
         transaction(database) {
             GameSeriesTable.update({ GameSeriesTable.id eq seriesId }) { row ->
                 row[GameSeriesTable.currentGameId] = gameId
+            }
+        }
+    }
+
+    /** Points [seriesId] at no game: its current game was deleted when it was left (`D095`). */
+    fun detachCurrentGame(seriesId: Uuid) {
+        transaction(database) {
+            GameSeriesTable.update({ GameSeriesTable.id eq seriesId }) { row ->
+                row[GameSeriesTable.currentGameId] = null
             }
         }
     }

@@ -8,6 +8,7 @@ import com.jmussel.chessgame.server.realtime.RealtimeMessage
 import com.jmussel.chessgame.server.realtime.fixtureJson
 import com.jmussel.chessgame.server.realtime.nextMessage
 import com.jmussel.chessgame.server.realtime.nextMessageOrNull
+import com.jmussel.chessgame.server.realtime.order
 import com.jmussel.chessgame.server.realtime.startGame
 import com.jmussel.chessgame.server.realtime.withTwoPlayers
 import io.ktor.client.request.post
@@ -18,11 +19,12 @@ import io.ktor.websocket.close
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /**
- * `POST /series/{seriesId}/leave`, at the API boundary (`D052`, `M19.8`).
+ * `POST /series/{seriesId}/leave`, at the API boundary (`D052`, `D095`).
  *
  * Skipped when this machine has no test database (see [DatabaseTestSupport]).
  */
@@ -30,10 +32,13 @@ class SeriesExitRouteTest {
     private val tokens = TestTokens()
 
     @Test
-    fun leavingAnswersTheEndedSeries() {
+    fun leavingAStartedGameAnswersTheEndedSeriesAndItsResignedGame() {
         withTwoPlayers(tokens) { jordan, alex, _ ->
             val gameId = startGame(jordan, alex)
             val seriesId = jordan.readGame(gameId).seriesId
+            val (first, _) = order(gameId, jordan, alex)
+            first.move(gameId, 0, "e2", "e4")
+            assertTrue(jordan.readGame(gameId).hasStarted)
 
             val response = jordan.leaveSeries(seriesId)
 
@@ -43,48 +48,52 @@ class SeriesExitRouteTest {
             assertEquals("CLOSED", summary.status)
             assertEquals("Alex", summary.opponent.username)
             assertEquals(gameId, summary.currentGameId)
-        }
-    }
-
-    @Test
-    fun bothPlayersSeeTheirGameAsTheLastOneAndCanStillReachIt() {
-        withTwoPlayers(tokens) { jordan, alex, _ ->
-            val gameId = startGame(jordan, alex)
-            val seriesId = jordan.readGame(gameId).seriesId
-            assertTrue(alex.readGame(gameId).seriesActive)
-
-            jordan.leaveSeries(seriesId)
 
             for (player in listOf(jordan, alex)) {
                 val game = player.readGame(gameId)
                 assertFalse(game.seriesActive)
-                assertNull(game.result, "the game is not over because the series is")
+                assertEquals("RESIGNATION", game.terminationReason, "leaving resigned the game (`D095`)")
+                assertTrue(player.dashboard().isEmpty(), "a series that has been left is not listed")
+            }
+            val leaverSide = jordan.readGame(gameId).yourSide
+            assertEquals(if (leaverSide == "WHITE") "BLACK_WINS" else "WHITE_WINS", jordan.readGame(gameId).result)
+        }
+    }
 
-                val entry = player.dashboard().single()
-                assertEquals(gameId, entry.gameId)
-                assertFalse(entry.seriesActive)
+    @Test
+    fun leavingAGameNobodyMovedInDeletesIt() {
+        withTwoPlayers(tokens) { jordan, alex, _ ->
+            val gameId = startGame(jordan, alex)
+            val seriesId = jordan.readGame(gameId).seriesId
+            assertFalse(jordan.readGame(gameId).hasStarted)
+
+            val response = alex.leaveSeries(seriesId)
+
+            assertEquals(HttpStatusCode.OK, response.status)
+            val summary = fixtureJson.decodeFromString<SeriesSummary>(response.bodyAsText())
+            assertEquals("CLOSED", summary.status)
+            assertNull(summary.currentGameId, "the game was deleted, not finished")
+            for (player in listOf(jordan, alex)) {
+                assertEquals(HttpStatusCode.NotFound, player.gameResponse(gameId).status)
+                assertTrue(player.dashboard().isEmpty())
             }
         }
     }
 
     @Test
-    fun onceTheLastGameIsOverTheSeriesIsGoneAndPlayStartsANewOne() {
+    fun onceASeriesIsLeftPlayStartsANewOne() {
         withTwoPlayers(tokens) { jordan, alex, _ ->
             val gameId = startGame(jordan, alex)
             val seriesId = jordan.readGame(gameId).seriesId
             alex.leaveSeries(seriesId)
-
-            assertEquals(HttpStatusCode.OK, jordan.resign(gameId, jordan.readGame(gameId).version).status)
-
-            assertTrue(jordan.dashboard().isEmpty(), "no rematch followed")
-            assertTrue(alex.dashboard().isEmpty())
 
             val again =
                 client.post("/series") {
                     headers.append("Authorization", "Bearer ${tokens.tokenFor("auth-jordan")}")
                     setBody("Alex")
                 }
-            assertEquals(HttpStatusCode.Created, again.status, "Play starts a new series; the old one is not offered")
+            assertEquals(HttpStatusCode.Created, again.status, "Play starts a new series")
+            assertNotEquals(seriesId, fixtureJson.decodeFromString<SeriesSummary>(again.bodyAsText()).seriesId)
         }
     }
 
@@ -138,7 +147,7 @@ class SeriesExitRouteTest {
 
             val update = waiting.nextMessage()
             assertEquals(RealtimeMessage.GAME_UPDATED, update.type)
-            assertEquals(gameId, update.gameId, "the game that is now the last one")
+            assertEquals(gameId, update.gameId, "the game the leave deleted, so their app reloads")
 
             waiting.close()
         }

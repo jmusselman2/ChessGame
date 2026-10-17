@@ -133,7 +133,7 @@ implementation, as `M21` was.
 
 | Task     | Outcome                                             | Depends on | Formerly | Status    |
 | -------- | --------------------------------------------------- | ---------- | -------- | --------- |
-| `M22.1`  | At most one active series per party                 | None       | `F38`    | `TODO`    |
+| `M22.1`  | At most one active series per party                 | None       | `F38`    | `DONE`    |
 | `M22.2`  | Matching play advances the retained Redo continuation | M21.21   | —        | `TODO`    |
 | `M22.3`  | Draw offers by agreement                            | M22.2      | `F2`     | `TODO`    |
 | `M22.4`  | Win/loss/draw record per friend                     | None       | `F1`     | `TODO`    |
@@ -162,7 +162,7 @@ Every task's verification includes, besides its own targeted tests:
 
 ## M22.1 — At most one active series per party
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** None
 
@@ -234,6 +234,29 @@ Friends row links to only one of them (`DashboardSections.friends`).
   zero-move game, repeat Leave and a bounded leave/game-end race that completes
   without deadlock; client tests for Play, the removed offer and the final result
   after Leave.
+
+### Completion
+
+Completed 2026-10-17. `V14__one_active_chess_series.sql` adds `games.has_started` (set by
+`GameRepository.save` for a `MOVE`, never cleared; backfilled from active moves, a Redo path
+or a move audit event), deletes every older active chess series per table by
+`created_at DESC, id DESC` with its games, moves, seats and events, and adds the chess-only
+`game_series_one_active_chess_series` trigger, which locks the table row. It also ends the
+unfinished games `D068` had left in closed series, as a Leave now would: a started game
+becomes the `SeriesLeft` actor's resignation (`PlayerResigned` and `GameEnded` recorded),
+and an unstarted one, or a started one with no recorded leaver, is deleted. `POST /series`
+answers `201` (started) or `200` (opened); `?another=true` is a `409` asking for an update.
+`SeriesService.leave` resigns or deletes the current game in the series-locked
+transaction, and `SeriesService.lockGameWithSeries` makes moves, claims and resignations
+lock the series row before the game row. The dashboard lists active series only;
+`GameView` carries `hasStarted` for the leave warning. Android lost `PlayOffer`,
+`SeriesOpening` and `startAnotherSeries`; leaving a started game shows it resigned with no
+next game, leaving an unstarted one closes its screen, and the other player's screen says a
+deleted game was removed. Verified with `:server:test --rerun-tasks` against PostgreSQL
+(671 tests, including the new `OneActiveChessSeriesMigrationTest`, `SeriesExitTest`'s
+leave/game-end race and the route tests), `:chess-app:testDebugUnitTest`,
+`:chess-app:assembleDebugAndroidTest`, `.\gradlew.bat build` and `git diff --check`. No
+Compose or device test changed, so none was run on a device.
 
 ---
 

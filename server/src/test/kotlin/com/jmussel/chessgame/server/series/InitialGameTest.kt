@@ -19,7 +19,6 @@ import kotlin.random.Random
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 import kotlin.uuid.ExperimentalUuidApi
@@ -178,7 +177,7 @@ class InitialGameTest {
     }
 
     @Test
-    fun playingAgainOffersTheSeriesInsteadOfStartingASecondGame() {
+    fun playingAgainOpensTheSeriesInsteadOfStartingASecondGame() {
         withFixture { fixture ->
             val (jordan, alex) = fixture.friends()
             val service = fixture.service(Random(1))
@@ -186,11 +185,11 @@ class InitialGameTest {
             val first = service.startSeries(jordan, alex)
             val again = service.play(alex, jordan)
 
-            // `D053`, superseding `D011`: playing again no longer silently reopens the pair's
-            // series. It offers it, and starts nothing until another is asked for.
-            val offered = assertIs<PlayOutcome.Offered>(again)
-            assertEquals(listOf(first.id), offered.existing.map { it.id })
-            assertEquals(first.currentGameId, offered.existing.single().currentGameId)
+            // `D095`, superseding `D053`'s parallel series: Play opens the pair's one series and
+            // starts nothing.
+            assertFalse(again.started)
+            assertEquals(first.id, again.series.id)
+            assertEquals(first.currentGameId, again.series.currentGameId)
             assertEquals(1, fixture.gameCount())
         }
     }

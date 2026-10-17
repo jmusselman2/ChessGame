@@ -70,12 +70,8 @@ object DashboardSections {
         friends: List<UserSummaryDto>,
         entries: List<DashboardEntryDto>,
     ): List<FriendRow> {
-        // Only a series that goes on counts as "a game under way" with a friend. The last game of
-        // a series someone has left is still listed above, but Play for that friend is about
-        // what comes next (`D068`).
         val gamesByOpponent =
             entries
-                .filter { it.seriesActive }
                 .mapNotNull { entry -> entry.gameId?.let { entry.opponent.userId to it } }
                 .toMap()
 
@@ -85,21 +81,20 @@ object DashboardSections {
     }
 
     /**
-     * `"White • Move 18"`, or just the colour before the first move is numbered, then
-     * `"• Last game"` when a player has left the series (`D068`), and the undo request pending:
+     * `"White • Move 18"`, or just the colour before the first move is numbered, then the undo
+     * request pending:
      * `"• Jordan asks to undo"` for the player who must answer, `"• Undo requested"` for the
      * one who asked (`D091`).
      */
     fun detailFor(entry: DashboardEntryDto): String {
         val side = entry.yourSide?.let(::sideLabel)
         val move = entry.moveNumber?.let { "Move $it" }
-        val last = LAST_GAME.takeUnless { entry.seriesActive }
         val request =
             entry.pendingRequest?.let { pending ->
                 if (pending.waitingOnYou) "${entry.opponent.username} $ASKS_TO_UNDO" else UNDO_REQUESTED
             }
 
-        return listOfNotNull(side, move, last, request).joinToString(separator = SEPARATOR)
+        return listOfNotNull(side, move, request).joinToString(separator = SEPARATOR)
     }
 
     private fun rowsOf(entries: List<DashboardEntryDto>): List<DashboardRow> = entries.mapNotNull(::rowOf)
@@ -130,7 +125,6 @@ object DashboardSections {
     fun buildLabel(versionName: String): String = "$BUILD_PREFIX$versionName"
 
     private const val SEPARATOR = " • "
-    private const val LAST_GAME = "Last game"
     private const val ASKS_TO_UNDO = "asks to undo"
     private const val UNDO_REQUESTED = "Undo requested"
     private const val BUILD_PREFIX = "Build "

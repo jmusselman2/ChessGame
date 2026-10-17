@@ -19,6 +19,7 @@ import org.jetbrains.exposed.v1.core.vendors.ForUpdateOption
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -45,6 +46,11 @@ data class StoredGame(
     val undo: UndoRecord = UndoRecord(),
     /** The last accepted change, or `null` before the first or for one made before `V12`. */
     val lastChange: LastChange? = null,
+    /**
+     * Whether an ordinary move has ever been accepted in this game (`D095`). Undo and Redo never
+     * clear it, so a game whose moves were all undone has still started.
+     */
+    val hasStarted: Boolean = false,
 ) {
     val whiteUserId: Uuid
         get() = requireNotNull(participants[ChessSeats.WHITE].userId) { "Chess is played by people" }
@@ -123,6 +129,7 @@ class GameRepository(
                 row[GamesTable.updatedAt] = now
                 row[GamesTable.endedAt] = if (game.isOver) now else null
                 row[GamesTable.redoPath] = game.redoPath.map(UndoneOperationDocument::of)
+                row[GamesTable.hasStarted] = game.history.isNotEmpty() || game.redoPath.isNotEmpty()
             }
 
             participants.forEachIndexed { seat, participant ->
@@ -210,6 +217,30 @@ class GameRepository(
                 ?.let(::storedGameOf)
         }
 
+    /**
+     * The series [id] belongs to, or `null` when there is no such game. A game never changes
+     * series, so this needs no lock: it is how a command finds the series row to lock before the
+     * game's (`D095`).
+     */
+    fun seriesIdOf(id: Uuid): Uuid? =
+        transaction(database) {
+            GamesTable
+                .select(GamesTable.seriesId)
+                .where { GamesTable.id eq id }
+                .singleOrNull()
+                ?.get(GamesTable.seriesId)
+        }
+
+    /**
+     * Deletes [id], with its seats, moves and audit events, for a game left before any move was
+     * accepted (`D095`). The series must no longer point at it.
+     */
+    fun delete(id: Uuid) {
+        transaction(database) {
+            GamesTable.deleteWhere { GamesTable.id eq id }
+        }
+    }
+
     /** What one unlocked [load] attempt came to. */
     private sealed interface ReadAttempt {
         /** The row and its history belong to the same committed state — including "no game". */
@@ -264,6 +295,7 @@ class GameRepository(
             endedAt = row[GamesTable.endedAt],
             undo = undoRecordOf(row),
             lastChange = lastChangeOf(row),
+            hasStarted = row[GamesTable.hasStarted],
         )
 
     private fun undoRecordOf(row: ResultRow): UndoRecord =
@@ -319,6 +351,9 @@ class GameRepository(
      *
      * The game's Redo path (`D092`) is written with its state and history, in the same
      * statement, so a committed game never has a path that disagrees with its position.
+     *
+     * A [ChangeKind.MOVE] marks the game started (`D095`), in the same statement; nothing
+     * unmarks it.
      */
     fun save(
         id: Uuid,
@@ -376,6 +411,7 @@ class GameRepository(
                     row[GamesTable.lastChangeVersion] = lastChange?.appliedTo
                     row[GamesTable.lastChangeMove] = lastChange?.undoneMove?.let(::storedMove)
                     row[GamesTable.redoPath] = game.redoPath.map(UndoneOperationDocument::of)
+                    row[GamesTable.hasStarted] = current[GamesTable.hasStarted] || change == ChangeKind.MOVE
                 }
 
             if (updated == 0) {

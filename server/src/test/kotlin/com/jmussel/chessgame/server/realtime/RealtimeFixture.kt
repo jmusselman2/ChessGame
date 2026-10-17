@@ -5,7 +5,6 @@ package com.jmussel.chessgame.server.realtime
 import com.jmussel.chessgame.server.api.CurrentUser
 import com.jmussel.chessgame.server.api.DashboardEntry
 import com.jmussel.chessgame.server.api.GameView
-import com.jmussel.chessgame.server.api.SeriesOffer
 import com.jmussel.chessgame.server.api.SeriesSummary
 import com.jmussel.chessgame.server.auth.TestTokens
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
@@ -21,7 +20,6 @@ import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
-import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.serialization.kotlinx.KotlinxWebsocketSerializationConverter
 import io.ktor.server.testing.ApplicationTestBuilder
@@ -56,11 +54,7 @@ internal class PlayerClient(
             setBody(name)
         }
 
-    /**
-     * Taps Play for [friend] and lands in a series: the one started, or — when the pair already
-     * has one and is offered it (`D053`) — the newest of those, which is what choosing "Open"
-     * does.
-     */
+    /** Taps Play for [friend] and lands in the pair's one series, started or opened (`D095`). */
     suspend fun openSeries(friend: String): SeriesSummary {
         val response =
             builder.client.post("/series") {
@@ -68,11 +62,7 @@ internal class PlayerClient(
                 setBody(friend)
             }
 
-        return if (response.status == HttpStatusCode.Conflict) {
-            fixtureJson.decodeFromString<SeriesOffer>(response.bodyAsText()).existing.first()
-        } else {
-            fixtureJson.decodeFromString(response.bodyAsText())
-        }
+        return fixtureJson.decodeFromString(response.bodyAsText())
     }
 
     /** The internal id the server knows this player by. */
@@ -99,6 +89,9 @@ internal class PlayerClient(
                 .get("/games/$gameId") { authorized() }
                 .bodyAsText(),
         )
+
+    /** `GET /games/{gameId}` as it came back, for a game that may not be there. */
+    suspend fun gameResponse(gameId: String): HttpResponse = builder.client.get("/games/$gameId") { authorized() }
 
     suspend fun move(
         gameId: String,

@@ -92,20 +92,14 @@ class ChessApiClientTest {
     }
 
     @Test
-    fun aDashboardFromBeforeSeriesExitReadsAsActive() {
-        val client = clientReplying("""[{"seriesId":"series-1","opponent":{"userId":"user-1","username":"Alex"}}]""")
-
-        assertTrue(runBlocking { client.dashboard() }.single().seriesActive)
-    }
-
-    @Test
-    fun theLastGameOfALeftSeriesIsReadAsSuch() {
+    fun aGameViewSaysWhetherItHasStarted() {
         val client =
             clientReplying(
-                """[{"seriesId":"series-1","opponent":{"userId":"user-1","username":"Alex"},"gameId":"game-1","seriesActive":false}]""",
+                """{"gameId":"game-1","seriesId":"series-1","opponent":{"userId":"user-1","username":"Alex"},"version":3,""" +
+                    """"yourSide":"WHITE","sideToMove":"WHITE","hasStarted":true}""",
             )
 
-        assertEquals(false, runBlocking { client.dashboard() }.single().seriesActive)
+        assertTrue(runBlocking { client.game("game-1") }.hasStarted)
     }
 
     @Test
@@ -228,8 +222,7 @@ class ChessApiClientTest {
                 """.trimIndent(),
             )
 
-        val opening = runBlocking { client.openSeries("Alex") }
-        val series = (opening as SeriesOpening.Started).series
+        val series = runBlocking { client.openSeries("Alex") }
 
         assertEquals("game-1", series.currentGameId)
         assertEquals("ACTIVE", series.status)
@@ -241,62 +234,30 @@ class ChessApiClientTest {
         assertEquals("POST", request.method.value)
     }
 
-    /** `D053`: a pair that already has a series is offered it, and a 409 carrying it is not a failure. */
+    /** `D095`: the pair's existing series comes back as `200`, opened like a new one. */
     @Test
-    fun playingWithAFriendYouAlreadyPlayIsAnOffer() {
+    fun playingWithAFriendYouAlreadyPlayOpensTheirSeries() {
         val client =
             clientReplying(
-                """
-                {
-                  "existing": [
-                    {
-                      "seriesId": "series-2",
-                      "opponent": {"userId": "user-1", "username": "Alex"},
-                      "status": "ACTIVE",
-                      "currentGameId": "game-2"
-                    },
-                    {
-                      "seriesId": "series-1",
-                      "opponent": {"userId": "user-1", "username": "Alex"},
-                      "status": "ACTIVE",
-                      "currentGameId": "game-1"
-                    }
-                  ]
-                }
-                """.trimIndent(),
-                status = HttpStatusCode.Conflict,
+                """{"seriesId":"series-1","opponent":{"userId":"user-1","username":"Alex"},"status":"ACTIVE","currentGameId":"game-1"}""",
+                status = HttpStatusCode.OK,
             )
 
-        val opening = runBlocking { client.openSeries("Alex") }
+        val series = runBlocking { client.openSeries("Alex") }
 
-        assertEquals(listOf("series-2", "series-1"), (opening as SeriesOpening.Offered).existing.map { it.seriesId })
+        assertEquals("series-1", series.seriesId)
+        assertEquals("game-1", series.currentGameId)
+        assertEquals("never asks for a second series", null, requests.single().url.parameters["another"])
     }
 
     @Test
-    fun aConflictThatIsNotAnOfferIsStillARefusal() {
-        val client = clientReplying("Something else", status = HttpStatusCode.Conflict)
+    fun aConflictIsARefusal() {
+        val client = clientReplying("Update the app", status = HttpStatusCode.Conflict)
 
         val refusal = assertThrows(ChessApiException::class.java) { runBlocking { client.openSeries("Alex") } }
 
         assertEquals(409, refusal.status)
-        assertEquals("Something else", refusal.explanation)
-    }
-
-    @Test
-    fun startingAnotherSeriesAsksForAnother() {
-        val client =
-            clientReplying(
-                """{"seriesId":"series-3","opponent":{"userId":"user-1","username":"Alex"},"status":"ACTIVE","currentGameId":"game-3"}""",
-                status = HttpStatusCode.Created,
-            )
-
-        val series = runBlocking { client.startAnotherSeries("Alex") }
-
-        assertEquals("game-3", series.currentGameId)
-        val request = requests.single()
-        assertEquals("/series", request.url.encodedPath)
-        assertEquals("true", request.url.parameters["another"])
-        assertEquals("POST", request.method.value)
+        assertEquals("Update the app", refusal.explanation)
     }
 
     @Test

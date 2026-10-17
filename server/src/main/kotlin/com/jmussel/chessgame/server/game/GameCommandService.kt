@@ -110,6 +110,10 @@ sealed interface CommandResult {
  *
  * The version check is made twice on purpose: once here for a clear answer, and again as
  * part of the guarded write, which is what actually settles a race (`D021`).
+ *
+ * A command that can end the game — a move, a draw claim, a resignation — locks the game's
+ * series row before the game's ([SeriesService.lockGameWithSeries]), because ending a game
+ * settles its series and Leave takes the two in that order (`D095`).
  */
 class GameCommandService(
     private val database: Database,
@@ -140,7 +144,7 @@ class GameCommandService(
         move: Move,
     ): CommandResult =
         transaction(database) {
-            val stored = games.loadForUpdate(gameId) ?: return@transaction CommandResult.NoSuchGame
+            val stored = series.lockGameWithSeries(gameId) ?: return@transaction CommandResult.NoSuchGame
 
             sideOf(stored, userId)?.let { side ->
                 validate(stored, side, expectedVersion)?.let { return@transaction it }
@@ -184,7 +188,7 @@ class GameCommandService(
         claim: DrawClaim,
     ): CommandResult =
         transaction(database) {
-            val stored = games.loadForUpdate(gameId) ?: return@transaction CommandResult.NoSuchGame
+            val stored = series.lockGameWithSeries(gameId) ?: return@transaction CommandResult.NoSuchGame
 
             sideOf(stored, userId)?.let { side ->
                 validate(stored, side, expectedVersion)?.let { return@transaction it }
@@ -218,8 +222,8 @@ class GameCommandService(
      * Either player may resign at any point in a game that is still running, whether or
      * not it is their turn — giving up is not a move. The confirmation belongs to the UI;
      * once this accepts it, it is final and cannot be undone (`D018`). The series then
-     * carries on exactly as it does after any other completed game: the rematch if it is
-     * active, the end of it if it was closing.
+     * carries on exactly as it does after any other completed game, to its rematch. Leaving
+     * the series is the other way to give up, and ends the series too (`D095`).
      */
     fun resign(
         userId: Uuid,
@@ -227,7 +231,7 @@ class GameCommandService(
         expectedVersion: Long,
     ): CommandResult =
         transaction(database) {
-            val stored = games.loadForUpdate(gameId) ?: return@transaction CommandResult.NoSuchGame
+            val stored = series.lockGameWithSeries(gameId) ?: return@transaction CommandResult.NoSuchGame
 
             sideOf(stored, userId)?.let { side ->
                 when {

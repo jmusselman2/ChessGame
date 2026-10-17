@@ -249,5 +249,5 @@ Username changes returned to `F5` under `D098` and wait for real authentication
 - `F36` replacing Exposed with jOOQ, with a database wipe
 
 Several active series per friend pair was on this list until `D053` made it MVP
-behaviour. `D095` later reversed that rule and scheduled restoration of one active
-chess series per pair in `M22.1`.
+behaviour. `D095` later reversed that rule, and `M22.1` restored one active chess
+series per pair.

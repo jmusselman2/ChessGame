@@ -57,9 +57,6 @@ import com.jmussel.chessgame.ui.localhistory.PastLocalGamesScreen
 import com.jmussel.chessgame.ui.localhistory.PastLocalGamesUiState
 import com.jmussel.chessgame.ui.onboarding.UsernameClaim
 import com.jmussel.chessgame.ui.onboarding.UsernameScreen
-import com.jmussel.chessgame.ui.series.PlayOffer
-import com.jmussel.chessgame.ui.series.PlayOfferActions
-import com.jmussel.chessgame.ui.series.PlayOfferDialog
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
 /**
@@ -136,12 +133,7 @@ fun ChessApp(
     groupsActions: GroupsActions = GroupsActions(),
     groupActions: GroupActions = GroupActions(),
     dashboardActions: DashboardActions = DashboardActions(),
-    playOffer: PlayOffer? = null,
-    playOfferActions: PlayOfferActions = PlayOfferActions(),
 ) {
-    // Play is on several screens and raises the same choice from each (`D053`).
-    playOffer?.let { PlayOfferDialog(offer = it, actions = playOfferActions) }
-
     Column(modifier = modifier.fillMaxSize()) {
         ShellChrome(
             navigation = navigation,

@@ -38,6 +38,7 @@ class OnlineGameTest {
         result: String? = null,
         terminationReason: String? = null,
         seriesActive: Boolean = true,
+        hasStarted: Boolean = false,
     ) = GameViewDto(
         gameId = "game-1",
         seriesId = "series-1",
@@ -54,6 +55,7 @@ class OnlineGameTest {
         result = result,
         terminationReason = terminationReason,
         seriesActive = seriesActive,
+        hasStarted = hasStarted,
     )
 
     private fun refusal(status: Int) = ChessApiException(status = status, explanation = "no", message = "refused")
@@ -178,36 +180,33 @@ class OnlineGameTest {
     }
 
     @Test
-    fun leavingSaysTheGameInProgressIsNotAffected() {
+    fun leavingAStartedGameSaysItIsAResignation() {
+        val warning = OnlineGame.leaveWarningFor(game(hasStarted = true))
+
+        assertEquals("Leaving the series ends this game too: you resign it, and Alex wins. No more games with Alex will start.", warning)
+        assertEquals("You left the series and resigned this game.", OnlineGame.leftSeriesMessage(game(hasStarted = true)))
+    }
+
+    @Test
+    fun leavingAGameNobodyMovedInSaysItIsRemoved() {
         val warning = OnlineGame.leaveWarningFor(game())
 
-        assertTrue(warning.contains("No more games with Alex"))
-        assertTrue(warning.contains("can still be finished"))
-    }
-
-    @Test
-    fun leavingAfterAFinishedGameDoesNotPromiseToFinishIt() {
-        val warning = OnlineGame.leaveWarningFor(game(result = "WHITE_WINS", terminationReason = "CHECKMATE"))
-
-        assertFalse(warning.contains("can still be finished"))
-    }
-
-    @Test
-    fun aGameInASeriesThatGoesOnHasNoLastGameNote() {
-        assertNull(OnlineGame.lastGameNoteFor(game()))
-    }
-
-    @Test
-    fun anUnfinishedGameInALeftSeriesIsTheLastOne() {
         assertEquals(
-            "A player left the series. This is the last game with Alex.",
-            OnlineGame.lastGameNoteFor(game(seriesActive = false)),
+            "Leaving the series ends this game too. No move has been played in it, so it is removed. No more games with Alex will start.",
+            warning,
+        )
+        assertEquals(
+            "You left the series with Alex. The game had not started, so it was removed.",
+            OnlineGame.leftSeriesMessage(game(), gameRemoved = true),
         )
     }
 
     @Test
-    fun aFinishedGameInALeftSeriesLeavesTheNoteToTheAfterGameLine() {
-        assertNull(OnlineGame.lastGameNoteFor(game(seriesActive = false, result = "DRAW")))
+    fun leavingAfterAFinishedGameChangesNothingPlayed() {
+        val finished = game(result = "WHITE_WINS", terminationReason = "CHECKMATE", hasStarted = true)
+
+        assertEquals("No more games with Alex will start. Nothing that has been played changes.", OnlineGame.leaveWarningFor(finished))
+        assertEquals("You left the series. No more games with Alex will start.", OnlineGame.leftSeriesMessage(finished))
     }
 
     @Test

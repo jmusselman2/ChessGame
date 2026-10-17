@@ -2,11 +2,13 @@
 
 package com.jmussel.chessgame.server.series
 
+import com.jmussel.chessgame.core.chess.GameOutcome
 import com.jmussel.chessgame.core.chess.Move
 import com.jmussel.chessgame.core.chess.TerminationReason
 import com.jmussel.chessgame.server.db.CLOSED_SERIES
 import com.jmussel.chessgame.server.db.DatabaseTestSupport
 import com.jmussel.chessgame.server.game.CommandResult
+import com.jmussel.chessgame.server.game.GameCommandService
 import java.util.concurrent.Callable
 import java.util.concurrent.CyclicBarrier
 import java.util.concurrent.Executors
@@ -22,14 +24,12 @@ import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 
 /**
- * Leaving a series: its own action, separate from resigning a game (`D052`, `M19.8`).
+ * Leaving a series ends the series and its current game together (`D095`, `M22.1`).
  *
- * Leaving ends the series for the table and touches no game. The current game — under way,
- * or a rematch nobody has moved in yet — stays exactly as it was and can be played to its end,
- * and no rematch follows it (`D068`). Resigning ends one game and the series carries on.
- *
- * N ≥ 3 resignation (the game continuing without the resigner, and the continue prompts) is
- * not here: it needs a second ruleset and is `M20.2`.
+ * A game in which a move was ever accepted ends as the leaver's resignation, even when every
+ * move has since been undone; a game nobody moved in is deleted without a result. No rematch
+ * follows, and no closed series has an unfinished game. Resigning is different: it ends one
+ * game and the series carries on.
  *
  * Skipped when this machine has no test database (see [DatabaseTestSupport]).
  */
@@ -60,65 +60,116 @@ class SeriesExitTest {
     }
 
     @Test
-    fun leavingMidGameDoesNotTouchTheGame() {
+    fun leavingAStartedGameIsTheLeaversResignation() {
         withSeries { fixture ->
             fixture.play(fixture.firstGameId, fixture.white, Move.of("e2", "e4"))
-            val before = fixture.game(fixture.firstGameId)
 
             val left = fixture.leave(fixture.black)
 
-            assertEquals(before.id, left.currentGame?.id)
-            assertEquals(before, fixture.game(fixture.firstGameId), "not a column of the game moved")
-            assertNull(fixture.game(fixture.firstGameId).game.result)
+            val game = fixture.game(fixture.firstGameId)
+            assertEquals(GameOutcome.WHITE_WINS, game.game.result?.outcome, "the leaver lost")
+            assertEquals(TerminationReason.RESIGNATION, game.game.result?.reason)
+            assertEquals(game, left.currentGame)
+            assertEquals(listOf(Move.of("e2", "e4")), game.game.moves, "what was played stays")
+            assertEquals(
+                listOf(GameCommandService.MOVE_MADE, GameCommandService.PLAYER_RESIGNED, "GameEnded", SeriesService.SERIES_LEFT),
+                fixture.games.auditTrail(game.id),
+            )
+            val resigned = fixture.games.auditEvents(game.id).single { it.type == GameCommandService.PLAYER_RESIGNED }
+            assertEquals(fixture.black, resigned.actorId)
+            assertEquals(1, fixture.gamesInSeries().size, "no rematch")
         }
     }
 
     @Test
-    fun theGameInProgressCanStillBeFinishedAndNoRematchFollows() {
+    fun aGameWhoseMovesWereAllUndoneHasStillStarted() {
         withSeries { fixture ->
-            fixture.play(fixture.firstGameId, fixture.white, Move.of("f2", "f3"))
+            fixture.play(fixture.firstGameId, fixture.white, Move.of("e2", "e4"))
+            val played = fixture.game(fixture.firstGameId)
+            assertIs<CommandResult.Applied>(fixture.commands.undoMove(fixture.white, played.id, played.version))
+            val undone = fixture.game(fixture.firstGameId)
+            assertTrue(undone.game.moves.isEmpty())
+            assertTrue(undone.hasStarted, "Undo does not unmark a started game")
+
             fixture.leave(fixture.white)
 
-            fixture.play(fixture.firstGameId, fixture.black, Move.of("e7", "e5"))
-            fixture.play(fixture.firstGameId, fixture.white, Move.of("g2", "g4"))
-            fixture.play(fixture.firstGameId, fixture.black, Move.of("d8", "h4"))
-
-            assertEquals(
-                TerminationReason.CHECKMATE,
-                fixture
-                    .game(fixture.firstGameId)
-                    .game.result
-                    ?.reason,
-            )
-            assertEquals(1, fixture.gamesInSeries().size, "the game was the last one")
-            assertTrue(fixture.events(SeriesService.REMATCH_CREATED).isEmpty())
-            assertEquals(CLOSED_SERIES, fixture.series().status)
+            val game = fixture.game(fixture.firstGameId)
+            assertEquals(GameOutcome.BLACK_WINS, game.game.result?.outcome, "a resignation, not a deletion")
+            assertEquals(TerminationReason.RESIGNATION, game.game.result?.reason)
+            assertEquals(emptyList(), game.game.redoPath, "a finished game offers no Redo")
         }
     }
 
     @Test
-    fun leavingBetweenGamesKeepsTheRematchAlreadyStartedAsTheLastGame() {
+    fun redoDoesNotUnmarkAStartedGameEither() {
+        withSeries { fixture ->
+            fixture.play(fixture.firstGameId, fixture.white, Move.of("e2", "e4"))
+            val played = fixture.game(fixture.firstGameId)
+            fixture.commands.undoMove(fixture.white, played.id, played.version)
+            val undone = fixture.game(fixture.firstGameId)
+            assertIs<CommandResult.Applied>(fixture.commands.redo(fixture.white, undone.id, undone.version))
+
+            assertTrue(fixture.game(fixture.firstGameId).hasStarted)
+        }
+    }
+
+    @Test
+    fun leavingAGameNobodyMovedInDeletesIt() {
+        withSeries { fixture ->
+            assertFalse(fixture.game(fixture.firstGameId).hasStarted)
+
+            val left = fixture.leave(fixture.white)
+
+            assertNull(left.currentGame)
+            assertEquals(fixture.firstGameId, left.deletedGame?.id)
+            assertNull(left.series.currentGameId)
+            assertNull(fixture.games.load(fixture.firstGameId), "deleted without a result")
+            assertTrue(fixture.gamesInSeries().isEmpty())
+            assertNull(fixture.series().currentGameId)
+            assertEquals(CLOSED_SERIES, fixture.series().status)
+            val event = fixture.events(SeriesService.SERIES_LEFT).single()
+            assertEquals(fixture.firstGameId.toString(), event.payload["deletedGameId"].toString().trim('"'))
+        }
+    }
+
+    @Test
+    fun leavingBetweenGamesDeletesTheRematchNobodyMovedIn() {
         withSeries { fixture ->
             fixture.playFoolsMate(fixture.firstGameId)
+            val finished = fixture.game(fixture.firstGameId)
             val rematch = fixture.currentGame()
 
             val left = fixture.leave(fixture.black)
 
-            assertEquals(rematch.id, left.currentGame?.id)
-            assertEquals(rematch, fixture.game(rematch.id), "the rematch nobody has moved in is untouched")
+            assertEquals(rematch.id, left.deletedGame?.id)
+            assertNull(fixture.games.load(rematch.id))
+            assertEquals(listOf(finished), fixture.gamesInSeries(), "the finished game stays for history")
+            assertNull(fixture.series().currentGameId)
+        }
+    }
 
-            fixture.commands.resign(rematch.whiteUserId, rematch.id, rematch.version)
+    @Test
+    fun aCommandOnTheGameLeftBehindIsRefused() {
+        withSeries { fixture ->
+            fixture.play(fixture.firstGameId, fixture.white, Move.of("e2", "e4"))
+            val version = fixture.game(fixture.firstGameId).version
+            fixture.leave(fixture.white)
 
-            assertEquals(2, fixture.gamesInSeries().size, "and nothing follows it")
-            assertEquals(rematch.id, fixture.series().currentGameId)
+            assertIs<CommandResult.StaleVersion>(
+                fixture.commands.makeMove(fixture.black, fixture.firstGameId, version, Move.of("e7", "e5")),
+            )
+            val now = fixture.game(fixture.firstGameId).version
+            assertIs<CommandResult.GameOver>(fixture.commands.makeMove(fixture.black, fixture.firstGameId, now, Move.of("e7", "e5")))
         }
     }
 
     @Test
     fun leavingTwiceChangesNothing() {
         withSeries { fixture ->
+            fixture.play(fixture.firstGameId, fixture.white, Move.of("e2", "e4"))
             val first = fixture.leave(fixture.white)
             val closedAt = fixture.series().closedAt
+            val game = fixture.game(fixture.firstGameId)
 
             val again = fixture.leave(fixture.white)
             val theOther = fixture.leave(fixture.black)
@@ -129,6 +180,8 @@ class SeriesExitTest {
             assertEquals(CLOSED_SERIES, again.series.status)
             assertEquals(closedAt, fixture.series().closedAt)
             assertEquals(1, fixture.events(SeriesService.SERIES_LEFT).size)
+            assertEquals(game, fixture.game(fixture.firstGameId), "the result is not written twice")
+            assertEquals(game, again.currentGame)
         }
     }
 
@@ -140,6 +193,7 @@ class SeriesExitTest {
             assertEquals(LeaveOutcome.NoSuchSeries, fixture.series.leave(sam, fixture.seriesId))
             assertTrue(fixture.series().isActive)
             assertTrue(fixture.events(SeriesService.SERIES_LEFT).isEmpty())
+            assertNotNull(fixture.games.load(fixture.firstGameId))
         }
     }
 
@@ -163,18 +217,33 @@ class SeriesExitTest {
     }
 
     @Test
+    fun aNewSeriesCanStartOnceTheOldOneHasEnded() {
+        withSeries { fixture ->
+            fixture.leave(fixture.white)
+
+            val opened = fixture.series.play(fixture.black, fixture.white)
+
+            assertTrue(opened.started)
+            assertTrue(opened.series.id != fixture.seriesId)
+        }
+    }
+
+    @Test
     fun bothPlayersLeavingAtOnceEndTheSeriesOnce() {
         withSeries { fixture ->
+            fixture.play(fixture.firstGameId, fixture.white, Move.of("e2", "e4"))
+
             val outcomes = together({ fixture.leave(fixture.white) }, { fixture.leave(fixture.black) })
 
             assertEquals(1, outcomes.count { it.endedNow }, "exactly one of them ended it")
             assertEquals(1, fixture.events(SeriesService.SERIES_LEFT).size)
             assertEquals(CLOSED_SERIES, fixture.series().status)
+            assertEquals(1, fixture.games.auditTrail(fixture.firstGameId).count { it == GameCommandService.PLAYER_RESIGNED })
         }
     }
 
     @Test
-    fun leavingAsTheLastGameEndsHappensInOneOrderOrTheOther() {
+    fun leavingAsTheGameEndsGivesOneResultAClosedSeriesAndNoRematch() {
         repeat(RACES) {
             withSeries { fixture ->
                 fixture.play(fixture.firstGameId, fixture.white, Move.of("f2", "f3"))
@@ -182,22 +251,25 @@ class SeriesExitTest {
                 fixture.play(fixture.firstGameId, fixture.white, Move.of("g2", "g4"))
                 val version = fixture.game(fixture.firstGameId).version
 
+                // Bounded: a deadlock would fail `together`'s wait rather than hang.
                 together(
                     { fixture.leave(fixture.white) },
                     { fixture.commands.makeMove(fixture.black, fixture.firstGameId, version, Move.of("d8", "h4")) },
                 )
 
                 val series = fixture.series()
-                val games = fixture.gamesInSeries()
+                val game = fixture.game(fixture.firstGameId)
+                val result = assertNotNull(game.game.result, "the game is over either way")
 
                 assertEquals(CLOSED_SERIES, series.status)
                 assertEquals(1, fixture.events(SeriesService.SERIES_LEFT).size)
-                assertTrue(fixture.events(SeriesService.REMATCH_CREATED).size <= 1)
-                assertEquals(games.size - 1, fixture.events(SeriesService.REMATCH_CREATED).size)
-                // Leave first: the checkmate gets no rematch. Checkmate first: the rematch it
-                // started is the last game, untouched. Never a closed series pointing at a
-                // game that is not its newest.
-                assertEquals(games.maxBy { it.sequenceNumber }.id, series.currentGameId)
+                assertEquals(1, fixture.games.auditTrail(game.id).count { it == "GameEnded" }, "one result")
+                // Leave first: White resigned and the mate was refused. Mate first: Black won
+                // by checkmate, the rematch it started had no move and the leave deleted it.
+                // Either way nothing unfinished is left in the closed series.
+                assertEquals(GameOutcome.BLACK_WINS, result.outcome)
+                assertEquals(listOf(game), fixture.gamesInSeries())
+                assertTrue(fixture.gamesInSeries().all { it.isComplete })
             }
         }
     }

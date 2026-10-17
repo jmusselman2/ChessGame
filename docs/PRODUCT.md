@@ -385,10 +385,9 @@ Once accepted by the server:
 - resignation cannot be undone,
 - result is saved,
 - an automatic rematch is created if the series remains active,
-- if a participant has already left the series, no rematch follows: that game
-  was its last (`D068`),
 - resigning a game never leaves or closes the series; leaving is a separate
-  action (`M19.8`).
+  action (`M19.8`), and leaving resigns the current game itself when a move has
+  been played in it (`D095`).
 
 ## Chess Rules
 

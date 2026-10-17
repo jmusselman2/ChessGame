@@ -32,7 +32,6 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -69,12 +68,12 @@ class GroupsFlowTest {
      *
      * Taylor is friends with [friends]. The group "Tuesday" (`group-1`) holds Taylor, Alex and
      * Robin, and Robin is not Taylor's friend: Alex added them. `POST /series` starts a game,
-     * `game-new`, or offers `game-old` when [offer] is set. The first [refusals] requests to
+     * `game-new`, or opens the pair's existing `game-old` when [existing] is set (`D095`). The first [refusals] requests to
      * [refusalCall] are refused with [refusalStatus] and [refusalBody] instead.
      */
     private inner class Server(
         val friends: MutableList<String> = mutableListOf("Alex", "Sam"),
-        val offer: Boolean = false,
+        val existing: Boolean = false,
         val refusalCall: String? = null,
         var refusals: Int = 0,
         val refusalStatus: HttpStatusCode = HttpStatusCode.NotFound,
@@ -135,8 +134,7 @@ class GroupsFlowTest {
                             group!!.second -= "Taylor"
                             respond("Left the group; your games are unaffected", HttpStatusCode.OK)
                         }
-                        call == "POST /series" && offer ->
-                            json("""{"existing":[${series(sent, "game-old")}]}""", HttpStatusCode.Conflict)
+                        call == "POST /series" && existing -> json(series(sent, "game-old"), HttpStatusCode.OK)
                         call == "POST /series" -> json(series(sent, "game-new"), HttpStatusCode.Created)
                         path.startsWith("/games/") -> respond("Not now", HttpStatusCode.ServiceUnavailable)
                         else -> error("Nothing here answers $call")
@@ -380,20 +378,15 @@ class GroupsFlowTest {
         }
 
     @Test
-    fun playingAMemberWhoAlreadyHasASeriesOffersItLikeFriendsDoes() =
+    fun playingAMemberWhoAlreadyHasASeriesOpensItLikeFriendsDo() =
         runTest(dispatcher) {
-            val viewModel = viewModel(Server(offer = true).client)
+            val viewModel = viewModel(Server(existing = true).client)
             viewModel.openTuesday()
 
             viewModel.playGroupMember(viewModel.group.members.first { it.username == "Robin" })
             viewModel.groupJob?.join()
 
-            val offer = viewModel.playOffer
-            assertNotNull(offer)
-            offer!!
-            assertEquals("Robin", offer.username)
-            assertEquals("game-old", offer.newestGameId)
-            assertEquals(Destination.Group("group-1"), viewModel.navigation.current)
+            assertEquals(Destination.OnlineGame("game-old"), viewModel.navigation.current)
         }
 
     @Test

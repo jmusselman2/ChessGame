@@ -24,13 +24,13 @@ fun seriesService(
 
 /**
  * Starts the first series between two players who have none, as their first tap on Play does,
- * and fails the test if they already had one (`D053`: Play would have offered it instead).
+ * and fails the test if they already had one (`D095`: Play would have opened it instead).
  */
 fun SeriesService.startSeries(
     caller: Uuid,
     friend: Uuid,
-): StoredSeries =
-    when (val outcome = play(caller, friend)) {
-        is PlayOutcome.Started -> outcome.series
-        is PlayOutcome.Offered -> error("These players already have a series: ${outcome.existing.map { it.id }}")
-    }
+): StoredSeries {
+    val outcome = play(caller, friend)
+    check(outcome.started) { "These players already have a series: ${outcome.series.id}" }
+    return outcome.series
+}

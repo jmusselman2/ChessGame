@@ -138,21 +138,17 @@ class InitialSchemaTest {
     }
 
     @Test
-    fun aPairMayHaveSeveralActiveSeries() {
+    fun aPairMayNotHaveTwoActiveSeries() {
         DatabaseTestSupport.withMigratedDatabase { dataSource ->
             val (first, second) = twoUsers(dataSource)
             val (lower, higher) = orderedPair(first, second)
 
             insertSeries(dataSource, lower, higher)
-            insertSeries(dataSource, lower, higher)
 
-            // Until `M19.4` this asserted the second insert was refused, which was `D011`'s
-            // partial unique index. `D053` superseded `D011` and `V6` dropped the index.
-            assertEquals(
-                2,
-                count(dataSource, "select count(*) from game_series where status = 'ACTIVE'"),
-            )
-            assertEquals(1, count(dataSource, "select count(*) from tables"), "both at the pair's one table")
+            // `D011`'s partial unique index refused this until `V6` dropped it for `D053`'s
+            // parallel series. `D095` superseded `D053`, and `V14`'s trigger refuses it again.
+            assertFailsWith<SQLException> { insertSeries(dataSource, lower, higher) }
+            assertEquals(1, count(dataSource, "select count(*) from game_series where status = 'ACTIVE'"))
         }
     }
 

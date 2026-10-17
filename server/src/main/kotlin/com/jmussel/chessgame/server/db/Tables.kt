@@ -206,6 +206,9 @@ object GamesTable : Table("games") {
     /** The Undo operations Redo can restore, the next one last (`V13`, `D092`). Never shown to a client. */
     val redoPath = jsonb<List<UndoneOperationDocument>>("redo_path", StorageJson)
 
+    /** Whether an ordinary move has ever been accepted; never cleared (`V14`, `D095`). */
+    val hasStarted = bool("has_started")
+
     override val primaryKey = PrimaryKey(id)
 }
 

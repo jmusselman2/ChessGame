@@ -137,8 +137,9 @@ class SeriesOutlivesFriendshipTest {
             fixture.seriesRepository.close(fixture.seriesId)
             fixture.playFoolsMate(fixture.firstGameId)
 
-            // A closed series is not offered back: Play starts a new one (`D012`, `D053`).
-            val reopened = assertIs<PlayOutcome.Started>(fixture.series.play(fixture.white, fixture.black))
+            // A closed series is not reopened: Play starts a new one (`D012`, `D095`).
+            val reopened = fixture.series.play(fixture.white, fixture.black)
+            assertTrue(reopened.started)
 
             assertTrue(reopened.series.id != fixture.seriesId, "a new series, not the closed one")
             assertEquals(CLOSED_SERIES, fixture.series().status, "the old series stays closed")

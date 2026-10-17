@@ -2,7 +2,6 @@
 
 package com.jmussel.chessgame.server.series
 
-import com.jmussel.chessgame.server.api.SeriesOffer
 import com.jmussel.chessgame.server.api.SeriesSummary
 import com.jmussel.chessgame.server.auth.authenticatedUser
 import com.jmussel.chessgame.server.db.UserRepository
@@ -22,11 +21,10 @@ import kotlin.uuid.Uuid
 /**
  * Playing a friend.
  *
- * `POST /series` with a username starts a series and its first game, and answers `201` with
- * it. When the pair already has an active series nothing is started: the answer is `409` with
- * a [SeriesOffer] listing them, so the app can offer opening one or starting another rather
- * than silently reusing one (`D053`). `POST /series?another=true` is the player choosing
- * another, and always starts one.
+ * `POST /series` with a username opens the pair's one active series (`D095`): `201` with a new
+ * series and its first game when they had none, `200` with the one they have otherwise.
+ * `POST /series?another=true` was how an app from before `D095` started a parallel series; it
+ * is refused with `409` and an explanation that the app needs updating, and starts nothing.
  *
  * The server does not check that the two are friends (`D046`). The app only ever offers
  * people the player already knows, and that selection is the gate; re-deciding it here
@@ -35,10 +33,10 @@ import kotlin.uuid.Uuid
  * play, not whether they can be seen: a caller who has not claimed a username is refused with
  * `403`, because both players must be able to find the game (`D081`).
  *
- * `POST /series/{seriesId}/leave` is a player leaving a series, which ends it (`D052`). It is
- * a separate action from resigning a game, and it touches no game: the series' current game
- * can still be finished, and no rematch follows it (`D068`). Leaving twice is not an error —
- * the answer is the ended series either way. A series the caller is not in is reported as not
+ * `POST /series/{seriesId}/leave` is a player leaving a series, which ends the series and its
+ * current game together (`D095`): a game a move was ever played in is the leaver's resignation,
+ * and one nobody moved in is deleted. No rematch follows. Leaving twice is not an error — the
+ * answer is the ended series either way. A series the caller is not in is reported as not
  * found, like a group (`D049`).
  *
  * Routes must sit behind authentication.
@@ -76,39 +74,35 @@ fun Route.seriesRoutes(
             return@post
         }
 
-        val startAnother = call.request.queryParameters[ANOTHER] == "true"
+        // An app from before `D095` asking for a second series alongside the first. There is no
+        // compatibility path that could create one.
+        if (call.request.queryParameters.contains(ANOTHER)) {
+            call.respondText(UPDATE_REQUIRED, status = HttpStatusCode.Conflict)
+            return@post
+        }
 
-        when (val outcome = series.play(caller.userId, friend.id, startAnother)) {
-            is PlayOutcome.Offered ->
-                call.respond(
-                    status = HttpStatusCode.Conflict,
-                    message =
-                        SeriesOffer(
-                            existing = outcome.existing.map { SeriesSummary.of(it, opponent = friend, viewer = caller.userId) },
-                        ),
-                )
+        val outcome = series.play(caller.userId, friend.id)
 
-            is PlayOutcome.Started -> {
-                // A game the other player did not ask for is the one thing they cannot find
-                // out for themselves: nothing they did caused it, and until they hear, their
-                // dashboard does not show it. Moves announce themselves already
-                // (`GameRoutes`), so without this the gap lasts until their next app start --
-                // and when the coin toss (`D014`) made them White, it is their move they are
-                // not being shown. The caller is told too, for the same reason moves tell both
-                // sides: a second device of theirs may be open.
-                outcome.series.currentGameId?.let { gameId ->
-                    realtime.publish(
-                        userIds = listOf(caller.userId, friend.id),
-                        message = RealtimeMessage.gameUpdated(gameId, NEW_GAME_VERSION),
-                    )
-                }
-
-                call.respond(
-                    status = HttpStatusCode.Created,
-                    message = SeriesSummary.of(outcome.series, opponent = friend, viewer = caller.userId),
+        if (outcome.started) {
+            // A game the other player did not ask for is the one thing they cannot find
+            // out for themselves: nothing they did caused it, and until they hear, their
+            // dashboard does not show it. Moves announce themselves already
+            // (`GameRoutes`), so without this the gap lasts until their next app start --
+            // and when the coin toss (`D014`) made them White, it is their move they are
+            // not being shown. The caller is told too, for the same reason moves tell both
+            // sides: a second device of theirs may be open.
+            outcome.series.currentGameId?.let { gameId ->
+                realtime.publish(
+                    userIds = listOf(caller.userId, friend.id),
+                    message = RealtimeMessage.gameUpdated(gameId, NEW_GAME_VERSION),
                 )
             }
         }
+
+        call.respond(
+            status = if (outcome.started) HttpStatusCode.Created else HttpStatusCode.OK,
+            message = SeriesSummary.of(outcome.series, opponent = friend, viewer = caller.userId),
+        )
     }
 
     post("/series/{seriesId}/leave") {
@@ -125,15 +119,15 @@ fun Route.seriesRoutes(
                 call.respondText("No such series", status = HttpStatusCode.NotFound)
 
             is LeaveOutcome.Left -> {
-                // The other player's dashboard is the one thing that changed for them: their
-                // game is still there, but it is now the last one. A push naming that game is
-                // what makes their app reload (`D022`); the leaver's other devices hear too.
-                // Only when this request ended the series — a repeat changed nothing.
-                val lastGame = outcome.currentGame
-                if (outcome.endedNow && lastGame != null) {
+                // The other player's game has ended under them, or gone. A push naming that game
+                // is what makes their app reload it or the dashboard (`D022`); the leaver's other
+                // devices hear too. Only when this request ended the series — a repeat changed
+                // nothing.
+                val changed = outcome.deletedGame?.let { it.id to it.version + 1 } ?: outcome.currentGame?.let { it.id to it.version }
+                if (outcome.endedNow && changed != null) {
                     realtime.publish(
                         userIds = outcome.series.participants.userIds,
-                        message = RealtimeMessage.gameUpdated(lastGame.id, lastGame.version),
+                        message = RealtimeMessage.gameUpdated(changed.first, changed.second),
                     )
                 }
 
@@ -155,5 +149,9 @@ fun Route.seriesRoutes(
  */
 private const val NEW_GAME_VERSION: Long = 0
 
-/** The query parameter that asks for another series when the pair already has one. */
+/** The query parameter an app from before `D095` sent to start a second series with a player. */
 private const val ANOTHER = "another"
+
+/** What an app asking for a second series is told (`D095`). */
+private const val UPDATE_REQUIRED: String =
+    "You can have one series with a player at a time. Update the app to open the one you have."
