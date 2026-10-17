@@ -1,8 +1,9 @@
 package com.jmussel.chessgame.ui.dashboard
 
 import com.jmussel.chessgame.api.DashboardEntryDto
+import com.jmussel.chessgame.api.FriendDto
 import com.jmussel.chessgame.api.PendingRequestDto
-import com.jmussel.chessgame.api.UserSummaryDto
+import com.jmussel.chessgame.api.RecordDto
 
 /**
  * One line under a dashboard heading: who it is against, and where that game is.
@@ -26,6 +27,8 @@ data class DashboardRow(
 data class FriendRow(
     val username: String,
     val gameId: String?,
+    /** The player's lifetime chess record against this friend, as the server counted it (`D096`). */
+    val record: RecordDto = RecordDto(wins = 0, losses = 0, draws = 0),
 ) {
     /** `"Open"` when there is a game to go back to, `"Play"` when there is not. */
     val action: String
@@ -68,7 +71,7 @@ object DashboardSections {
      * name, because this is a list to find someone in rather than a feed.
      */
     fun friends(
-        friends: List<UserSummaryDto>,
+        friends: List<FriendDto>,
         entries: List<DashboardEntryDto>,
     ): List<FriendRow> {
         val gamesByOpponent =
@@ -78,7 +81,7 @@ object DashboardSections {
 
         return friends
             .sortedBy { it.username.lowercase() }
-            .map { friend -> FriendRow(username = friend.username, gameId = gamesByOpponent[friend.userId]) }
+            .map { friend -> FriendRow(username = friend.username, gameId = gamesByOpponent[friend.userId], record = friend.record) }
     }
 
     /**
@@ -118,6 +121,23 @@ object DashboardSections {
     }
 
     private fun sideLabel(side: String): String = side.lowercase().replaceFirstChar { it.uppercase() }
+
+    /** The compact record on a friend row (`D096`): `"2-1-1 W-L-D"`, a real `0-0-0` included. */
+    fun recordText(record: RecordDto): String = "${record.wins}-${record.losses}-${record.draws} W-L-D"
+
+    /** What a screen reader says for [recordText]: `"2 wins, 1 loss, 1 draw"`. */
+    fun recordDescription(record: RecordDto): String =
+        listOf(
+            counted(record.wins, "win", "wins"),
+            counted(record.losses, "loss", "losses"),
+            counted(record.draws, "draw", "draws"),
+        ).joinToString(", ")
+
+    private fun counted(
+        count: Int,
+        one: String,
+        many: String,
+    ): String = "$count ${if (count == 1) one else many}"
 
     /**
      * What build the player is holding, in words they can send back.

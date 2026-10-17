@@ -22,6 +22,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.jmussel.chessgame.api.FriendDto
+import com.jmussel.chessgame.api.RecordDto
 import com.jmussel.chessgame.api.UserSummaryDto
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
@@ -69,10 +71,10 @@ fun FriendsScreen(
             else ->
                 state.friends.forEach { friend ->
                     FriendRow(
-                        friend = friend,
+                        friend = friend.user,
                         enabled = !state.busy,
-                        onPlay = { actions.onPlay(friend) },
-                        onRemove = { actions.onAskToRemove(friend) },
+                        onPlay = { actions.onPlay(friend.user) },
+                        onRemove = { actions.onAskToRemove(friend.user) },
                     )
                 }
         }
@@ -191,8 +193,8 @@ private fun FriendsScreenPreview() {
                 FriendsUiState(
                     friends =
                         listOf(
-                            UserSummaryDto(userId = "user-1", username = "Alex"),
-                            UserSummaryDto(userId = "user-2", username = "Sam"),
+                            FriendDto(userId = "user-1", username = "Alex", record = RecordDto(wins = 2, losses = 1, draws = 0)),
+                            FriendDto(userId = "user-2", username = "Sam", record = RecordDto(wins = 0, losses = 0, draws = 0)),
                         ),
                     loaded = true,
                 ),

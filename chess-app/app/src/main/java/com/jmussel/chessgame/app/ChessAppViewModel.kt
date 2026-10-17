@@ -1717,7 +1717,7 @@ class ChessAppViewModel(
                     members.await() to friendList.await()
                 }
 
-            group = group.copy(members = members, friends = friendList, loading = false, loaded = true, unavailable = false)
+            group = group.copy(members = members, friends = friendList.map { it.user }, loading = false, loaded = true, unavailable = false)
         } catch (refused: ChessApiException) {
             if (!Groups.isGone(refused)) throw refused
             group = group.copy(loading = false, unavailable = true)

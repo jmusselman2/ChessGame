@@ -184,6 +184,29 @@ data class UndoNoteDto(
     val replyMove: String,
 )
 
+/**
+ * A friend as `/friends` lists them: who they are, and the player's lifetime chess record
+ * against them (`D096`). [record] is required, so a server that leaves it out is incompatible.
+ */
+@Serializable
+data class FriendDto(
+    val userId: String,
+    val username: String,
+    val record: RecordDto,
+) {
+    /** The friend as every other screen names a person. */
+    val user: UserSummaryDto
+        get() = UserSummaryDto(userId = userId, username = username)
+}
+
+/** A lifetime chess record from the player's side (`D096`), counted by the server. */
+@Serializable
+data class RecordDto(
+    val wins: Int,
+    val losses: Int,
+    val draws: Int,
+)
+
 /** A group the caller is in, as the server lists it (`D049`, `D076`). */
 @Serializable
 data class GroupSummaryDto(
@@ -366,7 +389,7 @@ class ChessApiClient(
     suspend fun dashboard(): List<DashboardEntryDto> = get("/dashboard")
 
     /** Everyone the caller is friends with (`D009`). */
-    suspend fun friends(): List<UserSummaryDto> = get("/friends")
+    suspend fun friends(): List<FriendDto> = get("/friends")
 
     /**
      * The player with exactly this [username], matched however it is capitalised.

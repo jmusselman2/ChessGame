@@ -1,6 +1,7 @@
 package com.jmussel.chessgame.ui.friends
 
 import com.jmussel.chessgame.api.ChessApiException
+import com.jmussel.chessgame.api.FriendDto
 import com.jmussel.chessgame.api.UserSummaryDto
 
 /**
@@ -11,8 +12,8 @@ import com.jmussel.chessgame.api.UserSummaryDto
  * stays readable while it is.
  */
 data class FriendsUiState(
-    /** Everyone the player is friends with, as the server ordered them. */
-    val friends: List<UserSummaryDto> = emptyList(),
+    /** Everyone the player is friends with, as the server ordered them, with their records. */
+    val friends: List<FriendDto> = emptyList(),
     /** The list is being fetched; there may be an older list on screen meanwhile. */
     val loading: Boolean = false,
     /** An add, a removal, or an opening is in flight, so nothing else should start. */

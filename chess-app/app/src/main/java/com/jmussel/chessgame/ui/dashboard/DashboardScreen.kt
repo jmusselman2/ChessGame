@@ -14,10 +14,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.jmussel.chessgame.BuildConfig
 import com.jmussel.chessgame.api.DashboardEntryDto
+import com.jmussel.chessgame.api.FriendDto
+import com.jmussel.chessgame.api.RecordDto
 import com.jmussel.chessgame.api.UserSummaryDto
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
@@ -32,7 +36,7 @@ import com.jmussel.chessgame.ui.theme.ChessGameTheme
 fun DashboardScreen(
     entries: List<DashboardEntryDto>,
     modifier: Modifier = Modifier,
-    friends: List<UserSummaryDto> = emptyList(),
+    friends: List<FriendDto> = emptyList(),
     state: DashboardUiState = DashboardUiState(loaded = true),
     onOpenGame: (DashboardRow) -> Unit = {},
     onPlayFriend: (FriendRow) -> Unit = {},
@@ -111,7 +115,16 @@ private fun FriendsSection(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(text = row.username, style = MaterialTheme.typography.bodyLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(text = row.username, style = MaterialTheme.typography.bodyLarge)
+                // The lifetime record against this friend (`D096`), spoken as words.
+                val description = DashboardSections.recordDescription(row.record)
+                Text(
+                    text = DashboardSections.recordText(row.record),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.semantics { contentDescription = description },
+                )
+            }
             TextButton(onClick = { onPlayFriend(row) }) {
                 Text(text = row.action)
             }
@@ -176,9 +189,9 @@ private fun DashboardScreenPreview() {
         DashboardScreen(
             friends =
                 listOf(
-                    UserSummaryDto(userId = "user-1", username = "Alex"),
-                    UserSummaryDto(userId = "user-3", username = "Chris"),
-                    UserSummaryDto(userId = "user-4", username = "Robin"),
+                    FriendDto(userId = "user-1", username = "Alex", record = RecordDto(wins = 3, losses = 1, draws = 2)),
+                    FriendDto(userId = "user-3", username = "Chris", record = RecordDto(wins = 0, losses = 0, draws = 0)),
+                    FriendDto(userId = "user-4", username = "Robin", record = RecordDto(wins = 0, losses = 2, draws = 1)),
                 ),
             entries =
                 listOf(

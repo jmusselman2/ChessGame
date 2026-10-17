@@ -75,7 +75,9 @@ Under `server/src/main/kotlin/com/jmussel/chessgame/server/`:
   `chess-core`, save, bump the version), including undo requests (`D091`).
 - `series/` — `SeriesService` creates series and starts automatic rematches.
 - `user/`, `friends/`, `groups/`, `history/`, `dashboard/` — the social and
-  listing endpoints.
+  listing endpoints. `GET /friends` carries each friend's lifetime chess record against
+  the caller (`D096`), counted by `DashboardQueries.chessRecordsFor`; the dashboard's
+  FRIENDS rows show it as `W-L-D`.
 - `realtime/` — `RealtimeHub` (in-memory map of open sockets per user) and
   `/ws`.
 - `api/ApiTypes.kt` — the wire DTOs, including the per-viewer `GameViewDto`.

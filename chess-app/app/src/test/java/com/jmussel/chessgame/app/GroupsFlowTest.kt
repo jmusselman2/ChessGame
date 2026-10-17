@@ -111,7 +111,7 @@ class GroupsFlowTest {
                     when {
                         call == "GET /me" -> json("""{"userId":"user-Taylor","username":"Taylor"}""")
                         call == "GET /dashboard" -> json("[]")
-                        call == "GET /friends" -> json(users(friends))
+                        call == "GET /friends" -> json(friendList(friends))
                         call == "GET /groups" -> {
                             listGate?.await()
                             json(mine().joinToString(",", "[", "]") { (id, g) -> summary(id, g) })
@@ -142,6 +142,10 @@ class GroupsFlowTest {
                 },
             ) { install(ContentNegotiation) { json(ChessApiClient.Json) } }
     }
+
+    /** [names] as `/friends` lists them: each with a record, which the server always sends (`D096`). */
+    private fun friendList(names: List<String>): String =
+        names.joinToString(",", "[", "]") { """{"userId":"user-$it","username":"$it","record":{"wins":0,"losses":0,"draws":0}}""" }
 
     private fun users(names: List<String>): String = names.joinToString(",", "[", "]") { """{"userId":"user-$it","username":"$it"}""" }
 

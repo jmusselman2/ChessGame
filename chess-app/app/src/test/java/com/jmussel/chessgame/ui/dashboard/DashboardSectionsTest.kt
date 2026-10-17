@@ -1,7 +1,9 @@
 package com.jmussel.chessgame.ui.dashboard
 
 import com.jmussel.chessgame.api.DashboardEntryDto
+import com.jmussel.chessgame.api.FriendDto
 import com.jmussel.chessgame.api.PendingRequestDto
+import com.jmussel.chessgame.api.RecordDto
 import com.jmussel.chessgame.api.UserSummaryDto
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -34,7 +36,10 @@ class DashboardSectionsTest {
         pendingRequests = pendingRequests,
     )
 
-    private fun person(username: String) = UserSummaryDto(userId = "user-$username", username = username)
+    private fun person(
+        username: String,
+        record: RecordDto = RecordDto(wins = 0, losses = 0, draws = 0),
+    ) = FriendDto(userId = "user-$username", username = username, record = record)
 
     @Test
     fun onlyTheGamesWaitingOnYouAreListed() {
@@ -272,6 +277,24 @@ class DashboardSectionsTest {
     fun theBuildLabelSaysWhateverTheBuildCallsItself() {
         // A development build is not special-cased: a report from one still names it.
         assertEquals("Build 1.0", DashboardSections.buildLabel("1.0"))
+    }
+
+    @Test
+    fun aFriendRowCarriesTheServersRecordAndWordsIt() {
+        val row = DashboardSections.friends(listOf(person("Alex", RecordDto(wins = 2, losses = 1, draws = 3))), emptyList()).single()
+
+        assertEquals(RecordDto(wins = 2, losses = 1, draws = 3), row.record)
+        assertEquals("2-1-3 W-L-D", DashboardSections.recordText(row.record))
+        assertEquals("2 wins, 1 loss, 3 draws", DashboardSections.recordDescription(row.record))
+    }
+
+    @Test
+    fun aRealZeroRecordIsShownAsOne() {
+        val zero = RecordDto(wins = 0, losses = 0, draws = 0)
+
+        assertEquals("0-0-0 W-L-D", DashboardSections.recordText(zero))
+        assertEquals("0 wins, 0 losses, 0 draws", DashboardSections.recordDescription(zero))
+        assertEquals("1 win, 1 loss, 1 draw", DashboardSections.recordDescription(RecordDto(wins = 1, losses = 1, draws = 1)))
     }
 
     @Test

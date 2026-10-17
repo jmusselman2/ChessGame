@@ -19,6 +19,31 @@ data class UserSummary(
     val username: String,
 )
 
+/**
+ * A friend as the dashboard's FRIENDS section lists them (`D096`): who they are and the
+ * caller's lifetime chess record against them. [record] is required and always sent, a real
+ * `0-0-0` included, so a missing one is an incompatible response rather than "no games".
+ */
+@Serializable
+data class FriendSummary(
+    val userId: String,
+    val username: String,
+    val record: RecordView,
+)
+
+/** A lifetime `W-L-D` chess record from the caller's side (`D096`). Every count is always sent. */
+@Serializable
+data class RecordView(
+    val wins: Int,
+    val losses: Int,
+    val draws: Int,
+) {
+    companion object {
+        fun of(record: com.jmussel.chessgame.server.db.ChessRecord): RecordView =
+            RecordView(wins = record.wins, losses = record.losses, draws = record.draws)
+    }
+}
+
 /** [StoredUser] as the API shows it, or `null` when they have not claimed a username yet. */
 fun StoredUser.toSummaryOrNull(): UserSummary? = username?.let { UserSummary(userId = id.toString(), username = it) }
 

@@ -833,6 +833,12 @@ Use normalized pair ordering or an equivalent database constraint.
 
 Friendship is mutual immediately.
 
+`GET /friends` lists the caller's friends, each with the caller's lifetime chess record
+against them, `record: {wins, losses, draws}` (`D096`, `M22.4`). The server counts every
+finished chess game between the two across every series from stored results, in two
+queries for the whole list (`DashboardQueries.chessRecordsFor`); the field is required, so
+a real `0-0-0` is sent rather than left out.
+
 A friend is found by exact username, `GET /users/{username}`, and added with
 `POST /friends` (`D009`). As a testing aid, `GET /users` lists
 every named user except the caller: people the caller could add first, then

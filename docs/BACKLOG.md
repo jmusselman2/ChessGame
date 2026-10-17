@@ -136,7 +136,7 @@ implementation, as `M21` was.
 | `M22.1`  | At most one active series per party                 | None       | `F38`    | `DONE`    |
 | `M22.2`  | Matching play advances the retained Redo continuation | M21.21   | —        | `DONE`    |
 | `M22.3`  | Draw offers by agreement                            | M22.2      | `F2`     | `DONE`    |
-| `M22.4`  | Win/loss/draw record per friend                     | None       | `F1`     | `TODO`    |
+| `M22.4`  | Win/loss/draw record per friend                     | None       | `F1`     | `DONE`    |
 | `M22.5`  | Detailed profiles                                   | M22.4      | `F6`     | `TODO`    |
 | `M22.6`  | Standard algebraic notation in `chess-core`         | None       | `F39`    | `TODO`    |
 | `M22.7`  | Every move list and move wording in SAN             | M22.6      | `F39`    | `TODO`    |
@@ -486,7 +486,7 @@ the changed `UndoRequestUiTest` on the Fire HD 8 (12 tests), `.\gradlew.bat buil
 
 ## M22.4 — Win/loss/draw record per friend
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** None
 
@@ -517,6 +517,23 @@ series, from the viewer's perspective.
   `F31` (series revival).
 - **Tests:** server tests for the counts across wins, losses, draws, several series
   and games still being played; client tests for the display and a real `0-0-0`.
+
+### Completion
+
+Completed 2026-10-17. `DashboardQueries.chessRecordsFor(viewer)` counts the viewer's
+finished games at chess tables, by opponent and from the viewer's seat, in two queries
+whatever the size of the friend list; unfinished games, games deleted by a Leave and other
+game types are not counted. `GET /friends` now answers `FriendSummary` (`userId`,
+`username`, required `record: {wins, losses, draws}`), which the dashboard already reads
+beside `/dashboard`; a friend with no finished game gets a real `0-0-0`. The shared
+statistics model is `ChessRecord`, ready for `F30` and `M22.5`. Android reads it as
+`FriendDto`/`RecordDto` (no defaults), and each FRIENDS row shows `2-1-3 W-L-D` with the
+accessibility description "2 wins, 1 loss, 3 draws". Verified with `:server:test
+--rerun-tasks` against PostgreSQL (new `FriendRecordTest`: both sides, every draw, several
+series including a left one, games in progress, deleted games, another game type, the
+endpoint and a missing field), `:chess-app:testDebugUnitTest`,
+`:chess-app:compileDebugAndroidTestKotlin`, `.\gradlew.bat build` and `git diff --check`.
+No Compose or device test changed.
 
 ---
 

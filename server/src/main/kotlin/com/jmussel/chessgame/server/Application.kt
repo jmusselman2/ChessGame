@@ -146,7 +146,7 @@ fun Application.module(
             usernameRoutes(users)
             userLookupRoutes(users)
             allUsersRoutes(users, friendships)
-            friendRoutes(users, friendships)
+            friendRoutes(users, friendships, dashboard)
             groupRoutes(users, groups)
             seriesRoutes(users, series, realtime)
             dashboardRoutes(dashboard)

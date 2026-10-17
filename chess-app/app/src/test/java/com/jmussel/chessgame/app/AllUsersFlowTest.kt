@@ -94,7 +94,7 @@ class AllUsersFlowTest {
                 val body =
                     when {
                         call == "GET /users" -> listed(everyone - friends.toSet(), friends)
-                        call == "GET /friends" -> users(friends)
+                        call == "GET /friends" -> friendList(friends)
                         request.method == HttpMethod.Post && request.url.encodedPath == "/friends" ->
                             (request.body as TextContent).text.also { friends += it }
                         else -> error("Nothing here answers $call")
@@ -105,6 +105,10 @@ class AllUsersFlowTest {
 
         return HttpClient(engine) { install(ContentNegotiation) { json(ChessApiClient.Json) } }
     }
+
+    /** [names] as `/friends` lists them: each with a record, which the server always sends (`D096`). */
+    private fun friendList(names: List<String>): String =
+        names.joinToString(",", "[", "]") { """{"userId":"user-$it","username":"$it","record":{"wins":0,"losses":0,"draws":0}}""" }
 
     private fun users(names: List<String>): String = names.joinToString(",", "[", "]") { """{"userId":"user-$it","username":"$it"}""" }
 

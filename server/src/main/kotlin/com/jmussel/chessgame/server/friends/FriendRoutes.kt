@@ -2,9 +2,13 @@
 
 package com.jmussel.chessgame.server.friends
 
+import com.jmussel.chessgame.server.api.FriendSummary
+import com.jmussel.chessgame.server.api.RecordView
 import com.jmussel.chessgame.server.api.toSummaryOrNull
 import com.jmussel.chessgame.server.auth.authenticatedUser
 import com.jmussel.chessgame.server.db.AddFriendResult
+import com.jmussel.chessgame.server.db.ChessRecord
+import com.jmussel.chessgame.server.db.DashboardQueries
 import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.RemoveFriendResult
 import com.jmussel.chessgame.server.db.UserRepository
@@ -18,9 +22,11 @@ import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /**
- * Listing friends, adding one by username, and removing one.
+ * Listing friends, each with the caller's chess record against them (`D096`), adding one by
+ * username, and removing one.
  *
  * A friendship is mutual the moment it is made, with no request to accept (`D009`). The
  * caller is always one side of it — a client cannot make two other people friends, and can
@@ -32,6 +38,7 @@ import kotlin.uuid.ExperimentalUuidApi
 fun Route.friendRoutes(
     users: UserRepository,
     friendships: FriendshipRepository,
+    dashboard: DashboardQueries,
 ) {
     get("/friends") {
         val caller = call.authenticatedUser()
@@ -40,8 +47,19 @@ fun Route.friendRoutes(
         // nothing to show. Adding requires a name on both sides (`D045`), so this drops
         // nothing an add made — only a row written before that was decided.
         val friends = friendships.friendsOf(caller.userId).mapNotNull { users.find(it)?.toSummaryOrNull() }
+        // Each with the caller's lifetime chess record against them, counted by the server from
+        // stored results in one pass over the caller's games (`D096`).
+        val records = dashboard.chessRecordsFor(caller.userId)
 
-        call.respond(friends)
+        call.respond(
+            friends.map { friend ->
+                FriendSummary(
+                    userId = friend.userId,
+                    username = friend.username,
+                    record = RecordView.of(records[Uuid.parse(friend.userId)] ?: ChessRecord()),
+                )
+            },
+        )
     }
 
     post("/friends") {

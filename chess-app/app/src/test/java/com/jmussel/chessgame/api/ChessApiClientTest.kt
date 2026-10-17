@@ -239,13 +239,23 @@ class ChessApiClientTest {
     fun theFriendListIsRead() {
         val client =
             clientReplying(
-                """[{"userId": "user-1", "username": "Alex"}, {"userId": "user-2", "username": "Sam"}]""",
+                """[{"userId": "user-1", "username": "Alex", "record": {"wins": 2, "losses": 1, "draws": 0}},""" +
+                    """ {"userId": "user-2", "username": "Sam", "record": {"wins": 0, "losses": 0, "draws": 0}}]""",
             )
 
         val friends = runBlocking { client.friends() }
 
         assertEquals(listOf("Alex", "Sam"), friends.map { it.username })
+        assertEquals(RecordDto(wins = 2, losses = 1, draws = 0), friends.first().record)
+        assertEquals(RecordDto(wins = 0, losses = 0, draws = 0), friends.last().record)
         assertEquals("/friends", requests.single().url.encodedPath)
+    }
+
+    @Test
+    fun aFriendWithoutARecordIsAnIncompatibleResponse() {
+        val client = clientReplying("""[{"userId": "user-1", "username": "Alex"}]""")
+
+        assertThrows(Exception::class.java) { runBlocking { client.friends() } }
     }
 
     @Test

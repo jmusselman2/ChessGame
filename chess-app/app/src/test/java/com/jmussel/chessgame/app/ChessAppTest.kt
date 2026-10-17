@@ -288,7 +288,7 @@ class ChessAppTest {
             path == "/dashboard" -> dashboard(replies)
             path == "/history" -> historyOf(replies)
             path == "/friends" && request.method == HttpMethod.Get ->
-                replies.friends.joinToString(",", "[", "]", transform = ::user)
+                friendList(replies.friends)
             path == "/friends" -> sentText(request)
             path.startsWith("/friends/") -> replies.removalOutcome
             path.startsWith("/users/") -> user(path.removePrefix("/users/"))
@@ -478,6 +478,10 @@ class ChessAppTest {
         username: String?,
         userId: String = "server-1",
     ): String = if (username == null) """{"userId":"$userId"}""" else """{"userId":"$userId","username":"$username"}"""
+
+    /** [names] as `/friends` lists them: each with a record, which the server always sends (`D096`). */
+    private fun friendList(names: List<String>): String =
+        names.joinToString(",", "[", "]") { """{"userId":"user-$it","username":"$it","record":{"wins":0,"losses":0,"draws":0}}""" }
 
     private fun user(username: String): String = """{"userId":"user-$username","username":"$username"}"""
 
