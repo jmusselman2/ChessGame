@@ -18,8 +18,9 @@ Work continuously through the backlog. The normal autonomous task loop is
 7. Fix failures until local verification passes. Iterate here; do not stop for a
    normal failure (see **Failure Handling and Escalation**).
 8. Mark the task `DONE` and add its completion note in `docs/BACKLOG.md`
-   (date + how it was locally verified). When it is its milestone's last task,
-   archive the milestone as `docs/BACKLOG.md` describes (`D093`). Update any
+   (date + how it was locally verified). Leave the milestone `Active`, even when
+   that was its last currently scheduled task; only the owner's explicit instruction
+   closes and archives a milestone (`D103`). Update any
    other affected documentation (`DECISIONS.md`, `DEVELOPMENT.md`;
    `PRODUCT.md`/`ARCHITECTURE.md` only when a higher-precedence doc is stale).
    For an analysis or decision task, follow `D062`: a concise completion
@@ -61,17 +62,20 @@ run successfully (e.g. `M1.7`):** do not mark the task `DONE` until the required
 CI run has actually succeeded. For these tasks the CI run is part of the local
 acceptance criteria, not only the progression gate.
 
-**Milestone completion is not a stopping condition.** When the last task in a
-milestone is `DONE` and its CI is green, continue directly into the next
-milestone. Do not pause for acknowledgement at milestone boundaries.
+**Completing the current tasks in a milestone is not a stopping or archiving
+condition.** When its last current task is `DONE` and its CI is green, leave the
+milestone `Active` and continue to the next eligible `TODO`, including one in a
+later active milestone. Only the owner may explicitly close and authorize archiving
+a milestone (`D103`).
 
 Stop only for a genuine blocker in the **Stop Conditions** list, or when the
 backlog has no remaining unblocked `TODO` task.
 
 ## Task Selection
 
-`docs/BACKLOG.md` is the authority. It holds every active milestone; finished ones
-are archived under `docs/backlog/` (`D093`). Its **Task Selection Order** section
+`docs/BACKLOG.md` is the authority. It holds every active milestone, including one
+whose currently scheduled tasks are all `DONE`; owner-closed milestones are archived
+under `docs/backlog/` (`D093`, `D103`). Its **Task Selection Order** section
 defines the deterministic rule:
 
 - consider only `Status: TODO` tasks in `docs/BACKLOG.md`,
@@ -79,6 +83,9 @@ defines the deterministic rule:
 - exclude `BLOCKED` tasks and tasks that would trigger a Stop Condition,
 - of the rest, take the one with the lowest milestone number, then the lowest
   task number.
+
+An active milestone with no `TODO` contributes no candidate and does not block an
+eligible task in a later active milestone.
 
 If two tasks are genuinely independent and equally ranked, do the lower-numbered
 one first.

@@ -171,10 +171,10 @@ Groups are MVP (`D076`, superseding `D049`'s "deck-builder only"; `M17.11`).
 
 ## Explicitly Not Required for MVP
 
-This is the binding and complete list of what is not in the MVP. What is known
-about each item, and what is still to decide, is in `docs/FUTURE.md` under the
-same `F` number (`D072`). The two lists hold the same items; changing one means
-changing both.
+This is the binding and complete account of work outside the MVP. Work already
+scheduled in backlog milestones is summarized first. The remaining unscheduled items
+are listed by topic under their `F` numbers; `docs/FUTURE.md` carries the detail for
+exactly those items, and changing either unscheduled list means changing both (`D072`).
 
 Scheduled beyond the MVP: the AI opponent (formerly `F7`) and saved local games are
 backlog milestone `M21` (`D084`–`D086`). Matching play through a retained Redo
@@ -183,20 +183,17 @@ the win/loss/draw record per friend, turning automatic rematches off by hand, on
 active series per party, readable move notation with board coordinates, and online
 ply-by-ply review (formerly `F1`–`F4`, `F6`, `F38`, `F39` and `F41`) are milestone
 `M22`. They are post-MVP work and do not change the MVP's definition of done.
+Captured-piece presentation, complete board accessibility, search-based dead-position
+detection, user settings, custom themes, optional sound and haptic feedback, and
+elaborate animations are milestone `M23` (the latter six formerly `F40`, `F11`,
+`F35`, `F8`, `F42` and `F9`). They are also post-MVP work and do not change the
+MVP's definition of done.
 Username changes returned to `F5` under `D098` and wait for real authentication
 (`F13`).
 
 ### Chess Play
 
 - `F10` clocks
-- `F11` dead-position detection by search (`D038`)
-
-### Presentation
-
-- `F8` custom themes (`PRODUCT.md`)
-- `F9` elaborate animations (`PRODUCT.md`)
-- `F40` complete board accessibility
-- `F42` optional sound and haptic feedback
 
 ### Identity and Accounts
 
@@ -204,7 +201,6 @@ Username changes returned to `F5` under `D098` and wait for real authentication
 - `F12` removing the "All users" page, or restricting it to admins (`D071`)
 - `F13` account recovery UI (`PRODUCT.md`)
 - `F14` approval setting for friend requests and game invites (`D047`, `D049`)
-- `F35` user settings, opened from the username (`PRODUCT.md`)
 
 ### Social
 

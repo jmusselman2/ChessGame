@@ -378,8 +378,9 @@ The Android application builds, launches, and is covered by host-side tests.
 Its emulator/device play-through was completed for local play (`M5.7`) and for
 the full online flow (`M14.18`), and the authenticated dashboard, friends,
 online game, and history screens are wired into the application entry point.
-`docs/BACKLOG.md` is the source of truth for task-level status. Finished milestones
-are archived under `docs/backlog/` (`D093`).
+`docs/BACKLOG.md` is the source of truth for task-level status. A milestone remains
+active after its current tasks are `DONE`; only an explicit owner instruction closes
+it and authorizes archiving under `docs/backlog/` (`D093`, `D103`).
 
 ### Android Lint / Static Checks
 

@@ -41,7 +41,11 @@ leaves keeps its ID in the git history, and the number is never given out again.
 milestone `M21`, under `D084`–`D086`. Its ID is retired. Tier 1 (`F38`, `F1`, `F2`,
 `F39`, `F3`, `F4`, `F6` and `F41`) was scheduled on 2026-10-14 as milestone
 `M22`, and those IDs are retired too. `F5` was scheduled with them, then returned
-here the same day under `D098` because username changes require `F13` first.
+here the same day under `D098` because username changes require `F13` first. On
+2026-10-17 the project owner scheduled `F40`, `F11`, `F35`, `F8`, `F42` and `F9`
+as `M23.2`–`M23.7`, respectively, in backlog milestone
+[`M23`](BACKLOG.md#m23--chess-experience-and-personalization). Those IDs are
+retired too.
 
 **Order.** The project owner's triage on 2026-09-23: value to players against
 cost, with every item after the items it depends on. The value ratings in *At a
@@ -51,22 +55,18 @@ number and is placed by the same rule, and a later reordering moves entries and
 leaves their numbers alone. After either, *At a Glance* and the tiers follow
 this order, not the numbers. `MVP.md` lists the same items by topic. `F38`–`F42`
 were added on 2026-10-14 from a usability review and placed by the same rule. The
-same day, tier 1 moved to the backlog as `M22`; the other tiers did not move.
+same day, tier 1 moved to the backlog as `M22`. On 2026-10-17 the owner moved six
+tier 2 items to `M23` and reordered the four that remain as `F13`, `F5`, `F12`,
+then `F10`; the later tiers did not move.
 
 ## At a Glance
 
 | ID    | Item                                        | Topic (`MVP.md`)      | Effort        | Value to players   |
 | ----- | ------------------------------------------- | --------------------- | ------------- | ------------------ |
-| `F40` | Complete board accessibility                | Presentation          | S–M           | Low now            |
-| `F8`  | Custom themes                               | Presentation          | S–M           | Low                |
-| `F9`  | Elaborate animations                        | Presentation          | M             | Low                |
-| `F10` | Clocks                                      | Chess Play            | L             | Low–medium         |
-| `F11` | Dead-position detection by search           | Chess Play            | M             | Low                |
-| `F12` | Remove the "All users" page                 | Identity and Accounts | S–M           | None (testing aid) |
 | `F13` | Account recovery UI                         | Identity and Accounts | L             | High               |
 | `F5`  | Username changes                            | Identity and Accounts | M             | Medium             |
-| `F35` | User settings, opened from the username     | Identity and Accounts | not estimated | not estimated      |
-| `F42` | Optional sound and haptic feedback          | Presentation          | S–M           | Low–medium         |
+| `F12` | Remove the "All users" page                 | Identity and Accounts | S–M           | None (testing aid) |
+| `F10` | Clocks                                      | Chess Play            | L             | Low–medium         |
 | `F14` | Approval for friend requests, game invites  | Identity and Accounts | M             | Low                |
 | `F15` | Blocking                                    | Social                | M             | Low now            |
 | `F16` | Chat                                        | Social                | L             | Medium             |
@@ -103,89 +103,13 @@ numbers.
 
 ## 2. Higher cost, or lower value
 
-No unfinished dependency outside this tier. Worth doing, but each costs more or
-does less for players than tier 1.
+The project owner retained these four items here on 2026-10-17, in this exact
+priority order:
 
-### F40 — Complete board accessibility
-
-- **Source:** the project owner, 2026-10-14, from a usability review. Squares
-  expose `selected` and their highlights as a state description, and no feedback
-  is told apart by colour alone (`M21.17`). A square does not say its own name or
-  its piece. The piece is a glyph, and both sides use the solid glyphs, so a screen
-  reader is likely to read White's queen as "black chess queen".
-- **Value:** Low now: no tester is known to use TalkBack. High for any player who
-  does.
-- **Effort:** Small for each square's spoken description ("e4, White pawn, last
-  move", from `BoardRendering.nameFor`). Medium with the full pass: predictable
-  focus order, and large-text and TalkBack acceptance testing on a device.
-- **Depends on:** nothing. Reads better after `M22.6`, `M22.7` and `M22.11`
-  (formerly `F39`), since a screen reader speaks the move list.
-- **Why first in its tier:** the cheapest worthwhile item here. The small slice
-  could be scheduled earlier on its own.
-- **Open decisions:** whether the small slice is scheduled ahead of the full pass.
-
-### F8 — Custom themes
-
-- **Source:** `PRODUCT.md` (*Deferred Features*)
-- **Value:** Low
-- **Effort:** Small–medium. Compose theming; no server work.
-- **Depends on:** nothing.
-- **Open decisions:** what can be themed: the board, the pieces, or the whole
-  app.
-
-### F9 — Elaborate animations
-
-- **Source:** `PRODUCT.md` (*Deferred Features*)
-- **Value:** Low
-- **Effort:** Medium. Compose only; no server work.
-- **Depends on:** nothing.
-- **Open decisions:** which moments animate: moves, captures, check, or the end
-  of a game.
-
-### F10 — Clocks
-
-- **Source:** `MVP.md`
-- **Value:** Low–medium
-- **Effort:** Large
-- **Depends on:** a server-side job that ends a game on timeout.
-- **Open decisions:** what a clock means in asynchronous play (days per move,
-  not minutes), and what happens when it runs out. A product decision.
-
-### F11 — Dead-position detection by search
-
-- **Source:** `D038`
-- **Value:** Low
-- **Effort:** Medium
-- **Depends on:** nothing.
-- **Open decisions:** none. Low value: the colour-complex rule is exact for the
-  material left once pawns, rooks and queens are gone.
-
-### F12 — Remove the "All users" page, or restrict it to admins
-
-- **Source:** `D071`, `M17.5`, `M17.6`
-- **Value:** None (testing aid)
-- **Effort:** Small to remove. Small–medium to restrict, plus the admin
-  decision.
-- **Depends on:** `M17.5`, `M17.6` (both done).
-- **Open decisions:** remove it or restrict it to admins. No deadline.
-
-`D071`'s "All users" page is a testing aid and part of the MVP. When the project
-owner schedules this item, either delete the page or keep it for admins only.
-The task's acceptance criteria:
-
-- The project owner has chosen: remove, or restrict to admins.
-- **Remove:** every place listed under *Removing it touches* in `M17.5`'s
-  completion note is deleted or edited. `D071` is superseded, not deleted. An
-  older APK opening the page sees "The list of users is not available." and
-  nothing else changes.
-- **Restrict:** `GET /users` refuses callers who are not admins. `/me` carries a
-  field the Friends screen reads to show or hide "Browse all users". How someone
-  becomes an admin is decided and recorded first, since it is a new security
-  decision.
-- `docs/MVP.md`, `PRODUCT.md` Friends and `ARCHITECTURE.md` §15 say what
-  happened.
-- Tests: server and Android tests for whichever path is chosen, and
-  `.\gradlew.bat build` passes.
+- `F13` — Account recovery UI
+- `F5` — Username changes
+- `F12` — Remove the "All users" page, or restrict it to admins
+- `F10` — Clocks
 
 ### F13 — Account recovery UI
 
@@ -217,26 +141,41 @@ The task's acceptance criteria:
 - **Open decisions:** none beyond `F13`'s choice of authentication and recovery
   method.
 
-### F35 — User settings, opened from the username
+### F12 — Remove the "All users" page, or restrict it to admins
 
-- **Source:** `PRODUCT.md`
-- **Value:** not estimated. The screen's value depends on which settings it holds.
-- **Effort:** not estimated until its initial contents are decided.
-- **Depends on:** the feature or features chosen for its initial contents; possible
-  contents already include `F5`, `F8`, `F14` and `F42`.
-- **Open decisions:** which settings it contains. Its entry point is decided:
-  tapping the username at the right-hand end of the dashboard's top row.
+- **Source:** `D071`, `M17.5`, `M17.6`
+- **Value:** None (testing aid)
+- **Effort:** Small to remove. Small–medium to restrict, plus the admin
+  decision.
+- **Depends on:** `M17.5`, `M17.6` (both done).
+- **Open decisions:** remove it or restrict it to admins. No deadline.
 
-### F42 — Optional sound and haptic feedback
+`D071`'s "All users" page is a testing aid and part of the MVP. When the project
+owner schedules this item, either delete the page or keep it for admins only.
+The task's acceptance criteria:
 
-- **Source:** the project owner, 2026-10-14, from a usability review.
-- **Value:** Low–medium. Most of it is hearing an opponent's move arrive while the
-  app is open.
-- **Effort:** Small–medium. Sounds need assets whose licence allows shipping them.
-- **Depends on:** `F35`, for the on/off switch. Haptics alone need not wait:
-  Compose's `HapticFeedback` follows Android's own touch-feedback setting.
-- **Open decisions:** which moments: a move, a capture, check, the end of a game,
-  an opponent's move arriving; and whether sound is on by default.
+- The project owner has chosen: remove, or restrict to admins.
+- **Remove:** every place listed under *Removing it touches* in `M17.5`'s
+  completion note is deleted or edited. `D071` is superseded, not deleted. An
+  older APK opening the page sees "The list of users is not available." and
+  nothing else changes.
+- **Restrict:** `GET /users` refuses callers who are not admins. `/me` carries a
+  field the Friends screen reads to show or hide "Browse all users". How someone
+  becomes an admin is decided and recorded first, since it is a new security
+  decision.
+- `docs/MVP.md`, `PRODUCT.md` Friends and `ARCHITECTURE.md` §15 say what
+  happened.
+- Tests: server and Android tests for whichever path is chosen, and
+  `.\gradlew.bat build` passes.
+
+### F10 — Clocks
+
+- **Source:** `MVP.md`
+- **Value:** Low–medium
+- **Effort:** Large
+- **Depends on:** a server-side job that ends a game on timeout.
+- **Open decisions:** what a clock means in asynchronous play (days per move,
+  not minutes), and what happens when it runs out. A product decision.
 
 ## 3. Social
 

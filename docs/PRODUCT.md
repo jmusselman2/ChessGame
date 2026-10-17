@@ -478,7 +478,7 @@ Completed games belong in history rather than dominating the home screen.
 The dashboard's top row shows the player's own username at its right-hand end, so
 a player can always see the name a friend needs to add them. Screens with Back do
 not show it. Tapping it will open user settings; until user settings exist, it is
-plain text (`M17.3`, `F35`).
+plain text (`M17.3`; settings are scheduled as `M23.4`, formerly `F35`).
 
 ## Game Screen
 
@@ -532,6 +532,18 @@ dragged: held for a long press, moved and dropped. A drop onto a legal destinati
 the same move the two taps would make, promotion choice and draw-entitling prompt
 included; a drop anywhere else, or a drag that is cancelled, returns the piece and
 changes nothing. A quick swipe across the board still scrolls the screen.
+
+Post-MVP `M23.1` adds slim captured-piece rows to every live game screen (`D104`).
+Each row names a player and colour and shows pieces captured by that player, ordered
+queen, rook, bishop, knight, pawn. An empty row says "No captures"; repeated pieces
+compact to counts on narrow screens. Only the side ahead in the current position's
+live non-king material, on the project owner's 9/5/3.25/3/1 queen/rook/bishop/knight/
+pawn scale, shows `+N`; quarter-point advantages are displayed exactly. This balance
+is separate from the captured-piece totals so promotions remain correct. In one
+column the rows sit immediately above and below the board according to its
+orientation. In two panes they move to the right panel so the board keeps its maximum
+size. They are display-only, use the board's piece artwork, and do not appear in
+completed-game review.
 
 ### Online Completed-Game Review
 
@@ -646,9 +658,10 @@ switch between them freely. New game still deletes only the game on screen.
 
 ## Deferred Features
 
-Do not initially build the features below. The complete list of what is not in the
-MVP is `docs/MVP.md`'s *Explicitly Not Required for MVP*, and `docs/FUTURE.md`
-holds what is known about each item (`D072`).
+Do not initially build the features below. `docs/MVP.md` distinguishes work that
+is scheduled beyond the MVP from the complete list still not scheduled;
+`docs/BACKLOG.md` holds scheduled work and `docs/FUTURE.md` holds what is known
+about unscheduled items (`D072`).
 
 - ratings,
 - matchmaking,
@@ -659,8 +672,8 @@ holds what is known about each item (`D072`).
 - push notifications,
 - chess clocks,
 - draw offers by agreement (built post-MVP in `M22.3`),
-- custom themes,
-- elaborate animations,
+- custom themes (scheduled as `M23.5`, formerly `F8`),
+- elaborate animations (scheduled as `M23.7`, formerly `F9`),
 - spectators,
 - account recovery UI,
 - username changes,

@@ -435,7 +435,8 @@ commit.
   `CLAUDE.md`.
 - **The docs are big and binding.** `docs/DECISIONS.md` is about 6,800 lines.
   The backlog is split (`D093`): `docs/BACKLOG.md` holds the rules, the index and
-  the active milestones, and finished milestones are archived by phase under
-  `docs/backlog/` (task `M19.9` is in `docs/backlog/M18-M20.md`).
+  the active milestones, including ones whose current tasks are all `DONE` until
+  the owner closes them (`D103`). Owner-closed milestones are archived by phase
+  under `docs/backlog/` (task `M19.9` is in `docs/backlog/M18-M20.md`).
   Search decisions by number (`D061`) rather than reading top to bottom, and check
   whether a decision has been superseded before relying on it.

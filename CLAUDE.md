@@ -209,8 +209,9 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - Never weaken, delete, or rewrite a correct requirement-backed test merely to make an implementation pass.
 - Do not silently change product requirements.
 - Record meaningful architectural decisions in `docs/DECISIONS.md`.
-- Update `docs/BACKLOG.md` when work is completed, and archive a finished milestone
-  as it says (`D093`).
+- Update `docs/BACKLOG.md` when work is completed. Leave a milestone `Active` after
+  its currently scheduled tasks are `DONE`; archive it only when the owner explicitly
+  closes it (`D093`, `D103`).
 - Document analysis and decision tasks per `D062`. Each gets a concise backlog completion note or pointer, and each binding conclusion gets a numbered decision. A standalone analysis document is chosen by the nature of its evidence and its likely reuse, not its length, and it states its status, method, assumptions, and relationship to binding decisions. When a later decision changes its recommendations, update it in the same change.
 - Prefer immutable domain state where practical.
 - Keep rule logic out of Compose.
@@ -280,8 +281,9 @@ Key clarifications:
   unauthenticated, or cannot reach the repo, treat it as a missing external
   prerequisite and stop per the Stop Conditions — do not silently skip remote
   CI verification.
-- **Milestone completion is not a stopping condition.** Continue across
-  milestone boundaries without pausing.
+- **Completing the current tasks in a milestone neither archives it nor stops the
+  loop.** Leave it `Active` until the owner explicitly closes it, and continue to
+  the next eligible `TODO`, including one in a later active milestone (`D103`).
 - A normal compile error, test failure, lint failure, failing GitHub Actions
   run, or implementation bug is **not** a reason to stop — diagnose and fix it.
   Work the escalation ladder in `docs/AUTONOMOUS-DEVELOPMENT.md` (targeted

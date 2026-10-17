@@ -7522,3 +7522,159 @@ the recorded line.
 - The player UI needs no new command or confirmation. Existing Undo and Redo controls
   remain; Redo stays available whenever a retained action remains for the side to
   move.
+
+---
+
+## D103 — Milestones Archive Only After Explicit Owner Closure
+
+**Date:** 2026-10-17
+
+**Status:** Accepted
+
+**Amends:** `D093` only where it made completion of the last task automatically
+finish and archive its milestone. `D093`'s file layout, naming, immutable archives,
+links, precedence and task-selection source remain.
+
+**Relates to:** `D026`, `D062`, `D072`, `D093`, `D094`,
+`docs/AUTONOMOUS-DEVELOPMENT.md`
+
+### Decision
+
+Completing the last currently scheduled task does not close or archive a milestone.
+The milestone remains in `docs/BACKLOG.md` in full and its index row remains
+`Active`, even when all of its current tasks are `DONE`. This deliberately leaves
+room for the owner to add refinements before declaring the milestone finished.
+
+Only an explicit owner instruction to close or archive a named milestone authorizes
+moving it to `docs/backlog/`. Every task in it must already be `DONE`. That separate,
+owner-authorized change follows `D093`'s archive naming and grouping, points the index
+row to the archive as `Done`, and never adds to or renames an existing archive.
+
+An active milestone with no `TODO` contributes no autonomous task and does not block
+eligible work in a later active milestone. If no unblocked `TODO` exists anywhere,
+the autonomous loop stops for an exhausted backlog and leaves every unclosed
+milestone active. Existing archives `M1`–`M22` remain unchanged.
+
+### Rationale
+
+The owner may discover small adjustments after the initially scheduled work passes.
+Automatic archiving made the milestone appear closed before that review and made a
+follow-up awkward because immutable archives cannot be extended. Separating task
+completion from owner closure preserves accurate task status while keeping a clear
+moment for final milestone review.
+
+### Alternatives Considered
+
+- **Keep automatic archiving with the last task.** Rejected because it closes the
+  milestone before the owner has finished adding tweaks.
+- **Reopen an archive when another task appears.** Rejected because it conflicts
+  with `D093`'s immutable archives and stable links.
+- **Block later milestones while an all-`DONE` milestone awaits closure.** Rejected
+  because closure is an owner's organisational checkpoint, not an implementation
+  dependency.
+
+### Consequences
+
+- `docs/BACKLOG.md`, `CLAUDE.md`, `AGENTS.md`, `README.md`,
+  `docs/DEVELOPMENT.md` and `docs/AUTONOMOUS-DEVELOPMENT.md` distinguish task
+  completion from owner closure.
+- M23 and future milestones remain `Active` until the owner explicitly closes them.
+- Autonomous selection still considers every active milestone and chooses the
+  lowest-numbered eligible `TODO`; a completed-but-unclosed milestone adds none.
+
+---
+
+## D104 — Captured Pieces and Material Are Derived Display Projections
+
+**Date:** 2026-10-17
+
+**Status:** Accepted
+
+**Relates to:** `D004`, `D061`, `D069`, `D073`, `D087`, `D101`, `D102`,
+`M22.7`, `M22.11`, `M23.1`
+
+### Decision
+
+Every live chess game screen will show two compact, non-interactive captured-piece
+rows (`M23.1`). A row represents pieces captured **by** its named player, not that
+player's missing army. It names the player and colour; its glyphs therefore use the
+captured opponent pieces' colours. Online uses the opponent's username and "You",
+the computer game uses "Computer (<level>)" and "You", and pass-and-play names White
+and Black.
+
+Rows follow board orientation rather than the current turn. The side at the top of
+the board owns the upper row and the side at the bottom owns the lower. In a
+one-column layout they sit immediately above and below the board. In a two-pane
+layout both move near the top of the right panel, after game/player identification
+and before controls, so `D073`'s maximum left-hand board size is unchanged.
+Pass-and-play consequently keeps Black above and White below without turning status
+or controls (`D087`). Completed-game review is outside `M23.1`.
+
+The rows reuse the board's piece artwork and styling, stay about 36–44 dp tall, and
+use a subtle theme-appropriate tint without card or control decoration. They order
+pieces queen, rook, bishop, knight, pawn; repeat individual glyphs where width allows
+and compact repeats to `×N` on narrow screens. An empty row says "No captures" at the
+same height. Only the side leading in the current position's material shows `+N`.
+Material uses the project owner's chosen queen 9, rook 5, bishop 3.25, knight 3 and
+pawn 1 scale. Quarter-point advantages are shown exactly, whole values omit `.00`, and
+`+0` is never shown. Each row has one useful accessibility summary and no click action.
+
+Capture identity comes from active recorded history. A pure query through
+`ChessRules` identifies the captured `Piece` from a `MoveRecord` and its recorded
+pre-move state, including ordinary captures, en passant and a captured promoted
+piece; a non-capture returns none. It neither replays nor mutates the game. Local and
+computer displays aggregate active records. The authoritative server projects the
+same typed, optional fact from each online record, with an additive default that
+older payloads can omit. Both viewers receive the same capture facts; Android never
+replays online moves, parses SAN or infers missing starting material.
+
+Material balance is a separate current-position projection, not the difference
+between the captured-piece totals. A pure query through `ChessRules` sums each side's
+live non-king pieces at queen 9, rook 5, bishop 3.25, knight 3 and pawn 1. It represents
+those values exactly in quarter-pawn units—36, 20, 13, 12 and 4—rather than with
+floating-point arithmetic. Local and computer games query their current `GameState`;
+the server projects it for online games as optional
+`whiteMaterialBalanceQuarterPoints`, defined as White's live total minus Black's, and
+Android maps its sign and magnitude to the correct player row and pawn-value display.
+Both viewers receive the same balance. An older payload without the field causes
+Android to omit `+N`, not to treat the missing value as an equal-material position.
+
+Captured-piece lists and material balance are not stored in `GameState`, SQLDelight or
+PostgreSQL. They change with active history and state: Undo removes a capture and may
+change the balance, while Redo or matching continuation restores the recorded line.
+Summing the current live pieces values a promoted piece correctly; subtracting either
+captured-piece totals or the current board from the starting inventory does not.
+
+### Rationale
+
+Players need a quick material summary, but the display must agree across local and
+online modes and survive promotions, en passant, Undo and Redo. Recorded pre-move
+positions contain the exact capture fact, while the current position contains the
+exact material balance. Keeping those derivations separate follows `D061` and `D101`;
+server projections preserve `D004` and avoid dependence on the Android client's
+installed rules version.
+
+### Alternatives Considered
+
+- **Subtract the current board from the standard starting inventory.** Rejected:
+  promotion can add a piece type and makes missing inventory ambiguous.
+- **Use the difference between captured-piece totals as material advantage.**
+  Rejected: after a pawn promotes, its later capture has the promoted piece's value,
+  while the pawn it replaced is no longer an independent material loss. Summing the
+  live position gives the correct balance before and after either event.
+- **Replay online coordinates on Android.** Rejected by the server-authority and
+  recorded-history projection rules in `D004` and `D101`.
+- **Persist captured-piece lists.** Rejected as duplicate state that could disagree
+  with active history after Undo, Redo or a matching continuation.
+- **Place rows around the landscape board.** Rejected because it would shrink the
+  board that `D073` deliberately makes as tall as the window.
+
+### Consequences
+
+- `M23.1` is the first scheduled M23 task and implements the query, online
+  projection, responsive display and required tests. This decision does not
+  implement it.
+- The online capture fact and `whiteMaterialBalanceQuarterPoints` are typed, additive
+  and optional for compatibility; no database migration is needed.
+- Existing board coordinates and move feedback keep their drawing and interaction
+  order, and review remains unchanged.
