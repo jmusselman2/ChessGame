@@ -12,7 +12,10 @@ import com.jmussel.chessgame.core.chess.ChessRules
  * after tells those apart from the changes the store records.
  */
 sealed interface LocalGameChange {
-    /** One move was played. */
+    /**
+     * One move was played: a new one, or the next retained action of the Redo path, which it
+     * consumes (`D102`).
+     */
     data object Move : LocalGameChange
 
     /** The last [plies] moves were taken back. */
@@ -41,10 +44,13 @@ sealed interface LocalGameChange {
             val earlier = before.history
             val later = after.history
             return when {
-                // One more move and no Redo path left. A Redo of the last one-ply operation gives
-                // exactly this game too, the same as playing that move by hand, and the store
-                // saves the two identically; anything a Redo leaves behind makes it a Redo.
-                later.size == earlier.size + 1 && later.subList(0, earlier.size) == earlier && after.redoPath.isEmpty() -> Move
+                // One more move, played as the rules play it: a new continuation with no Redo
+                // path, or the next retained action consumed with the rest kept (`D102`). A Redo
+                // of a one-ply operation gives exactly this game too, and the store saves the two
+                // identically; a two-ply Redo adds two moves and is a Redo.
+                later.size == earlier.size + 1 &&
+                    later.subList(0, earlier.size) == earlier &&
+                    after == ChessRules.applyMove(before, later.last().move) -> Move
                 ChessRules.redoableSide(before) != null && after == ChessRules.redo(before) -> Redo
                 later.size < earlier.size && earlier.subList(0, later.size) == later -> TakeBack(earlier.size - later.size)
                 later == earlier && !before.isOver && after.isOver && after.state.copy(result = null) == before.state -> Result

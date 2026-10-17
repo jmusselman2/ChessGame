@@ -335,6 +335,15 @@ class ComputerGame(
         if (current.game.isOver || current.humansTurn) return
 
         stopSearching()
+
+        // The computer's recorded reply is next on the retained continuation: it is restored as it
+        // was recorded, with no search (`D102`). Any search that was running has just been
+        // stopped, so it cannot land on top.
+        ChessRules.retainedMove(current.game)?.let { reply ->
+            accept(current, BoardUiState(ChessRules.applyMove(current.game, reply), orientation = current.humanSide))
+            return
+        }
+
         val searchTurn = turn
         val position = current.game
         state = current.copy(thinking = true)

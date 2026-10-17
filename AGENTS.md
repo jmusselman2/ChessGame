@@ -54,7 +54,9 @@ will be written, and you will not find it yet.
 - `ChessGame` is a `GameState` plus history: `MoveRecord(move, positionBefore)`.
   Undo restores `positionBefore`; it never replays moves (`D061`). It also carries a
   `redoPath` of `UndoneOperation`s (records plus `stateAfter`), which Undo adds to and
-  `ChessRules.redo` restores from; a move, a resignation or a claim clears it (`D092`).
+  `ChessRules.redo` restores from; a resignation or a claim clears it (`D092`), and so does
+  any move except the next retained one, which `applyMove` restores from its record and
+  consumes alone, keeping the rest (`ChessRules.retainedMove`, `D102`).
 - Every action is a query/transition pair (`isLegal`/`applyMove`,
   `canClaimDraw`/`claimDraw`, `canUndo`/`undo`). A transition `require`s its
   query and throws `IllegalArgumentException` when called without it.
@@ -175,7 +177,10 @@ the path in `games.redo_path` (`V13`) and the app in `local_games.redo_path`, ea
 same write as state and history. Pass-and-play's Undo and Redo are `GameControls`
 transitions saved through `LocalGameChange`'s `TakeBack` and `Redo`; the computer's are
 `ComputerGame.takeBack` and `redo`, which never asks the engine for a recorded reply;
-online it is `ChessAppViewModel.redo` → `POST /games/{id}/redo`.
+online it is `ChessAppViewModel.redo` → `POST /games/{id}/redo`. Playing the next
+recorded move by hand advances the path instead (`D102`, `M22.2`): it is an ordinary
+move everywhere (`MoveMade` online, `LocalGameChange.Move` locally), the store keeps what
+is left of the path, and the computer restores a retained reply with no search.
 
 ### Undo requests
 

@@ -51,7 +51,8 @@ import kotlin.uuid.Uuid
 
 /**
  * Redo online (`D092`, `M21.21`): the server keeps the recorded Undo operations, offers Redo
- * to the player to move, and restores the next operation exactly, once.
+ * to the player to move, and restores the next operation exactly, once. A move that repeats
+ * the next recorded move advances that path instead of clearing it (`D102`, `M22.2`).
  *
  * Jordan plays White and Alex Black throughout.
  *
@@ -276,26 +277,6 @@ class RedoTest {
     }
 
     @Test
-    fun theSameCoordinatesPlayedByHandAreANewBranchThatClearsThePath() {
-        withGame { fixture ->
-            fixture.play("e2e4", "e7e5")
-            fixture.undo(fixture.alex)
-            fixture.undo(fixture.jordan)
-
-            fixture.play("e2e4")
-
-            assertTrue(
-                fixture
-                    .game()
-                    .game.redoPath
-                    .isEmpty(),
-                "Alex's e7e5 is no longer restorable",
-            )
-            assertIs<CommandResult.NothingToRedo>(fixture.redo(fixture.alex))
-        }
-    }
-
-    @Test
     fun resignationClearsThePathAndStaysFinal() {
         withGame { fixture ->
             fixture.play("e2e4")
@@ -438,6 +419,163 @@ class RedoTest {
             fixture.redo(fixture.jordan)
 
             assertNull(fixture.view(fixture.jordan).undoNote)
+        }
+    }
+
+    // --- matching play advances the continuation (`D102`, `M22.2`) ---------------------------
+
+    @Test
+    fun theNextMovePlayedByHandAdvancesThePathAndKeepsTheRest() {
+        withGame { fixture ->
+            fixture.play("e2e4", "e7e5")
+            val full = fixture.game().game
+            fixture.undo(fixture.alex)
+            fixture.undo(fixture.jordan)
+            val before = fixture.version
+
+            fixture.play("e2e4")
+
+            assertEquals(before + 1, fixture.version, "one accepted change")
+            assertEquals(
+                listOf(uci("e7e5")),
+                fixture
+                    .game()
+                    .game.redoPath
+                    .single()
+                    .moves,
+                "Alex's e7e5 is still ahead",
+            )
+            assertTrue(fixture.view(fixture.alex).canRedo)
+            assertFalse(fixture.view(fixture.jordan).canRedo, "the consumed move is not redoable")
+            assertEquals(GameCommandService.MOVE_MADE, fixture.games.auditTrail(fixture.gameId).last(), "a move, not a Redo")
+
+            assertIs<CommandResult.Applied>(fixture.redo(fixture.alex))
+            assertEquals(full, fixture.game().game)
+        }
+    }
+
+    @Test
+    fun matchingTheFirstMoveOfATwoPlyOperationNeverPlaysTheOpponentsReply() {
+        withGame { fixture ->
+            fixture.play("g1f3", "b8c6")
+            val answered = fixture.game().game
+            fixture.commands.requestUndo(fixture.jordan, fixture.gameId, 2)
+            fixture.commands.acceptUndo(fixture.alex, fixture.gameId, 3)
+
+            fixture.play("g1f3")
+
+            val partly = fixture.game().game
+            assertEquals(listOf(uci("g1f3")), partly.moves, "Alex's reply is not played for them")
+            assertEquals(listOf(uci("b8c6")), partly.redoPath.single().moves)
+            assertTrue(fixture.view(fixture.alex).canRedo, "the reply stays Alex's to redo")
+            assertFalse(fixture.view(fixture.jordan).canRedo)
+
+            // Alex repeats it by hand, which advances it too.
+            fixture.play("b8c6")
+            assertEquals(answered, fixture.game().game)
+            assertEquals(
+                listOf(GameCommandService.MOVE_MADE, GameCommandService.MOVE_MADE),
+                fixture.games.auditTrail(fixture.gameId).takeLast(2),
+            )
+        }
+    }
+
+    @Test
+    fun theOpponentMayInsteadBranchFromTheRetainedReply() {
+        withGame { fixture ->
+            fixture.play("g1f3", "b8c6")
+            fixture.commands.requestUndo(fixture.jordan, fixture.gameId, 2)
+            fixture.commands.acceptUndo(fixture.alex, fixture.gameId, 3)
+            fixture.play("g1f3")
+
+            fixture.play("g8f6")
+
+            assertTrue(
+                fixture
+                    .game()
+                    .game.redoPath
+                    .isEmpty(),
+            )
+            assertIs<CommandResult.NothingToRedo>(fixture.redo(fixture.jordan))
+        }
+    }
+
+    @Test
+    fun aMatchingMoveClearsAPendingUndoRequest() {
+        withGame { fixture ->
+            fixture.play("e2e4", "e7e5", "g1f3", "b8c6")
+            fixture.undo(fixture.alex)
+            // Alex to move, with Jordan's g1f3 answering their e7e5: Alex may ask to undo both.
+            assertIs<CommandResult.Applied>(fixture.commands.requestUndo(fixture.alex, fixture.gameId, fixture.version))
+            assertEquals(fixture.alex, fixture.game().undo.pendingFrom)
+
+            fixture.play("b8c6")
+
+            assertNull(fixture.game().undo.pendingFrom, "a matching move changes the board, so the request goes (D091)")
+            assertTrue(
+                fixture
+                    .game()
+                    .game.redoPath
+                    .isEmpty(),
+                "and it consumed the last retained move",
+            )
+        }
+    }
+
+    @Test
+    fun aPartlyConsumedPathSurvivesANewRepositoryAndService() {
+        withGame { fixture ->
+            fixture.play("g1f3", "b8c6")
+            fixture.commands.requestUndo(fixture.jordan, fixture.gameId, 2)
+            fixture.commands.acceptUndo(fixture.alex, fixture.gameId, 3)
+            fixture.play("g1f3")
+            val stored = fixture.game().game
+
+            val freshGames = GameRepository(fixture.database)
+            val freshCommands = GameCommandService(fixture.database, freshGames, seriesService(fixture.database))
+            assertEquals(stored, assertNotNull(freshGames.load(fixture.gameId)).game)
+
+            assertIs<CommandResult.Applied>(freshCommands.redo(fixture.alex, fixture.gameId, fixture.version))
+            assertEquals(listOf(uci("g1f3"), uci("b8c6")), fixture.game().game.moves)
+        }
+    }
+
+    @Test
+    fun aStaleMatchingMoveIsRefusedAndConcurrentOnesApplyOnce() {
+        withGame { fixture ->
+            fixture.play("e2e4", "e7e5")
+            fixture.undo(fixture.alex)
+            fixture.undo(fixture.jordan)
+            val at = fixture.version
+
+            assertIs<CommandResult.StaleVersion>(fixture.commands.makeMove(fixture.jordan, fixture.gameId, at - 1, uci("e2e4")))
+
+            val start = CountDownLatch(1)
+            val pool = Executors.newFixedThreadPool(2)
+            val attempts =
+                (1..2).map {
+                    pool.submit<CommandResult> {
+                        start.await()
+                        fixture.commands.makeMove(fixture.jordan, fixture.gameId, at, uci("e2e4"))
+                    }
+                }
+            start.countDown()
+            val results = attempts.map { it.get(30, TimeUnit.SECONDS) }
+            pool.shutdown()
+
+            assertEquals(1, results.count { it is CommandResult.Applied }, "$results")
+            assertEquals(1, results.count { it is CommandResult.StaleVersion }, "$results")
+            assertEquals(listOf(uci("e2e4")), fixture.game().game.moves)
+            assertEquals(
+                listOf(uci("e7e5")),
+                fixture
+                    .game()
+                    .game.redoPath
+                    .single()
+                    .moves,
+                "consumed once",
+            )
+            assertEquals(at + 1, fixture.version)
         }
     }
 

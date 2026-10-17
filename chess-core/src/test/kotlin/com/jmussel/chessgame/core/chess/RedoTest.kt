@@ -9,7 +9,8 @@ import kotlin.test.assertTrue
 
 /**
  * Redo (`D092`): one Redo restores one accepted Undo operation, exactly as it was recorded,
- * and the whole forward path is kept until play diverges from it.
+ * and the whole forward path is kept until play diverges from it. Playing the next recorded
+ * move by hand follows the path rather than diverging (`D102`): `RetainedContinuationTest`.
  */
 class RedoTest {
     private fun played(vararg moves: String): ChessGame =
@@ -97,15 +98,6 @@ class RedoTest {
 
         assertTrue(diverged.redoPath.isEmpty())
         assertNull(ChessRules.redoableSide(diverged))
-    }
-
-    @Test
-    fun playingTheSameMoveByHandIsANewBranchAndStillClearsThePath() {
-        val undone = undoOne(undoOne(fourPlies))
-        val sameByHand = ChessRules.applyMove(undone, Move.of("g1", "f3"))
-
-        assertTrue(sameByHand.redoPath.isEmpty(), "only Redo restores a recorded move (D092)")
-        assertEquals(played("e2e4", "e7e5", "g1f3"), sameByHand)
     }
 
     @Test

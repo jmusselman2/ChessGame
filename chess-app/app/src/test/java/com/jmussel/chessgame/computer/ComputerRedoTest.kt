@@ -25,6 +25,8 @@ import org.junit.Test
 /**
  * Redo against the computer (`D092`, `M21.21`): a takeback is restored exactly, a recorded
  * reply is never chosen again, and a human-only takeback hands the turn back to one search.
+ * Repeating the human move by hand advances the retained continuation, so the recorded reply
+ * comes back without a search too (`D102`).
  *
  * The same deterministic harness as [ComputerGameTest]: one test dispatcher, a scripted
  * engine that counts its calls, and a real local-game store.
@@ -176,27 +178,6 @@ class ComputerRedoTest {
         }
 
     @Test
-    fun theSameMoveByHandIsANewBranchAndTheComputerThinksAgain() =
-        runTest(dispatcher) {
-            val engine = ScriptedEngine("e7e5", "c7c5")
-            val game = started(engine)
-            game.tap("e2", "e4")
-            advanceUntilIdle()
-            game.takeBack()
-
-            game.tap("e2", "e4")
-            advanceUntilIdle()
-
-            assertTrue(
-                game.state!!
-                    .game.redoPath
-                    .isEmpty(),
-            )
-            assertEquals(2, engine.calls)
-            assertEquals(listOf(Move.of("e2", "e4"), Move.of("c7", "c5")), game.moves)
-        }
-
-    @Test
     fun theHumanMoveReplayedByHandAfterAOnePlyTakebackIsPlayed() =
         runTest(dispatcher) {
             val engine = ScriptedEngine("e7e5")
@@ -211,6 +192,70 @@ class ComputerRedoTest {
 
             assertEquals(listOf(Move.of("e2", "e4"), Move.of("e7", "e5")), game.moves)
             assertEquals(1, engine.calls)
+            assertEquals(game.state!!.game, stored())
+        }
+
+    @Test
+    fun theHumanMoveRepeatedAfterATwoPlyTakebackRestoresTheRecordedReplyWithNoSearch() =
+        runTest(dispatcher) {
+            // Asked again, the engine would now answer c7c5: the retained reply must not ask it.
+            val engine = ScriptedEngine("e7e5", "c7c5")
+            val game = started(engine)
+            game.tap("e2", "e4")
+            advanceUntilIdle()
+            val played = game.state!!.game
+            game.takeBack()
+            advanceUntilIdle()
+
+            game.tap("e2", "e4")
+            advanceUntilIdle()
+
+            assertEquals(played, game.state!!.game)
+            assertEquals("the recorded reply came back with no new search (D102)", 1, engine.calls)
+            assertFalse(game.state!!.thinking)
+            assertTrue(game.state!!.humansTurn)
+            assertEquals(played, stored())
+        }
+
+    @Test
+    fun aDifferentHumanMoveAfterATakebackClearsTheReplyAndSearches() =
+        runTest(dispatcher) {
+            val engine = ScriptedEngine("e7e5", "c7c5")
+            val game = started(engine)
+            game.tap("e2", "e4")
+            advanceUntilIdle()
+            game.takeBack()
+            advanceUntilIdle()
+
+            game.tap("d2", "d4")
+            advanceUntilIdle()
+
+            assertEquals(listOf(Move.of("d2", "d4"), Move.of("c7", "c5")), game.moves)
+            assertEquals(2, engine.calls)
+            assertTrue(
+                game.state!!
+                    .game.redoPath
+                    .isEmpty(),
+            )
+        }
+
+    @Test
+    fun aSearchOvertakenByATakebackIsDiscarded() =
+        runTest(dispatcher) {
+            val engine = ScriptedEngine("e7e5", "c7c5")
+            val game = started(engine)
+            engine.whileThinking = { game.takeBack() }
+            game.tap("e2", "e4")
+            advanceUntilIdle()
+
+            assertEquals("the takeback during the search won", emptyList<Move>(), game.moves)
+            assertEquals(
+                listOf(Move.of("e2", "e4")),
+                game.state!!
+                    .game.redoPath
+                    .single()
+                    .moves,
+            )
             assertEquals(game.state!!.game, stored())
         }
 

@@ -241,17 +241,61 @@ object ChessRules {
     /**
      * [game] after [move] is played, with the prior position recorded in the history.
      *
-     * A played move starts a new continuation, so it clears the Redo path, even when it is the
-     * move Redo would have restored next (`D092`): only [redo] restores a recorded move.
+     * When [move] is the next retained action ([retainedMove]) — the same `from`, `to` and
+     * promotion, played from exactly its recorded position — it advances the retained
+     * continuation instead of branching (`D102`): that one recorded action rejoins the history,
+     * its recorded resulting position becomes the game's, and every action still ahead stays
+     * retained. Nothing is executed through the rules for it (`D061`).
+     *
+     * Any other move starts a new continuation and clears the whole Redo path. So does a move
+     * whose result ends the game, which is final (`D017`).
      */
     fun applyMove(
         game: ChessGame,
         move: Move,
-    ): ChessGame =
-        ChessGame(
+    ): ChessGame {
+        if (retainedMove(game) == move) return advanceRetained(game)
+
+        return ChessGame(
             state = applyMove(game.state, move),
             history = game.history + MoveRecord(move, game.state),
         )
+    }
+
+    /**
+     * The next action of [game]'s retained continuation, or `null` when there is none to follow
+     * from here (`D102`).
+     *
+     * It is the first move of the operation Redo would restore next, and only while the game
+     * stands exactly at the position that move was recorded from: every canonical field counts,
+     * not only the board. A finished game retains nothing.
+     */
+    fun retainedMove(game: ChessGame): Move? {
+        if (game.isOver) return null
+        val next = game.redoPath.lastOrNull() ?: return null
+        val first = next.records.first()
+        return first.move.takeIf { first.positionBefore == game.state }
+    }
+
+    /**
+     * [game] with the next retained action restored on its own (`D102`), the rest of its
+     * operation kept as the next operation. Mechanical, like [redo]; [retainedMove] says whether
+     * there is one.
+     */
+    private fun advanceRetained(game: ChessGame): ChessGame {
+        val next = game.redoPath.last()
+        val first = next.records.first()
+        val rest = next.records.drop(1)
+        val after = rest.firstOrNull()?.positionBefore ?: next.stateAfter
+        val remaining =
+            if (rest.isEmpty()) game.redoPath.dropLast(1) else game.redoPath.dropLast(1) + UndoneOperation(rest, next.stateAfter)
+
+        return ChessGame(
+            state = after,
+            history = game.history + first,
+            redoPath = if (after.isOver) emptyList() else remaining,
+        )
+    }
 
     /**
      * [game] drawn by a valid [claim]. The move history is unaffected, and the Redo path is

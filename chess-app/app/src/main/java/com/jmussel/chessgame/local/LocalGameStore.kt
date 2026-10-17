@@ -72,8 +72,9 @@ data class LocalGameSummary(
  *   first of them. The history is never rewritten.
  * - **Nothing a takeback removes is lost** (`D092`). It becomes one Undo operation on the
  *   game's Redo path, with the position after it, in the same transaction; [redo] puts the
- *   next operation back exactly as it was. A move or a result clears the path, and a
- *   finished game has none.
+ *   next operation back exactly as it was. A move that repeats the next retained action
+ *   consumes only that action and keeps the rest (`D102`); any other move, or a result,
+ *   clears the path, and a finished game has none.
  * - **Each change is one transaction**, so a committed database never holds a board that
  *   disagrees with its move history or its Redo path.
  * - **Restoring never replays a move** (`D029`, `D061`): the stored state and the stored
@@ -149,8 +150,10 @@ class LocalGameStore(
      * Saves the move [game] has just played in the unfinished game [id]: its latest record is
      * appended and its state becomes the game's.
      *
-     * [game] must be the stored game plus exactly one move. A move that ends the game
-     * completes it, in the same transaction.
+     * [game] must be the stored game plus exactly one move, as the rules play it. A move that
+     * ends the game completes it, in the same transaction. A move that is the next retained
+     * action consumes it, and the Redo path that is left is written with the state (`D102`);
+     * any other move clears the path.
      */
     fun recordMove(
         id: Long,
@@ -158,13 +161,15 @@ class LocalGameStore(
     ) {
         val record = requireNotNull(game.history.lastOrNull()) { "A game with no moves has no move to record" }
         games.transaction {
-            val stored = LocalStateDocument.decode(activeRow(id).state)
+            val before = restore(activeRow(id)).game
             val plies = moves.count(id).executeAsOne()
             require(game.history.size.toLong() == plies + 1) {
                 "Game $id has $plies moves stored; recording one more cannot give ${game.history.size}"
             }
-            require(record.positionBefore == stored) { "The move was not played from game $id's stored position" }
-            require(game.redoPath.isEmpty()) { "A played move starts a new continuation, with no Redo path (D092)" }
+            require(record.positionBefore == before.state) { "The move was not played from game $id's stored position" }
+            require(game == ChessRules.applyMove(before, record.move)) {
+                "The move does not follow from game $id: a new move clears the Redo path, a retained one keeps the rest (D102)"
+            }
 
             moves.append(
                 gameId = id,
@@ -172,7 +177,7 @@ class LocalGameStore(
                 move = record.move.toString(),
                 positionBefore = LocalStateDocument.encode(record.positionBefore),
             )
-            writeState(id, game.state)
+            writeState(id, game.state, game.redoPath)
         }
     }
 

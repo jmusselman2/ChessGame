@@ -64,7 +64,9 @@ class LocalGameChangeTest {
     fun restoringTheNextUndoneOperationIsARedo() {
         val undone = ChessRules.undoLastMove(ChessRules.undoLastMove(opening))
 
-        assertEquals(LocalGameChange.Redo, LocalGameChange.between(undone, ChessRules.redo(undone)))
+        // Redoing a one-ply operation gives the game its move by hand gives (`D102`), and is
+        // saved as that move; a two-ply operation can only be a Redo.
+        assertEquals(LocalGameChange.Move, LocalGameChange.between(undone, ChessRules.redo(undone)))
         assertEquals(LocalGameChange.Redo, LocalGameChange.between(ChessRules.undoLastMoves(opening, 2), opening))
     }
 

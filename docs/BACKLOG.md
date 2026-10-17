@@ -134,7 +134,7 @@ implementation, as `M21` was.
 | Task     | Outcome                                             | Depends on | Formerly | Status    |
 | -------- | --------------------------------------------------- | ---------- | -------- | --------- |
 | `M22.1`  | At most one active series per party                 | None       | `F38`    | `DONE`    |
-| `M22.2`  | Matching play advances the retained Redo continuation | M21.21   | —        | `TODO`    |
+| `M22.2`  | Matching play advances the retained Redo continuation | M21.21   | —        | `DONE`    |
 | `M22.3`  | Draw offers by agreement                            | M22.2      | `F2`     | `TODO`    |
 | `M22.4`  | Win/loss/draw record per friend                     | None       | `F1`     | `TODO`    |
 | `M22.5`  | Detailed profiles                                   | M22.4      | `F6`     | `TODO`    |
@@ -262,7 +262,7 @@ Compose or device test changed, so none was run on a device.
 
 ## M22.2 — Matching play advances the retained Redo continuation
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M21.21
 
@@ -360,6 +360,28 @@ structured action at a time.
   requires.
 - `.\gradlew.bat build`.
 - `git diff --check`.
+
+### Completion
+
+Completed 2026-10-17. `ChessRules.applyMove(ChessGame, Move)` now asks
+`ChessRules.retainedMove`: when the move's `from`, `to` and promotion equal the first record
+of the next Redo operation and the whole current `GameState` equals that record's
+`positionBefore`, it appends that record, takes the recorded next position as the state
+(the next record's `positionBefore`, or the operation's `stateAfter`) and keeps the rest of
+the operation, and every deeper one, on the path; a resulting finished state would clear it.
+Any other move branches as before. Because the server, the local store and the computer all
+play moves through it, the server needed no code change (a manual match is audited
+`MoveMade`, saves state, history and path in the one guarded write, and clears undo-request
+metadata). `LocalGameStore.recordMove` accepts a move only if the game equals what
+`applyMove` gives from the stored game and writes the remaining path with the state;
+`LocalGameChange` classifies such a move as `Move`; `ComputerGame` restores a retained
+computer reply from its record with no engine search, after stopping any search. The
+`D092` tests that required a hand-played repeat to branch were replaced by `D102` ones.
+Verified with `:chess-core:test` (new `RetainedContinuationTest`),
+`:chess-app:testDebugUnitTest` (real-file SQLDelight `LocalRedoStoreTest`, scripted-engine
+`ComputerRedoTest`), `:server:test --rerun-tasks` against PostgreSQL (`RedoTest`'s actor,
+version, audit, persistence, stale, concurrency, request and no-silent-reply cases),
+`.\gradlew.bat build` and `git diff --check`. No Compose or device test changed.
 
 ---
 

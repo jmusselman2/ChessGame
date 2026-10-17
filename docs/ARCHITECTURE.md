@@ -1151,11 +1151,12 @@ records one operation of one or two plies; `undoLastMoveJoiningNext` joins a cro
 undo request's move to the reply the opponent had undone, so both `D091` orders leave
 the same two-ply operation. `redoableSide`/`canRedo` and `redo` are the query and
 transition: Redo belongs to the side to move, restores the recorded records and state
-without replaying anything, and is never offered in a finished game. As built,
-`applyMove`, `claimDraw` and `resign` clear the path; a move with the same coordinates
-as the next recorded one is still a new continuation.
+without replaying anything, and is never offered in a finished game. `claimDraw` and
+`resign` clear the path, and so does `applyMove` for any move other than the next
+retained one.
 
-`M22.2` implements `D102`'s correction. A submitted move whose canonical identity
+`M22.2` implemented `D102`'s correction in `ChessRules.applyMove` and its query
+`ChessRules.retainedMove`, so the server, the local store and the computer share it. A submitted move whose canonical identity
 and complete current state match the next retained `MoveRecord` consumes that one
 record, restores its recorded resulting state, and preserves the remaining suffix. A
 different legal move clears the suffix. Partial consumption turns the unconsumed part

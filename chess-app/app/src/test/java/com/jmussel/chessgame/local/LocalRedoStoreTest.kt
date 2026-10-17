@@ -113,7 +113,8 @@ class LocalRedoStoreTest {
     }
 
     @Test
-    fun aMoveClearsThePathEvenWithTheSameCoordinates() {
+    fun theNextRetainedMoveByHandKeepsTheRestOfThePathAcrossReopening() {
+        // `D102`, superseding `D092`'s "the same coordinates still clear the path".
         val store = openStore()
         val id = store.startGame().id
         val played = store.playAndRecord(id, ChessGame.newGame(), "e2e4", "e7e5")
@@ -122,13 +123,61 @@ class LocalRedoStoreTest {
 
         store.recordMove(id, ChessRules.applyMove(undone, Move.of("e2", "e4")))
 
+        val partly = reopened()
+        assertEquals(played.history.take(1), partly.history)
+        assertEquals("Black's move is still ahead", listOf(Move.of("e7", "e5")), partly.redoPath.single().moves)
+        assertEquals(Side.BLACK, ChessRules.redoableSide(partly))
+        assertEquals(played, openStore().redo(id))
+        assertEquals(played, reopened())
+    }
+
+    @Test
+    fun bothSidesAdvanceTheirRetainedMovesByHand() {
+        val store = openStore()
+        val id = store.startGame().id
+        val played = store.playAndRecord(id, ChessGame.newGame(), "e2e4", "e7e5", "g1f3")
+        repeat(3) { store.takeBack(id) }
+
+        store.playAndRecord(id, reopened(), "e2e4", "e7e5")
+
+        val partly = reopened()
+        assertEquals("White's Nf3 is still retained for White", Side.WHITE, ChessRules.redoableSide(partly))
+        store.playAndRecord(id, partly, "g1f3")
+        assertEquals(played, reopened())
+    }
+
+    @Test
+    fun aDifferentMoveClearsThePath() {
+        val store = openStore()
+        val id = store.startGame().id
+        store.playAndRecord(id, ChessGame.newGame(), "e2e4", "e7e5")
+        store.takeBack(id)
+        val undone = store.takeBack(id)
+
+        store.recordMove(id, ChessRules.applyMove(undone, Move.of("d2", "d4")))
+
         assertTrue(reopened().redoPath.isEmpty())
-        assertEquals(played.history.take(1), reopened().history)
         assertThrows(IllegalArgumentException::class.java) { openStore().redo(id) }
     }
 
     @Test
-    fun aMoveThatStillCarriesAPathIsRefused() {
+    fun aComputerTakebacksFirstMoveByHandLeavesTheReplyRetained() {
+        val store = openStore()
+        val id = store.startGame(ComputerOpponent(Side.WHITE, 2)).id
+        val played = store.playAndRecord(id, ChessGame.newGame(), "e2e4", "e7e5")
+        val takenBack = store.takeBack(id, plies = 2)
+
+        store.recordMove(id, ChessRules.applyMove(takenBack, Move.of("e2", "e4")))
+
+        val partly = reopened(LocalGameKind.COMPUTER)
+        assertEquals(listOf(Move.of("e7", "e5")), partly.redoPath.single().moves)
+        assertEquals(Move.of("e7", "e5"), ChessRules.retainedMove(partly))
+        store.recordMove(id, ChessRules.applyMove(partly, Move.of("e7", "e5")))
+        assertEquals(played, reopened(LocalGameKind.COMPUTER))
+    }
+
+    @Test
+    fun aMoveThatKeepsAPathTheRulesWouldClearIsRefused() {
         val store = openStore()
         val id = store.startGame().id
         store.playAndRecord(id, ChessGame.newGame(), "e2e4", "e7e5")
