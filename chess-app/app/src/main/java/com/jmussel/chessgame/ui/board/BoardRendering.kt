@@ -187,8 +187,34 @@ object BoardRendering {
         return if (orientation == Side.WHITE) labels else labels.reversed()
     }
 
+    /**
+     * The coordinate labels drawn inside the square at [row] and [column] of the board as drawn
+     * for [orientation] (`M22.11`): the file letter along the bottom row and the rank number along
+     * the left column, naming the true squares. A board turned for Black reads h to a and 1 to 8
+     * from the top; pass-and-play is always drawn from White's side (`D087`), and its labels are
+     * never turned with the pieces.
+     */
+    fun edgeLabels(
+        row: Int,
+        column: Int,
+        orientation: Side = Side.WHITE,
+    ): EdgeLabels =
+        EdgeLabels(
+            file = fileLabels(orientation)[column].takeIf { row == Square.RANKS - 1 },
+            rank = rankLabels(orientation)[row].takeIf { column == 0 },
+        )
+
     private fun squareAt(
         board: Board,
         square: Square,
     ): BoardSquare = BoardSquare(square = square, piece = board.pieceAt(square), isLight = isLight(square))
+}
+
+/** The coordinates written inside one edge square, or `null` where it has none (`M22.11`). */
+data class EdgeLabels(
+    val file: String? = null,
+    val rank: String? = null,
+) {
+    val isEmpty: Boolean
+        get() = file == null && rank == null
 }

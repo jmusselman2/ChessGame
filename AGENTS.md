@@ -114,7 +114,9 @@ Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/profiles/{user
   pass-and-play. `BoardRendering.feedbackFor` decides each square's marks: last
   move, then check, then selection, with destination dots and rings on top. Every
   board passes the checked king, from `chess-core` locally and from the server's
-  `inCheck` online (`M21.17`).
+  `inCheck` online (`M21.17`). Every board also draws its coordinates inside the edge
+  squares (`BoardRendering.edgeLabels`, `M22.11`), beneath every highlight and mark, and
+  out of what a screen reader says.
 - `ui/game/OnlineGame.kt` and `OnlineGameScreen.kt` — the online game.
 - `computer/` — playing the computer (`D086`). `ComputerGame`: the questions before a
   new game (`ComputerSetup`, from the entry or from New game, which keeps the game

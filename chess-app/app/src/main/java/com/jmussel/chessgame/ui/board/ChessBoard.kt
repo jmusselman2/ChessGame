@@ -36,11 +36,16 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.SemanticsPropertyKey
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
@@ -76,6 +81,8 @@ private const val DOT_SCALE = 0.28f
 private const val CAPTURE_RING_SCALE = 0.86f
 private const val CAPTURE_RING_WIDTH = 0.07f
 private const val LAST_MOVE_CORNER = 0.24f
+private const val LABEL_SCALE = 0.2f
+private const val LABEL_INSET = 0.04f
 private const val SELECTED_OUTLINE_WIDTH = 0.08f
 
 /** The test tag on the whole board. */
@@ -121,6 +128,9 @@ fun ChessBoard(
     // A piece is a picture of a piece, so it is sized with the square rather than with the
     // system font size: `toSp` undoes the font scale, non-linear scaling included.
     val glyphSize = with(LocalDensity.current) { (cellSize * GLYPH_SCALE).toSp() }
+    // The coordinates are small text inside the edge squares, sized with the square too.
+    val labelSize = with(LocalDensity.current) { (cellSize * LABEL_SCALE).toSp() }
+    val labels = rememberTextMeasurer()
 
     Column(
         modifier =
@@ -129,18 +139,21 @@ fun ChessBoard(
                 .clipToBounds()
                 .testTag(CHESS_BOARD_TAG),
     ) {
-        BoardRendering.rows(board, orientation).forEach { row ->
+        BoardRendering.rows(board, orientation).forEachIndexed { rowIndex, row ->
             Row(
                 modifier =
                     Modifier
                         .fillMaxWidth()
                         .weight(1f),
             ) {
-                row.forEach { square ->
+                row.forEachIndexed { columnIndex, square ->
                     SquareCell(
                         square = square,
                         cellSize = cellSize,
                         glyphSize = glyphSize,
+                        edgeLabels = BoardRendering.edgeLabels(rowIndex, columnIndex, orientation),
+                        labelStyle = TextStyle(fontSize = labelSize, color = if (square.isLight) DarkSquare else LightSquare),
+                        labels = labels,
                         feedback = BoardRendering.feedbackFor(square, selectedSquare, legalDestinations, lastMove, checkedKing),
                         isUpsideDown = square.piece?.let { BoardRendering.isUpsideDown(it, orientation, faceToFace) } == true,
                         onClick = { onSquareClick(square.square) },
@@ -160,6 +173,9 @@ private fun SquareCell(
     square: BoardSquare,
     cellSize: Dp,
     glyphSize: TextUnit,
+    edgeLabels: EdgeLabels,
+    labelStyle: TextStyle,
+    labels: TextMeasurer,
     feedback: SquareFeedback,
     isUpsideDown: Boolean,
     onClick: () -> Unit,
@@ -172,9 +188,16 @@ private fun SquareCell(
                 .semantics {
                     selected = SquareHighlight.SELECTED in feedback.highlights
                     feedback.description?.let { stateDescription = it }
+                    // For tests only: a custom key no screen reader reads (board accessibility is F40).
+                    if (!edgeLabels.isEmpty) this[EdgeLabelsKey] = edgeLabels
                 }.background(if (square.isLight) LightSquare else DarkSquare)
                 .clickable(onClick = onClick)
-                .drawBehind { feedback.highlights.forEach { highlight(it) } },
+                .drawBehind {
+                    // The coordinates first, so every highlight is drawn over them and the
+                    // destination marks after them; none of those is ever hidden (`M22.11`).
+                    coordinates(edgeLabels, labels, labelStyle)
+                    feedback.highlights.forEach { highlight(it) }
+                },
         contentAlignment = Alignment.Center,
     ) {
         square.piece?.let { piece ->
@@ -222,6 +245,23 @@ private fun SquareCell(
         }
     }
 }
+
+/** The rank number in the top-left corner and the file letter in the bottom-right, never turned. */
+private fun DrawScope.coordinates(
+    edgeLabels: EdgeLabels,
+    labels: TextMeasurer,
+    style: TextStyle,
+) {
+    val inset = size.minDimension * LABEL_INSET
+    edgeLabels.rank?.let { rank -> drawText(labels.measure(rank, style), topLeft = Offset(inset, inset)) }
+    edgeLabels.file?.let { file ->
+        val layout = labels.measure(file, style)
+        drawText(layout, topLeft = Offset(size.width - layout.size.width - inset, size.height - layout.size.height - inset))
+    }
+}
+
+/** The coordinates an edge square carries, exposed to tests and to nothing that speaks. */
+val EdgeLabelsKey = SemanticsPropertyKey<EdgeLabels>("EdgeLabels")
 
 /**
  * Draws one square treatment (`M21.17`). Each has a shape of its own, so they can be told

@@ -136,4 +136,48 @@ class BoardRenderingTest {
             drawn,
         )
     }
+
+    // --- Coordinates (M22.11) -----------------------------------------------------------
+
+    /** The label of every square as drawn, keyed by the true square it is drawn on. */
+    private fun labelsOn(orientation: Side): Map<Square, EdgeLabels> =
+        BoardRendering
+            .rows(StandardPosition.BOARD, orientation)
+            .flatMapIndexed { row, squares ->
+                squares.mapIndexed { column, it ->
+                    it.square to
+                        BoardRendering.edgeLabels(row, column, orientation)
+                }
+            }.toMap()
+
+    @Test
+    fun fromWhitesSideTheBottomRowNamesFilesAToHAndTheLeftColumnRanks8To1() {
+        val labels = labelsOn(Side.WHITE)
+
+        assertEquals(EdgeLabels(file = "a", rank = "1"), labels[Square.parse("a1")])
+        assertEquals(EdgeLabels(file = "h"), labels[Square.parse("h1")])
+        assertEquals(EdgeLabels(rank = "8"), labels[Square.parse("a8")])
+        assertEquals(EdgeLabels(), labels[Square.parse("e4")])
+        assertEquals(
+            "every label names its own square",
+            true,
+            labels.all { (square, it) ->
+                it.file == null ||
+                    it.file == square.fileChar.toString()
+            },
+        )
+        assertTrue(labels.all { (square, it) -> it.rank == null || it.rank == square.rankNumber.toString() })
+    }
+
+    @Test
+    fun fromBlacksSideTheFilesRunHToAAndTheRanks1To8FromTheTop() {
+        val labels = labelsOn(Side.BLACK)
+
+        assertEquals("the bottom-left square from Black's side", EdgeLabels(file = "h", rank = "8"), labels[Square.parse("h8")])
+        assertEquals(EdgeLabels(file = "a"), labels[Square.parse("a8")])
+        assertEquals(EdgeLabels(rank = "1"), labels[Square.parse("h1")])
+        assertTrue(labels.all { (square, it) -> it.file == null || it.file == square.fileChar.toString() })
+        assertTrue(labels.all { (square, it) -> it.rank == null || it.rank == square.rankNumber.toString() })
+        assertEquals(15, labels.values.count { !it.isEmpty })
+    }
 }

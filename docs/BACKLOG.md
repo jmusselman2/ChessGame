@@ -142,7 +142,7 @@ implementation, as `M21` was.
 | `M22.7`  | Every move list and move wording in SAN             | M22.6      | `F39`    | `DONE`    |
 | `M22.8`  | Turning automatic rematches off by hand             | None       | `F4`     | `DONE`    |
 | `M22.10` | Online ply-by-ply review                            | M22.7      | `F41`    | `DONE`    |
-| `M22.11` | Board coordinates                                   | None       | `F39`    | `TODO`    |
+| `M22.11` | Board coordinates                                   | None       | `F39`    | `DONE`    |
 | `M22.12` | Drag-and-drop moves                                 | M22.2      | `F3`     | `TODO`    |
 
 Every task's verification includes, besides its own targeted tests:
@@ -814,7 +814,7 @@ and `git diff --check`.
 
 ## M22.11 — Board coordinates
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** None
 
@@ -838,6 +838,23 @@ file letters and rank numbers on every board.
 - The labels are left out of accessibility semantics. Board accessibility is `F40`.
 - **Tests:** rendering tests for both orientations and pass-and-play; Compose tests
   in portrait and wide layouts.
+
+### Completion
+
+Completed 2026-10-17. `BoardRendering.edgeLabels(row, column, orientation)` gives each
+drawn square its labels: the file letter along the bottom row and the rank number along the
+left column, both naming the true square, so a board turned for Black reads h to a and 1 to
+8 from the top, and pass-and-play, drawn from White's side, reads a to h. `ChessBoard`
+draws them inside the square, the rank top-left and the file bottom-right, at a fifth of the
+square in the other square shade, first in the square's `drawBehind`, so every highlight is
+painted over them and the destination dot or capture ring after them; they never turn with
+upside-down pieces and the board keeps its size. They are not text or a description in the
+semantics tree; a custom `EdgeLabelsKey` that no screen reader reads lets tests check them.
+Verified with `:chess-app:testDebugUnitTest` (`BoardRenderingTest` for both orientations),
+`BoardCoordinatesUiTest` (portrait and two-pane windows, Black's orientation, nothing
+spoken) with `MoveFeedbackUiTest` and `GameLayoutUiTest` on the Fire HD 8 (18 tests), a
+screenshot of a pass-and-play board on the Fire HD 8, `.\gradlew.bat build` and
+`git diff --check`.
 
 ---
 
