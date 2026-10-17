@@ -60,6 +60,12 @@ data class UndoRequestCommand(
     val expectedVersion: Long,
 )
 
+/** A draw offer, or an answer to one, decided at [expectedVersion] (`D097`). */
+@Serializable
+data class DrawOfferCommand(
+    val expectedVersion: Long,
+)
+
 /** A request to give up the game. Final once accepted (`D018`). */
 @Serializable
 data class ResignRequest(
@@ -176,6 +182,45 @@ fun Route.gameRoutes(
 
         call.respondTo(
             commands.declineUndo(caller.userId, gameId, request.expectedVersion).also { realtime.announce(it) },
+            caller,
+            views,
+        )
+    }
+
+    post("/games/{gameId}/draw-offer") {
+        val caller = call.authenticatedUser()
+        val gameId = call.gameId() ?: return@post
+
+        val request = call.receive<DrawOfferCommand>()
+
+        call.respondTo(
+            commands.offerDraw(caller.userId, gameId, request.expectedVersion).also { realtime.announce(it) },
+            caller,
+            views,
+        )
+    }
+
+    post("/games/{gameId}/draw-offer/accept") {
+        val caller = call.authenticatedUser()
+        val gameId = call.gameId() ?: return@post
+
+        val request = call.receive<DrawOfferCommand>()
+
+        call.respondTo(
+            commands.acceptDraw(caller.userId, gameId, request.expectedVersion).also { realtime.announce(it) },
+            caller,
+            views,
+        )
+    }
+
+    post("/games/{gameId}/draw-offer/decline") {
+        val caller = call.authenticatedUser()
+        val gameId = call.gameId() ?: return@post
+
+        val request = call.receive<DrawOfferCommand>()
+
+        call.respondTo(
+            commands.declineDraw(caller.userId, gameId, request.expectedVersion).also { realtime.announce(it) },
             caller,
             views,
         )
@@ -327,6 +372,26 @@ private suspend fun ApplicationCall.respondTo(
                 caller,
                 views,
             )
+
+        is CommandResult.CannotOfferDraw ->
+            reject(
+                HttpStatusCode.Conflict,
+                RejectionReason.CANNOT_OFFER_DRAW,
+                "You cannot offer a draw now",
+                result.game,
+                caller,
+                views,
+            )
+
+        is CommandResult.NoDrawOffer ->
+            reject(
+                HttpStatusCode.Conflict,
+                RejectionReason.NO_DRAW_OFFER,
+                "No draw offer is waiting for you",
+                result.game,
+                caller,
+                views,
+            )
     }
 }
 
@@ -372,6 +437,8 @@ private fun CommandResult.gameOrNull(): StoredGame? =
         is CommandResult.CannotRequestUndo -> game
         is CommandResult.NoUndoRequest -> game
         is CommandResult.NothingToRedo -> game
+        is CommandResult.CannotOfferDraw -> game
+        is CommandResult.NoDrawOffer -> game
         CommandResult.NoSuchGame, CommandResult.NotAParticipant -> null
     }
 

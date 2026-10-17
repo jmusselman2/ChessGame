@@ -316,6 +316,19 @@ object ChessRules {
         declaredMove: Move,
     ): ChessGame = game.copy(state = claimDraw(game.state, claim, declaredMove), redoPath = emptyList())
 
+    /**
+     * [state] drawn by agreement (`D097`). Either player may offer at any time and the other
+     * accepts, so nothing about the position decides it; whether an offer stands is the
+     * caller's to know. The game must still be running.
+     */
+    fun agreeDraw(state: GameState): GameState {
+        require(!state.isOver) { "The game is over: ${state.result}" }
+        return state.copy(result = GameResult.draw(TerminationReason.AGREEMENT))
+    }
+
+    /** [game] drawn by agreement. The move history is unaffected; the Redo path is cleared (`D097`, `D092`). */
+    fun agreeDraw(game: ChessGame): ChessGame = game.copy(state = agreeDraw(game.state), redoPath = emptyList())
+
     /** [game] resigned by [side]. The move history is unaffected; the Redo path is cleared (`D018`, `D092`). */
     fun resign(
         game: ChessGame,

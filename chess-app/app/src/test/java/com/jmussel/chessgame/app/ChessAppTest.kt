@@ -177,6 +177,8 @@ class ChessAppTest {
         existingName: String? = null,
         hasStarted: Boolean = false,
         goneAfterFirstRead: Boolean = false,
+        canOfferDraw: Boolean = false,
+        drawOfferFromYou: Boolean? = null,
     ): HttpClient {
         var claimed: String? = null
         var refused = 0
@@ -228,6 +230,8 @@ class ChessAppTest {
                                     seriesClosed = seriesClosed,
                                     seriesLeft = leftSeries,
                                     hasStarted = hasStarted,
+                                    canOfferDraw = canOfferDraw,
+                                    drawOfferFromYou = drawOfferFromYou,
                                 ),
                             )
                         },
@@ -267,6 +271,8 @@ class ChessAppTest {
         val seriesClosed: Boolean = false,
         val seriesLeft: Boolean = false,
         val hasStarted: Boolean = false,
+        val canOfferDraw: Boolean = false,
+        val drawOfferFromYou: Boolean? = null,
     )
 
     /** What the server would say to one request. */
@@ -297,6 +303,9 @@ class ChessAppTest {
                 gameView(path.removePrefix("/games/").removeSuffix("/undo-request"), undoRequestFromYou = true)
             path.contains("/undo-request/") -> gameView(path.removePrefix("/games/").substringBefore("/"))
             path.endsWith("/draw-claims") -> drawnGame(path.removePrefix("/games/").removeSuffix("/draw-claims"))
+            path.endsWith("/draw-offer") -> gameView(path.removePrefix("/games/").removeSuffix("/draw-offer"), drawOfferFromYou = true)
+            path.endsWith("/draw-offer/accept") -> agreedDraw(path.removePrefix("/games/").removeSuffix("/draw-offer/accept"))
+            path.endsWith("/draw-offer/decline") -> gameView(path.removePrefix("/games/").removeSuffix("/draw-offer/decline"))
             path.endsWith("/resignation") ->
                 resignedGame(path.removePrefix("/games/").removeSuffix("/resignation"), seriesActive = !replies.seriesLeft)
             path.startsWith("/games/") && replies.seriesLeft && replies.hasStarted ->
@@ -319,6 +328,8 @@ class ChessAppTest {
                     finished = replies.finished,
                     seriesActive = !replies.seriesLeft,
                     hasStarted = replies.hasStarted,
+                    canOfferDraw = replies.canOfferDraw,
+                    drawOfferFromYou = replies.drawOfferFromYou,
                 )
             else -> "[]"
         }
@@ -357,14 +368,14 @@ class ChessAppTest {
     private fun entry(opponent: String): String =
         """
         {"seriesId":"series-$opponent","opponent":${user(opponent)},"gameId":"game-$opponent",
-         "version":1,"yourSide":"WHITE","sideToMove":"WHITE","moveNumber":3,"yourTurn":true}
+         "version":1,"yourSide":"WHITE","sideToMove":"WHITE","moveNumber":3,"yourTurn":true,"pendingRequests":[]}
         """.trimIndent()
 
     /** The series the stubbed games belong to, now at [gameId]. */
     private fun seriesLine(gameId: String): String =
         """
         {"seriesId":"series-1","opponent":${user("Alex")},"gameId":"$gameId",
-         "version":1,"yourSide":"BLACK","sideToMove":"WHITE","moveNumber":1,"yourTurn":false}
+         "version":1,"yourSide":"BLACK","sideToMove":"WHITE","moveNumber":1,"yourTurn":false,"pendingRequests":[]}
         """.trimIndent()
 
     /** One game, as the stubbed server has it: a fresh board against Alex. */
@@ -380,6 +391,8 @@ class ChessAppTest {
         finished: Boolean = false,
         seriesActive: Boolean = true,
         hasStarted: Boolean = false,
+        canOfferDraw: Boolean = false,
+        drawOfferFromYou: Boolean? = null,
     ): String {
         val ending = if (finished) ""","result":"WHITE_WINS","terminationReason":"CHECKMATE"""" else ""
         val request =
@@ -387,6 +400,7 @@ class ChessAppTest {
                 ?.let { fromYou ->
                     ""","undoRequest":{"fromYou":$fromYou,"requesterMove":"g1f3","replyMove":"b8c6"}"""
                 }.orEmpty()
+        val offer = drawOfferFromYou?.let { ""","drawOffer":{"fromYou":$it}""" }.orEmpty()
 
         return """
             {"gameId":"$gameId","seriesId":"series-1","opponent":${user("Alex")},"version":1,
@@ -394,8 +408,8 @@ class ChessAppTest {
              "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
              "moves":[],"moveNumber":1,"halfmoveClock":0,"canUndo":${canUndo && !finished},
              "availableDrawClaims":${claims.joinToString(",", "[", "]") { "\"$it\"" }},"seriesActive":$seriesActive,
-             "hasStarted":$hasStarted,
-             "canRequestUndo":${canRequestUndo && !finished},"canRedo":${canRedo && !finished}$request$ending}
+             "hasStarted":$hasStarted,"canOfferDraw":${canOfferDraw && !finished},
+             "canRequestUndo":${canRequestUndo && !finished},"canRedo":${canRedo && !finished}$request$offer$ending}
             """.trimIndent()
     }
 
@@ -411,6 +425,16 @@ class ChessAppTest {
          "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
          "moves":[],"moveNumber":1,"halfmoveClock":0,"seriesActive":$seriesActive,"hasStarted":$hasStarted,
          "result":"BLACK_WINS","terminationReason":"RESIGNATION"}
+        """.trimIndent()
+
+    /** The same game once both players have agreed to a draw (`D097`). */
+    private fun agreedDraw(gameId: String): String =
+        """
+        {"gameId":"$gameId","seriesId":"series-1","opponent":${user("Alex")},"version":2,
+         "yourSide":"WHITE","sideToMove":"WHITE","yourTurn":false,"inCheck":false,
+         "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
+         "moves":[],"moveNumber":1,"halfmoveClock":0,
+         "result":"DRAW","terminationReason":"AGREEMENT"}
         """.trimIndent()
 
     /** The same game once a claimed draw has ended it. */
@@ -1950,6 +1974,80 @@ class ChessAppTest {
 
             assertEquals(listOf("/games/game-7", "/games/game-7/undo-request/decline"), paths)
             assertTrue(sentBodies.last().contains("\"expectedVersion\":1"))
+        }
+
+    @Test
+    fun aDrawIsOfferedOnlyWhenTheServerSaysThisPlayerMay() =
+        runTest(dispatcher) {
+            val viewModel = viewModel()
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.offerDraw()
+            viewModel.moveJob?.join()
+
+            assertEquals(listOf("/games/game-7"), paths)
+        }
+
+    @Test
+    fun aDrawOfferIsSentWithItsVersionOnEitherTurn() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(canOfferDraw = true, yourTurn = false))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.offerDraw()
+            viewModel.moveJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals(listOf("/games/game-7", "/games/game-7/draw-offer"), paths)
+            assertTrue(sentBodies.last().contains("\"expectedVersion\":1"))
+            assertEquals("Draw offered. Waiting for Alex.", OnlineGame.drawOfferText(ready.game))
+        }
+
+    @Test
+    fun theOffererHasNothingToAnswer() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(drawOfferFromYou = true))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.acceptDraw()
+            viewModel.declineDraw()
+            viewModel.moveJob?.join()
+
+            assertEquals(listOf("/games/game-7"), paths)
+        }
+
+    @Test
+    fun acceptingADrawEndsTheGameAsTheServerSays() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(drawOfferFromYou = false))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+            assertEquals("Alex offers a draw", OnlineGame.drawOfferText((viewModel.game as OnlineGameState.Ready).game))
+
+            viewModel.acceptDraw()
+            viewModel.moveJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals("/games/game-7/draw-offer/accept", paths[1])
+            assertEquals("AGREEMENT", ready.game.terminationReason)
+            assertEquals("Drawn by agreement", OnlineGame.statusFor(ready.game))
+        }
+
+    @Test
+    fun decliningADrawIsSentInOneTap() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(drawOfferFromYou = false))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.declineDraw()
+            viewModel.moveJob?.join()
+
+            assertEquals(listOf("/games/game-7", "/games/game-7/draw-offer/decline"), paths)
+            assertNull((viewModel.game as OnlineGameState.Ready).game.drawOffer)
         }
 
     @Test

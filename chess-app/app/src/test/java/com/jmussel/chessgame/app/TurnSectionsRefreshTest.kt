@@ -247,7 +247,7 @@ class TurnSectionsRefreshTest {
         """
         [{"seriesId":"series-1","opponent":{"userId":"user-2","username":"Alex"},"gameId":"$GAME",
           "version":$version,"yourSide":"WHITE","sideToMove":"${if (yourTurn) "WHITE" else "BLACK"}",
-          "moveNumber":1,"yourTurn":$yourTurn}]
+          "moveNumber":1,"yourTurn":$yourTurn,"pendingRequests":[]}]
         """.trimIndent()
 
     private fun gameView(): String =

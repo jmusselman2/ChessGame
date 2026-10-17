@@ -51,6 +51,14 @@ data class StoredGame(
      * clear it, so a game whose moves were all undone has still started.
      */
     val hasStarted: Boolean = false,
+    /** The pending draw offer and whether a decline blocks a new one (`D097`). */
+    val draw: DrawRecord = DrawRecord(),
+    /**
+     * The version the last gameplay change produced: a move, Undo, Redo, accepted request, claim,
+     * resignation or agreed draw. Request-only changes leave it, so an answer sent from any
+     * version from here on still answers this position (`D097`).
+     */
+    val playVersion: Long = 0,
 ) {
     val whiteUserId: Uuid
         get() = requireNotNull(participants[ChessSeats.WHITE].userId) { "Chess is played by people" }
@@ -130,6 +138,9 @@ class GameRepository(
                 row[GamesTable.endedAt] = if (game.isOver) now else null
                 row[GamesTable.redoPath] = game.redoPath.map(UndoneOperationDocument::of)
                 row[GamesTable.hasStarted] = game.history.isNotEmpty() || game.redoPath.isNotEmpty()
+                row[GamesTable.drawOfferedBy] = null
+                row[GamesTable.drawOfferBlocked] = false
+                row[GamesTable.playVersion] = 0
             }
 
             participants.forEachIndexed { seat, participant ->
@@ -296,11 +307,19 @@ class GameRepository(
             undo = undoRecordOf(row),
             lastChange = lastChangeOf(row),
             hasStarted = row[GamesTable.hasStarted],
+            draw =
+                DrawRecord(
+                    offeredBy = row[GamesTable.drawOfferedBy],
+                    blocked = row[GamesTable.drawOfferBlocked],
+                    offeredAt = row[GamesTable.drawOfferedVersion],
+                ),
+            playVersion = row[GamesTable.playVersion],
         )
 
     private fun undoRecordOf(row: ResultRow): UndoRecord =
         UndoRecord(
             pendingFrom = row[GamesTable.undoRequestedBy],
+            pendingSince = row[GamesTable.undoRequestedVersion],
             answer =
                 row[GamesTable.undoAnswer]?.let { kind ->
                     UndoAnswer(
@@ -354,6 +373,12 @@ class GameRepository(
      *
      * A [ChangeKind.MOVE] marks the game started (`D095`), in the same statement; nothing
      * unmarks it.
+     *
+     * [draw] says whether this is a request-only change (`D097`). With one — an undo request or
+     * its decline, a draw offer or its decline — [draw] and [undo] are written as given and
+     * the game's [StoredGame.playVersion] stays. Without one the write is a gameplay change:
+     * the pending draw offer goes with the pending undo request, the version becomes the play
+     * version, and an ordinary move lifts a decline's block on new offers.
      */
     fun save(
         id: Uuid,
@@ -366,6 +391,7 @@ class GameRepository(
         undoneMove: Move? = null,
         crossing: Boolean = false,
         auditDetail: JsonObject? = null,
+        draw: DrawRecord? = null,
     ): Long =
         transaction(database) {
             val current =
@@ -385,6 +411,10 @@ class GameRepository(
             val lastChange = change?.let { LastChange(it, requireNotNull(actor) { "A change has an actor" }, expectedVersion, undoneMove) }
             require(undo.pendingFrom == null || !game.isOver) { "A finished game has no undo request pending" }
             require(game.redoPath.isEmpty() || !game.isOver) { "A finished game offers no Redo" }
+            require(draw?.offeredBy == null || !game.isOver) { "A finished game has no draw offer pending" }
+            val requestOnly = draw != null
+            val written =
+                draw ?: DrawRecord(blocked = current[GamesTable.drawOfferBlocked] && change != ChangeKind.MOVE)
 
             // A game that was already finished keeps the moment it ended; this write is
             // what ends it only if it found the game still running.
@@ -412,6 +442,11 @@ class GameRepository(
                     row[GamesTable.lastChangeMove] = lastChange?.undoneMove?.let(::storedMove)
                     row[GamesTable.redoPath] = game.redoPath.map(UndoneOperationDocument::of)
                     row[GamesTable.hasStarted] = current[GamesTable.hasStarted] || change == ChangeKind.MOVE
+                    row[GamesTable.drawOfferedBy] = written.offeredBy
+                    row[GamesTable.drawOfferedVersion] = written.offeredAt
+                    row[GamesTable.undoRequestedVersion] = undo.pendingSince
+                    row[GamesTable.drawOfferBlocked] = written.blocked
+                    row[GamesTable.playVersion] = if (requestOnly) current[GamesTable.playVersion] else nextVersion
                 }
 
             if (updated == 0) {

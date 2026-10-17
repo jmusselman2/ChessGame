@@ -51,8 +51,8 @@ for task-level status.
 - Invalid claims are rejected.
 - Fivefold repetition ends automatically.
 - Seventy-five moves ends automatically.
-- Draw offers by agreement are not part of the MVP; they are scheduled as
-  post-MVP work in `M22.3` (`D097`).
+- Draw offers by agreement are not part of the MVP; they were built as post-MVP
+  work in `M22.3` (`D097`).
 
 ### Undo
 

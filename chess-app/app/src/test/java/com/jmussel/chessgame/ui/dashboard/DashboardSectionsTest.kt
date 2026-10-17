@@ -21,7 +21,7 @@ class DashboardSectionsTest {
         gameId: String? = "game-$opponent",
         yourSide: String? = "WHITE",
         moveNumber: Int? = 18,
-        pendingRequest: PendingRequestDto? = null,
+        pendingRequests: List<PendingRequestDto> = emptyList(),
     ) = DashboardEntryDto(
         seriesId = "series-$opponent",
         opponent = UserSummaryDto(userId = "user-$opponent", username = opponent),
@@ -31,7 +31,7 @@ class DashboardSectionsTest {
         sideToMove = if (yourTurn) yourSide else null,
         moveNumber = moveNumber,
         yourTurn = yourTurn,
-        pendingRequest = pendingRequest,
+        pendingRequests = pendingRequests,
     )
 
     private fun person(username: String) = UserSummaryDto(userId = "user-$username", username = username)
@@ -276,7 +276,7 @@ class DashboardSectionsTest {
 
     @Test
     fun anUndoRequestWaitingOnYouListsTheGameUnderYourTurn() {
-        val waiting = entry("Jordan", yourTurn = false, pendingRequest = PendingRequestDto(kind = "UNDO", waitingOnYou = true))
+        val waiting = entry("Jordan", yourTurn = false, pendingRequests = listOf(PendingRequestDto(kind = "UNDO", waitingOnYou = true)))
 
         assertEquals(listOf("game-Jordan"), DashboardSections.yourTurn(listOf(waiting)).map { it.gameId })
         assertTrue(DashboardSections.theirTurn(listOf(waiting)).isEmpty())
@@ -285,11 +285,56 @@ class DashboardSectionsTest {
 
     @Test
     fun theRequestersRowSaysUndoRequested() {
-        val asked = entry("Alex", yourTurn = true, pendingRequest = PendingRequestDto(kind = "UNDO", waitingOnYou = false))
+        val asked = entry("Alex", yourTurn = true, pendingRequests = listOf(PendingRequestDto(kind = "UNDO", waitingOnYou = false)))
 
         val row = DashboardSections.yourTurn(listOf(asked)).single()
 
         assertEquals("it is still Jordan's move", "game-Alex", row.gameId)
         assertEquals("White • Move 18 • Undo requested", row.detail)
+    }
+
+    @Test
+    fun aDrawOfferWaitingOnYouListsTheGameUnderYourTurn() {
+        val waiting = entry("Jordan", yourTurn = false, pendingRequests = listOf(PendingRequestDto(kind = "DRAW", waitingOnYou = true)))
+
+        assertEquals(listOf("game-Jordan"), DashboardSections.yourTurn(listOf(waiting)).map { it.gameId })
+        assertEquals("White • Move 18 • Jordan offers a draw", DashboardSections.yourTurn(listOf(waiting)).single().detail)
+    }
+
+    @Test
+    fun anOfferYouMadeIsWaitedOnUnderTheirTurn() {
+        val offered = entry("Jordan", yourTurn = false, pendingRequests = listOf(PendingRequestDto(kind = "DRAW", waitingOnYou = false)))
+
+        assertEquals(listOf("game-Jordan"), DashboardSections.theirTurn(listOf(offered)).map { it.gameId })
+        assertEquals("White • Move 18 • Draw offered", DashboardSections.theirTurn(listOf(offered)).single().detail)
+    }
+
+    @Test
+    fun bothRequestsAreShownUndoFirstInEitherDirection() {
+        val both =
+            entry(
+                "Jordan",
+                yourTurn = true,
+                pendingRequests =
+                    listOf(
+                        PendingRequestDto(kind = "UNDO", waitingOnYou = false),
+                        PendingRequestDto(kind = "DRAW", waitingOnYou = true),
+                    ),
+            )
+        val reversed =
+            entry(
+                "Jordan",
+                yourTurn = false,
+                pendingRequests =
+                    listOf(
+                        PendingRequestDto(kind = "UNDO", waitingOnYou = true),
+                        PendingRequestDto(kind = "DRAW", waitingOnYou = false),
+                    ),
+            )
+
+        assertEquals("White • Move 18 • Undo requested • Jordan offers a draw", DashboardSections.detailFor(both))
+        assertEquals("White • Move 18 • Jordan asks to undo • Draw offered", DashboardSections.detailFor(reversed))
+        val waitingOnYou = DashboardSections.yourTurn(listOf(reversed)).map { it.gameId }
+        assertEquals("waiting on you for the undo answer", listOf("game-Jordan"), waitingOnYou)
     }
 }

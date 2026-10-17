@@ -1,6 +1,7 @@
 package com.jmussel.chessgame.ui.dashboard
 
 import com.jmussel.chessgame.api.DashboardEntryDto
+import com.jmussel.chessgame.api.PendingRequestDto
 import com.jmussel.chessgame.api.UserSummaryDto
 
 /**
@@ -82,19 +83,24 @@ object DashboardSections {
 
     /**
      * `"White • Move 18"`, or just the colour before the first move is numbered, then the undo
-     * request pending:
-     * `"• Jordan asks to undo"` for the player who must answer, `"• Undo requested"` for the
-     * one who asked (`D091`).
+     * requests pending, undo request first (`D091`, `D097`): `"• Jordan asks to undo"` or
+     * `"• Jordan offers a draw"` for the player who must answer, `"• Undo requested"` or
+     * `"• Draw offered"` for the one who asked.
      */
     fun detailFor(entry: DashboardEntryDto): String {
         val side = entry.yourSide?.let(::sideLabel)
         val move = entry.moveNumber?.let { "Move $it" }
-        val request =
-            entry.pendingRequest?.let { pending ->
-                if (pending.waitingOnYou) "${entry.opponent.username} $ASKS_TO_UNDO" else UNDO_REQUESTED
+        val requests =
+            entry.pendingRequests.mapNotNull { pending ->
+                val opponent = entry.opponent.username
+                when (pending.kind) {
+                    PendingRequestDto.UNDO -> if (pending.waitingOnYou) "$opponent $ASKS_TO_UNDO" else UNDO_REQUESTED
+                    PendingRequestDto.DRAW -> if (pending.waitingOnYou) "$opponent $OFFERS_A_DRAW" else DRAW_OFFERED
+                    else -> null
+                }
             }
 
-        return listOfNotNull(side, move, request).joinToString(separator = SEPARATOR)
+        return (listOfNotNull(side, move) + requests).joinToString(separator = SEPARATOR)
     }
 
     private fun rowsOf(entries: List<DashboardEntryDto>): List<DashboardRow> = entries.mapNotNull(::rowOf)
@@ -127,5 +133,7 @@ object DashboardSections {
     private const val SEPARATOR = " • "
     private const val ASKS_TO_UNDO = "asks to undo"
     private const val UNDO_REQUESTED = "Undo requested"
+    private const val OFFERS_A_DRAW = "offers a draw"
+    private const val DRAW_OFFERED = "Draw offered"
     private const val BUILD_PREFIX = "Build "
 }

@@ -111,11 +111,12 @@ data class DashboardEntry(
     val moveNumber: Int? = null,
     val yourTurn: Boolean = false,
     /**
-     * A request pending in this game, other than a move: an undo request now, and a draw offer
-     * once `F2` exists (`D091`). A request waiting on the viewer lists the game as needing
-     * them; [yourTurn] still means only "it is your move".
+     * The requests pending in this game other than a move, undo request first and then draw
+     * offer (`D091`, `D097`). Always sent, empty or not: it has no default, so a client never
+     * reads a missing list as "nothing pending". A request waiting on the viewer lists the game
+     * as needing them; [yourTurn] still means only "it is your move".
      */
-    val pendingRequest: PendingRequest? = null,
+    val pendingRequests: List<PendingRequest>,
 ) {
     companion object {
         fun of(view: com.jmussel.chessgame.server.db.ActiveSeriesView): DashboardEntry? {
@@ -130,27 +131,40 @@ data class DashboardEntry(
                 sideToMove = view.sideToMove,
                 moveNumber = view.fullmoveNumber,
                 yourTurn = view.isYourTurn,
-                pendingRequest =
-                    view.undoRequestedBy?.let { requester ->
-                        PendingRequest(kind = PendingRequest.UNDO, waitingOnYou = requester != view.viewer)
-                    },
+                pendingRequests =
+                    listOfNotNull(
+                        view.undoRequestedBy?.let { requester ->
+                            PendingRequest(kind = PendingRequest.UNDO, waitingOnYou = requester != view.viewer)
+                        },
+                        view.drawOfferedBy?.let { offerer ->
+                            PendingRequest(kind = PendingRequest.DRAW, waitingOnYou = offerer != view.viewer)
+                        },
+                    ),
             )
         }
     }
 }
 
-/** A request pending in a game, as a dashboard line names it (`D091`). */
+/** A request pending in a game, as a dashboard line names it (`D091`, `D097`). */
 @Serializable
 data class PendingRequest(
-    /** What is asked: [UNDO] now, and a draw offer once `F2` exists. */
+    /** What is asked: [UNDO] or [DRAW]. */
     val kind: String,
     /** `true` when the viewer must answer it, `false` when they sent it. */
     val waitingOnYou: Boolean,
 ) {
     companion object {
         const val UNDO: String = "UNDO"
+        const val DRAW: String = "DRAW"
     }
 }
+
+/** A draw offer pending in a game, as one of its players sees it (`D097`). */
+@Serializable
+data class DrawOfferView(
+    /** `true` for the player who offered, `false` for the one who must answer. */
+    val fromYou: Boolean,
+)
 
 /**
  * An undo request pending in a game, as one of its players sees it (`D091`).
@@ -306,6 +320,10 @@ data class GameView(
     val undoRequest: UndoRequestView? = null,
     /** What the viewer is told about the last undo request, or `null`. */
     val undoNote: UndoNoteView? = null,
+    /** Whether the viewer may offer a draw right now (`D097`). */
+    val canOfferDraw: Boolean = false,
+    /** The draw offer pending in this game, whichever player made it, or `null`. */
+    val drawOffer: DrawOfferView? = null,
     /**
      * Whether this game's series is still active. `false` once a player has left it (`D052`),
      * which also ended this game (`D095`): no game follows it.
@@ -380,6 +398,10 @@ data class GameView(
                     com.jmussel.chessgame.core.chess.ChessRules
                         .canRedo(stored.game, yourSide),
                 undoRequest = undoRequestOf(stored, viewer),
+                canOfferDraw =
+                    com.jmussel.chessgame.server.game.GameCommandService
+                        .mayOfferDraw(stored),
+                drawOffer = stored.draw.offeredBy?.let { DrawOfferView(fromYou = it == viewer) },
                 undoNote = undoNoteOf(stored, viewer),
                 availableDrawClaims =
                     if (state.sideToMove == yourSide) {
@@ -473,6 +495,15 @@ enum class RejectionReason {
 
     /** This player has nothing to redo right now (`D092`). */
     NOTHING_TO_REDO,
+
+    /**
+     * No draw may be offered now: one is pending, or the last was declined and no move has been
+     * played since (`D097`).
+     */
+    CANNOT_OFFER_DRAW,
+
+    /** No draw offer waits on this player to answer (`D097`). */
+    NO_DRAW_OFFER,
 }
 
 /**

@@ -186,7 +186,7 @@ If a lower-precedence document conflicts with a higher-precedence document, do n
 - The next game is created automatically after a normally completed game when the series remains active.
 - Threefold repetition and the fifty-move rule are claimable draws.
 - Fivefold repetition and the seventy-five-move rule are automatic draws.
-- Draw offers by agreement are outside MVP and scheduled as post-MVP work in
+- Draw offers by agreement are outside the MVP and were built as post-MVP work in
   `M22.3` (`D097`). Either player may make one during an unfinished game. One
   may be pending alongside an undo request; request-only changes preserve the
   other request, while any board, history or result change invalidates both.

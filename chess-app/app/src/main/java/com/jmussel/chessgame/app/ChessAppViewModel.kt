@@ -826,6 +826,35 @@ class ChessAppViewModel(
         sendCommand(ready.game, command)
     }
 
+    /** Offers the opponent a draw, in one tap, when the server says this player may (`D097`). */
+    fun offerDraw() {
+        val ready = game as? OnlineGameState.Ready ?: return
+        if (!ready.game.canOfferDraw || ready.submitting) return
+
+        game = ready.copy(selected = null, pendingPromotion = null, submitting = true, message = null)
+
+        sendCommand(ready.game) { api, decidedAt -> api.offerDraw(gameId = decidedAt.gameId, expectedVersion = decidedAt.version) }
+    }
+
+    /** Accepts the draw offer waiting on this player: the game ends as a draw by agreement (`D097`). */
+    fun acceptDraw() {
+        answerDraw { api, decidedAt -> api.acceptDraw(gameId = decidedAt.gameId, expectedVersion = decidedAt.version) }
+    }
+
+    /** Declines the draw offer waiting on this player (`D097`). */
+    fun declineDraw() {
+        answerDraw { api, decidedAt -> api.declineDraw(gameId = decidedAt.gameId, expectedVersion = decidedAt.version) }
+    }
+
+    private fun answerDraw(command: suspend (ChessApiClient, GameViewDto) -> GameViewDto) {
+        val ready = game as? OnlineGameState.Ready ?: return
+        if (!OnlineGame.mustAnswerDraw(ready.game) || ready.submitting) return
+
+        game = ready.copy(selected = null, pendingPromotion = null, submitting = true, message = null)
+
+        sendCommand(ready.game, command)
+    }
+
     /**
      * Claims a draw the canonical state says is available (`D019`).
      *

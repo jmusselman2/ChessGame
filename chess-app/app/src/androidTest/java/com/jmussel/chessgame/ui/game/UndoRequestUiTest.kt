@@ -246,6 +246,6 @@ class UndoRequestUiTest {
         sideToMove = "WHITE",
         moveNumber = 3,
         yourTurn = yourTurn,
-        pendingRequest = pending,
+        pendingRequests = listOf(pending),
     )
 }

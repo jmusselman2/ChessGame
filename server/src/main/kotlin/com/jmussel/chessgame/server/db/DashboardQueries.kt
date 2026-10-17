@@ -27,6 +27,8 @@ data class ActiveSeriesView(
     val fullmoveNumber: Int?,
     /** Whose undo request is pending in the game, or `null` (`D091`). */
     val undoRequestedBy: Uuid? = null,
+    /** Whose draw offer is pending in the game, or `null` (`D097`). */
+    val drawOfferedBy: Uuid? = null,
     /** Whose dashboard this line is on. */
     val viewer: Uuid? = null,
 ) {
@@ -70,6 +72,7 @@ class DashboardQueries(
                         GamesTable.sideToMove,
                         GamesTable.state,
                         GamesTable.undoRequestedBy,
+                        GamesTable.drawOfferedBy,
                     ).where {
                         (GameSeriesTable.tableId inSubQuery tablesSeating(userId)) and (GameSeriesTable.status eq ACTIVE_SERIES)
                     }.orderBy(GameSeriesTable.createdAt to SortOrder.DESC)
@@ -115,6 +118,7 @@ class DashboardQueries(
                     sideToMove = gameId?.let { row[GamesTable.sideToMove] },
                     fullmoveNumber = gameId?.let { row[GamesTable.state].fullmoveNumber },
                     undoRequestedBy = gameId?.let { row[GamesTable.undoRequestedBy] },
+                    drawOfferedBy = gameId?.let { row[GamesTable.drawOfferedBy] },
                     viewer = userId,
                 )
             }

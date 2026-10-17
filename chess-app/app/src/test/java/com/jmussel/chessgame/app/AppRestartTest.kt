@@ -364,7 +364,7 @@ class AppRestartTest {
     private fun dashboardLine(): String =
         """
         {"seriesId":"series-1","opponent":{"userId":"user-2","username":"Alex"},"gameId":"$GAME",
-         "version":1,"yourSide":"WHITE","sideToMove":"WHITE","moveNumber":1,"yourTurn":true}
+         "version":1,"yourSide":"WHITE","sideToMove":"WHITE","moveNumber":1,"yourTurn":true,"pendingRequests":[]}
         """.trimIndent()
 
     private fun gameView(gameId: String): String =

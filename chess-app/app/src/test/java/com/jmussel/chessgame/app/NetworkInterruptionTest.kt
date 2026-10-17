@@ -1078,7 +1078,7 @@ class NetworkInterruptionTest {
     private fun dashboardLine(index: Int): String =
         """
         {"seriesId":"series-$index","opponent":{"userId":"user-2","username":"Alex"},"gameId":"$OTHER_GAME",
-         "version":1,"yourSide":"WHITE","sideToMove":"WHITE","moveNumber":1,"yourTurn":true}
+         "version":1,"yourSide":"WHITE","sideToMove":"WHITE","moveNumber":1,"yourTurn":true,"pendingRequests":[]}
         """.trimIndent()
 
     private fun gameView(gameId: String): String {

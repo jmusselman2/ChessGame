@@ -133,23 +133,36 @@ data class DashboardEntryDto(
     val moveNumber: Int? = null,
     val yourTurn: Boolean = false,
     /**
-     * A request pending in the game, other than a move: an undo request (`D091`). One waiting
-     * on the player lists the game as theirs to act on; [yourTurn] still means only "your move".
+     * The requests pending in the game other than a move, undo request first and then draw offer
+     * (`D091`, `D097`). Required, with no default: a server that leaves it out is incompatible,
+     * not one with nothing pending. One waiting on the player lists the game as theirs to act
+     * on; [yourTurn] still means only "your move".
      */
-    val pendingRequest: PendingRequestDto? = null,
+    val pendingRequests: List<PendingRequestDto>,
 ) {
     /** Whether the game needs this player: their move, or a request for them to answer. */
     val waitingOnYou: Boolean
-        get() = yourTurn || pendingRequest?.waitingOnYou == true
+        get() = yourTurn || pendingRequests.any { it.waitingOnYou }
 }
 
-/** A request pending in a game, as a dashboard line names it (`D091`). */
+/** A request pending in a game, as a dashboard line names it (`D091`, `D097`). */
 @Serializable
 data class PendingRequestDto(
-    /** `UNDO` for an undo request, the only kind so far. */
+    /** [UNDO] for an undo request, [DRAW] for a draw offer. */
     val kind: String,
     /** `true` when the player must answer it, `false` when they sent it. */
     val waitingOnYou: Boolean,
+) {
+    companion object {
+        const val UNDO: String = "UNDO"
+        const val DRAW: String = "DRAW"
+    }
+}
+
+/** A draw offer pending in a game (`D097`): only who made it. */
+@Serializable
+data class DrawOfferDto(
+    val fromYou: Boolean,
 )
 
 /** An undo request pending in a game (`D091`): who sent it, and the two moves it would undo. */
@@ -261,6 +274,10 @@ data class GameViewDto(
     val undoRequest: UndoRequestDto? = null,
     /** What the player is told about the last undo request. */
     val undoNote: UndoNoteDto? = null,
+    /** Whether the player may offer a draw now (`D097`). */
+    val canOfferDraw: Boolean = false,
+    /** The draw offer pending in this game, whichever player made it. */
+    val drawOffer: DrawOfferDto? = null,
 ) {
     /** Whether the game is over, which is the server's word and never worked out here. */
     val isOver: Boolean
@@ -453,6 +470,24 @@ class ChessApiClient(
         gameId: String,
         expectedVersion: Long,
     ): GameViewDto = command("/games/$gameId/undo-request/decline", VersionedRequestDto(expectedVersion))
+
+    /** Offers the opponent a draw (`D097`); whose turn it is does not matter. */
+    suspend fun offerDraw(
+        gameId: String,
+        expectedVersion: Long,
+    ): GameViewDto = command("/games/$gameId/draw-offer", VersionedRequestDto(expectedVersion))
+
+    /** Accepts the draw offer waiting on the caller: the game ends as a draw by agreement (`D097`). */
+    suspend fun acceptDraw(
+        gameId: String,
+        expectedVersion: Long,
+    ): GameViewDto = command("/games/$gameId/draw-offer/accept", VersionedRequestDto(expectedVersion))
+
+    /** Declines the draw offer waiting on the caller (`D097`). */
+    suspend fun declineDraw(
+        gameId: String,
+        expectedVersion: Long,
+    ): GameViewDto = command("/games/$gameId/draw-offer/decline", VersionedRequestDto(expectedVersion))
 
     /**
      * Claims the draw [claim] allows, and returns the game as it stands after it.

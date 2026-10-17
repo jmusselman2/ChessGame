@@ -22,9 +22,12 @@ data class UndoRecord(
     val pendingFrom: Uuid? = null,
     /** The last answer or crossing, shown until the next accepted change. */
     val answer: UndoAnswer? = null,
+    /** The version the pending request produced; an answer is decided at or after it (`D097`). */
+    val pendingSince: Long? = null,
 ) {
     init {
         require(pendingFrom == null || answer == null) { "Asking clears the last answer" }
+        require((pendingFrom == null) == (pendingSince == null)) { "A pending request has the version it was made at" }
     }
 }
 
@@ -52,6 +55,23 @@ enum class UndoAnswerKind {
     CROSSED_UNDO_FIRST,
 }
 
+/**
+ * The draw offer a game carries beside its rules state (`D097`), in the game row's own columns
+ * (`V15`) like the undo request.
+ */
+data class DrawRecord(
+    /** The player whose draw offer is pending, or `null`. */
+    val offeredBy: Uuid? = null,
+    /** An offer was declined and no ordinary move has been accepted since, so none may be made. */
+    val blocked: Boolean = false,
+    /** The version the pending offer produced; an answer is decided at or after it. */
+    val offeredAt: Long? = null,
+) {
+    init {
+        require((offeredBy == null) == (offeredAt == null)) { "A pending offer has the version it was made at" }
+    }
+}
+
 /** What kind of accepted command last changed a game. */
 enum class ChangeKind {
     MOVE,
@@ -64,6 +84,11 @@ enum class ChangeKind {
 
     /** A Redo restored an Undo operation (`D092`). */
     REDO,
+
+    /** A draw was offered, accepted or declined (`D097`). */
+    DRAW_OFFER,
+    DRAW_ACCEPT,
+    DRAW_DECLINE,
 }
 
 /**

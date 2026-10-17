@@ -7,6 +7,7 @@ import com.jmussel.chessgame.core.chess.DrawClaim
 import com.jmussel.chessgame.core.chess.Move
 import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.server.db.ChangeKind
+import com.jmussel.chessgame.server.db.DrawRecord
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.StaleGameVersionException
 import com.jmussel.chessgame.server.db.StoredGame
@@ -87,6 +88,19 @@ sealed interface CommandResult {
 
     /** This player has no Undo operation to restore right now (`D092`). */
     data class NothingToRedo(
+        val game: StoredGame,
+    ) : CommandResult
+
+    /**
+     * No draw may be offered now: one is already pending, or the last was declined and no move
+     * has been played since (`D097`).
+     */
+    data class CannotOfferDraw(
+        val game: StoredGame,
+    ) : CommandResult
+
+    /** No draw offer waits on this player to answer it (`D097`). */
+    data class NoDrawOffer(
         val game: StoredGame,
     ) : CommandResult
 }
@@ -358,7 +372,8 @@ class GameCommandService(
                         auditEvent = UNDO_REQUESTED,
                         actor = userId,
                         change = ChangeKind.UNDO_REQUEST,
-                        undo = UndoRecord(pendingFrom = userId),
+                        undo = UndoRecord(pendingFrom = userId, pendingSince = stored.version + 1),
+                        draw = stored.draw,
                     )
                 } catch (_: StaleGameVersionException) {
                     return@transaction CommandResult.StaleVersion(reload(gameId, stored))
@@ -404,6 +419,7 @@ class GameCommandService(
                     actor = userId,
                     change = ChangeKind.UNDO_DECLINE,
                     undo = UndoRecord(answer = answer),
+                    draw = stored.draw,
                 )
             } catch (_: StaleGameVersionException) {
                 return@answerUndo CommandResult.StaleVersion(reload(stored.id, stored))
@@ -413,7 +429,12 @@ class GameCommandService(
             CommandResult.Applied(reload(stored.id, stored))
         }
 
-    /** The checks Accept and Decline share, then [answer] inside the same locked transaction. */
+    /**
+     * The checks Accept and Decline share, then [answer] inside the same locked transaction.
+     *
+     * An answer stands through request-only changes made since [expectedVersion], a draw offer
+     * above all, but never through a change to the position (`D097`, [answers]).
+     */
     private fun answerUndo(
         userId: Uuid,
         gameId: Uuid,
@@ -425,7 +446,7 @@ class GameCommandService(
 
             sideOf(stored, userId)?.let { side ->
                 when {
-                    stored.version != expectedVersion -> CommandResult.StaleVersion(stored)
+                    !answers(stored, expectedVersion, stored.undo.pendingSince) -> CommandResult.StaleVersion(stored)
                     stored.game.isOver -> CommandResult.GameOver(stored)
                     stored.undo.pendingFrom != stored.opponentOf(userId) -> CommandResult.NoUndoRequest(stored)
                     else -> answer(stored, side)
@@ -614,6 +635,132 @@ class GameCommandService(
             } ?: CommandResult.NotAParticipant
         }
 
+    /**
+     * Offers a draw in [gameId] on behalf of [userId] (`D097`): either player, on either turn,
+     * while the game runs, no offer is pending and no decline since the last move blocks one.
+     *
+     * A request-only change: an undo request pending beside it stays, and so does its answer.
+     */
+    fun offerDraw(
+        userId: Uuid,
+        gameId: Uuid,
+        expectedVersion: Long,
+    ): CommandResult =
+        transaction(database) {
+            val stored = games.loadForUpdate(gameId) ?: return@transaction CommandResult.NoSuchGame
+
+            sideOf(stored, userId)?.let {
+                when {
+                    !answers(stored, expectedVersion) -> return@transaction CommandResult.StaleVersion(stored)
+                    stored.game.isOver -> return@transaction CommandResult.GameOver(stored)
+                    !mayOfferDraw(stored) -> return@transaction CommandResult.CannotOfferDraw(stored)
+                }
+
+                requestOnly(
+                    stored,
+                    userId,
+                    DRAW_OFFERED,
+                    ChangeKind.DRAW_OFFER,
+                    DrawRecord(offeredBy = userId, offeredAt = stored.version + 1),
+                )
+            } ?: CommandResult.NotAParticipant
+        }
+
+    /**
+     * Accepts the draw offer waiting on [userId] in [gameId]: the game ends at once as a draw by
+     * agreement, final, and the series settles as after any ending (`D097`, `D015`). The
+     * series row is locked before the game's, as every ending command locks it (`D095`).
+     */
+    fun acceptDraw(
+        userId: Uuid,
+        gameId: Uuid,
+        expectedVersion: Long,
+    ): CommandResult =
+        transaction(database) {
+            val stored = series.lockGameWithSeries(gameId) ?: return@transaction CommandResult.NoSuchGame
+
+            sideOf(stored, userId)?.let {
+                answerDrawRefusal(stored, userId, expectedVersion)?.let { return@transaction it }
+
+                try {
+                    games.save(
+                        id = gameId,
+                        expectedVersion = stored.version,
+                        game = ChessRules.agreeDraw(stored.game),
+                        auditEvent = DRAW_ACCEPTED,
+                        actor = userId,
+                        change = ChangeKind.DRAW_ACCEPT,
+                    )
+                } catch (_: StaleGameVersionException) {
+                    return@transaction CommandResult.StaleVersion(reload(gameId, stored))
+                }
+
+                applied(userId, gameId, stored)
+            } ?: CommandResult.NotAParticipant
+        }
+
+    /**
+     * Declines the draw offer waiting on [userId] in [gameId] (`D097`). No new offer may be made
+     * until an ordinary move is accepted; an undo request pending beside it stays.
+     */
+    fun declineDraw(
+        userId: Uuid,
+        gameId: Uuid,
+        expectedVersion: Long,
+    ): CommandResult =
+        transaction(database) {
+            val stored = games.loadForUpdate(gameId) ?: return@transaction CommandResult.NoSuchGame
+
+            sideOf(stored, userId)?.let {
+                answerDrawRefusal(stored, userId, expectedVersion)?.let { return@transaction it }
+
+                requestOnly(stored, userId, DRAW_DECLINED, ChangeKind.DRAW_DECLINE, DrawRecord(blocked = true))
+            } ?: CommandResult.NotAParticipant
+        }
+
+    /** Why [userId] may not answer a draw offer in [stored] from [expectedVersion], or `null`. */
+    private fun answerDrawRefusal(
+        stored: StoredGame,
+        userId: Uuid,
+        expectedVersion: Long,
+    ): CommandResult? =
+        when {
+            !answers(stored, expectedVersion, stored.draw.offeredAt) -> CommandResult.StaleVersion(stored)
+            stored.game.isOver -> CommandResult.GameOver(stored)
+            stored.draw.offeredBy != stored.opponentOf(userId) -> CommandResult.NoDrawOffer(stored)
+            else -> null
+        }
+
+    /**
+     * Writes a request-only change to [stored] (`D097`): the position, the undo request and its
+     * answer stay as they are, [draw] replaces the draw record, and the version moves on once.
+     */
+    private fun requestOnly(
+        stored: StoredGame,
+        userId: Uuid,
+        auditEvent: String,
+        change: ChangeKind,
+        draw: DrawRecord,
+    ): CommandResult {
+        try {
+            games.save(
+                id = stored.id,
+                expectedVersion = stored.version,
+                game = stored.game,
+                auditEvent = auditEvent,
+                actor = userId,
+                change = change,
+                undo = stored.undo,
+                draw = draw,
+            )
+        } catch (_: StaleGameVersionException) {
+            return CommandResult.StaleVersion(reload(stored.id, stored))
+        }
+
+        recordAction(userId)
+        return CommandResult.Applied(reload(stored.id, stored))
+    }
+
     /** The canonical game as [userId] may see it, or why they may not. */
     fun load(
         userId: Uuid,
@@ -714,6 +861,29 @@ class GameCommandService(
          * whether there were one or two.
          */
         const val MOVE_REDONE: String = "MoveRedone"
+
+        /** The audit events of a draw offer and its answers (`D097`). */
+        const val DRAW_OFFERED: String = "DrawOffered"
+        const val DRAW_ACCEPTED: String = "DrawAccepted"
+        const val DRAW_DECLINED: String = "DrawDeclined"
+
+        /**
+         * Whether a command decided at [expectedVersion] still applies to [stored] (`D097`):
+         * nothing has changed the position since, though request-only changes may have moved the
+         * version on. An answer must also have been decided at or after the request it answers,
+         * [since], or it never saw that request.
+         */
+        fun answers(
+            stored: StoredGame,
+            expectedVersion: Long,
+            since: Long? = null,
+        ): Boolean = expectedVersion <= stored.version && expectedVersion >= maxOf(stored.playVersion, since ?: 0)
+
+        /**
+         * Whether either player may offer a draw in [stored] (`D097`): the game is running, no
+         * offer is pending from either player, and no decline since the last move blocks one.
+         */
+        fun mayOfferDraw(stored: StoredGame): Boolean = !stored.game.isOver && stored.draw.offeredBy == null && !stored.draw.blocked
 
         /**
          * Whether the player on [side] may send an undo request in [stored] (`D091`): the game

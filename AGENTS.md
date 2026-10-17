@@ -30,7 +30,7 @@ Four Gradle modules (`settings.gradle.kts`):
 - `chess-app` — the Android app (Jetpack Compose); source under
   `chess-app/app/src/main/java/com/jmussel/chessgame/`.
 
-Plus `database/migrations/` (Flyway `V1`–`V14`), `Dockerfile` and `render.yaml`
+Plus `database/migrations/` (Flyway `V1`–`V15`), `Dockerfile` and `render.yaml`
 (the beta deploy), `scripts/` (beta verification), `evals/` (evaluator reports)
 and `docs/`.
 
@@ -85,7 +85,8 @@ Under `server/src/main/kotlin/com/jmussel/chessgame/server/`:
 
 Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/groups`,
 `/series`, `/series/{id}/leave`, `/games/{id}` and its
-`moves|undo|redo|undo-request|undo-request/accept|undo-request/decline|resignation|draw-claims`, `/dashboard`, `/history`, `/ws`.
+`moves|undo|redo|undo-request|undo-request/accept|undo-request/decline|draw-offer|draw-offer/accept|draw-offer/decline|resignation|draw-claims`,
+`/dashboard`, `/history`, `/ws`.
 
 ### `chess-app` — the client
 
@@ -192,8 +193,23 @@ default (nothing pending, no answer) is what clears them on any other change. Th
 opponent's Undo while a request waits is an accept. A request and an undo that
 cross are combined, recognised from `StoredGame.lastChange`, never from the audit
 trail. `GameView` projects `canRequestUndo`, `undoRequest` and `undoNote` per viewer,
-and `DashboardEntry.pendingRequest` lists the game under YOUR TURN for the player who
+and `DashboardEntry.pendingRequests` lists the game under YOUR TURN for the player who
 must answer, while `yourTurn` keeps meaning "your move".
+
+### Draw offers
+
+Either player may offer a draw on either turn; the other accepts (a draw by
+agreement, `TerminationReason.AGREEMENT`, which settles the series) or declines (`D097`,
+`M22.3`). The offer lives beside the undo request in the game row (`V15`,
+`DrawRecord`), and the two may be pending together. `GameRepository.save` tells a
+request-only change from a gameplay one by its `draw` argument: an undo request, a draw
+offer or a decline passes the records it keeps and leaves `games.play_version` alone;
+anything else clears both requests and moves `play_version` to the new version. An
+answer stands when its `expectedVersion` is at or after both `play_version` and the
+version its request was made at (`GameCommandService.answers`), so request-only changes
+in between do not make it stale. A decline sets `draw_offer_blocked`, which only an
+ordinary move clears. `DashboardEntry.pendingRequests` is required and always sent, undo
+request first.
 
 ### Realtime updates
 

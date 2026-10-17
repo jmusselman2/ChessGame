@@ -209,6 +209,13 @@ object GamesTable : Table("games") {
     /** Whether an ordinary move has ever been accepted; never cleared (`V14`, `D095`). */
     val hasStarted = bool("has_started")
 
+    /** The pending draw offer, the post-decline block and the last gameplay version (`V15`, `D097`). */
+    val drawOfferedBy = uuid("draw_offered_by").nullable()
+    val drawOfferBlocked = bool("draw_offer_blocked")
+    val drawOfferedVersion = long("draw_offered_version").nullable()
+    val undoRequestedVersion = long("undo_requested_version").nullable()
+    val playVersion = long("play_version")
+
     override val primaryKey = PrimaryKey(id)
 }
 

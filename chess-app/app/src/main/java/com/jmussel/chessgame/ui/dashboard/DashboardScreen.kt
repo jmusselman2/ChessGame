@@ -191,6 +191,7 @@ private fun DashboardScreenPreview() {
                         sideToMove = "WHITE",
                         moveNumber = 18,
                         yourTurn = true,
+                        pendingRequests = emptyList(),
                     ),
                     DashboardEntryDto(
                         seriesId = "series-2",
@@ -201,6 +202,7 @@ private fun DashboardScreenPreview() {
                         sideToMove = "BLACK",
                         moveNumber = 7,
                         yourTurn = true,
+                        pendingRequests = emptyList(),
                     ),
                     DashboardEntryDto(
                         seriesId = "series-3",
@@ -211,6 +213,7 @@ private fun DashboardScreenPreview() {
                         sideToMove = "BLACK",
                         moveNumber = 24,
                         yourTurn = false,
+                        pendingRequests = emptyList(),
                     ),
                 ),
         )

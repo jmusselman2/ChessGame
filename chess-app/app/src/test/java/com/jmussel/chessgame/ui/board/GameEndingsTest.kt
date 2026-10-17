@@ -28,6 +28,7 @@ class GameEndingsTest {
                 TerminationReason.FIFTY_MOVE_RULE_CLAIM to "the fifty-move rule",
                 TerminationReason.FIVEFOLD_REPETITION to "fivefold repetition",
                 TerminationReason.SEVENTY_FIVE_MOVE_RULE to "the seventy-five-move rule",
+                TerminationReason.AGREEMENT to "agreement",
             )
 
         assertEquals("every reason is covered", TerminationReason.entries.toSet(), expected.keys)

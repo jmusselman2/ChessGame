@@ -135,7 +135,7 @@ implementation, as `M21` was.
 | -------- | --------------------------------------------------- | ---------- | -------- | --------- |
 | `M22.1`  | At most one active series per party                 | None       | `F38`    | `DONE`    |
 | `M22.2`  | Matching play advances the retained Redo continuation | M21.21   | —        | `DONE`    |
-| `M22.3`  | Draw offers by agreement                            | M22.2      | `F2`     | `TODO`    |
+| `M22.3`  | Draw offers by agreement                            | M22.2      | `F2`     | `DONE`    |
 | `M22.4`  | Win/loss/draw record per friend                     | None       | `F1`     | `TODO`    |
 | `M22.5`  | Detailed profiles                                   | M22.4      | `F6`     | `TODO`    |
 | `M22.6`  | Standard algebraic notation in `chess-core`         | None       | `F39`    | `TODO`    |
@@ -387,7 +387,7 @@ version, audit, persistence, stale, concurrency, request and no-silent-reply cas
 
 ## M22.3 — Draw offers by agreement
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M22.2
 
@@ -457,6 +457,30 @@ are outside MVP" stays true of the MVP; this is post-MVP work.
   interleavings, and invalidation by move, Undo, Redo, resignation, draw claim and
   either accepted request. A move that matches and advances `M22.2`'s retained
   continuation is still a board/history change and invalidates both requests.
+
+### Completion
+
+Completed 2026-10-17. `chess-core` gained `TerminationReason.AGREEMENT` and
+`ChessRules.agreeDraw`. `V15__draw_offers.sql` adds `draw_offered_by`,
+`draw_offered_version`, `draw_offer_blocked`, `undo_requested_version` and `play_version`
+(backfilled to each game's version) and the three new change kinds. `POST
+/games/{id}/draw-offer`, `/draw-offer/accept` and `/draw-offer/decline` (`409`
+`CANNOT_OFFER_DRAW` / `NO_DRAW_OFFER`) are participant-only; accept locks the series row
+first, ends the game as a draw by agreement and settles the series. `GameRepository.save`
+treats a call with a `DrawRecord` as request-only (undo request, its decline, draw offer,
+its decline): both requests are kept as passed and `play_version` stays; every other write
+clears both and moves `play_version`, and an ordinary move clears the decline block. An
+answer, and a new offer, is accepted when its version is at or after `play_version` and
+the version its request was made at, so request-only changes between do not make it stale,
+while a gameplay change or an answer from before the request does. `GameView` adds
+`canOfferDraw` and `drawOffer`; `DashboardEntry.pendingRequest` became the required
+`pendingRequests` (undo first), with no default on either side. Android offers, accepts and
+declines in one tap each, words both requests on the game screen and the dashboard row,
+and reads a missing list as an incompatible response. Verified with `:chess-core:test`,
+`:server:test --rerun-tasks` against PostgreSQL (new `DrawOfferTest`,
+`DrawOffersMigrationTest`), `:chess-app:testDebugUnitTest`, the new `DrawOfferUiTest` and
+the changed `UndoRequestUiTest` on the Fire HD 8 (12 tests), `.\gradlew.bat build` and
+`git diff --check`.
 
 ---
 

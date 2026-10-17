@@ -76,7 +76,8 @@ class ChessApiClientTest {
                     "yourSide": "WHITE",
                     "sideToMove": "WHITE",
                     "moveNumber": 18,
-                    "yourTurn": true
+                    "yourTurn": true,
+                    "pendingRequests": []
                   }
                 ]
                 """.trimIndent(),
@@ -163,7 +164,8 @@ class ChessApiClientTest {
                   {
                     "seriesId": "series-1",
                     "opponent": {"userId": "user-1", "username": "Alex"},
-                    "yourTurn": false
+                    "yourTurn": false,
+                    "pendingRequests": []
                   }
                 ]
                 """.trimIndent(),
@@ -176,6 +178,43 @@ class ChessApiClientTest {
     }
 
     @Test
+    fun bothPendingRequestsAreReadInTheServersOrder() {
+        val client =
+            clientReplying(
+                """[{"seriesId":"series-1","opponent":{"userId":"user-1","username":"Alex"},"yourTurn":false,""" +
+                    """"pendingRequests":[{"kind":"UNDO","waitingOnYou":true},{"kind":"DRAW","waitingOnYou":false}]}]""",
+            )
+
+        val entry = runBlocking { client.dashboard() }.single()
+
+        assertEquals(listOf("UNDO", "DRAW"), entry.pendingRequests.map { it.kind })
+        assertTrue("the undo request waits on this player", entry.waitingOnYou)
+    }
+
+    @Test
+    fun aDashboardWithoutThePendingRequestsListIsIncompatible() {
+        val client = clientReplying("""[{"seriesId":"series-1","opponent":{"userId":"user-1","username":"Alex"},"yourTurn":false}]""")
+
+        assertThrows(Exception::class.java) { runBlocking { client.dashboard() } }
+    }
+
+    @Test
+    fun aDrawOfferIsSentWithTheVersionItWasDecidedAt() {
+        val client = clientReplying(gameBody)
+
+        runBlocking {
+            client.offerDraw("game-1", expectedVersion = 8)
+            client.acceptDraw("game-1", expectedVersion = 9)
+            client.declineDraw("game-1", expectedVersion = 10)
+        }
+
+        assertEquals(
+            listOf("/games/game-1/draw-offer", "/games/game-1/draw-offer/accept", "/games/game-1/draw-offer/decline"),
+            requests.map { it.url.encodedPath },
+        )
+    }
+
+    @Test
     fun fieldsThisAppDoesNotKnowAreIgnored() {
         val client =
             clientReplying(
@@ -185,6 +224,7 @@ class ChessApiClientTest {
                     "seriesId": "series-1",
                     "opponent": {"userId": "user-1", "username": "Alex", "somethingNew": 1},
                     "yourTurn": true,
+                    "pendingRequests": [],
                     "gameId": "game-1",
                     "aFieldFromALaterServer": "whatever"
                   }

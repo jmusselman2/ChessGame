@@ -735,21 +735,21 @@ class UndoRequestTest {
     fun theDashboardNamesTheRequestForBothPlayersWithoutTouchingYourTurn() {
         withGame { fixture ->
             fixture.answered()
-            assertNull(fixture.dashboardFor(fixture.alex).pendingRequest)
+            assertEquals(emptyList(), fixture.dashboardFor(fixture.alex).pendingRequests)
 
             fixture.request()
 
             val alexRow = fixture.dashboardFor(fixture.alex)
             val jordanRow = fixture.dashboardFor(fixture.jordan)
-            assertEquals(PendingRequest(kind = PendingRequest.UNDO, waitingOnYou = true), alexRow.pendingRequest)
+            assertEquals(listOf(PendingRequest(kind = PendingRequest.UNDO, waitingOnYou = true)), alexRow.pendingRequests)
             assertFalse(alexRow.yourTurn, "yourTurn still means it is your move")
-            assertEquals(PendingRequest(kind = PendingRequest.UNDO, waitingOnYou = false), jordanRow.pendingRequest)
+            assertEquals(listOf(PendingRequest(kind = PendingRequest.UNDO, waitingOnYou = false)), jordanRow.pendingRequests)
             assertTrue(jordanRow.yourTurn)
 
             fixture.commands.declineUndo(fixture.alex, fixture.gameId, 3)
 
-            assertNull(fixture.dashboardFor(fixture.alex).pendingRequest)
-            assertNull(fixture.dashboardFor(fixture.jordan).pendingRequest)
+            assertEquals(emptyList(), fixture.dashboardFor(fixture.alex).pendingRequests)
+            assertEquals(emptyList(), fixture.dashboardFor(fixture.jordan).pendingRequests)
         }
     }
 

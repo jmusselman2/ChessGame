@@ -384,6 +384,23 @@ object OnlineGame {
         }
     }
 
+    /** Offering the opponent a draw (`D097`). */
+    const val OFFER_DRAW_LABEL = "Offer draw"
+
+    /**
+     * The pending draw offer, in words for the player who made it or the one who must answer it,
+     * or `null` with none pending (`D097`). An offer has nothing to cancel.
+     */
+    fun drawOfferText(game: GameViewDto): String? {
+        val offer = game.drawOffer ?: return null
+        val opponent = game.opponent.username
+
+        return if (offer.fromYou) "Draw offered. Waiting for $opponent." else "$opponent offers a draw"
+    }
+
+    /** Whether the player must answer a draw offer now: Accept and Decline are theirs. */
+    fun mustAnswerDraw(game: GameViewDto): Boolean = game.drawOffer?.fromYou == false && !game.isOver
+
     /** Whether the player must answer an undo request now: Accept and Decline are theirs. */
     fun mustAnswerUndo(game: GameViewDto): Boolean = game.undoRequest?.fromYou == false && !game.isOver
 
@@ -534,6 +551,8 @@ object OnlineGame {
             NOTHING_TO_UNDO -> NOTHING_BACK
             CANNOT_REQUEST_UNDO -> CANNOT_ASK
             NO_UNDO_REQUEST -> NO_REQUEST
+            CANNOT_OFFER_DRAW -> CANNOT_OFFER
+            NO_DRAW_OFFER -> NO_OFFER
             NOTHING_TO_REDO -> NOTHING_AHEAD
             else -> refusal.rejection.message.ifBlank { REFUSED_COMMAND }
         }
@@ -632,6 +651,8 @@ object OnlineGame {
     private const val NOTHING_TO_UNDO = "NOTHING_TO_UNDO"
     private const val CANNOT_REQUEST_UNDO = "CANNOT_REQUEST_UNDO"
     private const val NO_UNDO_REQUEST = "NO_UNDO_REQUEST"
+    private const val CANNOT_OFFER_DRAW = "CANNOT_OFFER_DRAW"
+    private const val NO_DRAW_OFFER = "NO_DRAW_OFFER"
     private const val NOTHING_TO_REDO = "NOTHING_TO_REDO"
     private const val THREEFOLD = "THREEFOLD_REPETITION"
     private const val FIFTY_MOVE = "FIFTY_MOVE_RULE"
@@ -647,6 +668,8 @@ object OnlineGame {
     private const val NOTHING_BACK = "There is nothing to take back."
     private const val CANNOT_ASK = "You cannot ask to undo now."
     private const val NO_REQUEST = "No undo request is waiting for you."
+    private const val CANNOT_OFFER = "You cannot offer a draw now. After a declined offer, a move must be played first."
+    private const val NO_OFFER = "No draw offer is waiting for you."
     private const val NOTHING_AHEAD = "There is nothing to redo."
     private const val UNREACHABLE = "Could not reach the server. Check your connection and try again."
     private const val REFRESH_UNREACHABLE = "Could not reach the server. The board is as it was when it last loaded."

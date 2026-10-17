@@ -515,7 +515,7 @@ in a closed series gets no rematch. Resigning never leaves a series.
 **Status:** Accepted
 
 **Amended 2026-10-14 by `D097`:** draws by agreement remain outside the MVP but
-are scheduled as post-MVP work in `M22.3` with the request lifecycle defined there.
+exist as post-MVP work, built in `M22.3` with the request lifecycle defined there.
 
 ### Decision
 

@@ -61,6 +61,7 @@ fun OnlineGameScreen(
     onUndo: () -> Unit = {},
     onRedo: () -> Unit = {},
     undoRequests: UndoRequestActions = UndoRequestActions(),
+    drawOffers: DrawOfferActions = DrawOfferActions(),
     onClaimDraw: (String) -> Unit = {},
     onAskToResign: () -> Unit = {},
     onResign: () -> Unit = {},
@@ -103,6 +104,7 @@ fun OnlineGameScreen(
                 onUndo = onUndo,
                 onRedo = onRedo,
                 undoRequests = undoRequests,
+                drawOffers = drawOffers,
                 onClaimDraw = onClaimDraw,
                 onAskToResign = onAskToResign,
                 onResign = onResign,
@@ -124,6 +126,13 @@ fun OnlineGameScreen(
  */
 class UndoRequestActions(
     val onAsk: () -> Unit = {},
+    val onAccept: () -> Unit = {},
+    val onDecline: () -> Unit = {},
+)
+
+/** Offering a draw, and answering the opponent's offer (`D097`). Each takes one tap. */
+class DrawOfferActions(
+    val onOffer: () -> Unit = {},
     val onAccept: () -> Unit = {},
     val onDecline: () -> Unit = {},
 )
@@ -178,6 +187,7 @@ private fun Game(
     onUndo: () -> Unit,
     onRedo: () -> Unit,
     undoRequests: UndoRequestActions,
+    drawOffers: DrawOfferActions,
     onClaimDraw: (String) -> Unit,
     onAskToResign: () -> Unit,
     onResign: () -> Unit,
@@ -269,6 +279,22 @@ private fun Game(
 
             // How the last request ended, shown until the game next changes.
             OnlineGame.undoNoteText(game)?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium) }
+
+            // A draw offer, beside any undo request (`D097`): a status for the player who offered,
+            // Accept and Decline for the one who must answer, and Offer draw while the server says
+            // this player may, on either turn.
+            OnlineGame.drawOfferText(game)?.let { Text(text = it, style = MaterialTheme.typography.bodyMedium) }
+            if (OnlineGame.mustAnswerDraw(game)) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = drawOffers.onAccept, enabled = !state.submitting) { Text(text = OnlineGame.ACCEPT_LABEL) }
+                    OutlinedButton(onClick = drawOffers.onDecline, enabled = !state.submitting) {
+                        Text(text = OnlineGame.DECLINE_LABEL)
+                    }
+                }
+            }
+            if (game.canOfferDraw) {
+                OutlinedButton(onClick = drawOffers.onOffer, enabled = !state.submitting) { Text(text = OnlineGame.OFFER_DRAW_LABEL) }
+            }
 
             // Only the claims the server said are available, each labelled by its own rule
             // (`D019`); an automatic draw needs no claim and never appears here. Not an offer:

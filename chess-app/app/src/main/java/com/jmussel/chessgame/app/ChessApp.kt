@@ -39,6 +39,7 @@ import com.jmussel.chessgame.ui.dashboard.DashboardUiState
 import com.jmussel.chessgame.ui.friends.FriendsActions
 import com.jmussel.chessgame.ui.friends.FriendsScreen
 import com.jmussel.chessgame.ui.friends.FriendsUiState
+import com.jmussel.chessgame.ui.game.DrawOfferActions
 import com.jmussel.chessgame.ui.game.LiveUpdates
 import com.jmussel.chessgame.ui.game.OnlineGameScreen
 import com.jmussel.chessgame.ui.game.OnlineGameState
@@ -117,6 +118,7 @@ fun ChessApp(
     onUndo: () -> Unit = {},
     onRedo: () -> Unit = {},
     undoRequests: UndoRequestActions = UndoRequestActions(),
+    drawOffers: DrawOfferActions = DrawOfferActions(),
     onClaimDraw: (String) -> Unit = {},
     onAskToResign: () -> Unit = {},
     onResign: () -> Unit = {},
@@ -208,6 +210,7 @@ fun ChessApp(
                     onUndo = onUndo,
                     onRedo = onRedo,
                     undoRequests = undoRequests,
+                    drawOffers = drawOffers,
                     onClaimDraw = onClaimDraw,
                     onAskToResign = onAskToResign,
                     onResign = onResign,

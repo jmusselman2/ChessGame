@@ -26,6 +26,9 @@ enum class TerminationReason(
     SEVENTY_FIVE_MOVE_RULE(isDraw = true),
     THREEFOLD_REPETITION_CLAIM(isDraw = true, requiresClaim = true),
     FIFTY_MOVE_RULE_CLAIM(isDraw = true, requiresClaim = true),
+
+    /** Both players agreed to a draw: one offered it and the other accepted (`D097`). */
+    AGREEMENT(isDraw = true),
 }
 
 /**

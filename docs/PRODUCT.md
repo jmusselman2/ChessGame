@@ -436,12 +436,13 @@ A claimable draw requires an explicit `ClaimDraw` action by an entitled player.
 
 The engine must determine whether a valid draw claim exists according to the game history and current/prospective legal move state.
 
-Draw offers by agreement are not part of MVP. They are scheduled after the MVP
-in `M22.3` (`D097`): either player may offer during an unfinished game, one draw
+Draw offers by agreement are not part of the MVP. They were built after it, in
+`M22.3` (`D097`): either player may offer during an unfinished game, one draw
 offer may be pending, and it has no timer. After a decline, neither player may
 offer again until an accepted move. A draw offer and an undo
 request may coexist. Request-only changes preserve the other request; any board,
-history or result change clears both.
+history or result change clears both. An accepted offer ends the game at once as
+a draw by agreement, final, and the series goes on to its rematch.
 
 ## Dashboard
 
@@ -653,7 +654,7 @@ holds what is known about each item (`D072`).
 - contact syncing,
 - push notifications,
 - chess clocks,
-- draw offers by agreement (scheduled post-MVP as `M22.3`),
+- draw offers by agreement (built post-MVP in `M22.3`),
 - custom themes,
 - elaborate animations,
 - spectators,

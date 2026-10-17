@@ -1212,7 +1212,7 @@ Invalid claims are rejected server-side.
 
 The engine must expose enough information to determine claim entitlement from the canonical history and any relevant prospective legal move condition.
 
-Draw offers by agreement are outside MVP and are scheduled in `M22.3` (`D097`).
+Draw offers by agreement are outside MVP and were built in `M22.3` (`D097`).
 They are server-authoritative request metadata, not `chess-core` state. Either
 player may offer during an unfinished game; one draw offer may coexist with one
 undo request. Neither has a timer. Request-only changes preserve the other

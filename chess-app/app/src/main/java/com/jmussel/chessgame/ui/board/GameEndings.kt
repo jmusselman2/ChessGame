@@ -30,6 +30,7 @@ object GameEndings {
             TerminationReason.FIFTY_MOVE_RULE_CLAIM -> "the fifty-move rule"
             TerminationReason.FIVEFOLD_REPETITION -> "fivefold repetition"
             TerminationReason.SEVENTY_FIVE_MOVE_RULE -> "the seventy-five-move rule"
+            TerminationReason.AGREEMENT -> "agreement"
         }
 
     /**
