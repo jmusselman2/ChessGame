@@ -7613,8 +7613,9 @@ or controls (`D087`). Completed-game review is outside `M23.1`.
 The rows reuse the board's piece artwork and styling, stay about 36–44 dp tall, and
 use a subtle theme-appropriate tint without card or control decoration. They order
 pieces queen, rook, bishop, knight, pawn; repeat individual glyphs where width allows
-and compact repeats to `×N` on narrow screens. An empty row says "No captures" at the
-same height. Only the side leading in the current position's material shows `+N`.
+and compact repeats to `×N` on narrow screens. An empty row keeps its label, tint and
+height and draws nothing where the pieces would be; only its accessibility summary says
+"No captures" (amended 2026-10-18, below). Only the side leading in the current position's material shows `+N`.
 Material uses the project owner's chosen queen 9, rook 5, bishop 3.25, knight 3 and
 pawn 1 scale. Quarter-point advantages are shown exactly, whole values omit `.00`, and
 `+0` is never shown. Each row has one useful accessibility summary and no click action.
@@ -7678,3 +7679,18 @@ installed rules version.
   and optional for compatibility; no database migration is needed.
 - Existing board coordinates and move feedback keep their drawing and interaction
   order, and review remains unchanged.
+- **Recorded 2026-10-17 by `M23.1`, at the project owner's choice:** the rows lead the
+  two-pane panel, so in short landscape windows they push its last controls below the
+  fold, and the panel scrolls to them (`D073` already lets it scroll). Measured: a stock
+  Pixel 7 in landscape (359–383 dp tall) by up to 24 dp, and a 360 dp-tall phone by up
+  to 58 dp. The owner's Pixel 7 (969×457), the Fire HD 8 (962×553) and tablets keep
+  every control in view without scrolling. This replaces the earlier expectation, from
+  `M17.7` and later tasks' acceptance criteria, that every two-pane window shows every
+  control without scrolling; the device tests now require that only where there is room
+  and require the rest to be reachable by scrolling the panel.
+- **Amended 2026-10-18 by the project owner:** an empty row no longer displays "No
+  captures". It keeps its player and colour label, its tint and its 40 dp height, so no
+  layout changes, and the space for pieces is left empty. Its single accessibility
+  summary still says the player has no captures ("Black. No captures."), so a screen
+  reader does not hear a bare label. This replaces `M23.1`'s original criterion to show
+  the text.

@@ -90,9 +90,13 @@ fun LocalGameScreen(
 
     fun play(next: BoardUiState) = onStateChange(state.copy(boardState = next))
 
+    // Black above and White below throughout, as the board is drawn (`D087`, `D104`).
+    val captures = remember(game.game.history, game.game.state) { CapturedPieces.forGame(game.game, topSide = game.orientation.opposite) }
+
     GameLayout(
         onBack = onBack,
         modifier = modifier,
+        captures = captures,
         board = { side ->
             ChessBoard(
                 board = game.board,

@@ -135,7 +135,7 @@ class PieceDragUiTest {
     fun aSwipeStartingOnAPieceScrollsAShortScreenAndMakesNoMove() {
         val initial = BoardUiState.newGame()
         val short = SHORT_VIEWPORTS.first()
-        assertTrue("$short scrolls", short.spec.scrolls)
+        assertTrue("$short scrolls", short.liveSpec.scrolls)
         showLocalGame(initial, short)
         val topBefore = composeRule.boundsOf(CHESS_BOARD_TAG).top
 

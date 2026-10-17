@@ -4,6 +4,7 @@ package com.jmussel.chessgame.server.game
 
 import com.jmussel.chessgame.core.chess.Move
 import com.jmussel.chessgame.core.chess.Side
+import com.jmussel.chessgame.server.api.CapturedPieceView
 import com.jmussel.chessgame.server.api.GameView
 import com.jmussel.chessgame.server.api.MoveView
 import com.jmussel.chessgame.server.api.UndoNoteKind
@@ -96,7 +97,16 @@ class SanProjectionTest {
             val view = fixture.view(fixture.alex)
 
             assertEquals(listOf("e4", "e5", "Bc4", "Nc6", "Qh5", "Nf6", "Qxf7#"), view.moves.map { it.san })
-            assertEquals(MoveView(from = "h5", to = "f7", promotion = null, san = "Qxf7#"), view.lastMove)
+            assertEquals(
+                MoveView(
+                    from = "h5",
+                    to = "f7",
+                    promotion = null,
+                    san = "Qxf7#",
+                    captured = CapturedPieceView(side = "BLACK", type = "PAWN"),
+                ),
+                view.lastMove,
+            )
             assertEquals(view.moves.last(), view.lastMove)
         }
     }

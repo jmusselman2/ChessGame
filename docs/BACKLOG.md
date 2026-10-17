@@ -131,7 +131,7 @@ explicitly closes and authorizes archiving it (`D103`).
 
 | Task    | Title                                      | Depends on              | Former | Status    |
 | ------- | ------------------------------------------ | ----------------------- | ------ | --------- |
-| `M23.1` | Captured pieces beside the board           | `M22.7`, `M22.11`       | —      | `TODO`    |
+| `M23.1` | Captured pieces beside the board           | `M22.7`, `M22.11`       | —      | `DONE`    |
 | `M23.2` | Complete board accessibility               | `M22.6`, `M22.7`, `M22.11` | `F40` | `TODO` |
 | `M23.3` | Dead-position detection by search          | None                    | `F11`  | `TODO`    |
 | `M23.4` | User settings, opened from the username    | Initial contents chosen | `F35`  | `BLOCKED` |
@@ -143,7 +143,7 @@ explicitly closes and authorizes archiving it (`D103`).
 
 ## M23.1 — Captured pieces beside the board
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M22.7, M22.11
 
@@ -191,8 +191,10 @@ chess game screen, without unnecessarily reducing the board or changing gameplay
 - At wider widths, show repeated individual piece glyphs.
 - At narrow widths, consolidate repetitions as a glyph followed by `×2`, `×3`, and
   so on. Nothing may be clipped or scroll horizontally.
-- When a player has captured nothing, show "No captures" while preserving row
-  height.
+- When a player has captured nothing, show no text where the pieces would be: the row
+  keeps its player and colour label, its tint and its height, and only its
+  accessibility summary says "No captures" (amended 2026-10-18, `D104`; this replaced
+  the original criterion to show "No captures").
 - Calculate the current position's material balance by summing each side's live
   non-king pieces using queen=9, rook=5, bishop=3.25, knight=3 and pawn=1. This is
   the project owner's chosen scale; the bishop's value is deliberately higher than
@@ -256,7 +258,7 @@ When this task is selected for implementation, it requires:
 - server projection tests covering both viewer perspectives, promotion, Undo and
   Redo;
 - Android model tests for player association, sorting, compact counts, material
-  advantage, "No captures" and glyph styling;
+  advantage, an empty row's label and summary, and glyph styling;
 - Compose tests at representative Pixel 7 portrait, Kindle Fire portrait and
   Pixel-class landscape dimensions;
 - Compose coverage for Black orientation, pass-and-play orientation,
@@ -265,6 +267,185 @@ When this task is selected for implementation, it requires:
 - the complete documented `.\gradlew.bat build` gate and `git diff --check`;
 - physical verification on the attached Pixel 7 and Kindle when available,
   installing the newly built APK with `adb install -r` and without uninstalling.
+
+### Completion Note — 2026-10-17
+
+**Rules (`chess-core`).** `ChessRules.capturedPiece(record)` reads the captured `Piece`
+from the record's own pre-move position: the piece on the destination, or the pawn an
+en passant capture took beside it. It neither replays nor mutates. A promoted piece is
+captured as what it became. `ChessRules.materialBalance(state)` is White's live non-king
+material minus Black's, in exact quarter points, from the new `Material` (36, 20, 13, 12,
+4; king 0).
+
+**Server.** `MoveView.captured` is an optional `CapturedPieceView(side, type)`, read
+from each recorded move. The game view also carries an optional
+`whiteMaterialBalanceQuarterPoints` from the current state. Both are additive: no
+column, no migration, and nothing new in `GameState`. Both viewers get identical facts.
+Review's moves carry the field too, but review draws nothing new.
+
+**App.**
+
+- `CapturedPieces` builds the two rows:
+  - locally, from active `MoveRecord`s and the current `GameState` (`forGame`);
+  - online, from the server's projection alone (`OnlineGame.capturedRowsFor`). It never
+    replays, parses SAN or reads the board. A missing balance shows no `+N`, and moves
+    without `captured` show no captures.
+- Labels follow `D104`:
+  - online: "Alex · Black" and "You · White";
+  - computer: "Computer (Medium) · Black" and "You · White";
+  - pass-and-play: "Black" and "White".
+- The top row belongs to the side drawn at the top of the board. Pass-and-play keeps
+  Black above and White below throughout.
+- Pieces are ordered queen, rook, bishop, knight, pawn.
+- `+N` is on the leader's row only. Whole values print bare (`+1`, `+9`). Other values
+  print two decimals (`+0.25`, `+0.50`, `+9.25`), so `.00` alone is dropped, as the
+  criterion reads. `+0` never appears.
+- `CapturedPiecesRow` is 40 dp tall whether empty or not. It sits on a
+  0.6-alpha `surfaceVariant` tint with 6 dp corners, and has no border or click.
+- Glyphs are `BoardRendering.glyphFor` in `PieceStyle.fill`, the board's colours, which
+  `ChessBoard` now shares. Off the board each glyph also gets a thin outline in the other
+  side's colour. Without it, white pieces vanish on the light theme's tint and black ones
+  on the dark theme's.
+- Repeats stay individual, slightly overlapped, while they fit. Otherwise they compact to
+  a glyph and `×N`. If even that is too wide, they scale down rather than clip.
+- The label takes at most 42% of the row and ellipsizes. Each row exposes one summary to
+  a screen reader, for example "Alex, White. Captured pawn. Ahead by 1 point."
+
+**Layout.**
+
+- `GameLayout` takes `captures` and a `header` (the online heading, or the computer's
+  name and colour).
+- In one column, the rows sit 4 dp above and below the board, at its width.
+  `GameLayoutSpec.forWindow(..., captureRows = true)` takes their 88 dp from the height
+  only. Width-decided boards keep their size: Pixel 7 portrait 411 dp, Fire HD 8 portrait
+  569 dp. Height-decided boards shrink by 88 dp. Short windows use the existing
+  whole-screen scroll.
+- In two panes, the rows follow Back and the header in the panel, before the controls.
+  The board size is unchanged for every listed window (`GameLayoutSpecTest`).
+- Review passes no rows and is unchanged.
+
+**Two-pane fit (owner's decision, recorded under `D104`).** In short landscape windows
+the rows push the panel's last controls below the fold. Measured on the Fire HD 8 with
+forced windows:
+
+| Window | Height | Overflow, worst panel |
+| ------ | ------ | --------------------- |
+| Stock Pixel 7 landscape, 3-button | 383 dp | 6 dp |
+| Stock Pixel 7 landscape, gesture | 359 dp | 24 dp |
+| 640×360 phone | 360 dp | 58 dp |
+
+The owner's Pixel 7 (969×457), the Fire HD 8 and tablets still show every control. The
+owner chose to follow `D104`: the panel scrolls to its last controls in short windows.
+Six device tests required every two-pane window to fit without scrolling, and they were
+updated to the new rule:
+
+- `GameLayoutUiTest.withTwoPanesEveryControlIsInViewWithoutScrolling…`;
+- `OnlineGameLayoutUiTest.aGameInProgressShowsItsControlsWithTwoPanes…`;
+- `RedoUiTest`'s two fullest-panel tests;
+- `UndoRequestUiTest.jordansPanelAfterAnAnswer…`;
+- `DrawOfferUiTest.anUndoRequestAndADrawOffer…`.
+
+The last two failed only on the second run. All six now use `assertPanelShows`, which:
+
+- keeps the strict no-scroll check on `ROOMY_TWO_PANE_VIEWPORTS`;
+- requires the shorter windows to scroll the panel to every control;
+- requires the board not to move.
+
+Panels that still fit everywhere keep their original strict tests: Alex's undo-request
+panel, the computer's Redo panel and the promotion prompt.
+
+**Tests.**
+
+- `chess-core`:
+  - `CapturedPieceTest` (10) covers ordinary, piece and en passant captures, a captured
+    promoted queen, a capturing promotion, non-captures including castling, no
+    mutation, Undo, a two-ply Undo with Redo, and a matching continuation.
+  - `MaterialBalanceTest` (6) covers the scale, the start position, bishop against
+    knight (±1 quarter point), captures, before and after promotion and after the
+    promoted queen is taken, where captured totals would be wrong, and Undo with Redo.
+- Server, against PostgreSQL:
+  - `CapturedPieceProjectionTest` (5) covers both viewers, promotion (balances 21, 73
+    and 37), Undo, Redo and the optional wire shape.
+  - `SanProjectionTest`'s expected `Qxf7#` now carries its captured pawn.
+- App, JVM:
+  - `CapturedPiecesTest` (17) covers player association for all three modes, sorting,
+    counted groups, the fit, an empty row, leader-only and exact `+N`, a missing
+    balance, promotion, Undo and Redo, summaries and glyph styling.
+  - `OnlineCapturedPiecesTest` (7) covers both perspectives, the same facts for both
+    players, the server's balance, older payloads and decoding.
+  - `GameLayoutSpecTest` (+2) covers unchanged two-pane boards and one-column room for
+    the rows.
+- Device: `CapturedPiecesUiTest` (10) runs at Pixel 7 portrait and landscape, Fire HD 8
+  portrait and the owner's Pixel 7 windows. It covers:
+  - pass-and-play on both turns, online as Black and as White, and the computer game;
+  - one-column placement and width;
+  - two-pane board size, and the rows' order between the heading and the controls;
+  - existing square feedback unchanged, with nothing overlapping the board or status;
+  - no click action, and one summary per row;
+  - 40 dp at font scales 1.0, 1.3 and 2.0;
+  - light and dark theme pixels (needs API 26).
+
+**Verification.**
+
+- `.\gradlew.bat build`: green.
+- `:server:test` with `TEST_DATABASE_URL`, `--rerun-tasks`: 734 tests, 0 failures.
+- `:chess-core:test`: 448 tests, 0 failures.
+- Fire HD 8 (API 22): 16 Compose UI classes, 84 tests. One run passed 81. The 3 that
+  failed passed after the fix, in a rerun of their six classes (43 tests). The pixel
+  theme check skips itself there.
+- `ChessGame-Light` emulator (API 36): the same 84 tests, 81 in one run and the
+  same 3 passing after the fix in the 43-test rerun. The theme pixel check passes there.
+- The device and test APKs were signed with the beta key through AGP's injected-signing
+  properties, so `adb install -r` replaced the installed beta in place.
+- Physical: the signed release `0.1.7-m23.1` (versionCode 9) was installed with
+  `adb install -r` over the Fire HD 8's `0.1.6`, without uninstalling. In portrait
+  pass-and-play:
+  - Black's row is above the board and White's below, both "No captures" at first;
+  - 1…e5 2.dxe5 d6 3.exd6 put two black pawns and `+2` on White's row;
+  - 3…Bxd6 put a white pawn on Black's row and made it `+1`;
+  - Undo removed that capture (`+2`), and Redo restored it.
+- The Pixel 7 was not attached, so it has no physical check; its windows are covered by
+  the forced-size device tests.
+- Online rows on the beta show captures and `+N` only once the server with this change
+  is deployed. An older server's games show empty rows and no `+N`.
+
+### Amendment — 2026-10-18: no "No captures" text
+
+At the project owner's request (`D104`, amended), an empty row no longer draws "No
+captures". The completion evidence above, from 2026-10-17, still shows the text; this
+amendment supersedes it.
+
+- **Code.** `CapturedPieceGlyphs` draws nothing for an empty row. The label, tint and
+  40 dp height are unchanged, so no layout measurement moves. `CapturedRow.summary`
+  still ends "No captures." for a screen reader, and `NO_CAPTURES` stays for it alone.
+- **Tests.**
+  - JVM: `CapturedPiecesTest.anEmptyRowKeepsItsLabelAndSaysNoCapturesOnlyInItsSummary`
+    replaces `anEmptyRowSaysNoCaptures`.
+  - Device: `CapturedPiecesUiTest.anEmptyRowKeepsItsLabelHeightAndSummaryButShowsNoText`
+    covers pass-and-play, online and computer screens in one-column and two-pane windows
+    at font scales 1.0, 1.3 and 2.0. It checks there is no "No captures" text node, the
+    summary still says it, the row is 40 dp, and the board is the same size.
+  - Device: `anEmptyRowIsPlainTintBesideItsLabel` checks the pixels past the label are
+    plain tint in both themes. It needs API 26, so the Fire HD 8 skips it. The semantic
+    check alone cannot prove the text is gone, because the row hides its children from
+    accessibility.
+- **Verification.** Only the narrowest checks were run, as asked; the full build gate was
+  not run.
+  - `CapturedPiecesTest`: 17 of 17 pass.
+  - `ktlintCheck` passes, and the device tests compile.
+  - `CapturedPiecesUiTest`, `GameLayoutUiTest` and `OnlineGameLayoutUiTest` (25 tests)
+    pass on the Fire HD 8 (API 22, pixel checks skipped) and on the Pixel 7 (API 36,
+    pixel checks run). Both devices were awake and unlocked throughout.
+  - Physical: the signed release `0.1.8-empty-rows` (versionCode 11) was installed with
+    `adb install -r`, never uninstalling, over a beta-key debug build (versionCode 10) on
+    both devices. The Pixel 7's display settings were not touched.
+  - On the Fire HD 8, undoing Black's only capture left Black's row showing just
+    "Black", at the same height, with the board where it was. Redo restored it.
+  - The online game against the deployed beta server showed both rows and `+0.25`
+    (bishop against knight).
+  - On the Pixel 7 (dark theme), the pass-and-play, computer and online rows were
+    checked. Every game there had captures on both sides, so its empty-row check is the
+    pixel test.
 
 ---
 

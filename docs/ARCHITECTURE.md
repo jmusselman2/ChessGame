@@ -1150,28 +1150,31 @@ has its own action identity, snapshot policy and visibility projection; neither 
 follows the other's architecture. They may share infrastructure and presentation
 contracts, not a generic action schema.
 
-**Captured-piece and material projections (`D104`, scheduled for `M23.1`).** Both are
+**Captured-piece and material projections (`D104`, built by `M23.1`).** Both are
 derived display data, not canonical state or persistence columns, but they have
-different sources. A pure `ChessRules` query will identify the captured `Piece` from
+different sources. `ChessRules.capturedPiece` identifies the captured `Piece` from
 each active `MoveRecord`'s recorded pre-move position, including en passant and
-captures of promoted pieces, without replay. Local and computer games will aggregate
-those records on-device. The server will add the same typed, optional fact to its
-recorded-move projection for online games; Android will aggregate that projection and
-will not replay coordinates, parse SAN or infer captures from board inventory.
+captures of promoted pieces, without replay. Local and computer games aggregate
+those records on-device (`CapturedPieces.forGame`). The server adds the same typed,
+optional fact to its recorded-move projection for online games (`MoveView.captured`, a
+`CapturedPieceView` of side and type); Android aggregates that projection
+(`OnlineGame.capturedRowsFor`) and does not replay coordinates, parse SAN or infer
+captures from board inventory.
 
-The `+N` indicator is instead the current position's material balance. A separate pure
-`ChessRules` query will sum each side's live non-king pieces at queen 9, rook 5, bishop
-3.25, knight 3 and pawn 1. The implementation uses exact quarter-pawn units internally
-(36, 20, 13, 12 and 4 respectively), never floating-point arithmetic. Local and
-computer games will query their current `GameState`; the server will project it for an
-online game as optional `whiteMaterialBalanceQuarterPoints` (White's total minus
-Black's), and Android will map its sign to the correct player row and format it in
-pawn-value points. This remains correct when a pawn promotes, whereas subtracting
-either captured-piece totals or the current board from the starting inventory does
-not. Undo, Redo and matching continuation update both projections through the current
-active history and state. The live game layout will place orientation-ordered rows
-around a one-column board and in the right panel beside an unchanged two-pane board.
-Completed-game review remains outside this scheduled task.
+The `+N` indicator is instead the current position's material balance.
+`ChessRules.materialBalance` sums each side's live non-king pieces at queen 9, rook 5,
+bishop 3.25, knight 3 and pawn 1, in exact quarter-pawn units (36, 20, 13, 12 and 4,
+`Material`), never floating-point arithmetic. Local and computer games query their
+current `GameState`; the server projects it for an online game as optional
+`whiteMaterialBalanceQuarterPoints` (White's total minus Black's), and Android maps its
+sign to the correct player row and formats it in pawn-value points. A missing balance
+shows no `+N`. This remains correct when a pawn promotes, whereas subtracting either
+captured-piece totals or the current board from the starting inventory does not. Undo,
+Redo and matching continuation update both projections through the current active
+history and state. `GameLayout` places orientation-ordered rows around a one-column
+board, whose size leaves room for them (`GameLayoutSpec.forWindow(..., captureRows =
+true)`), and in the right panel beside an unchanged two-pane board. Completed-game
+review does not show them.
 
 **Redo (`D092`, built by `M21.21`).** An Undo no longer discards what it took back.
 `ChessGame` carries a `redoPath`: the accepted Undo operations, each an

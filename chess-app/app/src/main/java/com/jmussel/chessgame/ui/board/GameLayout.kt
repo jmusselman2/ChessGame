@@ -18,6 +18,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
@@ -38,6 +39,10 @@ import androidx.compose.ui.unit.min
  *   board may be taller than the window.
  * - [narrow]: the window is too narrow for a full-size board, so the board is as wide as
  *   the window and its squares are smaller than 48 dp. Nothing ever scrolls sideways.
+ *
+ * A live game's captured-piece rows (`D104`, `M23.1`) sit above and below a one-column board,
+ * so that board leaves room for them; with two panes they go in the panel, and the board is
+ * the size it would be without them.
  */
 data class GameLayoutSpec(
     val twoPane: Boolean,
@@ -73,12 +78,16 @@ data class GameLayoutSpec(
         /** The margin either side of a one-column board, dropped when the width cannot spare it. */
         val SIDE_MARGIN: Dp = 16.dp
 
-        /** How a game screen given [width] by [height] is laid out. */
+        /**
+         * How a game screen given [width] by [height] is laid out, with [captureRows] when it
+         * shows a live game's captured-piece rows.
+         */
         fun forWindow(
             width: Dp,
             height: Dp,
+            captureRows: Boolean = false,
         ): GameLayoutSpec {
-            val oneColumn = oneColumn(width, height)
+            val oneColumn = oneColumn(width, if (captureRows) height - CapturedPieces.ROWS_HEIGHT else height)
 
             // Two panes need a landscape-shaped window with room for the panel beside the
             // board. Where they would give a board under 48 dp squares, one column is
@@ -116,12 +125,17 @@ data class GameLayoutSpec(
 }
 
 /**
- * A game screen: the [board], and beside or below it Back, the [controls] and the
- * [moveList], arranged by [GameLayoutSpec].
+ * A game screen: the [board], and beside or below it Back, the [header], the [controls] and
+ * the [moveList], arranged by [GameLayoutSpec].
  *
  * Shared by the local and the online game so both fit a window the same way. The board is
  * given its side and never moves while the rest scrolls. Back is drawn only when [onBack]
  * is given.
+ *
+ * A live game passes its [captures] (`D104`, `M23.1`): in one column the top row sits just
+ * above the board and the bottom row just below it, as wide as the board; with two panes both
+ * sit in the panel after the [header], which says whose game it is, and before the controls.
+ * The [header] otherwise leads the controls.
  */
 @Composable
 fun GameLayout(
@@ -130,9 +144,11 @@ fun GameLayout(
     controls: @Composable ColumnScope.() -> Unit,
     moveList: @Composable ColumnScope.() -> Unit,
     modifier: Modifier = Modifier,
+    captures: CapturedRows? = null,
+    header: @Composable ColumnScope.() -> Unit = {},
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val spec = GameLayoutSpec.forWindow(maxWidth, maxHeight)
+        val spec = GameLayoutSpec.forWindow(maxWidth, maxHeight, captureRows = captures != null)
 
         when {
             spec.twoPane ->
@@ -156,6 +172,8 @@ fun GameLayout(
                         verticalArrangement = Arrangement.spacedBy(SPACING),
                     ) {
                         onBack?.let { GameBackButton(onClick = it) }
+                        header()
+                        captures?.let { CapturedPiecesPanel(rows = it, modifier = Modifier.fillMaxWidth()) }
                         controls()
                         moveList()
                     }
@@ -169,11 +187,12 @@ fun GameLayout(
                     verticalArrangement = Arrangement.spacedBy(SPACING),
                 ) {
                     onBack?.let { GameBackButton(onClick = it, modifier = Modifier.padding(horizontal = SPACING)) }
-                    CentredBoard(side = spec.boardSide, board = board)
+                    CentredBoard(side = spec.boardSide, board = board, captures = captures)
                     Column(
                         modifier = Modifier.padding(horizontal = PANEL_PADDING),
                         verticalArrangement = Arrangement.spacedBy(SPACING),
                     ) {
+                        header()
                         controls()
                         moveList()
                     }
@@ -185,7 +204,7 @@ fun GameLayout(
                     verticalArrangement = Arrangement.spacedBy(SPACING),
                 ) {
                     onBack?.let { GameBackButton(onClick = it, modifier = Modifier.padding(horizontal = SPACING)) }
-                    CentredBoard(side = spec.boardSide, board = board)
+                    CentredBoard(side = spec.boardSide, board = board, captures = captures)
 
                     // Measured before the move list, so the controls take the height they
                     // need and scroll only when even that is not there; the move list gets
@@ -194,6 +213,7 @@ fun GameLayout(
                         modifier = Modifier.verticalScroll(rememberScrollState()).padding(horizontal = PANEL_PADDING),
                         verticalArrangement = Arrangement.spacedBy(SPACING),
                     ) {
+                        header()
                         controls()
                     }
                     Column(
@@ -221,13 +241,23 @@ fun GameBackButton(
     TextButton(onClick = onClick, modifier = modifier) { Text(text = BACK) }
 }
 
+/** The board, centred, with the captured-piece rows just above and below it when there are any. */
 @Composable
 private fun CentredBoard(
     side: Dp,
     board: @Composable (side: Dp) -> Unit,
+    captures: CapturedRows?,
 ) {
-    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        board(side)
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(CapturedPieces.ROW_GAP),
+    ) {
+        captures?.let { CapturedPiecesRow(row = it.top, modifier = Modifier.width(side).testTag(CAPTURED_TOP_TAG)) }
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+            board(side)
+        }
+        captures?.let { CapturedPiecesRow(row = it.bottom, modifier = Modifier.width(side).testTag(CAPTURED_BOTTOM_TAG)) }
     }
 }
 

@@ -535,7 +535,8 @@ changes nothing. A quick swipe across the board still scrolls the screen.
 
 Post-MVP `M23.1` adds slim captured-piece rows to every live game screen (`D104`).
 Each row names a player and colour and shows pieces captured by that player, ordered
-queen, rook, bishop, knight, pawn. An empty row says "No captures"; repeated pieces
+queen, rook, bishop, knight, pawn. An empty row shows only its player and colour, at
+the same height, and a screen reader hears that it has no captures; repeated pieces
 compact to counts on narrow screens. Only the side ahead in the current position's
 live non-king material, on the project owner's 9/5/3.25/3/1 queen/rook/bishop/knight/
 pawn scale, shows `+N`; quarter-point advantages are displayed exactly. This balance

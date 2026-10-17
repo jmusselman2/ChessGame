@@ -39,6 +39,35 @@ object ChessRules {
         return Notation.san(state, move)
     }
 
+    /**
+     * The piece [record]'s move captured, or `null` when it captured nothing (`D104`).
+     *
+     * Read from the position the move was recorded as played from, never by replaying it: the
+     * piece standing on the destination, or the pawn an en passant capture took from beside it.
+     * A promoted piece is captured as what it had become. The move is assumed to have been
+     * legal there, as every recorded move was.
+     */
+    fun capturedPiece(record: MoveRecord): Piece? {
+        val before = record.positionBefore
+        before.board.pieceAt(record.move.to)?.let { piece -> return piece.takeIf { it.side != before.sideToMove } }
+
+        return if (EnPassant.isCapture(before, record.move)) {
+            before.board.pieceAt(EnPassant.capturedPawnSquare(record.move))
+        } else {
+            null
+        }
+    }
+
+    /**
+     * White's live material in [state] minus Black's, in quarter points (`D104`): queen 36,
+     * rook 20, bishop 13, knight 12 and pawn 4, kings not counted ([Material]). Positive when
+     * White is ahead, zero when material is equal.
+     *
+     * Summed from the pieces on the board now, so a promoted piece counts as what it became; the
+     * difference between the two sides' captured pieces would not.
+     */
+    fun materialBalance(state: GameState): Int = Material.total(state.board, Side.WHITE) - Material.total(state.board, Side.BLACK)
+
     /** Whether the side to move is in check. */
     fun isInCheck(state: GameState): Boolean = Attacks.isSideToMoveInCheck(state)
 

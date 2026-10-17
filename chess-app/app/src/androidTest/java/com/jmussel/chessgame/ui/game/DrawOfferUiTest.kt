@@ -23,7 +23,7 @@ import com.jmussel.chessgame.ui.board.ALL_VIEWPORTS
 import com.jmussel.chessgame.ui.board.InViewport
 import com.jmussel.chessgame.ui.board.TWO_PANE_VIEWPORTS
 import com.jmussel.chessgame.ui.board.Viewport
-import com.jmussel.chessgame.ui.board.assertInsideViewport
+import com.jmussel.chessgame.ui.board.assertPanelShows
 import com.jmussel.chessgame.ui.board.keepScreenOn
 import com.jmussel.chessgame.ui.dashboard.DashboardScreen
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
@@ -93,7 +93,7 @@ class DrawOfferUiTest {
     }
 
     @Test
-    fun anUndoRequestAndADrawOfferAreShownTogetherAndFitTwoPanes() {
+    fun anUndoRequestAndADrawOfferAreShownTogetherAndFitTwoPanesWhereThereIsRoom() {
         val both =
             game(
                 yourSide = "BLACK",
@@ -113,9 +113,8 @@ class DrawOfferUiTest {
         composeRule.onAllNodesWithText(OnlineGame.ACCEPT_LABEL).assertCountEquals(2)
         TWO_PANE_VIEWPORTS.forEach { window ->
             showIn(window)
-            listOf("Back", "Jordan asks to undo Nf3 and your Nc6", "Jordan offers a draw", "Resign").forEach { label ->
-                composeRule.onNodeWithText(label).assertIsDisplayed().assertInsideViewport(composeRule, "$window: $label")
-            }
+            // In view without scrolling where there is room beside the captured-piece rows (`D104`).
+            composeRule.assertPanelShows(window, listOf("Back", "Jordan asks to undo Nf3 and your Nc6", "Jordan offers a draw", "Resign"))
         }
     }
 

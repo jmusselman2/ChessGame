@@ -71,8 +71,6 @@ import androidx.compose.ui.graphics.Path as ComposePath
 
 private val LightSquare = Color(0xFFF0D9B5)
 private val DarkSquare = Color(0xFFB58863)
-private val WhitePiece = Color(0xFFFFFFFF)
-private val BlackPiece = Color(0xFF2B2B2B)
 private val SelectedSquare = Color(0x8046A5FF)
 private val SelectedOutline = Color(0xFF1565C0)
 private val LastMoveSquare = Color(0x66FFD54F)
@@ -94,6 +92,25 @@ private const val LAST_MOVE_CORNER = 0.24f
 private const val LABEL_SCALE = 0.2f
 private const val LABEL_INSET = 0.04f
 private const val SELECTED_OUTLINE_WIDTH = 0.08f
+
+/**
+ * How a piece of each side is coloured, on the board and wherever a piece is shown beside it,
+ * as in the captured-piece rows (`M23.1`). Every piece is the same solid glyph
+ * ([BoardRendering.glyphFor]); its [fill] tells the sides apart.
+ */
+object PieceStyle {
+    val WHITE: Color = Color(0xFFFFFFFF)
+    val BLACK: Color = Color(0xFF2B2B2B)
+
+    /** The colour a piece of [side] is filled with. */
+    fun fill(side: Side): Color = if (side == Side.WHITE) WHITE else BLACK
+
+    /**
+     * The outline a piece of [side] gets off the board, where no square sits behind it: the other
+     * side's colour, so white pieces read on a light background and black ones on a dark one.
+     */
+    fun outline(side: Side): Color = fill(side.opposite)
+}
 
 /** The test tag on the whole board. */
 const val CHESS_BOARD_TAG = "chessBoard"
@@ -346,7 +363,7 @@ private fun PieceGlyph(
     var turnAbout by remember { mutableStateOf(TransformOrigin.Center) }
     Text(
         text = BoardRendering.glyphFor(piece.type).toString(),
-        color = if (piece.side == Side.WHITE) WhitePiece else BlackPiece,
+        color = PieceStyle.fill(piece.side),
         fontSize = glyphSize,
         textAlign = TextAlign.Center,
         onTextLayout = { layout -> turnAbout = inkCentre(layout) },

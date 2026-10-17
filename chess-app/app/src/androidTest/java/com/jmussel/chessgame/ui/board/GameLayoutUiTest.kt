@@ -61,7 +61,7 @@ class GameLayoutUiTest {
                 val size = composeRule.sizeOf(CHESS_BOARD_TAG)
                 val board = composeRule.boundsOf(CHESS_BOARD_TAG)
                 val sideDp = size.width / composeRule.pixelsPerDp(window)
-                val spec = window.spec
+                val spec = window.liveSpec
 
                 assertTrue("$where: square, $size", abs(size.width - size.height) <= 1)
                 assertEquals("$where: the side the rule gives", spec.boardSide.value, sideDp, 1f)
@@ -106,7 +106,7 @@ class GameLayoutUiTest {
                     tapped.clear()
                 }
                 Square.ALL.forEach { square ->
-                    composeRule.tapSquareIn(window, square, bottom)
+                    composeRule.tapSquareIn(window, square, bottom, live = false)
                 }
                 composeRule.runOnIdle { assertEquals("$window, $bottom at the bottom", Square.ALL, tapped.toList()) }
             }
@@ -133,7 +133,7 @@ class GameLayoutUiTest {
     }
 
     @Test
-    fun withTwoPanesEveryControlIsInViewWithoutScrolling() {
+    fun withTwoPanesEveryControlIsInViewWithoutScrollingWhereThereIsRoom() {
         val position = claimablePosition()
         val controls =
             listOf(
@@ -147,11 +147,11 @@ class GameLayoutUiTest {
             )
         showLocalGame(LocalGameUiState(boardState = position))
 
+        // The captured-piece rows come first (`D104`): in the shorter windows the panel scrolls
+        // to the last controls.
         TWO_PANE_VIEWPORTS.forEach { window ->
             show(window, 1f)
-            controls.forEach { label ->
-                composeRule.onNodeWithText(label).assertIsDisplayed().assertInsideViewport(composeRule, "$window: $label")
-            }
+            composeRule.assertPanelShows(window, controls)
         }
     }
 
@@ -202,7 +202,7 @@ class GameLayoutUiTest {
 
             assertEquals("$window: the board did not move", board, composeRule.boundsOf(CHESS_BOARD_TAG))
             // In one column the controls stay put too; with two panes they scroll with the panel.
-            if (!window.spec.twoPane) composeRule.onNodeWithText(GameControls.statusFor(game.game)).assertIsDisplayed()
+            if (!window.liveSpec.twoPane) composeRule.onNodeWithText(GameControls.statusFor(game.game)).assertIsDisplayed()
         }
     }
 

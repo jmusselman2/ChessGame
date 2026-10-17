@@ -47,9 +47,11 @@ will be written, and you will not find it yet.
   `isLegal`, `applyMove`, `terminalResult`, `availableDrawClaims`, `claimDraw`,
   `agreeDraw`, `resign`, `undoableSide`, `canUndo`, `undo`, `redo`, `retainedMove`, and
   `san` (standard algebraic notation from the position before a move, `Notation.kt`,
-  `M22.6`; display only, never canonical). The other files (`LegalMoves`,
-  `PseudoLegalMoves`, `Attacks`, `Castling`, `EnPassant`, `Repetition`,
-  `MoveCountDraws`, `InsufficientMaterial`) are its helpers.
+  `M22.6`; display only, never canonical), `capturedPiece` (the piece a `MoveRecord`
+  took, from its recorded position) and `materialBalance` (White's live material minus
+  Black's in quarter points, `Material`; both display only, `D104`, `M23.1`). The other
+  files (`LegalMoves`, `PseudoLegalMoves`, `Attacks`, `Castling`, `EnPassant`,
+  `Repetition`, `MoveCountDraws`, `InsufficientMaterial`) are its helpers.
 - `GameState` is one immutable position: board, side to move, castling rights,
   en passant target, `DrawRuleState` (halfmove clock plus repetition counts) and
   `result`.
@@ -120,7 +122,13 @@ Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/profiles/{user
   (`M22.12`): `ChessBoard` only reports where it was dropped, and
   `BoardInteraction.onPieceDropped` or `OnlineGame.onPieceDropped` treats a legal drop as
   the two taps it stands for and any other as nothing. The long press is what keeps a
-  swipe across the board scrolling a short screen.
+  swipe across the board scrolling a short screen. Every live game screen passes
+  `GameLayout` two captured-piece rows (`CapturedPieces`, `CapturedPiecesRow`, `D104`,
+  `M23.1`): the pieces each side captured and the leader's `+N`, from
+  `ChessRules.capturedPiece` and `ChessRules.materialBalance` locally and from the
+  server's `MoveView.captured` and `whiteMaterialBalanceQuarterPoints` online. They sit
+  above and below a one-column board, which `GameLayoutSpec` shrinks to fit them, and in
+  the panel beside an unchanged two-pane board. Review shows none.
 - `ui/game/OnlineGame.kt` and `OnlineGameScreen.kt` — the online game.
 - `computer/` — playing the computer (`D086`). `ComputerGame`: the questions before a
   new game (`ComputerSetup`, from the entry or from New game, which keeps the game

@@ -21,6 +21,7 @@ import com.jmussel.chessgame.ui.board.ONE_COLUMN_VIEWPORTS
 import com.jmussel.chessgame.ui.board.TWO_PANE_VIEWPORTS
 import com.jmussel.chessgame.ui.board.Viewport
 import com.jmussel.chessgame.ui.board.assertInsideViewport
+import com.jmussel.chessgame.ui.board.assertPanelShows
 import com.jmussel.chessgame.ui.board.keepScreenOn
 import com.jmussel.chessgame.ui.board.tapSquareIn
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
@@ -78,7 +79,7 @@ class OnlineGameLayoutUiTest {
     }
 
     @Test
-    fun aGameInProgressShowsItsControlsWithTwoPanesWithoutScrolling() {
+    fun aGameInProgressShowsItsControlsWithTwoPanesWithoutScrollingWhereThereIsRoom() {
         state = OnlineGameState.Ready(game(yourSide = "WHITE", canUndo = true, claims = listOf("THREEFOLD_REPETITION")))
         show { OnlineGameScreen(state = state, onBack = {}) }
 
@@ -90,9 +91,7 @@ class OnlineGameLayoutUiTest {
                 OnlineGame.claimLabel("THREEFOLD_REPETITION"),
                 OnlineGame.CLAIM_EXPLANATION,
                 "Resign",
-            ).forEach { label ->
-                composeRule.onNodeWithText(label).assertIsDisplayed().assertInsideViewport(composeRule, "$window: $label")
-            }
+            ).let { labels -> composeRule.assertPanelShows(window, labels) }
         }
     }
 

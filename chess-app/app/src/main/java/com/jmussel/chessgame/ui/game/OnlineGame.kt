@@ -1,5 +1,6 @@
 package com.jmussel.chessgame.ui.game
 
+import com.jmussel.chessgame.api.CapturedPieceDto
 import com.jmussel.chessgame.api.ChessApiException
 import com.jmussel.chessgame.api.ChessCommandRefusedException
 import com.jmussel.chessgame.api.GameViewDto
@@ -14,6 +15,9 @@ import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.ui.ServerWaiting
 import com.jmussel.chessgame.ui.board.BoardRendering
+import com.jmussel.chessgame.ui.board.CapturedPieces
+import com.jmussel.chessgame.ui.board.CapturedRow
+import com.jmussel.chessgame.ui.board.CapturedRows
 import com.jmussel.chessgame.ui.board.GameEndings
 import com.jmussel.chessgame.ui.board.PendingPromotion
 
@@ -252,6 +256,30 @@ object OnlineGame {
 
     /** The side the viewer is playing, which decides which way the board faces. */
     fun sideOf(game: GameViewDto): Side = sideNamed(game.yourSide)
+
+    /**
+     * The captured-piece rows (`D104`): the opponent's at the top, where their pieces are drawn,
+     * and the viewer's below. Both come from the server's projection, each move's captured piece
+     * and White's material balance; nothing is replayed, parsed or inferred from the board. A
+     * server that sent no balance gets no `+N` on either row.
+     */
+    fun capturedRowsFor(game: GameViewDto): CapturedRows {
+        val you = sideOf(game)
+
+        return CapturedPieces.rows(
+            captures = game.moves.mapNotNull { move -> move.captured?.let(::pieceOf) },
+            whiteBalanceQuarterPoints = game.whiteMaterialBalanceQuarterPoints,
+            topSide = you.opposite,
+            nameOf = { side -> if (side == you) CapturedRow.YOU else game.opponent.username },
+        )
+    }
+
+    /** The piece the server named, or `null` for one this app does not know. */
+    private fun pieceOf(captured: CapturedPieceDto): Piece? {
+        val side = Side.entries.firstOrNull { it.name.equals(captured.side, ignoreCase = true) } ?: return null
+        val type = PieceType.entries.firstOrNull { it.name.equals(captured.type, ignoreCase = true) } ?: return null
+        return Piece(side, type)
+    }
 
     /** The two squares of the move just played, for the highlight, or empty before the first. */
     fun lastMoveSquares(game: GameViewDto): Set<Square> {

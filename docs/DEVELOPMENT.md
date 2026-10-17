@@ -316,9 +316,17 @@ What they cover:
   `GameLayoutSpecTest` with `DeviceConfigurationOverride`, at font scales 1.0, 1.3 and
   2.0. They check that the board is square, inside the window and at least the square
   floor; that every square's centre taps that square with either side at the bottom;
-  that the controls are in view without scrolling with two panes; that a long history
+  that the controls are in view without scrolling with two panes where there is room
+  beside the captured-piece rows (the owner's Pixel 7, the Fire HD 8 and a tablet), and
+  reachable by scrolling the panel in shorter windows (`D104`); that a long history
   scrolls without moving the board; and that a short window scrolls to every square and
   control.
+- `CapturedPiecesUiTest` checks the captured-piece rows (`M23.1`) at the Pixel 7's
+  portrait and landscape windows and the Fire HD 8's portrait one: above and below a
+  one-column board for each orientation, in the panel beside an unchanged two-pane
+  board, clear of the board and the status, one summary each for a screen reader, and
+  readable in the light and dark themes. The theme check reads pixels with `PixelCopy`
+  and so skips itself below API 26, the Fire HD 8 included.
 - `LocalGameRotationTest` recreates `MainActivity` with a local game in progress, then
   leaves it with Back and checks that "Local game" resumes it (`M21.2`). It deletes the
   device's local games first.
@@ -335,8 +343,9 @@ check:
 1. The dashboard in both orientations: the top row and the list fit.
 2. A local game with a few moves played: rotate both ways. The moves are kept, the whole
    board is visible, and every square can be tapped.
-3. In landscape: Back, the status, Undo and both Resign buttons are in view in the right
-   panel without scrolling, and the board fills the height.
+3. In landscape: Back, the captured-piece rows, the status, Undo and both Resign buttons
+   are in view in the right panel without scrolling, and the board fills the height. On
+   a window shorter than about 400 dp the panel scrolls to its last buttons (`D104`).
 4. In portrait: Back, the board, the status and the controls are in view, and the move
    list scrolls on its own.
 5. An online game, and a finished one from History, in both orientations.

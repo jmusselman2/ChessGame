@@ -120,9 +120,7 @@ class RedoUiTest {
 
         TWO_PANE_VIEWPORTS.forEach { window ->
             showIn(window)
-            controls.forEach { label ->
-                composeRule.onNodeWithText(label).assertIsDisplayed().assertInsideViewport(composeRule, "$window: $label")
-            }
+            composeRule.assertPanelShows(window, controls)
         }
         (ONE_COLUMN_VIEWPORTS + SHORT_VIEWPORTS).forEach { window ->
             showIn(window)
@@ -229,9 +227,7 @@ class RedoUiTest {
                 OnlineGame.claimLabel("THREEFOLD_REPETITION"),
                 OnlineGame.CLAIM_EXPLANATION,
                 "Resign",
-            ).forEach { label ->
-                composeRule.onNodeWithText(label).assertIsDisplayed().assertInsideViewport(composeRule, "$window: $label")
-            }
+            ).let { labels -> composeRule.assertPanelShows(window, labels) }
         }
         (ONE_COLUMN_VIEWPORTS + SHORT_VIEWPORTS).forEach { window ->
             showIn(window)

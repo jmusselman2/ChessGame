@@ -21,6 +21,8 @@ import com.jmussel.chessgame.ai.Difficulty
 import com.jmussel.chessgame.ui.board.BoardInteraction
 import com.jmussel.chessgame.ui.board.BoardRendering
 import com.jmussel.chessgame.ui.board.BoardUiState
+import com.jmussel.chessgame.ui.board.CapturedPieces
+import com.jmussel.chessgame.ui.board.CapturedRow
 import com.jmussel.chessgame.ui.board.ChessBoard
 import com.jmussel.chessgame.ui.board.DeclaredMovePrompt
 import com.jmussel.chessgame.ui.board.ExplainedActions
@@ -107,10 +109,19 @@ private fun Game(
 ) {
     val board = state.boardState
     var resigning by rememberSaveable(state.id) { mutableStateOf(false) }
+    val opponent = computerLabel(state.opponent.difficulty)
+    // The computer's row at the top, as its pieces are drawn there (`D104`).
+    val captures =
+        remember(board.game.history, board.game.state, state.humanSide, opponent) {
+            val human = state.humanSide
+            CapturedPieces.forGame(board.game, topSide = human.opposite) { side -> if (side == human) CapturedRow.YOU else opponent }
+        }
 
     GameLayout(
         onBack = onBack,
         modifier = modifier,
+        captures = captures,
+        header = { Text(text = opponent + " • " + humanSideLabel(state.humanSide)) },
         board = { side ->
             ChessBoard(
                 board = board.board,
@@ -127,7 +138,6 @@ private fun Game(
             )
         },
         controls = {
-            Text(text = computerLabel(state.opponent.difficulty) + " • " + humanSideLabel(state.humanSide))
             // A finished game says how it ended above everything else (`M21.16`).
             val result = board.game.result
             if (result != null) {

@@ -309,6 +309,18 @@ data class MoveDto(
      * server sends without it is an incompatible response, never shown as coordinates.
      */
     val san: String,
+    /**
+     * The piece this move captured, as the server read it from the move's recorded position
+     * (`D104`), or `null` when it captured nothing or the server is older than `M23.1`.
+     */
+    val captured: CapturedPieceDto? = null,
+)
+
+/** A captured piece's side and type, `WHITE` and `QUEEN`, from the server (`D104`). */
+@Serializable
+data class CapturedPieceDto(
+    val side: String,
+    val type: String,
 )
 
 /**
@@ -358,6 +370,12 @@ data class GameViewDto(
     val canOfferDraw: Boolean = false,
     /** The draw offer pending in this game, whichever player made it. */
     val drawOffer: DrawOfferDto? = null,
+    /**
+     * White's live non-king material minus Black's, in quarter points, from the server
+     * (`D104`). `null` from a server older than `M23.1`, which is not equal material: no row
+     * shows an advantage then.
+     */
+    val whiteMaterialBalanceQuarterPoints: Int? = null,
 ) {
     /** Whether the game is over, which is the server's word and never worked out here. */
     val isOver: Boolean

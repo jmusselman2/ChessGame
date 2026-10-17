@@ -209,10 +209,13 @@ private fun Game(
     after: AfterGameActions,
 ) {
     val game = state.game
+    val captures = remember(game) { OnlineGame.capturedRowsFor(game) }
 
     GameLayout(
         onBack = onBack,
         modifier = modifier,
+        captures = captures,
+        header = { Text(text = OnlineGame.headingFor(game), style = MaterialTheme.typography.titleSmall) },
         board = { side ->
             ChessBoard(
                 board = OnlineGame.boardFrom(game.board),
@@ -228,8 +231,6 @@ private fun Game(
             )
         },
         controls = {
-            Text(text = OnlineGame.headingFor(game), style = MaterialTheme.typography.titleSmall)
-
             // A finished game says how it ended above everything else (`M21.16`); the board and the
             // move list stay as they were, with the last move actually played highlighted.
             if (game.isOver) {

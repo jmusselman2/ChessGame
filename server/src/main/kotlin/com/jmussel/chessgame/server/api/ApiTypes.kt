@@ -319,6 +319,11 @@ data class MoveView(
     val to: String,
     val promotion: String? = null,
     val san: String,
+    /**
+     * The piece this move captured, read from its recorded position (`D104`), or `null` when it
+     * captured nothing. Additive and optional, so a payload without it still reads.
+     */
+    val captured: CapturedPieceView? = null,
 ) {
     companion object {
         /** [record] as a player sees it, its notation worked out from its own recorded position. */
@@ -330,7 +335,23 @@ data class MoveView(
                 san =
                     com.jmussel.chessgame.core.chess.ChessRules
                         .san(record.positionBefore, record.move),
+                captured =
+                    com.jmussel.chessgame.core.chess.ChessRules
+                        .capturedPiece(record)
+                        ?.let(CapturedPieceView::of),
             )
+    }
+}
+
+/** A captured piece (`D104`): its side and its type, `WHITE` and `QUEEN`. The same for both players. */
+@Serializable
+data class CapturedPieceView(
+    val side: String,
+    val type: String,
+) {
+    companion object {
+        fun of(piece: com.jmussel.chessgame.core.chess.Piece): CapturedPieceView =
+            CapturedPieceView(side = piece.side.name, type = piece.type.name)
     }
 }
 
@@ -393,6 +414,12 @@ data class GameView(
      * been undone. Leaving the series resigns a started game and deletes one that has not.
      */
     val hasStarted: Boolean = false,
+    /**
+     * White's live non-king material minus Black's, in quarter points (queen 36, rook 20, bishop
+     * 13, knight 12, pawn 4; `D104`). The same for both players; only their rows differ.
+     * Optional, so a client never takes a missing balance for equal material.
+     */
+    val whiteMaterialBalanceQuarterPoints: Int? = null,
 ) {
     val isOver: Boolean
         get() = result != null
@@ -450,6 +477,9 @@ data class GameView(
                         .canUndo(stored.game, yourSide),
                 seriesActive = seriesActive,
                 hasStarted = stored.hasStarted,
+                whiteMaterialBalanceQuarterPoints =
+                    com.jmussel.chessgame.core.chess.ChessRules
+                        .materialBalance(state),
                 canRequestUndo =
                     com.jmussel.chessgame.server.game.GameCommandService
                         .mayRequestUndo(stored, yourSide),

@@ -166,6 +166,40 @@ class GameLayoutSpecTest {
     }
 
     @Test
+    fun captureRowsLeaveEveryTwoPaneBoardItsSize() {
+        cases.forEach { case ->
+            val without = GameLayoutSpec.forWindow(case.width, case.height)
+            val with = GameLayoutSpec.forWindow(case.width, case.height, captureRows = true)
+
+            assertEquals("${case.name}: two panes", without.twoPane, with.twoPane)
+            if (without.twoPane) assertEquals("${case.name}: two-pane board (`D104`)", without.boardSide, with.boardSide)
+        }
+    }
+
+    @Test
+    fun aOneColumnBoardLeavesRoomForTheCaptureRows() {
+        cases.forEach { case ->
+            val spec = GameLayoutSpec.forWindow(case.width, case.height, captureRows = true)
+
+            if (!spec.twoPane && !spec.scrolls) {
+                assertTrue(
+                    "${case.name}: board ${spec.boardSide} and rows fit",
+                    spec.boardSide + CapturedPieces.ROWS_HEIGHT + GameLayoutSpec.MIN_CONTROLS_HEIGHT <= case.height,
+                )
+            }
+        }
+        // The rows' 88 dp come out of a board the height decides, and out of nothing else.
+        assertEquals(500.dp - CapturedPieces.ROWS_HEIGHT, GameLayoutSpec.forWindow(600.dp, 660.dp, captureRows = true).boardSide)
+        // A width-decided board is unchanged: the Pixel 7 and the Fire HD 8 in portrait.
+        assertEquals(411.dp, GameLayoutSpec.forWindow(411.dp, 914.dp, captureRows = true).boardSide)
+        assertEquals(569.dp, GameLayoutSpec.forWindow(601.dp, 914.dp, captureRows = true).boardSide)
+        // A window short enough already scrolls, with a full-size board, rather than shrink it.
+        val short = GameLayoutSpec.forWindow(485.dp, 560.dp, captureRows = true)
+        assertTrue(short.scrolls)
+        assertEquals(MIN_BOARD, short.boardSide)
+    }
+
+    @Test
     fun theDecisionFollowsTheWindowNotItsOrientation() {
         // As tall as it is wide: two panes still, when both fit.
         assertTrue(GameLayoutSpec.forWindow(700.dp, 700.dp).let { it.twoPane || !it.scrolls })

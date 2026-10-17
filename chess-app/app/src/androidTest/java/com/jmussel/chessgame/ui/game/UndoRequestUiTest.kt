@@ -22,6 +22,7 @@ import com.jmussel.chessgame.ui.board.InViewport
 import com.jmussel.chessgame.ui.board.TWO_PANE_VIEWPORTS
 import com.jmussel.chessgame.ui.board.Viewport
 import com.jmussel.chessgame.ui.board.assertInsideViewport
+import com.jmussel.chessgame.ui.board.assertPanelShows
 import com.jmussel.chessgame.ui.board.keepScreenOn
 import com.jmussel.chessgame.ui.dashboard.DashboardScreen
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
@@ -129,10 +130,11 @@ class UndoRequestUiTest {
     }
 
     @Test
-    fun jordansPanelAfterAnAnswerFitsWithTwoPanesWithoutScrolling() {
+    fun jordansPanelAfterAnAnswerFitsWithTwoPanesWithoutScrollingWhereThereIsRoom() {
         val answered = forJordan(note = note("DECLINED"), canRequestUndo = true, claims = listOf("THREEFOLD_REPETITION"))
         show { OnlineGameScreen(state = OnlineGameState.Ready(answered), onBack = {}) }
 
+        // In view without scrolling where there is room beside the captured-piece rows (`D104`).
         TWO_PANE_VIEWPORTS.forEach { window ->
             showIn(window)
             listOf(
@@ -142,9 +144,7 @@ class UndoRequestUiTest {
                 OnlineGame.claimLabel("THREEFOLD_REPETITION"),
                 OnlineGame.CLAIM_EXPLANATION,
                 "Resign",
-            ).forEach { label ->
-                composeRule.onNodeWithText(label).assertIsDisplayed().assertInsideViewport(composeRule, "$window: $label")
-            }
+            ).let { labels -> composeRule.assertPanelShows(window, labels) }
         }
     }
 

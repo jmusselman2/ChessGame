@@ -16,9 +16,11 @@ import androidx.compose.ui.test.FontScale
 import androidx.compose.ui.test.ForcedSize
 import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.SemanticsNodeInteraction
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.click
 import androidx.compose.ui.test.junit4.ComposeContentTestRule
 import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.then
@@ -30,6 +32,7 @@ import com.jmussel.chessgame.core.chess.ChessGame
 import com.jmussel.chessgame.core.chess.ChessRules
 import com.jmussel.chessgame.core.chess.Side
 import com.jmussel.chessgame.core.chess.Square
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import kotlin.random.Random
 
@@ -42,8 +45,13 @@ data class Viewport(
     val width: Dp,
     val height: Dp,
 ) {
+    /** The layout of a bare `GameLayout`, without captured-piece rows. */
     val spec: GameLayoutSpec
         get() = GameLayoutSpec.forWindow(width, height)
+
+    /** The layout of a live game screen, which shows captured-piece rows (`D104`). */
+    val liveSpec: GameLayoutSpec
+        get() = GameLayoutSpec.forWindow(width, height, captureRows = true)
 
     override fun toString(): String = "$name (${width.value.toInt()}×${height.value.toInt()})"
 }
@@ -58,6 +66,14 @@ val TWO_PANE_VIEWPORTS =
         Viewport("small phone landscape", 640.dp, 360.dp),
         Viewport("tablet landscape", 1280.dp, 800.dp),
     )
+
+/**
+ * The two-pane windows with room for a live game's captured-piece rows and every control below
+ * them (`D104`, `M23.1`): the owner's Pixel 7, the Fire HD 8 and a tablet. In the shorter ones
+ * the rows push the last controls below the fold and the panel scrolls to them (`D073`).
+ */
+val ROOMY_TWO_PANE_VIEWPORTS =
+    TWO_PANE_VIEWPORTS.filter { it.name in setOf("Pixel 7 at owner's size, landscape", "Fire HD 8 landscape", "tablet landscape") }
 
 val ONE_COLUMN_VIEWPORTS =
     listOf(
@@ -166,8 +182,10 @@ fun ComposeContentTestRule.tapSquareIn(
     viewport: Viewport,
     square: Square,
     orientation: Side,
+    live: Boolean = true,
 ) {
-    if (!viewport.spec.scrolls) return tapSquareAt(square, orientation)
+    val spec = if (live) viewport.liveSpec else viewport.spec
+    if (!spec.scrolls) return tapSquareAt(square, orientation)
 
     onNodeWithTag(squareTag(square)).performScrollTo().performTouchInput { click() }
 }
@@ -177,6 +195,29 @@ val isNotASquare: SemanticsMatcher =
     SemanticsMatcher("is not a board square") { node ->
         node.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("square-") != true
     }
+
+/**
+ * Asserts a live game's two-pane panel shows each of [labels], in panel order, in [window]: in
+ * view without scrolling where the window has room ([ROOMY_TWO_PANE_VIEWPORTS]), and otherwise
+ * once the panel is scrolled to it. Either way the board does not move. A scrolled panel is
+ * scrolled back to the first label, so the next window starts at the top.
+ */
+fun ComposeContentTestRule.assertPanelShows(
+    window: Viewport,
+    labels: List<String>,
+) {
+    val board = boundsOf(CHESS_BOARD_TAG)
+    labels.forEach { label ->
+        val node = onNodeWithText(label)
+        if (window in ROOMY_TWO_PANE_VIEWPORTS) {
+            node.assertIsDisplayed().assertInsideViewport(this, "$window: $label")
+        } else {
+            node.performScrollTo().assertIsDisplayed().assertInsideViewport(this, "$window: $label, scrolled to")
+        }
+    }
+    if (window !in ROOMY_TWO_PANE_VIEWPORTS) onNodeWithText(labels.first()).performScrollTo()
+    assertEquals("$window: the board did not move", board, boundsOf(CHESS_BOARD_TAG))
+}
 
 /** Whether this node's bounds lie entirely within the viewport. */
 fun SemanticsNodeInteraction.assertInsideViewport(
