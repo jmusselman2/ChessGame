@@ -45,7 +45,9 @@ will be written, and you will not find it yet.
 
 - `core/chess/ChessRules.kt` is the only public entry point: `legalMoves`,
   `isLegal`, `applyMove`, `terminalResult`, `availableDrawClaims`, `claimDraw`,
-  `resign`, `undoableSide`, `canUndo`, `undo`. The other files (`LegalMoves`,
+  `agreeDraw`, `resign`, `undoableSide`, `canUndo`, `undo`, `redo`, `retainedMove`, and
+  `san` (standard algebraic notation from the position before a move, `Notation.kt`,
+  `M22.6`; display only, never canonical). The other files (`LegalMoves`,
   `PseudoLegalMoves`, `Attacks`, `Castling`, `EnPassant`, `Repetition`,
   `MoveCountDraws`, `InsufficientMaterial`) are its helpers.
 - `GameState` is one immutable position: board, side to move, castling rights,

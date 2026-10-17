@@ -23,6 +23,22 @@ object ChessRules {
         move: Move,
     ): Boolean = !state.isOver && LegalMoves.isLegal(state, move)
 
+    /**
+     * [move] in standard algebraic notation (SAN), as played from [state]: `Nf3`, `exd5`,
+     * `Nbd2`, `O-O`, `e8=Q+`, `Qh4#` (`M22.6`). A pure function of the position before the move
+     * and the move, for display only: a move's identity stays its `from`, `to` and promotion,
+     * and SAN is never stored or sent as canonical data (`D101`).
+     *
+     * [move] must be legal in [state]; check with [isLegal] first.
+     */
+    fun san(
+        state: GameState,
+        move: Move,
+    ): String {
+        require(isLegal(state, move)) { "Illegal move $move" }
+        return Notation.san(state, move)
+    }
+
     /** Whether the side to move is in check. */
     fun isInCheck(state: GameState): Boolean = Attacks.isSideToMoveInCheck(state)
 

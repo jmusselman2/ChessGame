@@ -138,7 +138,7 @@ implementation, as `M21` was.
 | `M22.3`  | Draw offers by agreement                            | M22.2      | `F2`     | `DONE`    |
 | `M22.4`  | Win/loss/draw record per friend                     | None       | `F1`     | `DONE`    |
 | `M22.5`  | Detailed profiles                                   | M22.4      | `F6`     | `DONE`    |
-| `M22.6`  | Standard algebraic notation in `chess-core`         | None       | `F39`    | `TODO`    |
+| `M22.6`  | Standard algebraic notation in `chess-core`         | None       | `F39`    | `DONE`    |
 | `M22.7`  | Every move list and move wording in SAN             | M22.6      | `F39`    | `TODO`    |
 | `M22.8`  | Turning automatic rematches off by hand             | None       | `F4`     | `DONE`    |
 | `M22.10` | Online ply-by-ply review                            | M22.7      | `F41`    | `TODO`    |
@@ -598,7 +598,7 @@ group only, unrelated, unknown, self, removed friend, left group), `:chess-app:t
 
 ## M22.6 — Standard algebraic notation in `chess-core`
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** None
 
@@ -631,6 +631,19 @@ task adds a formatter that turns a move into SAN. `M22.7` shows it.
 - **Tests** in `chess-core` cover every item above, including three queens that can
   all reach one square, a promotion that captures and gives check, castling that
   gives check, a checkmating move, and an en passant capture.
+
+### Completion
+
+Completed 2026-10-17. `ChessRules.san(state, move)` requires a legal move (the
+query/transition rule) and delegates to the internal `Notation` helper: piece letters and
+none for pawns, `x` with the pawn's file for pawn captures, en passant as an ordinary pawn
+capture, the least disambiguation that legal rival moves of the same piece need (file, then
+rank, then the whole square), `O-O`/`O-O-O`, `=Q`/`=R`/`=B`/`=N`, and `+`/`#` from the
+position after the move. Nothing outside `chess-core` uses it yet (`M22.7` does). Verified
+with `:chess-core:test` (new `SanTest`, 13 cases including three queens reaching one
+square, a pinned rival that needs no disambiguation, a capturing promotion with check,
+castling with check, checkmate and en passant), `.\gradlew.bat build` and
+`git diff --check`.
 
 ---
 
