@@ -183,11 +183,11 @@ the win/loss/draw record per friend, turning automatic rematches off by hand, on
 active series per party, readable move notation with board coordinates, and online
 ply-by-ply review (formerly `F1`–`F4`, `F6`, `F38`, `F39` and `F41`) are milestone
 `M22`. They are post-MVP work and do not change the MVP's definition of done.
-Captured-piece presentation, complete board accessibility, search-based dead-position
-detection, user settings, custom themes, optional sound and haptic feedback, and
-elaborate animations are milestone `M23` (the latter six formerly `F40`, `F11`,
-`F35`, `F8`, `F42` and `F9`). They are also post-MVP work and do not change the
-MVP's definition of done.
+Captured-piece presentation, move-history focus and independent scrolling, complete
+board accessibility, search-based dead-position detection, user settings, custom
+themes, optional sound and haptic feedback, and elaborate animations are milestone
+`M23` (the latter six formerly `F40`, `F11`, `F35`, `F8`, `F42` and `F9`). They are
+also post-MVP work and do not change the MVP's definition of done.
 Username changes returned to `F5` under `D098` and wait for real authentication
 (`F13`).
 

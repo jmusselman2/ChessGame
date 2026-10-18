@@ -132,12 +132,13 @@ explicitly closes and authorizes archiving it (`D103`).
 | Task    | Title                                      | Depends on              | Former | Status    |
 | ------- | ------------------------------------------ | ----------------------- | ------ | --------- |
 | `M23.1` | Captured pieces beside the board           | `M22.7`, `M22.11`       | —      | `DONE`    |
-| `M23.2` | Complete board accessibility               | `M22.6`, `M22.7`, `M22.11` | `F40` | `TODO` |
-| `M23.3` | Dead-position detection by search          | None                    | `F11`  | `TODO`    |
-| `M23.4` | User settings, opened from the username    | Initial contents chosen | `F35`  | `BLOCKED` |
-| `M23.5` | Custom themes                              | None                    | `F8`   | `BLOCKED` |
-| `M23.6` | Optional sound and haptic feedback         | `M23.4`                 | `F42`  | `BLOCKED` |
-| `M23.7` | Elaborate animations                       | None                    | `F9`   | `BLOCKED` |
+| `M23.2` | Move history follows the current position  | `M22.7`, `M22.10`, `M23.1` | —   | `TODO`    |
+| `M23.3` | Complete board accessibility               | `M22.6`, `M22.7`, `M22.11` | `F40` | `TODO` |
+| `M23.4` | Dead-position detection by search          | None                    | `F11`  | `TODO`    |
+| `M23.5` | User settings, opened from the username    | Initial contents chosen | `F35`  | `BLOCKED` |
+| `M23.6` | Custom themes                              | None                    | `F8`   | `BLOCKED` |
+| `M23.7` | Optional sound and haptic feedback         | `M23.5`                 | `F42`  | `BLOCKED` |
+| `M23.8` | Elaborate animations                       | None                    | `F9`   | `BLOCKED` |
 
 ---
 
@@ -449,7 +450,150 @@ amendment supersedes it.
 
 ---
 
-## M23.2 — Complete board accessibility
+## M23.2 — Move history follows the current position
+
+**Status:** TODO
+
+**Depends on:** M22.7, M22.10, M23.1
+
+### Objective
+
+Make the move history in Review and every live game clearly identify the move
+corresponding to the displayed position, automatically keep that move in sight and
+scroll independently from the board, status and available actions.
+
+### Acceptance Criteria
+
+#### Review behavior
+
+- Apply the behavior to both local completed-game review and online completed-game
+  review.
+- At review ply zero, show no move entries and no current-move highlight.
+- At every later review ply, show only the prefix of the game's move history through
+  that ply.
+- Never display moves that occur after the position currently shown on the board.
+  Future moves must also be absent from the accessibility semantics tree.
+- If the current ply is White's move, show that numbered row with only White's move
+  populated. Do not reveal Black's following move until the review advances to it.
+- Highlight exactly the SAN move that produced the displayed position. Highlight the
+  individual White or Black move, not an entire paired row when only one move is
+  current.
+- Start, Previous, Next and End remain the only controls required to change the
+  reviewed position. Scrolling or tapping the move list does not seek to another
+  position.
+- Stepping to another ply automatically scrolls the list enough to show the newly
+  highlighted move and its move number.
+- Selecting Start clears the list and resets its scroll position appropriately.
+- Opening a review at its final position initially shows and highlights the final
+  move.
+
+#### Live-game behavior
+
+- Apply the behavior consistently to online, pass-and-play and computer games,
+  including a finished position still displayed on its normal game screen.
+- The current move in a live game is the last move in active history.
+- Highlight that move clearly. A game with no active moves has no highlighted move.
+- After an accepted local move, computer move or online move, automatically scroll
+  the move list so the newly highlighted move is fully visible.
+- An opponent's move received through refresh or realtime receives the same highlight
+  and automatic scrolling behavior.
+- Undo removes moves no longer in active history, highlights the new final active move
+  when one remains and keeps it visible.
+- Redo and matching continuation restore the corresponding move, highlight it and
+  keep it visible.
+- A refresh or unrelated recomposition that does not change the current move must not
+  repeatedly force the player back to the end after they manually scroll to earlier
+  moves.
+- Opening a nonempty live game initially places its current highlighted move in sight.
+
+#### Independent scrolling and fixed actions
+
+- The move list has its own bounded vertical scrolling region in both one-column and
+  two-pane layouts.
+- Scrolling the move list must not move the board, Back, player/game identification,
+  status, current-position wording, captured-piece summary, review navigation or
+  gameplay action buttons.
+- In a live game, actions such as Undo, Redo, draw actions, Resign, New game and other
+  currently applicable controls remain available while the player scrolls anywhere
+  in the move history.
+- In Review, Start, Previous, Next and End remain available while the player scrolls
+  anywhere in the visible history.
+- Do not satisfy this requirement by placing the controls and move history in one
+  shared scrolling container and merely making the controls reachable after scrolling
+  back.
+- Preserve `D073`'s practical board-size rules and `M23.1`'s captured-piece placement.
+  The move-history change must not shrink the existing two-pane board.
+- On an extremely short window or large font scale where all fixed content cannot
+  physically fit simultaneously, preserve access without clipping through a
+  separately bounded overflow strategy. Scrolling the move history must still never
+  change the position of that separate controls region.
+- Nothing scrolls horizontally, and long SAN content remains readable without
+  obscuring controls.
+
+#### Highlight presentation and accessibility
+
+- Use a clear, theme-appropriate current-move treatment that is easy to distinguish
+  in both light and dark themes.
+- Do not rely on colour alone. Combine the background or indicator with suitable
+  emphasis and accessibility state or description.
+- Maintain sufficient contrast and do not make a display-only move look like a
+  tappable button.
+- Preserve numbered White/Black pairing and SAN from `M22.7`.
+- Exactly one move is exposed as current whenever at least one applicable move is
+  visible.
+- The highlight in Review corresponds to the displayed review ply. The highlight in
+  a live game corresponds to the final active ply.
+- The move list and highlight remain understandable with TalkBack and large text.
+
+#### Planned state and architecture contract
+
+- Use a shared typed Android presentation model for move-history rows or entries
+  rather than trying to infer the current move from rendered strings.
+- The model must preserve at least the ply index, move number, side, SAN and whether
+  that individual move is current.
+- Review derives its visible entries from the existing review projection using only
+  the prefix through the selected ply.
+- Live local and computer games derive their entries from active `MoveRecord`s.
+- Live online games continue using the authoritative SAN move projection already
+  supplied by the server.
+- Do not replay moves, parse SAN, infer history from the current board or introduce a
+  second review engine.
+- Do not add database columns, migrations, canonical `GameState` fields or duplicate
+  persisted move-list state.
+- Do not change the online review or live-game wire contract merely to implement
+  Android presentation and scrolling when the existing typed projections contain the
+  required facts.
+- Scroll position and highlight presentation are UI state, not canonical game state.
+
+#### Required implementation verification
+
+When this task is selected for implementation, it requires:
+
+- model tests for review prefixes at ply zero, White-only half-moves, complete move
+  pairs and the final ply;
+- model tests proving exactly the correct move is current in Review and in live local,
+  computer and online games;
+- tests covering move, opponent refresh/realtime move, Undo, Redo and matching
+  continuation;
+- Compose tests proving move-history scrolling does not move or hide Review controls
+  or live-game actions;
+- Compose tests proving manual scrolling is retained across unrelated recomposition
+  but a genuinely new current move scrolls into view;
+- Compose tests for initial display, Start, Previous, Next and End;
+- accessibility coverage for current-move semantics, absence of future review moves
+  and sufficient non-colour indication;
+- representative Pixel 7 portrait and landscape, Kindle Fire portrait and landscape,
+  narrow-phone and short-landscape layouts;
+- coverage with `M23.1` captured-piece rows present, confirming that fixed content and
+  existing two-pane board dimensions are preserved;
+- physical verification on the attached Pixel 7 and Kindle when available, installing
+  the newly built APK with `adb install -r` and without uninstalling;
+- the complete documented `.\gradlew.bat build` gate;
+- `git diff --check`.
+
+---
+
+## M23.3 — Complete board accessibility
 
 **Status:** TODO
 
@@ -493,7 +637,7 @@ separate partial task is created.
 
 ---
 
-## M23.3 — Dead-position detection by search
+## M23.4 — Dead-position detection by search
 
 **Status:** TODO
 
@@ -532,7 +676,7 @@ unusable.
 
 ---
 
-## M23.4 — User settings, opened from the username
+## M23.5 — User settings, opened from the username
 
 **Status:** BLOCKED
 
@@ -550,8 +694,8 @@ Back unchanged.
 ### Acceptance Criteria
 
 - The settings screen's initial contents are decided and recorded before
-  implementation. Scheduled candidates include custom themes (`M23.5`) and sound
-  or haptic controls (`M23.6`); future candidates still include username changes
+  implementation. Scheduled candidates include custom themes (`M23.6`) and sound
+  or haptic controls (`M23.7`); future candidates still include username changes
   (`F5`) and approval settings (`F14`). Scheduling this screen does not decide
   that those are its complete contents.
 - Once the screen has real contents, tapping the dashboard username opens it and
@@ -569,16 +713,16 @@ Back unchanged.
 
 The project owner has not chosen the screen's initial contents. That product
 decision determines this task's value, effort and complete acceptance criteria.
-`M23.5` and `M23.6` are a coordinated personalization group with this task, but
+`M23.6` and `M23.7` are a coordinated personalization group with this task, but
 their presence in the same milestone does not silently resolve the choice.
 
 ---
 
-## M23.5 — Custom themes
+## M23.6 — Custom themes
 
 **Status:** BLOCKED
 
-**Depends on:** None. Coordinate its selection UI with `M23.4` if themes are
+**Depends on:** None. Coordinate its selection UI with `M23.5` if themes are
 chosen as settings content.
 
 **Formerly:** `F8`. Source: `PRODUCT.md` (*Deferred Features*). Value: low.
@@ -610,11 +754,11 @@ so implementation does not begin until the owner decides it.
 
 ---
 
-## M23.6 — Optional sound and haptic feedback
+## M23.7 — Optional sound and haptic feedback
 
 **Status:** BLOCKED
 
-**Depends on:** M23.4 for the full sound and haptic controls. Haptics alone need
+**Depends on:** M23.5 for the full sound and haptic controls. Haptics alone need
 not wait when they follow Android's own touch-feedback setting.
 
 **Formerly:** `F42`. Source: the project owner's 2026-10-14 usability review.
@@ -631,7 +775,7 @@ chooses, with explicit controls and platform-respecting defaults.
 - The project owner decides which moments receive feedback: a move, a capture,
   check, game end, an opponent's move arriving, or a stated subset.
 - The project owner decides whether sound is on by default. Full on/off controls
-  live in the settings surface from `M23.4`; their state and persistence are
+  live in the settings surface from `M23.5`; their state and persistence are
   tested.
 - Haptics use Compose's platform feedback and respect Android's touch-feedback
   setting. Sound and haptic feedback never determine whether an action occurs.
@@ -651,7 +795,7 @@ the owner resolves them.
 
 ---
 
-## M23.7 — Elaborate animations
+## M23.8 — Elaborate animations
 
 **Status:** BLOCKED
 

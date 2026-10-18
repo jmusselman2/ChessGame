@@ -43,7 +43,7 @@ milestone `M21`, under `D084`–`D086`. Its ID is retired. Tier 1 (`F38`, `F1`, 
 `M22`, and those IDs are retired too. `F5` was scheduled with them, then returned
 here the same day under `D098` because username changes require `F13` first. On
 2026-10-17 the project owner scheduled `F40`, `F11`, `F35`, `F8`, `F42` and `F9`
-as `M23.2`–`M23.7`, respectively, in backlog milestone
+as `M23.3`–`M23.8`, respectively, in backlog milestone
 [`M23`](BACKLOG.md#m23--chess-experience-and-personalization). Those IDs are
 retired too.
 

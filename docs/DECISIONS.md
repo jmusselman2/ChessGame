@@ -4704,6 +4704,11 @@ persistence. "A local game in progress survives rotation, and only rotation" no
 longer holds: local games are saved on the device and resumable (`M21.2`). The
 layout rules are unchanged.
 
+**Amended 2026-10-18 by `D105`:** only the scrolling-container rules change when
+`M23.2` is built. The move history gets its own bounded scroll while the board,
+status and actions stay outside it. Board sizing, square floors, orientation and
+one-pane/two-pane selection remain unchanged.
+
 ### Decision
 
 - **Landscape is supported.** The game screens (the local game and the online game,
@@ -7262,6 +7267,11 @@ avoids leaking unrelated memberships.
 of recorded positions, not from replaying coordinate moves through the client's
 rules.
 
+**Amended 2026-10-18 by `D105`:** Review will render only the move prefix through
+its displayed ply, identify that ply's move as current and scroll that move into
+view without moving Start, Previous, Next or End. Its finished-game-only scope and
+recorded-position source remain unchanged.
+
 **Relates to:** `D004`, `D061`, `D069`, `D070`, `M21.3`, `M21.16`, `M22.7`,
 `M22.10`
 
@@ -7694,3 +7704,120 @@ installed rules version.
   summary still says the player has no captures ("Black. No captures."), so a screen
   reader does not hear a bare label. This replaces `M23.1`'s original criterion to show
   the text.
+
+---
+
+## D105 — Move History Follows the Displayed Position and Scrolls Independently
+
+**Date:** 2026-10-18
+
+**Status:** Accepted
+
+**Amends:** `D073` only where the right panel or short-screen fallback made move
+history share a scroll container with the controls, and `D100` only where Review
+showed its complete move list at every ply. Their board sizing, orientation,
+finished-game-only Review scope, navigation and recorded-position rules remain.
+
+**Relates to:** `D061`, `D069`, `D073`, `D100`, `D101`, `D102`, `D104`, `M22.7`,
+`M22.10`, `M23.1`, `M23.2`
+
+### Decision
+
+**The move list describes the position on screen.** In completed-game Review, ply
+zero has no visible move entries and no current move. At every later ply, the list
+contains only the active prefix through that ply. If the prefix ends with White's
+move, its numbered row contains White's move alone; Black's later reply is not drawn
+or exposed to accessibility. The individual SAN move that produced the displayed
+position is current. Start, Previous, Next and End remain the only required ways to
+change the reviewed position; the list is display-only and does not seek when tapped
+or scrolled.
+
+In every live online, pass-and-play and computer game, including a finished position
+still on its normal game screen, the final move in active history is current. An empty
+history has no current move. Undo therefore removes inactive moves and makes the new
+last active move current, while Redo and matching continuation restore the recorded
+move and its current state.
+
+**Current is an explicit typed presentation fact.** Android uses a shared typed
+move-history projection whose individual entries retain at least ply index, move
+number, side, required SAN and whether that entry is current. It never recovers those
+facts from a rendered line. Local and computer games project active `MoveRecord`s;
+online games use the server's existing required-SAN `MoveView`s; Review uses its
+existing projected moves only through the selected ply. Nothing parses SAN, infers
+history from the board or replays moves through current rules.
+
+**Current is obvious but remains display-only.** Exactly one individual move is
+current whenever the applicable visible history is nonempty. Its theme-appropriate
+background or indicator is combined with emphasis and a concise accessibility state,
+so colour is not the only distinction. The treatment has sufficient contrast in both
+themes and does not resemble a button. Numbered White/Black pairing remains.
+
+**Move history owns its scroll, not the controls.** In one-column and two-pane game
+layouts, the move list is a bounded vertical scroller separate from the board and the
+fixed content above it. Scrolling history does not move Back, player or game
+identification, status, current-position wording, `D104`'s captured-piece rows,
+Review navigation or currently available live-game actions such as Undo, Redo, draw
+actions, Resign and New game. Keeping those controls merely reachable by reversing a
+shared panel scroll does not satisfy this rule. Nothing scrolls horizontally.
+
+If an extremely short window or large font scale cannot physically show all fixed
+content at once, that fixed region gets its own separately bounded overflow strategy
+without clipping. It never joins the move-history scroll, and scrolling the move list
+does not change that controls region's position. `D073`'s board dimensions, square
+floors and layout-mode choice stay unchanged, as do `D104`'s captured-row placement
+and two-pane board-size preservation.
+
+**A current-move change brings itself into sight.** Opening a nonempty live game or a
+Review at its end initially shows the current move. A newly accepted local, computer
+or online move, an opponent move learned by refresh or realtime, a Review step, Undo,
+Redo or matching continuation scrolls the new current entry fully into view with its
+move number. Start clears Review's visible list and resets it appropriately. A refresh
+or recomposition that leaves the current-move identity unchanged preserves the
+player's manual scroll instead of snapping back to the end.
+
+Scroll position, current-entry emphasis and the visible Review prefix are Android
+presentation state. They add no database column, migration, canonical `GameState`
+field or duplicate persisted move list. The existing online live-game and Review wire
+projections already contain the necessary facts and do not change merely for this UI.
+
+### Rationale
+
+Showing future moves while looking at an earlier board position spoils the review and
+makes the list disagree with the screen. A clearly marked current SAN move links the
+words to the board. Automatically revealing it makes stepping and incoming play easy
+to follow, while preserving a manual scroll until the identity actually changes lets
+a player inspect earlier history without fighting the UI.
+
+Move histories can grow without bound, but the actions beside them remain useful at
+every length. Giving history its own scroll keeps Undo, Review navigation and the other
+controls available and preserves the board dimensions already chosen by `D073` and
+`D104`.
+
+### Alternatives Considered
+
+- **Show all Review moves and only highlight the selected one.** Rejected because it
+  reveals play that occurs after the displayed position.
+- **Highlight the whole numbered row.** Rejected because a row can contain two plies
+  and only one produced the displayed position.
+- **Scroll one panel containing controls and history.** Rejected because inspecting a
+  long game moves the actions away.
+- **Always snap to the final move on recomposition.** Rejected because an unrelated
+  refresh would prevent manual inspection of earlier moves.
+- **Persist current-move or scroll state, or add it to server DTOs.** Rejected as
+  duplicate presentation state derivable from the existing typed histories.
+- **Make history entries navigate Review.** Rejected because the owner retained Start,
+  Previous, Next and End as the required Review interaction.
+
+### Consequences
+
+- `M23.2` implements the shared typed Android presentation, current-move treatment,
+  independent scrolling and required model, Compose, accessibility and physical-device
+  verification. This decision does not implement it.
+- `D073`'s existing shared-scroll behavior remains the current implementation until
+  `M23.2`, but it is no longer the target behavior for move history. Its board-size and
+  window-selection rules remain binding.
+- `D100` keeps Review read-only and limited to finished games, and `D101` keeps every
+  Review position and online SAN server-projected from recorded history.
+- `D104`'s captured rows stay in their decided locations and do not enter Review; in a
+  live two-pane panel they remain fixed above the independent move-history scroller.
+- No server, database, SQLDelight, chess-rule or wire-format change is scheduled.

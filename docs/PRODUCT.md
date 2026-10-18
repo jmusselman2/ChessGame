@@ -478,7 +478,7 @@ Completed games belong in history rather than dominating the home screen.
 The dashboard's top row shows the player's own username at its right-hand end, so
 a player can always see the name a friend needs to add them. Screens with Back do
 not show it. Tapping it will open user settings; until user settings exist, it is
-plain text (`M17.3`; settings are scheduled as `M23.4`, formerly `F35`).
+plain text (`M17.3`; settings are scheduled as `M23.5`, formerly `F35`).
 
 ## Game Screen
 
@@ -546,6 +546,16 @@ orientation. In two panes they move to the right panel so the board keeps its ma
 size. They are display-only, use the board's piece artwork, and do not appear in
 completed-game review.
 
+Post-MVP `M23.2` makes the move history follow the position on screen (`D105`).
+Review shows only the moves through its displayed ply and highlights the individual
+SAN move that produced that position; a live game highlights the last move in active
+history. A new current move scrolls into sight, while ordinary refresh or recomposition
+does not undo a player's manual history scroll. In one-column and two-pane layouts the
+move history has its own bounded vertical scroll: the board, Back, identification,
+status, captured-piece summary, review navigation and game actions stay outside that
+scroll and remain available. The treatment is visible and accessible without relying
+on colour alone.
+
 ### Online Completed-Game Review
 
 Post-MVP (`M22.10`, `D100`), a finished online game offers Review both on its
@@ -553,7 +563,9 @@ game-ending screen and when opened from History. Start, Previous, Next and End
 step through server-projected recorded positions and the SAN move list. Review never
 replays coordinate moves through the installed client rules and never shows
 coordinates as a notation fallback. Active online games never offer review and keep
-their live server-authoritative board (`D101`).
+their live server-authoritative board (`D101`). Post-MVP `M23.2` (`D105`) limits the
+rendered list to the prefix through the selected ply, highlights that ply's move and
+keeps it visible without scrolling those four review controls away.
 
 ## Local Games
 
@@ -673,8 +685,8 @@ about unscheduled items (`D072`).
 - push notifications,
 - chess clocks,
 - draw offers by agreement (built post-MVP in `M22.3`),
-- custom themes (scheduled as `M23.5`, formerly `F8`),
-- elaborate animations (scheduled as `M23.7`, formerly `F9`),
+- custom themes (scheduled as `M23.6`, formerly `F8`),
+- elaborate animations (scheduled as `M23.8`, formerly `F9`),
 - spectators,
 - account recovery UI,
 - username changes,

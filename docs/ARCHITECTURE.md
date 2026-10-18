@@ -640,6 +640,26 @@ own snapshot, not by replaying a historical chain. An active game cannot enter
 review. Missing or invalid move context makes Review unavailable while the ordinary
 read-only completed-game view remains.
 
+**Move-history presentation (`D105`, scheduled for `M23.2`; not yet built).** Android
+will project both live and reviewed chess moves into one typed presentation model.
+Each individual entry retains its ply index, move number, side, required SAN and
+whether it is current; rendered text is an output, never the source of that state.
+Review uses only the existing projected prefix through `GameReview.ply`, so a White
+half-move cannot reveal Black's later reply. Live local and computer games use active
+`MoveRecord`s, while live online games use the server's existing `MoveView` SAN. No
+path parses SAN, reconstructs history from the board or replays moves.
+
+The shared move-history composable will own a bounded vertical scroll state separate
+from `GameLayout`'s board and controls. The current entry is the selected review ply,
+or the final active ply in a live game. A change to that identity scrolls it into view;
+an unrelated recomposition or refresh leaves a manual scroll alone. Back, headings,
+status, captured-piece rows, review navigation and live actions stay outside this
+scroll in one-column and two-pane layouts. If an extremely short or large-text window
+cannot display all fixed content at once, its fixed region uses a separate bounded
+overflow path rather than joining the move-history scroll. `D073`'s board dimensions
+and `D104`'s captured-piece placement remain unchanged. This is Android UI state and
+adds no DTO, database column, migration or canonical `GameState` field.
+
 ## 12. Realtime Architecture
 
 Use:
