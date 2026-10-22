@@ -171,11 +171,12 @@ class RedoUiTest {
             )
         }
 
+        // Wholly in view where there is room; elsewhere the move list's row (`D105`) leaves the
+        // controls their own scroll: measured on the Fire HD 8, Resign ends 344 dp down a 640×360
+        // window's panel, which shows the controls to 318 dp.
         TWO_PANE_VIEWPORTS.forEach { window ->
             showIn(window)
-            listOf(ComputerGameUiState.TAKE_BACK_LABEL, GameControls.REDO_LABEL, "Resign").forEach { label ->
-                composeRule.onNodeWithText(label).assertIsDisplayed().assertInsideViewport(composeRule, "$window: $label")
-            }
+            composeRule.assertPanelShows(window, listOf(ComputerGameUiState.TAKE_BACK_LABEL, GameControls.REDO_LABEL, "Resign"))
         }
     }
 

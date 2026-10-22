@@ -87,8 +87,9 @@ class ActionExplanationUiTest {
         val claims = listOf("THREEFOLD_REPETITION", "FIFTY_MOVE_RULE")
         show { OnlineGameScreen(state = OnlineGameState.Ready(onlineGame(canUndo = true, claims = claims)), onBack = {}) }
 
-        claims.forEach { composeRule.onNodeWithText(OnlineGame.claimLabel(it)).assertIsDisplayed() }
-        composeRule.onNodeWithText(OnlineGame.CLAIM_EXPLANATION).assertIsDisplayed()
+        // The window is the stock Pixel 7's landscape, where the explanation ends 386 dp down a
+        // 383 dp window (measured on the Fire HD 8): the panel scrolls its controls to it (`D105`).
+        composeRule.assertPanelShows(TWO_PANE_VIEWPORTS.first(), claims.map(OnlineGame::claimLabel) + OnlineGame.CLAIM_EXPLANATION)
 
         // No control offers a draw, asks for approval, or sends a command again.
         listOf("offer", "agree", "approv", "accept", "again", "resend", "retry").forEach { word ->

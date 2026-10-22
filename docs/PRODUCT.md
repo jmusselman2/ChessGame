@@ -507,13 +507,15 @@ Board orientation:
 Layout (`D073`), decided by the window's size, not the device's orientation:
 
 - **Wide windows (landscape):** the board on the left, as tall as the window allows,
-  and a panel on the right with Back, the status, the controls and the move list. The
-  panel scrolls on its own and the board never moves. Squares are at least 44 dp.
+  and a panel on the right with Back, the status and the controls, then the move list.
+  The board never moves. Squares are at least 44 dp.
 - **Tall windows (portrait):** Back, the board, then the status and controls, then the
-  move list, which scrolls on its own. Squares are at least 48 dp, except on a window
-  too narrow for that, where the board is as wide as the window.
-- **A window too short for either** keeps a full-size board and scrolls the whole
-  screen.
+  move list. Squares are at least 48 dp, except on a window too narrow for that, where
+  the board is as wide as the window.
+- **A window too short for either** keeps a full-size board, which scrolls with the
+  status and controls above the move list.
+- The move list always scrolls on its own, apart from everything else (`D105`). Where
+  the controls do not all fit, they scroll in their own region, never with the list.
 - The game screens have their own Back instead of the app's top row.
 - Rotating keeps a local game in progress, and so do closing the app, Back and losing
   the process, because local games are saved (see *Local Games*, `M21.2`).

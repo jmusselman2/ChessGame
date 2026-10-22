@@ -19,6 +19,7 @@ import com.jmussel.chessgame.ui.board.CapturedPieces
 import com.jmussel.chessgame.ui.board.CapturedRow
 import com.jmussel.chessgame.ui.board.CapturedRows
 import com.jmussel.chessgame.ui.board.GameEndings
+import com.jmussel.chessgame.ui.board.MoveHistory
 import com.jmussel.chessgame.ui.board.PendingPromotion
 
 /**
@@ -579,14 +580,14 @@ object OnlineGame {
     /** `"Move 18 • version 34"`, which is what a client has to send back with a command. */
     fun positionFor(game: GameViewDto): String = "Move ${game.moveNumber} $SEPARATOR version ${game.version}"
 
-    /** The moves played so far, numbered in pairs as a game is written down. */
-    fun moveListLines(game: GameViewDto): List<String> =
-        game.moves.chunked(2).mapIndexed { index, pair ->
-            val white = pair.first().san
-            val black = pair.getOrNull(1)?.san
+    /**
+     * The move list a live online game shows (`D105`): the server's SAN for each active move, the
+     * last one current. Nothing is replayed or parsed.
+     */
+    fun moveHistoryFor(game: GameViewDto): MoveHistory = MoveHistory.live(game.moves.map { it.san })
 
-            "${index + 1}. $white${black?.let { " $it" }.orEmpty()}"
-        }
+    /** The moves played so far, numbered in pairs as a game is written down. */
+    fun moveListLines(game: GameViewDto): List<String> = moveHistoryFor(game).lines
 
     /** What to show when the server refused to show the game. */
     fun messageFor(refusal: ChessApiException): String =

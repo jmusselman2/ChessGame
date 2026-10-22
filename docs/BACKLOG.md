@@ -132,7 +132,7 @@ explicitly closes and authorizes archiving it (`D103`).
 | Task    | Title                                      | Depends on              | Former | Status    |
 | ------- | ------------------------------------------ | ----------------------- | ------ | --------- |
 | `M23.1` | Captured pieces beside the board           | `M22.7`, `M22.11`       | —      | `DONE`    |
-| `M23.2` | Move history follows the current position  | `M22.7`, `M22.10`, `M23.1` | —   | `TODO`    |
+| `M23.2` | Move history follows the current position  | `M22.7`, `M22.10`, `M23.1` | —   | `DONE`    |
 | `M23.3` | Complete board accessibility               | `M22.6`, `M22.7`, `M22.11` | `F40` | `TODO` |
 | `M23.4` | Dead-position detection by search          | None                    | `F11`  | `TODO`    |
 | `M23.5` | User settings, opened from the username    | Initial contents chosen | `F35`  | `BLOCKED` |
@@ -452,7 +452,7 @@ amendment supersedes it.
 
 ## M23.2 — Move history follows the current position
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** M22.7, M22.10, M23.1
 
@@ -590,6 +590,162 @@ When this task is selected for implementation, it requires:
   the newly built APK with `adb install -r` and without uninstalling;
 - the complete documented `.\gradlew.bat build` gate;
 - `git diff --check`.
+
+### Completion Note — 2026-10-21
+
+**Model.** `MoveHistory` (`MoveHistoryRow`, `MoveHistoryEntry`: ply, move number, side,
+SAN, current) is the one typed presentation. `GameControls.moveHistory` builds it from
+active `MoveRecord`s for pass-and-play and the computer, `OnlineGame.moveHistoryFor` from
+the server's `MoveView` SAN, and `GameReview.history` from Review's projected moves
+through its ply (`MoveHistory.review`). Nothing replays, parses SAN or reads the board.
+Live games make the last active move current. Review shows nothing at ply 0, and a
+White move alone until Black's reply is reached. No server, wire, database or SQLDelight
+change.
+
+**List.** `MoveHistoryList` draws numbered rows in its own vertical scroll. The current
+move is bold, on a rounded `primaryContainer` pill, and its row carries the state
+description "Current move: <SAN>". Nothing in the list is clickable. A change of current
+move brings its row into view. A recomposition or refresh with the same current move
+keeps the player's scroll. The list pads its own top and bottom so the pill is never
+clipped. Measured on the Pixel 7, text on the pill is 6.2:1 in light and 6.0:1 in dark.
+The pill is 1.5:1 and 2.5:1 against the page, and the move is bold as well.
+
+**Layout (`D105`).** `GameLayout` takes a `MoveHistory` instead of a move-list slot. In
+every mode it places the list below a fixed region (`FixedThenHistory`):
+
+- the controls take the height they need;
+- a nonempty list keeps one row, 4 dp below them (`oneMoveRowHeight`: line height plus
+  the pill's padding, 22 dp online and 30 dp elsewhere at font scale 1.0);
+- the controls scroll in their own region only when they and that row cannot both fit;
+- an empty list is not drawn.
+
+Board sizes and captured-row placement are unchanged.
+
+**Fixes this run.**
+
+- *Six Fire HD 8 failures.* The first layout reserved 56 dp for the list. That pushed
+  Resign and the claim buttons out of view in two-pane panels that had fitted. Probed on
+  the Fire HD 8 with forced windows: Alex's undo-request panel ends Resign 401 dp down
+  the owner's Pixel 7 panel, which then showed the controls only to 385 dp. The reserve
+  became one row and the gap 4 dp. Jordan's answered-request panel then fits the owner's
+  Pixel 7 with 2 dp to spare, and every checked panel fits the Fire HD 8 and the tablet.
+- *`PieceDragUiTest`'s short-window swipe.* The test's swipe starts on e2, 15 px below the
+  forced window. A build of the previous commit, run the same way, scrolled; this one did
+  not. The empty list's zero-height scroller sat at the window's edge, and Compose's
+  near-miss touch routing gave it the swipe. An empty list is no longer drawn at all,
+  which restores the scroll.
+- *`GameEndUiTest`'s after-game buttons* sat below the stock Pixel 7 landscape panel's
+  controls region. The test now scrolls that region to each button, as the other
+  short-window tests do.
+- *Found in two-phone play:* when an undo request appeared above the Pixel 7's list, the
+  list got shorter but kept its scroll offset, so the current move fell out of view. The
+  list now stays at its end when its height changes, if it was showing its end. A list
+  the player scrolled back keeps its place. The new device test
+  `aListShowingTheCurrentMoveKeepsShowingItWhenRequestsShortenIt` failed on the Fire HD 8
+  with the fix disabled and passes with it.
+
+**Owner pre-authorization used (two-pane fit).** Where a window cannot show every
+control and a usable list at once, the controls scroll in their own region. This is
+recorded under `D105` (2026-10-21). Measured on the Fire HD 8 with forced windows:
+
+- The shorter windows (stock Pixel 7 landscape, 359–383 dp; a 640×360 phone) scroll to
+  their last controls. Resign ends 344–399 dp down panels that show 318–350 dp.
+- On the owner's Pixel 7, with an undo request and a draw offer both waiting, Resign ends
+  487 dp down a 457 dp window. It was never wholly in view there.
+- The Undo-plus-two-claims panel, which no device test checks, ends Resign at 442 dp. It
+  fitted before `M23.2`; it is now 20 dp into the controls' scroll.
+
+`assertPanelShows` now requires a control in a roomy window to be wholly in view, not
+partly. Moved to it:
+
+- `RedoUiTest.theComputerRedoFitsWithTwoPanes`;
+- `UndoRequestUiTest.alexsPanelFitsWithTwoPanesWithoutScrollingWhereThereIsRoom`
+  (renamed from `…WithoutScrolling`);
+- `ActionExplanationUiTest.onlineClaimsNameTheirRuleSayTheyAreNotOffersAndAskNobodyAnything`.
+
+`DrawOfferUiTest.anUndoRequestAndADrawOffer…` no longer counts the owner's Pixel 7 as
+roomy. The Pixel 7 (969×457), the Fire HD 8 landscape (962×553) and the tablet keep every
+other checked control wholly in view without scrolling.
+
+**Tests.**
+
+- JVM: `MoveHistoryTest` (12), `OnlineMoveHistoryTest` (5) and `ComputerMoveHistoryTest`
+  (1). They cover Review prefixes at ply 0, White-only, pairs and the final ply; exactly
+  one current move; local, computer and online moves; refresh; Undo, Redo, matching
+  continuation and takeback.
+- `.\gradlew.bat build`: green. chess-app 818, chess-core 448, chess-ai 20, server 734.
+  The server's database tests are no-ops without `TEST_DATABASE_URL`; nothing in the
+  server changed.
+- Device, `MoveHistoryUiTest` (8). It runs at Pixel 7 and Fire HD 8 portrait and
+  landscape, a narrow phone and a short landscape window, at font scales 1.0 and 2.0. It
+  covers:
+  - Review's prefix, Start, Previous, Next and End, and future moves absent from
+    semantics;
+  - scrolling the list moving nothing else;
+  - a manual scroll kept, and a new current move scrolled into view;
+  - the list shortened by requests;
+  - one bold current move named to a screen reader, and none in a new game.
+- Full instrumented suite on the final code: every class except `LocalGameRotationTest`
+  and `EngineTimingDeviceTest`, installed with `adb install -r` and run with
+  `am instrument`.
+  - Pixel 7 (API 36): 102 of 102.
+  - Fire HD 8 (API 22): 102 of 102. Two of them are `CapturedPiecesUiTest`'s API 26
+    pixel checks, which skip.
+  - Per class, on both: ActionExplanation 5, BoardCoordinates 3, CapturedPieces 12,
+    GameEnd 4, GameLayout 9, LocalDrawClaim 3, M5Independent 1, M5LocalAdversarial 2,
+    MoveFeedback 6, MoveHistory 8, PieceDrag 7, Redo 8, DrawOffer 5,
+    OnlineGameConnection 7, OnlineGameLayout 4, UndoRequest 7, PastLocalGames 2,
+    Profile 4, OnlineReview 3, LocalGameStoreDevice 1, Example 1.
+  - An earlier run, before the list fix: 101 of 101 on both.
+- `EngineTimingDeviceTest` passed on both.
+  - Pixel 7: Very Easy 72–256 ms, Easy 523–1501, Medium 328–1104, Hard 3000–3005.
+  - Fire HD 8: Very Easy 239–795 ms, Easy 1512–1531, Medium 2014–2035, Hard 3010–3042.
+- `LocalGameRotationTest`, run last, passed on both.
+
+**Two-phone play.** Release builds 0.1.10 and 0.1.11 on the beta server, with the Pixel
+7 as `test1234` and the Fire HD 8 as `test2345` in their existing series. Every move,
+Undo, Redo, request, answer and offer reached the other phone by realtime within about
+4 s with no refresh, and the receiver's list highlighted the new move in view. Checked:
+
+- Undo of an unanswered move, and Redo;
+- an undo request declined; another accepted; the same move then replayed by hand, a
+  matching continuation, with no Redo of the opponent's reply;
+- a draw offer declined;
+- captures, check, and promotion to a queen (`11. hxg8=Q+`), with captured rows and
+  `+13.75` mirrored on both;
+- a list scrolled back to move 1 left the board, the captured rows and the buttons on the
+  same pixels, and came back on the next incoming move;
+- the game ended by Black's resignation, and the rematch started with colours swapped on
+  both;
+- Review from the end screen and from History on both: Start empties the list; Next
+  shows `1. d4` alone, then `2. Nc3` without Black's reply; End highlights `c5`, the last
+  move.
+
+Landscape on both: the game and Review survived rotation, every control and the current
+move stayed in view, the list scrolled with nothing else moving, and moves played in
+landscape round-tripped. Pass-and-play and the computer were checked on both phones in
+both orientations: highlight, auto-scroll, captured rows, Undo or takeback, and Redo
+restoring the computer's recorded reply without a search. The Pixel 7 was checked in
+light and dark mode; the Fire HD 8 has no night mode.
+
+**Device settings.** Rotation, stay-awake and the Pixel 7's night mode were changed under
+the owner's pre-authorization. All were restored to their recorded values: Pixel 7
+accelerometer rotation 1, user rotation 1, stay-on 0, night yes; Fire HD 8 1, 0, 0.
+Display size and density were not touched. Release 0.1.11 (`versionCode` 18) is left
+installed on both. `LocalGameRotationTest` replaced both phones' accounts with throwaway
+usernames.
+
+**Not verified.** TalkBack on a physical device; the device tests cover the semantics.
+
+**Outside this task, reported only.**
+
+- Online Review shows two Back buttons: `ShellChromeContent.hasChrome` does not exclude
+  `Destination.OnlineReview` (since `M22.10`).
+- Review's turn line reads "WHITE to move".
+- On the Fire HD 8 in portrait, the one-column controls do not all fit below the 569 dp
+  board, so a request's Accept and Decline are reached by scrolling the controls region,
+  which `D073` allows. The list's one row takes 22 dp of that space; whether Accept was
+  in view before `M23.2` was not measured.
 
 ---
 

@@ -197,26 +197,48 @@ val isNotASquare: SemanticsMatcher =
     }
 
 /**
- * Asserts a live game's two-pane panel shows each of [labels], in panel order, in [window]: in
- * view without scrolling where the window has room ([ROOMY_TWO_PANE_VIEWPORTS]), and otherwise
- * once the panel is scrolled to it. Either way the board does not move. A scrolled panel is
- * scrolled back to the first label, so the next window starts at the top.
+ * Asserts a live game's two-pane panel shows each of [labels], in panel order, in [window]: wholly
+ * in view without scrolling where the window has room ([roomy]), and otherwise once the panel's
+ * controls are scrolled to it. Either way the board does not move. A scrolled panel is scrolled
+ * back to the first label, so the next window starts at the top.
+ *
+ * Since `M23.2` the move list keeps one row below the controls (`D105`), so a window whose
+ * controls only just fitted before may now scroll them instead.
  */
 fun ComposeContentTestRule.assertPanelShows(
     window: Viewport,
     labels: List<String>,
+    roomy: Collection<Viewport> = ROOMY_TWO_PANE_VIEWPORTS,
 ) {
     val board = boundsOf(CHESS_BOARD_TAG)
     labels.forEach { label ->
         val node = onNodeWithText(label)
-        if (window in ROOMY_TWO_PANE_VIEWPORTS) {
-            node.assertIsDisplayed().assertInsideViewport(this, "$window: $label")
+        if (window in roomy) {
+            node.assertIsDisplayed().assertWhollyShown(this, "$window: $label")
         } else {
             node.performScrollTo().assertIsDisplayed().assertInsideViewport(this, "$window: $label, scrolled to")
         }
     }
-    if (window !in ROOMY_TWO_PANE_VIEWPORTS) onNodeWithText(labels.first()).performScrollTo()
+    if (window !in roomy) onNodeWithText(labels.first()).performScrollTo()
     assertEquals("$window: the board did not move", board, boundsOf(CHESS_BOARD_TAG))
+}
+
+/**
+ * Whether this node is drawn whole, inside the viewport and cut by no scrolling region: its
+ * clipped bounds are as tall and wide as the node itself, allowing a pixel for rounding.
+ * [assertInsideViewport] alone passes a node mostly scrolled out of view.
+ */
+fun SemanticsNodeInteraction.assertWhollyShown(
+    rule: ComposeContentTestRule,
+    message: String,
+): SemanticsNodeInteraction {
+    val node = fetchSemanticsNode()
+    val shown = node.boundsInRoot
+    assertTrue(
+        "$message: only ${shown.width}×${shown.height} of ${node.size.width}×${node.size.height} px is in view",
+        shown.width >= node.size.width - 1 && shown.height >= node.size.height - 1,
+    )
+    return assertInsideViewport(rule, message)
 }
 
 /** Whether this node's bounds lie entirely within the viewport. */

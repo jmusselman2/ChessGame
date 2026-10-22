@@ -186,10 +186,7 @@ private fun Game(
                 if (board.game.isOver) onBack?.let { TextButton(onClick = it) { Text(text = "Leave") } }
             }
         },
-        moveList = {
-            val lines = remember(board.game.history) { GameControls.moveListLines(board.game) }
-            lines.forEach { line -> Text(text = line) }
-        },
+        moveHistory = remember(board.game.history) { GameControls.moveHistory(board.game) },
     )
 
     if (resigning && !board.game.isOver) {

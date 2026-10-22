@@ -7821,3 +7821,19 @@ controls available and preserves the board dimensions already chosen by `D073` a
 - `D104`'s captured rows stay in their decided locations and do not enter Review; in a
   live two-pane panel they remain fixed above the independent move-history scroller.
 - No server, database, SQLDelight, chess-rule or wire-format change is scheduled.
+- **Recorded 2026-10-21 by `M23.2`, under the project owner's pre-authorization for that
+  run:** a nonempty move list keeps exactly one row below the controls (its line height plus
+  the highlight's padding, 22 dp in the online list and 30 dp elsewhere at font scale 1.0),
+  4 dp below them, so the current move is always in view. The controls take everything else
+  first, and scroll in their own region only where they and that row cannot both fit; an
+  empty list is not drawn. Measured on the Fire HD 8 with forced windows, every live panel's
+  gameplay controls stay wholly in view without scrolling on the Fire HD 8 (962×553) and
+  tablets, and on the owner's Pixel 7 (969×457) for the panels the device tests check,
+  except the densest one: with an undo request and a draw offer both waiting, Resign ends
+  487 dp down a 457 dp window, so it was never wholly in view there, and the controls now
+  scroll to it. A panel with Undo and two draw claims at once, which no device test checks,
+  ends Resign at 442 dp: wholly in view before `M23.2`, now 20 dp into the controls' scroll.
+  Shorter windows (a stock Pixel 7 in landscape, a 360 dp-tall phone) scroll their controls
+  to the last ones, which the owner accepted where a window cannot show every control and a
+  usable move list at once. The affected two-pane device tests use `assertPanelShows`,
+  which now requires a control in a roomy window to be wholly in view, not merely partly.

@@ -21,6 +21,7 @@ import com.jmussel.chessgame.api.UserSummaryDto
 import com.jmussel.chessgame.api.playedMoves
 import com.jmussel.chessgame.ui.board.ALL_VIEWPORTS
 import com.jmussel.chessgame.ui.board.InViewport
+import com.jmussel.chessgame.ui.board.ROOMY_TWO_PANE_VIEWPORTS
 import com.jmussel.chessgame.ui.board.TWO_PANE_VIEWPORTS
 import com.jmussel.chessgame.ui.board.Viewport
 import com.jmussel.chessgame.ui.board.assertPanelShows
@@ -111,10 +112,18 @@ class DrawOfferUiTest {
         show { OnlineGameScreen(state = OnlineGameState.Ready(both), onBack = {}) }
 
         composeRule.onAllNodesWithText(OnlineGame.ACCEPT_LABEL).assertCountEquals(2)
+        // In view without scrolling where there is room beside the captured-piece rows (`D104`).
+        // Not on the owner's Pixel 7: with both requests waiting, Resign ends 487 dp down a 457 dp
+        // window (measured on the Fire HD 8), so it was never wholly in view there, and the panel
+        // scrolls its controls to it (`D105`).
+        val roomy = ROOMY_TWO_PANE_VIEWPORTS.filterNot { it.name == "Pixel 7 at owner's size, landscape" }
         TWO_PANE_VIEWPORTS.forEach { window ->
             showIn(window)
-            // In view without scrolling where there is room beside the captured-piece rows (`D104`).
-            composeRule.assertPanelShows(window, listOf("Back", "Jordan asks to undo Nf3 and your Nc6", "Jordan offers a draw", "Resign"))
+            composeRule.assertPanelShows(
+                window,
+                listOf("Back", "Jordan asks to undo Nf3 and your Nc6", "Jordan offers a draw", "Resign"),
+                roomy,
+            )
         }
     }
 

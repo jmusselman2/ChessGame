@@ -640,18 +640,24 @@ own snapshot, not by replaying a historical chain. An active game cannot enter
 review. Missing or invalid move context makes Review unavailable while the ordinary
 read-only completed-game view remains.
 
-**Move-history presentation (`D105`, scheduled for `M23.2`; not yet built).** Android
-will project both live and reviewed chess moves into one typed presentation model.
+**Move-history presentation (`D105`, built by `M23.2`).** Android projects both live
+and reviewed chess moves into one typed presentation model, `MoveHistory`
+(`MoveHistoryRow`, `MoveHistoryEntry`).
 Each individual entry retains its ply index, move number, side, required SAN and
 whether it is current; rendered text is an output, never the source of that state.
 Review uses only the existing projected prefix through `GameReview.ply`, so a White
-half-move cannot reveal Black's later reply. Live local and computer games use active
-`MoveRecord`s, while live online games use the server's existing `MoveView` SAN. No
-path parses SAN, reconstructs history from the board or replays moves.
+half-move cannot reveal Black's later reply (`GameReview.history`). Live local and
+computer games use active `MoveRecord`s (`GameControls.moveHistory`), while live online
+games use the server's existing `MoveView` SAN (`OnlineGame.moveHistoryFor`). No path
+parses SAN, reconstructs history from the board or replays moves.
 
-The shared move-history composable will own a bounded vertical scroll state separate
-from `GameLayout`'s board and controls. The current entry is the selected review ply,
-or the final active ply in a live game. A change to that identity scrolls it into view;
+The shared `MoveHistoryList` composable owns a bounded vertical scroll state separate
+from `GameLayout`'s board and controls. `GameLayout` places it below a fixed region in
+every mode (`FixedThenHistory`): the fixed content takes the height it needs, leaving a
+nonempty list at least one row (`oneMoveRowHeight`) so its current move stays in view, and
+scrolls in its own region only when that is not enough. An empty list is not drawn and
+takes no room. The current entry is the selected review ply, or the final active ply in a
+live game. A change to that identity scrolls it into view;
 an unrelated recomposition or refresh leaves a manual scroll alone. Back, headings,
 status, captured-piece rows, review navigation and live actions stay outside this
 scroll in one-column and two-pane layouts. If an extremely short or large-text window

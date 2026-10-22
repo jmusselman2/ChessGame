@@ -128,7 +128,12 @@ Endpoints: `/health`, `/me`, `/username`, `/users`, `/friends`, `/profiles/{user
   `ChessRules.capturedPiece` and `ChessRules.materialBalance` locally and from the
   server's `MoveView.captured` and `whiteMaterialBalanceQuarterPoints` online. They sit
   above and below a one-column board, which `GameLayoutSpec` shrinks to fit them, and in
-  the panel beside an unchanged two-pane board. Review shows none.
+  the panel beside an unchanged two-pane board. Review shows none. Every game screen,
+  Review included, passes `GameLayout` a typed `MoveHistory` (`D105`, `M23.2`):
+  `GameControls.moveHistory` from active `MoveRecord`s, `OnlineGame.moveHistoryFor` from
+  the server's SAN, and `GameReview.history` up to the reviewed ply, the last move
+  current. `MoveHistoryList` draws it in its own bounded scroll below the controls, and
+  scrolls a new current move into view.
 - `ui/game/OnlineGame.kt` and `OnlineGameScreen.kt` — the online game.
 - `computer/` — playing the computer (`D086`). `ComputerGame`: the questions before a
   new game (`ComputerSetup`, from the entry or from New game, which keeps the game

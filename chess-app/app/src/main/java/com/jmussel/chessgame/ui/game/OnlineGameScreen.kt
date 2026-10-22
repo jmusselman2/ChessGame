@@ -366,12 +366,9 @@ private fun Game(
 
             Text(text = OnlineGame.positionFor(game), style = MaterialTheme.typography.bodySmall)
         },
-        moveList = {
-            val lines = remember(game.moves) { OnlineGame.moveListLines(game) }
-            lines.forEach { line ->
-                Text(text = line, style = MaterialTheme.typography.bodySmall)
-            }
-        },
+        // The server's SAN for each active move, the last current (`D105`).
+        moveHistory = remember(game.moves) { OnlineGame.moveHistoryFor(game) },
+        moveHistoryStyle = MaterialTheme.typography.bodySmall,
     )
 
     if (state.confirmingLeave) {

@@ -19,7 +19,8 @@ import com.jmussel.chessgame.ui.board.GameLayout
 
 /**
  * A finished game, read-only: the board at the chosen ply, stepped through with Start,
- * Previous, Next and End, and the whole move list in SAN. The same screen for a local game
+ * Previous, Next and End, and the move list in SAN up to that ply, its last move current
+ * (`D105`). The same screen for a local game
  * (`M21.3`) and an online one (`M22.10`). Nothing on the board can be tapped.
  *
  * [unavailable] is what to say instead when there is no review to show: the server could not
@@ -65,10 +66,8 @@ fun GameReviewScreen(
                 Button(onClick = { onStep(review.plies) }, enabled = review.canStepForward) { Text(text = END) }
             }
         },
-        moveList = {
-            val lines = remember(review.moves) { review.moveListLines() }
-            lines.forEach { line -> Text(text = line) }
-        },
+        // Only the moves up to the position on the board, the last of them current (`D105`).
+        moveHistory = remember(review.moves, review.ply) { review.history },
     )
 }
 

@@ -13,12 +13,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.max
@@ -126,27 +129,44 @@ data class GameLayoutSpec(
 
 /**
  * A game screen: the [board], and beside or below it Back, the [header], the [controls] and
- * the [moveList], arranged by [GameLayoutSpec].
+ * the [moveHistory], arranged by [GameLayoutSpec].
  *
- * Shared by the local and the online game so both fit a window the same way. The board is
- * given its side and never moves while the rest scrolls. Back is drawn only when [onBack]
- * is given.
+ * Shared by the local, the online and the review screens so all fit a window the same way. The
+ * board is given its side and never moves while the rest scrolls. Back is drawn only when
+ * [onBack] is given.
  *
  * A live game passes its [captures] (`D104`, `M23.1`): in one column the top row sits just
  * above the board and the bottom row just below it, as wide as the board; with two panes both
  * sit in the panel after the [header], which says whose game it is, and before the controls.
  * The [header] otherwise leads the controls.
+ *
+ * The move list has its own bounded scroll below everything else (`D105`, `M23.2`), so
+ * scrolling it never moves the board, Back, the header, the captured pieces or a control. When
+ * a window is too short for all of those at once, they scroll in a region of their own above the
+ * list ([FixedThenHistory]); the two never share a scroll.
  */
 @Composable
 fun GameLayout(
     onBack: (() -> Unit)?,
     board: @Composable (side: Dp) -> Unit,
     controls: @Composable ColumnScope.() -> Unit,
-    moveList: @Composable ColumnScope.() -> Unit,
     modifier: Modifier = Modifier,
+    moveHistory: MoveHistory = MoveHistory.EMPTY,
+    moveHistoryStyle: TextStyle = MaterialTheme.typography.bodyLarge,
     captures: CapturedRows? = null,
     header: @Composable ColumnScope.() -> Unit = {},
 ) {
+    // An empty list is not drawn at all, so it takes no room and no touches: a swipe that ends
+    // up nearest an empty region at the window's edge still scrolls a short screen (`M22.12`).
+    val history: @Composable () -> Unit = {
+        if (moveHistory.rows.isNotEmpty()) {
+            MoveHistoryList(history = moveHistory, style = moveHistoryStyle, modifier = Modifier.fillMaxSize())
+        }
+    }
+    // A nonempty list always keeps one row, so its current move is in view; the controls get
+    // everything else first.
+    val reserve = if (moveHistory.rows.isEmpty()) 0.dp else oneMoveRowHeight(moveHistoryStyle)
+
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val spec = GameLayoutSpec.forWindow(maxWidth, maxHeight, captureRows = captures != null)
 
@@ -160,43 +180,53 @@ fun GameLayout(
                         board(spec.boardSide)
                     }
 
-                    // Controls first, so they are in view without scrolling however long the
-                    // move list grows.
-                    Column(
+                    // Controls first, then the move list in what is left, each scrolling apart.
+                    FixedThenHistory(
+                        reserve = reserve,
                         modifier =
                             Modifier
                                 .weight(1f)
                                 .fillMaxHeight()
-                                .verticalScroll(rememberScrollState())
                                 .padding(horizontal = PANEL_PADDING, vertical = SPACING),
-                        verticalArrangement = Arrangement.spacedBy(SPACING),
-                    ) {
-                        onBack?.let { GameBackButton(onClick = it) }
-                        header()
-                        captures?.let { CapturedPiecesPanel(rows = it, modifier = Modifier.fillMaxWidth()) }
-                        controls()
-                        moveList()
-                    }
+                        fixed = {
+                            Column(
+                                modifier = Modifier.verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(SPACING),
+                            ) {
+                                onBack?.let { GameBackButton(onClick = it) }
+                                header()
+                                captures?.let { CapturedPiecesPanel(rows = it, modifier = Modifier.fillMaxWidth()) }
+                                controls()
+                            }
+                        },
+                        history = history,
+                    )
                 }
 
             spec.scrolls ->
-                // Too short for anything to stay put: everything scrolls together, so no
-                // second scrolling list is nested inside.
-                Column(
-                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(SPACING),
-                ) {
-                    onBack?.let { GameBackButton(onClick = it, modifier = Modifier.padding(horizontal = SPACING)) }
-                    CentredBoard(side = spec.boardSide, board = board, captures = captures)
-                    Column(
-                        modifier = Modifier.padding(horizontal = PANEL_PADDING),
-                        verticalArrangement = Arrangement.spacedBy(SPACING),
-                    ) {
-                        header()
-                        controls()
-                        moveList()
-                    }
-                }
+                // Too short for the board and the controls at once: they scroll together, as
+                // `D073` allows, and the move list keeps its own region below them (`D105`).
+                FixedThenHistory(
+                    reserve = reserve,
+                    modifier = Modifier.fillMaxSize(),
+                    fixed = {
+                        Column(
+                            modifier = Modifier.verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(SPACING),
+                        ) {
+                            onBack?.let { GameBackButton(onClick = it, modifier = Modifier.padding(horizontal = SPACING)) }
+                            CentredBoard(side = spec.boardSide, board = board, captures = captures)
+                            Column(
+                                modifier = Modifier.padding(horizontal = PANEL_PADDING),
+                                verticalArrangement = Arrangement.spacedBy(SPACING),
+                            ) {
+                                header()
+                                controls()
+                            }
+                        }
+                    },
+                    history = { Box(modifier = Modifier.padding(horizontal = PANEL_PADDING)) { history() } },
+                )
 
             else ->
                 Column(
@@ -206,28 +236,56 @@ fun GameLayout(
                     onBack?.let { GameBackButton(onClick = it, modifier = Modifier.padding(horizontal = SPACING)) }
                     CentredBoard(side = spec.boardSide, board = board, captures = captures)
 
-                    // Measured before the move list, so the controls take the height they
-                    // need and scroll only when even that is not there; the move list gets
-                    // what is left and scrolls on its own.
-                    Column(
-                        modifier = Modifier.verticalScroll(rememberScrollState()).padding(horizontal = PANEL_PADDING),
-                        verticalArrangement = Arrangement.spacedBy(SPACING),
-                    ) {
-                        header()
-                        controls()
-                    }
-                    Column(
-                        modifier =
-                            Modifier
-                                .weight(1f)
-                                .fillMaxWidth()
-                                .verticalScroll(rememberScrollState())
-                                .padding(horizontal = PANEL_PADDING),
-                        verticalArrangement = Arrangement.spacedBy(MOVE_LIST_SPACING),
-                    ) {
-                        moveList()
-                    }
+                    // The controls take the height they need, scrolling on their own only when
+                    // even that is not there; the move list gets what is left.
+                    FixedThenHistory(
+                        reserve = reserve,
+                        modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = PANEL_PADDING),
+                        fixed = {
+                            Column(
+                                modifier = Modifier.verticalScroll(rememberScrollState()),
+                                verticalArrangement = Arrangement.spacedBy(SPACING),
+                            ) {
+                                header()
+                                controls()
+                            }
+                        },
+                        history = history,
+                    )
                 }
+        }
+    }
+}
+
+/**
+ * The [fixed] content above the [history], in the height this is given (`D105`): the fixed
+ * content takes what it needs, up to all but [reserve], and scrolls within that if it needs
+ * more; the history gets the rest, at least [reserve], and scrolls on its own. Neither moves
+ * when the other scrolls.
+ *
+ * The [reserve] is one row of a nonempty list, so its current move stays in view: the controls
+ * come first, and only a window too short for all of them and that one row scrolls them.
+ */
+@Composable
+private fun FixedThenHistory(
+    reserve: Dp,
+    fixed: @Composable () -> Unit,
+    history: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Layout(contents = listOf(fixed, history), modifier = modifier) { (fixedParts, historyParts), constraints ->
+        val gap = HISTORY_GAP.roundToPx()
+        val height = constraints.maxHeight
+        val kept = if (reserve > 0.dp) minOf(reserve.roundToPx() + gap, height) else 0
+        val loose = constraints.copy(minHeight = 0)
+
+        val top = fixedParts.first().measure(loose.copy(maxHeight = (height - kept).coerceAtLeast(0)))
+        val rest = (height - top.height - gap).coerceAtLeast(0)
+        val bottom = historyParts.firstOrNull()?.measure(loose.copy(minHeight = rest, maxHeight = rest))
+
+        layout(constraints.maxWidth, height) {
+            top.place(0, 0)
+            bottom?.place(0, height - rest)
         }
     }
 }
@@ -263,5 +321,11 @@ private fun CentredBoard(
 
 private val SPACING = 8.dp
 private val PANEL_PADDING = 16.dp
-private val MOVE_LIST_SPACING = 2.dp
+
+/**
+ * Between the controls and the move list: less than [SPACING] because the list pads its own top
+ * for the highlight, and every dp here is one the controls above can use (`D105`).
+ */
+private val HISTORY_GAP = 4.dp
+
 private const val BACK = "Back"

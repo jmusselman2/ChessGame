@@ -92,7 +92,6 @@ class GameLayoutUiTest {
                             )
                         },
                         controls = { Text(text = "Status") },
-                        moveList = {},
                     )
                 }
             }
@@ -196,13 +195,15 @@ class GameLayoutUiTest {
         listOf(ONE_COLUMN_VIEWPORTS[1], TWO_PANE_VIEWPORTS[2]).forEach { window ->
             show(window, 1f)
             val board = composeRule.boundsOf(CHESS_BOARD_TAG)
-            composeRule.onNodeWithText(lines.last()).assertIsNotDisplayed()
+            // The current, last move is in sight from the start, and the first is not (`D105`).
+            composeRule.onNodeWithText(lines.last()).assertIsDisplayed()
+            composeRule.onNodeWithText(lines.first()).assertIsNotDisplayed()
 
-            composeRule.onNodeWithText(lines.last()).performScrollTo().assertIsDisplayed()
+            composeRule.onNodeWithText(lines.first()).performScrollTo().assertIsDisplayed()
 
             assertEquals("$window: the board did not move", board, composeRule.boundsOf(CHESS_BOARD_TAG))
-            // In one column the controls stay put too; with two panes they scroll with the panel.
-            if (!window.liveSpec.twoPane) composeRule.onNodeWithText(GameControls.statusFor(game.game)).assertIsDisplayed()
+            // The move list scrolls apart from the controls in both layouts (`D105`).
+            composeRule.onNodeWithText(GameControls.statusFor(game.game)).assertIsDisplayed()
         }
     }
 

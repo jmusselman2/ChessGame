@@ -10,6 +10,7 @@ import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.jmussel.chessgame.api.GameViewDto
 import com.jmussel.chessgame.api.MoveDto
 import com.jmussel.chessgame.api.UserSummaryDto
@@ -127,15 +128,17 @@ class GameEndUiTest {
         composeRule.onNodeWithText(OnlineGame.afterGameText(AfterGame.Looking, onlineGame())).assertIsDisplayed()
         composeRule.onNodeWithText("Rematch", substring = true, ignoreCase = true).assertDoesNotExist()
 
+        // The window is the stock Pixel 7's landscape, whose panel scrolls its controls to what
+        // follows the ending since the move list keeps a row below them (`D105`).
         composeRule.runOnIdle { state = OnlineGameState.Ready(onlineGame(), after = AfterGame.NextGame("game-2")) }
-        composeRule.onNodeWithText("Play the next game").performClick()
+        composeRule.onNodeWithText("Play the next game").performScrollTo().performClick()
 
         composeRule.runOnIdle { state = OnlineGameState.Ready(onlineGame(), after = AfterGame.SeriesOver) }
-        composeRule.onNodeWithText("That was the last game with Alex.").assertIsDisplayed()
-        composeRule.onNodeWithText("Back to your games").performClick()
+        composeRule.onNodeWithText("That was the last game with Alex.").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithText("Back to your games").performScrollTo().performClick()
 
         composeRule.runOnIdle { state = OnlineGameState.Ready(onlineGame(), after = AfterGame.NotFound) }
-        composeRule.onNodeWithText("Try again").performClick()
+        composeRule.onNodeWithText("Try again").performScrollTo().performClick()
 
         composeRule.runOnIdle { assertEquals(listOf("next game", "dashboard", "find"), pressed) }
     }

@@ -12,6 +12,7 @@ import com.jmussel.chessgame.local.LocalGameKind
 import com.jmussel.chessgame.local.StoredLocalGame
 import com.jmussel.chessgame.ui.board.BoardRendering
 import com.jmussel.chessgame.ui.board.GameEndings
+import com.jmussel.chessgame.ui.board.MoveHistory
 import com.jmussel.chessgame.ui.game.OnlineGame
 import com.jmussel.chessgame.ui.localhistory.PastLocalGames
 
@@ -96,11 +97,15 @@ data class GameReview(
     val positionText: String
         get() = if (ply == 0) "Start of the game" else "After ${moves[ply - 1].san} ($ply of $plies)"
 
-    /** The whole move list in SAN, as numbered pairs: `"1. e4 e5"`. */
-    fun moveListLines(): List<String> =
-        moves.chunked(2).mapIndexed { index, pair ->
-            listOfNotNull("${index + 1}.", pair.first().san, pair.getOrNull(1)?.san).joinToString(" ")
-        }
+    /**
+     * The move list at [ply] (`D105`): only the moves up to the position on the board, the last of
+     * them current, and none at the start. The moves after it are not shown.
+     */
+    val history: MoveHistory
+        get() = MoveHistory.review(moves.map { it.san }, ply)
+
+    /** The shown move list in SAN, as numbered pairs: `"1. e4 e5"`. */
+    fun moveListLines(): List<String> = history.lines
 
     private companion object {
         const val SEPARATOR = "•"

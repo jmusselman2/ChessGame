@@ -33,11 +33,14 @@ object GameControls {
             )
         }
 
+    /**
+     * The move list a live local or computer game shows (`D105`): its active `MoveRecord`s in
+     * SAN from their recorded positions, the last move current.
+     */
+    fun moveHistory(game: ChessGame): MoveHistory = MoveHistory.live(game.history.map(::sanOf))
+
     /** The move list as one line per numbered move, for a compact display. */
-    fun moveListLines(game: ChessGame): List<String> =
-        moveList(game).map { row ->
-            listOfNotNull("${row.number}.", row.white, row.black).joinToString(" ")
-        }
+    fun moveListLines(game: ChessGame): List<String> = moveHistory(game).lines
 
     /**
      * The side that may take its move back right now, or `null` when nobody may.

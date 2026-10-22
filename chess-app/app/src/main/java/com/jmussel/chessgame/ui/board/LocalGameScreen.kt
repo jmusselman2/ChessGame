@@ -199,11 +199,8 @@ fun LocalGameScreen(
                 }
             }
         },
-        moveList = {
-            // The moves played so far, newest last.
-            val lines = remember(game.game.history) { GameControls.moveListLines(game.game) }
-            lines.forEach { line -> Text(text = line) }
-        },
+        // The moves played so far, newest last and current (`D105`).
+        moveHistory = remember(game.game.history) { GameControls.moveHistory(game.game) },
     )
 
     state.resigning?.let { side ->

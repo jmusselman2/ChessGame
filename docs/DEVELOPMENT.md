@@ -327,6 +327,13 @@ What they cover:
   board, clear of the board and the status, one summary each for a screen reader, and
   readable in the light and dark themes. The theme check reads pixels with `PixelCopy`
   and so skips itself below API 26, the Fire HD 8 included.
+- `MoveHistoryUiTest` checks the move list (`M23.2`) at the Pixel 7's and the Fire HD 8's
+  portrait and landscape windows, a narrow phone and a short landscape window, at font
+  scales 1.0 and 2.0: Review showing only the moves up to its ply, Start, Previous, Next
+  and End, one current move marked bold and named to a screen reader, a manual scroll
+  kept through a recomposition or an unchanged refresh, a new move, Undo, Redo or an
+  opponent's move scrolled into view, the current move kept in view when a request
+  shortens the list, and nothing else moving when the list scrolls.
 - `LocalGameRotationTest` recreates `MainActivity` with a local game in progress, then
   leaves it with Back and checks that "Local game" resumes it (`M21.2`). It deletes the
   device's local games first.
@@ -345,11 +352,14 @@ check:
    board is visible, and every square can be tapped.
 3. In landscape: Back, the captured-piece rows, the status, Undo and both Resign buttons
    are in view in the right panel without scrolling, and the board fills the height. On
-   a window shorter than about 400 dp the panel scrolls to its last buttons (`D104`).
-4. In portrait: Back, the board, the status and the controls are in view, and the move
-   list scrolls on its own.
-5. An online game, and a finished one from History, in both orientations.
-6. Back from the local game, then open it again: the same game, resumed (`D084`).
+   a window shorter than about 400 dp the controls scroll in their own region to their
+   last buttons (`D104`, `D105`).
+4. In portrait: Back, the board, the status and the controls are in view.
+5. In both: the last move is highlighted and in view, and scrolling the move list moves
+   nothing else (`D105`).
+6. An online game, and a finished one from History, in both orientations. In Review,
+   Start empties the list and each step shows only the moves up to the board.
+7. Back from the local game, then open it again: the same game, resumed (`D084`).
 
 Screenshots and layout dumps for the record:
 
