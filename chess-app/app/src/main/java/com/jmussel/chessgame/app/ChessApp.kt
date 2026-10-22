@@ -306,7 +306,7 @@ internal object ShellChromeContent {
      * Whether there is a top row at all.
      *
      * Not on startup or onboarding, and not on a game screen, which has its own Back
-     * (`D073`).
+     * (`D073`). Review is one: local or online, it draws its own Back in every state.
      */
     fun hasChrome(navigation: AppNavigation): Boolean =
         when (navigation.current) {
@@ -316,6 +316,7 @@ internal object ShellChromeContent {
             Destination.ComputerGame,
             is Destination.PastLocalGame,
             is Destination.OnlineGame,
+            is Destination.OnlineReview,
             -> false
             else -> true
         }

@@ -516,7 +516,7 @@ Layout (`D073`), decided by the window's size, not the device's orientation:
   status and controls above the move list.
 - The move list always scrolls on its own, apart from everything else (`D105`). Where
   the controls do not all fit, they scroll in their own region, never with the list.
-- The game screens have their own Back instead of the app's top row.
+- The game screens, Review included, have their own Back instead of the app's top row.
 - Rotating keeps a local game in progress, and so do closing the app, Back and losing
   the process, because local games are saved (see *Local Games*, `M21.2`).
 

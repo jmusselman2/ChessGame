@@ -139,6 +139,7 @@ explicitly closes and authorizes archiving it (`D103`).
 | `M23.6` | Custom themes                              | None                    | `F8`   | `BLOCKED` |
 | `M23.7` | Optional sound and haptic feedback         | `M23.5`                 | `F42`  | `BLOCKED` |
 | `M23.8` | Elaborate animations                       | None                    | `F9`   | `BLOCKED` |
+| `M23.9` | Online Review has one Back                 | `M22.10`                | —      | `DONE`    |
 
 ---
 
@@ -982,3 +983,62 @@ semantics, navigation results or authoritative state.
 
 The moments that animate are not decided. That product choice determines the
 feature's scope and must be made before implementation begins.
+
+---
+
+## M23.9 — Online Review has one Back
+
+**Status:** DONE
+
+**Depends on:** M22.10
+
+**Source:** found during `M23.2`'s two-phone verification (2026-10-21) and scheduled by
+the project owner on 2026-10-22, who asked for it to be fixed.
+
+### Objective
+
+Show exactly one Back on the online Review screen, as on every other game screen
+(`D073`).
+
+### Acceptance Criteria
+
+- Online Review, opened from a finished game's screen or from History, shows one Back:
+  its own, in the loading, unavailable and shown states. The app's top row is not drawn
+  above it.
+- That Back still returns to the screen Review was opened from.
+- Every other screen keeps or omits the top row as before.
+- A JVM test covers the top-row rule for online Review, and a device test counts one
+  Back on online Review drawn inside the app. Verification includes the documented
+  `.\gradlew.bat build` gate and `git diff --check`.
+
+### Completion Note — 2026-10-22
+
+**Cause.** `ShellChromeContent.hasChrome` leaves out the top row on the game screens
+because they draw their own Back (`D073`). `M22.10` added `Destination.OnlineReview`
+without adding it to that list, so online Review showed the top row's Back above its
+own. Local Review (`PastLocalGame`) was already in the list.
+
+**Fix.** `Destination.OnlineReview` is now one of the screens without the top row.
+`GameReviewScreen` draws its own Back in every state, so the screen is never left
+without one.
+
+**Tests.**
+
+- `ShellChromeContentTest.theGameScreensHaveNoTopRowBecauseTheyDrawTheirOwnBack` now
+  includes online Review.
+- New device test `OnlineReviewUiTest.theOnlineReviewInTheAppHasOneBackWhileLoadingAndOnceShown`
+  draws the whole `ChessApp` on online Review and counts one Back while loading and once
+  the review is shown. With the fix reverted it failed on the Fire HD 8 (two Backs).
+- `OnlineReviewUiTest` (4), `PastLocalGamesUiTest` (2), `GameEndUiTest` (4) and
+  `OnlineGameConnectionUiTest` (7): 17 of 17 on the Pixel 7 and on the Fire HD 8,
+  installed with `adb install -r`.
+- `.\gradlew.bat build`: green.
+
+**On the devices.** Release 0.1.12 (`versionCode` 21) was installed on both phones. The
+app data was cleared and `test1234` and `test2345` claimed again, because
+`M23.2`'s `LocalGameRotationTest` had replaced both accounts. On both, the finished game's
+Review from History shows one Back, and it returns to the finished game.
+
+**Left as is.** Review's turn line reads "WHITE to move", as pass-and-play and the
+computer game do (`GameControls.statusFor`, pinned by `GameControlsTest`). Changing it
+would change every local game screen's wording, so it is not part of this task.
