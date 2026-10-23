@@ -70,7 +70,7 @@ class RedoUiTest {
             .performClick()
 
         composeRule.onNodeWithText("1. e4 e5").assertIsDisplayed()
-        composeRule.onNodeWithText("WHITE to move").assertIsDisplayed()
+        composeRule.onNodeWithText("White to move").assertIsDisplayed()
         composeRule.onNodeWithText(GameControls.REDO_LABEL).assertDoesNotExist()
         assertSquare("e5", "last move")
         assertSquare("e7", "last move")
@@ -88,7 +88,7 @@ class RedoUiTest {
         assertSquare("e8", "king in check")
         assertSquare("h5", "last move")
         assertSquare("d1", "last move")
-        composeRule.onNodeWithText("BLACK to move — Check").assertIsDisplayed()
+        composeRule.onNodeWithText("Black to move — Check").assertIsDisplayed()
     }
 
     @Test

@@ -1945,6 +1945,9 @@ knows.
   `"BLACK wins — CHECKMATE"`, not a check. The text moved out of the composable
   into `GameControls.statusFor`, next to the other questions the screen asks
   `game-core`, so it is testable without rendering.
+  **Amended 2026-10-23 by `M23.17`, at the project owner's request:** the side is written
+  "White" or "Black", so the line reads `"Black to move — Check"`; the same holds for
+  Review's turn line and the computer game.
 
 - **A move a draw claim depends on is declared, not played.** `D038` gave
   `ChessRules` declared-move claim overloads, but the local screen could only

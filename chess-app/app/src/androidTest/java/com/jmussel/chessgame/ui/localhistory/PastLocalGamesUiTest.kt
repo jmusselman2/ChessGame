@@ -71,7 +71,7 @@ class PastLocalGamesUiTest {
 
         composeRule.onNodeWithText("Previous").performClick()
         composeRule.onNodeWithText("After g4 (3 of 4)").assertExists()
-        composeRule.onNodeWithText("BLACK to move").assertExists()
+        composeRule.onNodeWithText("Black to move").assertExists()
 
         // A tap on the board does nothing: the game is finished and this is only a review.
         composeRule.onNodeWithTag(squareTag(Square.parse("d8"))).performClick()
@@ -79,7 +79,7 @@ class PastLocalGamesUiTest {
 
         composeRule.onNodeWithText("Start").performClick()
         composeRule.onNodeWithText("Start of the game").assertExists()
-        composeRule.onNodeWithText("WHITE to move").assertExists()
+        composeRule.onNodeWithText("White to move").assertExists()
         composeRule.onNodeWithText("Previous").assertIsNotEnabled()
 
         composeRule.onNodeWithText("End").performClick()

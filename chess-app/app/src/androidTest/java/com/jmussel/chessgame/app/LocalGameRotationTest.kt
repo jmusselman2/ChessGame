@@ -55,14 +55,14 @@ class LocalGameRotationTest {
         composeRule.activityRule.scenario.recreate()
 
         composeRule.onNodeWithText(MOVES).assertExists()
-        composeRule.onNodeWithText("WHITE to move").assertExists()
+        composeRule.onNodeWithText("White to move").assertExists()
         Square.ALL.forEach { square -> composeRule.onNodeWithTag(squareTag(square)).assertIsNotSelected() }
 
         // Leaving with Back keeps it saved, and the local game resumes it (`D084`).
         composeRule.onNodeWithText("Back").performClick()
         openTheLocalGame()
         composeRule.onNodeWithText(MOVES).assertExists()
-        composeRule.onNodeWithText("WHITE to move").assertExists()
+        composeRule.onNodeWithText("White to move").assertExists()
     }
 
     /** Opens the local game and waits while it is read from the device. */

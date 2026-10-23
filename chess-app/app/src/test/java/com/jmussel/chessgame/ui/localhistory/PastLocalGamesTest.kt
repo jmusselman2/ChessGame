@@ -83,7 +83,7 @@ class PastLocalGamesTest {
     fun earlierPliesAreGamesInProgressWithTheirOwnLastMoveInSan() {
         val review = GameReviews.ofLocal(stored()).at(2)
 
-        assertEquals("WHITE to move", review.status)
+        assertEquals("White to move", review.status)
         assertEquals(setOf(Square.parse("g8"), Square.parse("f6")), review.lastMove)
         assertEquals("After Nf6 (2 of ${moves.size})", review.positionText)
         assertEquals("Start of the game", review.at(0).positionText)

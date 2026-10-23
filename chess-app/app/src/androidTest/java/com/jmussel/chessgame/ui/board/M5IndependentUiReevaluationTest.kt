@@ -23,7 +23,7 @@ class M5IndependentUiReevaluationTest {
 
         tap("f2")
         tap("f3")
-        composeRule.onNodeWithText("BLACK to move").assertExists()
+        composeRule.onNodeWithText("Black to move").assertExists()
         composeRule.onNodeWithText("1. f3").assertExists()
 
         tap("e7")

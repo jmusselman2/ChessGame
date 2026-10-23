@@ -11,6 +11,7 @@ import com.jmussel.chessgame.core.chess.Square
 import com.jmussel.chessgame.local.LocalGameKind
 import com.jmussel.chessgame.local.StoredLocalGame
 import com.jmussel.chessgame.ui.board.BoardRendering
+import com.jmussel.chessgame.ui.board.GameControls
 import com.jmussel.chessgame.ui.board.GameEndings
 import com.jmussel.chessgame.ui.board.MoveHistory
 import com.jmussel.chessgame.ui.game.OnlineGame
@@ -89,7 +90,7 @@ data class GameReview(
             if (ply == plies) {
                 ending
             } else {
-                val turn = "${position.sideToMove} to move"
+                val turn = "${GameControls.sideName(position.sideToMove)} to move"
                 if (position.inCheck) "$turn $SEPARATOR $CHECK" else turn
             }
 

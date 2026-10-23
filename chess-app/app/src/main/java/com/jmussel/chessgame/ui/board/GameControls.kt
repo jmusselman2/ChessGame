@@ -190,7 +190,7 @@ object GameControls {
     fun statusFor(game: ChessGame): String {
         game.result?.let { return GameEndings.forSides(it) }
 
-        val turn = "${game.sideToMove} to move"
+        val turn = "${sideName(game.sideToMove)} to move"
         return if (ChessRules.isInCheck(game.state)) "$turn $SEPARATOR $CHECK" else turn
     }
 
@@ -216,7 +216,8 @@ object GameControls {
 
     private fun sanOf(record: MoveRecord): String = ChessRules.san(record.positionBefore, record.move)
 
-    private fun sideName(side: Side): String = if (side == Side.WHITE) "White" else "Black"
+    /** "White" or "Black", as the status lines write a side (`M23.17`). */
+    fun sideName(side: Side): String = if (side == Side.WHITE) "White" else "Black"
 
     private const val SEPARATOR = "—"
     private const val CHECK = "Check"

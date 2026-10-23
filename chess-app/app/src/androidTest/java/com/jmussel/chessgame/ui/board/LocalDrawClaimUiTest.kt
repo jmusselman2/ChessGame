@@ -46,7 +46,7 @@ class LocalDrawClaimUiTest {
 
         composeRule.onNodeWithText("Play Ng8").performClick()
 
-        composeRule.onNodeWithText("WHITE to move").assertExists()
+        composeRule.onNodeWithText("White to move").assertExists()
         composeRule.onNodeWithText("4. Ng1 Ng8").assertExists()
         composeRule.onNodeWithText("Playing Ng8", substring = true).assertDoesNotExist()
     }
@@ -57,7 +57,7 @@ class LocalDrawClaimUiTest {
 
         composeRule.onNodeWithText("Cancel").performClick()
 
-        composeRule.onNodeWithText("BLACK to move").assertExists()
+        composeRule.onNodeWithText("Black to move").assertExists()
         composeRule.onNodeWithText("Playing Ng8", substring = true).assertDoesNotExist()
         composeRule.onNodeWithText("Claim draw (threefold repetition)").assertDoesNotExist()
         composeRule.onNodeWithText("4. Ng1").assertExists()

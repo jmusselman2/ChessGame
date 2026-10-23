@@ -147,6 +147,7 @@ explicitly closes and authorizes archiving it (`D103`).
 | `M23.14` | Review's step buttons stay put             | `M22.10`, `M23.2`       | —      | `DONE`    |
 | `M23.15` | Every promotion prompt offers Cancel       | `D041`                  | —      | `DONE`    |
 | `M23.16` | Finding your own name says it is you       | `D009`                  | —      | `DONE`    |
+| `M23.17` | Turn lines name the side as a word         | `D041`                  | —      | `DONE`    |
 
 ---
 
@@ -1428,3 +1429,46 @@ already shows where it shows "No such user".
 answers the player's own name, in any case, with the player's id and spelling, as the real one
 does; the lookup of "  jORDAN " leaves nothing to add and says "Jordan is you." Without the
 fix the found user is set and the test fails. `.\gradlew.bat build`: green.
+
+---
+
+## M23.17 — Turn lines name the side as a word
+
+**Status:** DONE
+
+**Depends on:** D041
+
+**Source:** noted during `M23.9` and the 2026-10-22 adversarial UI test; scheduled by the
+project owner on 2026-10-23, who asked for "White to move" / "Black to move".
+
+### Objective
+
+Pass-and-play, the computer game and Review say "White to move" and "Black to move", not
+"WHITE to move" and "BLACK to move".
+
+### Background
+
+`GameControls.statusFor` and `GameReview.status` wrote the `Side` enum's name, so the turn
+line read "WHITE to move" and, in check, "BLACK to move — Check". The online game already
+says "Your move" or "<opponent> to move", and the captured-piece rows write "White" and
+"Black".
+
+### Acceptance Criteria
+
+- The local, computer and Review turn lines read "White to move" / "Black to move", and in
+  check "… — Check". Endings and every other line are unchanged.
+- `D041`, which quoted the old form, records the change. Tests that pinned the old wording
+  are updated to the new one, at the owner's request.
+- Verification includes the documented `.\gradlew.bat build` gate and `git diff --check`.
+
+### Completion Note — 2026-10-23
+
+**Fix.** `GameControls.sideName` ("White" / "Black"), which the class already had, is now
+public and writes the side in `statusFor` and in `GameReview.status`. `D041` has a dated note.
+No document named the old wording otherwise; archived backlog and evaluation reports keep
+their history.
+
+**Tests.** The pinned wording changed in `GameControlsTest`, `M5IndependentReevaluationTest`,
+`PastLocalGamesTest`, `OnlineGameReviewTest` and the device tests `LocalGameRotationTest`,
+`LocalDrawClaimUiTest`, `M5IndependentUiReevaluationTest`, `RedoUiTest` and
+`PastLocalGamesUiTest`. `.\gradlew.bat build`: green.

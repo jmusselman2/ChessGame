@@ -204,8 +204,8 @@ class GameControlsTest {
 
     @Test
     fun theStatusNamesWhoIsToMove() {
-        assertEquals("WHITE to move", GameControls.statusFor(ChessGame.newGame()))
-        assertEquals("BLACK to move", GameControls.statusFor(tap(BoardUiState.newGame(), "e2", "e4").game))
+        assertEquals("White to move", GameControls.statusFor(ChessGame.newGame()))
+        assertEquals("Black to move", GameControls.statusFor(tap(BoardUiState.newGame(), "e2", "e4").game))
     }
 
     @Test
@@ -214,7 +214,7 @@ class GameControlsTest {
         val checked = tap(BoardUiState.newGame(), "e2", "e4", "f7", "f6", "d1", "h5")
 
         assertFalse(checked.game.isOver)
-        assertEquals("BLACK to move — Check", GameControls.statusFor(checked.game))
+        assertEquals("Black to move — Check", GameControls.statusFor(checked.game))
     }
 
     @Test
@@ -314,7 +314,7 @@ class GameControlsTest {
         assertEquals(played.game, redone.game)
         assertFalse(GameControls.canRedo(redone))
         assertEquals(Side.WHITE, redone.orientation)
-        assertEquals("the restored side to move and status", "WHITE to move", GameControls.statusFor(redone.game))
+        assertEquals("the restored side to move and status", "White to move", GameControls.statusFor(redone.game))
     }
 
     @Test

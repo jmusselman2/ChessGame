@@ -64,7 +64,7 @@ class OnlineGameReviewTest {
 
         val first = review.at(1)
         assertEquals(OnlineGame.boardFrom(afterF3), first.position.board)
-        assertEquals("BLACK to move", first.status)
+        assertEquals("Black to move", first.status)
         assertEquals("After f3 (1 of 2)", first.positionText)
 
         val beginning = review.at(0)

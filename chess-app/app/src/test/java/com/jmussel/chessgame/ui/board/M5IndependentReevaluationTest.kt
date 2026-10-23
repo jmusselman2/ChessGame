@@ -90,13 +90,13 @@ class M5IndependentReevaluationTest {
 
         assertFalse(checked.isOver)
         assertTrue(ChessRules.isInCheck(checked.state))
-        assertEquals("BLACK to move — Check", GameControls.statusFor(checked))
+        assertEquals("Black to move — Check", GameControls.statusFor(checked))
 
         val evaded = ChessRules.applyMove(checked, Move.of("e8", "f7"))
 
         assertFalse(evaded.isOver)
         assertFalse(ChessRules.isInCheck(evaded.state))
-        assertEquals("WHITE to move", GameControls.statusFor(evaded))
+        assertEquals("White to move", GameControls.statusFor(evaded))
     }
 
     @Test
