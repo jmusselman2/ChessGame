@@ -143,6 +143,7 @@ explicitly closes and authorizes archiving it (`D103`).
 | `M23.10` | Leaving says what the leave did           | `M22.1`                 | —      | `DONE`    |
 | `M23.11` | An unchanged game keeps what its screen said | `M21.15`              | —      | `DONE`    |
 | `M23.12` | Play the next game replaces the finished one | `M22.1`             | —      | `DONE`    |
+| `M23.13` | The dashboard is current after playing     | `M21.20`                | —      | `DONE`    |
 
 ---
 
@@ -1244,3 +1245,50 @@ again (`M21.20`). Every other way into a game still uses `open`. `PRODUCT.md` an
   Back, dashboard read again, no game read on the way back) and
   `backFromTheNextGameReturnsToTheScreenTheFinishedGameWasOpenedFrom` (Friends).
 - `.\gradlew.bat build`: green for this commit alone, in a separate worktree.
+
+---
+
+## M23.13 — The dashboard is current after playing
+
+**Status:** DONE
+
+**Depends on:** M21.20
+
+**Source:** finding F6 of the project owner's adversarial UI test of 2026-10-22 (release
+0.1.13-adv, built from `ecb8826`), reproduced twice on the Fire HD 8 and scheduled by the
+owner on 2026-10-23. The behaviour predates `M23`.
+
+### Objective
+
+After playing online, the dashboard lists every game under the turn the server reports
+whenever the player arrives back on it, however they got there (`M21.20`).
+
+### Background
+
+`ChessAppViewModel.back` read the dashboard again only when Back went straight from an
+online game to the dashboard. Dashboard → Friends → Play → a move → Back → Back reached
+the dashboard through Friends, so it was not read again and still listed the game under
+YOUR TURN with the old move number, until a realtime event or a return to the app.
+
+### Acceptance Criteria
+
+- Leaving an online game marks the dashboard as possibly behind. Arriving on the dashboard
+  by Back while it is marked reads it again, once, from any screen in between: Friends, a
+  group, History or another.
+- Back to the dashboard from a screen when no online game was left since reads nothing.
+- JVM tests cover the Friends path, the no-game path and a later return. Verification
+  includes the documented `.\gradlew.bat build` gate and `git diff --check`.
+
+### Completion Note — 2026-10-23
+
+**Fix.** `back()` sets `dashboardBehindPlay` whenever it leaves an online game and reads
+the dashboard when it arrives there while that is set, clearing it. Straight from a game
+this is `M21.20`'s read, unchanged; through Friends, a group or History it is the read that
+was missing. Other ways onto the dashboard (startup, `returnToDashboard`, coming back to the
+app) already read it.
+
+**Tests.** `TurnSectionsRefreshTest`:
+`aGameOpenedThroughFriendsIsUnderTheirTurnWhenBackReachesTheDashboard` (fails with the old
+condition), `backFromAScreenWithNoGamePlayedDoesNotReadTheDashboardAgain` and
+`theDashboardIsReadOnceOnArrivalNotOnEveryLaterReturn`; the six earlier tests pass unchanged.
+`.\gradlew.bat build`: green.

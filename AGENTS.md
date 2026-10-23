@@ -247,8 +247,9 @@ request first.
 
 The socket message carries only `gameId` and `version`. The client then fetches
 the game over HTTPS (`D022`): the game if its screen is showing, otherwise the
-dashboard. Back from an online game to the dashboard reads the dashboard again, so
-the game is listed under the turn the server now reports (`M21.20`). The socket is a hint, not a source of truth; a
+dashboard. Back to the dashboard after leaving an online game reads the dashboard again,
+straight from the game or through Friends, a group or History, so the game is listed
+under the turn the server now reports (`M21.20`, `M23.13`). The socket is a hint, not a source of truth; a
 dropped socket is reconnected and the screen refreshed.
 
 The game screen says what it is doing (`M21.15`). `OnlineGameState.Loading` is a

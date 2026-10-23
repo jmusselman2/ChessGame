@@ -138,6 +138,60 @@ class TurnSectionsRefreshTest {
         }
 
     @Test
+    fun aGameOpenedThroughFriendsIsUnderTheirTurnWhenBackReachesTheDashboard() =
+        runTest(dispatcher) {
+            // Finding F6 of the 2026-10-22 adversarial UI test: Dashboard → Friends → Play → move →
+            // Back → Back left the game under YOUR TURN (`M23.13`).
+            val viewModel = onTheDashboard()
+            viewModel.open(Destination.Friends)
+            viewModel.openOnlineGame(GAME)
+            viewModel.gameJob?.join()
+            play(viewModel)
+
+            assertTrue(viewModel.back())
+            assertEquals(Destination.Friends, viewModel.navigation.current)
+            assertTrue(viewModel.back())
+            assertEquals(Destination.Dashboard, viewModel.navigation.current)
+            viewModel.dashboardJob?.join()
+
+            assertEquals("the refreshed entry is under THEIR TURN", listOf(GAME), theirTurnGames(viewModel))
+            assertTrue(yourTurnGames(viewModel).isEmpty())
+        }
+
+    @Test
+    fun backFromAScreenWithNoGamePlayedDoesNotReadTheDashboardAgain() =
+        runTest(dispatcher) {
+            val viewModel = onTheDashboard()
+            viewModel.open(Destination.Friends)
+            paths.clear()
+
+            viewModel.back()
+            advanceUntilIdle()
+
+            assertFalse("no game was left, so nothing on the dashboard can be behind: $paths", "/dashboard" in paths)
+        }
+
+    @Test
+    fun theDashboardIsReadOnceOnArrivalNotOnEveryLaterReturn() =
+        runTest(dispatcher) {
+            val viewModel = onTheDashboard()
+            viewModel.open(Destination.History)
+            viewModel.openOnlineGame(GAME)
+            viewModel.gameJob?.join()
+            play(viewModel)
+            viewModel.back()
+            viewModel.back()
+            viewModel.dashboardJob?.join()
+
+            viewModel.open(Destination.Friends)
+            paths.clear()
+            viewModel.back()
+            advanceUntilIdle()
+
+            assertFalse("the arrival after playing already read it: $paths", "/dashboard" in paths)
+        }
+
+    @Test
     fun anUndoMovesTheGameBackUnderYourTurnAfterBack() =
         runTest(dispatcher) {
             yourTurn = false
@@ -233,6 +287,7 @@ class TurnSectionsRefreshTest {
                             down -> "unavailable"
                             path == "/dashboard" -> dashboard()
                             path == "/friends" -> "[]"
+                            path == "/history" -> "[]"
                             else -> gameView()
                         },
                     status = if (down) HttpStatusCode.ServiceUnavailable else HttpStatusCode.OK,

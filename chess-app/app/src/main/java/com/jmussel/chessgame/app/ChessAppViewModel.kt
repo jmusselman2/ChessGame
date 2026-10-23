@@ -246,6 +246,12 @@ class ChessAppViewModel(
     private var dashboardReloadWanted = false
 
     /**
+     * Whether the player has left an online game since the dashboard was last read on arrival,
+     * so the dashboard may list a game under the wrong turn (`M21.20`, `M23.13`).
+     */
+    private var dashboardBehindPlay = false
+
+    /**
      * How many dashboard reads have been issued, which is the order they were asked in.
      *
      * Dashboard reads can overlap, because a finished game asks what the series did next
@@ -2064,12 +2070,17 @@ class ChessAppViewModel(
         if (navigation.current == Destination.LocalGame) localGameJob?.cancel()
         // Leaving a game against the computer stops it thinking; opening it again resumes it.
         if (navigation.current == Destination.ComputerGame) computerGame.leave()
-        val leftOnlineGame = navigation.current is Destination.OnlineGame
+        if (navigation.current is Destination.OnlineGame) dashboardBehindPlay = true
         navigation = previous
         // The dashboard behind an online game was read before whatever was played in it, so it
         // may list the game under the wrong turn. It is read again rather than patched: whose
-        // turn it is stays the server's answer (`D004`, `M21.20`).
-        if (leftOnlineGame && navigation.current == Destination.Dashboard) loadDashboard()
+        // turn it is stays the server's answer (`D004`, `M21.20`). That holds however the player
+        // comes back to it, through Friends, a group or History as much as straight from the
+        // game (`M23.13`).
+        if (dashboardBehindPlay && navigation.current == Destination.Dashboard) {
+            dashboardBehindPlay = false
+            loadDashboard()
+        }
         return true
     }
 
