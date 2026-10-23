@@ -420,6 +420,9 @@ Pawn promotion must allow:
 
 Do not auto-promote to Queen.
 
+The promotion question also offers Cancel, on every game screen, which takes the pawn
+back with nothing played (`D107`).
+
 ### Draw Semantics
 
 The engine must distinguish claimable draws from automatic draws.

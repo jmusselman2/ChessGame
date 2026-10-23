@@ -27,7 +27,7 @@ import com.jmussel.chessgame.ui.board.ExplainedActions
 import com.jmussel.chessgame.ui.board.GameBackButton
 import com.jmussel.chessgame.ui.board.GameEndHeadline
 import com.jmussel.chessgame.ui.board.GameLayout
-import com.jmussel.chessgame.ui.board.PromotionChoice
+import com.jmussel.chessgame.ui.board.PromotionPrompt
 import com.jmussel.chessgame.ui.theme.ChessGameTheme
 
 /**
@@ -413,29 +413,7 @@ private fun SyncNoticeView(
     }
 }
 
-/** The four pieces a pawn may become, and the way out of the question. */
-@Composable
-private fun PromotionPrompt(
-    choices: List<PieceType>,
-    onChoose: (PieceType) -> Unit,
-    onCancel: () -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(text = PROMOTE_TO, style = MaterialTheme.typography.bodyMedium)
-
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            choices.forEach { choice ->
-                PromotionChoice(type = choice, onClick = { onChoose(choice) })
-            }
-
-            TextButton(onClick = onCancel) { Text(text = CANCEL) }
-        }
-    }
-}
-
 private const val SUBMITTING = "Sending…"
-private const val PROMOTE_TO = "Promote to"
-private const val CANCEL = "Cancel"
 private const val RESIGN = "Resign"
 private const val RESIGN_TITLE = "Resign?"
 private const val RESIGN_WARNING = "You lose this game. This cannot be undone."

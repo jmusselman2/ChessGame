@@ -149,7 +149,11 @@ private fun Game(
 
             if (state.humansTurn) {
                 board.pendingPromotion?.let { pending ->
-                    PromotionPrompt(choices = pending.choices, onChoose = { actions.onUpdate(BoardInteraction.choosePromotion(board, it)) })
+                    PromotionPrompt(
+                        choices = pending.choices,
+                        onChoose = { actions.onUpdate(BoardInteraction.choosePromotion(board, it)) },
+                        onCancel = { actions.onUpdate(BoardInteraction.cancelPromotion(board)) },
+                    )
                 }
                 board.declaredMove?.let { declared ->
                     DeclaredMovePrompt(

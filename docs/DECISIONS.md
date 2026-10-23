@@ -7879,3 +7879,34 @@ already gives a game: one entry, with Back to where the player was.
   `ChessAppViewModel.openNextGame` uses it. Every other way into a game still opens it in
   front of the current screen (`D033`).
 - Back from an online game to the dashboard still reads the dashboard again (`M21.20`).
+
+---
+
+## D107 — Every Promotion Prompt Offers Cancel
+
+**Date:** 2026-10-23
+
+**Status:** Accepted
+
+**Relates to:** `D041`, `D086`, `M23.15`
+
+### Decision
+
+The question a pawn reaching the last rank raises — Queen, Rook, Bishop or Knight — offers
+**Cancel** on every game screen: online, pass-and-play and the game against the computer.
+Cancel takes the pawn back with nothing played, and the player may then play any move. In
+pass-and-play and against the computer, tapping the board still backs out too.
+
+### Rationale
+
+The 2026-10-22 adversarial UI test (finding F4) found that only the online prompt had
+Cancel. Locally the only way out was tapping the board, which nothing on screen said.
+`D041` decided that a move needing a choice stops to ask; it did not say how to back out,
+and `PRODUCT.md` was silent. One prompt, shared by the three screens, says it the same way
+everywhere.
+
+### Consequences
+
+- `PromotionPrompt` is one composable in `ui/board`, used by all three game screens; the
+  online screen's private copy is gone.
+- `PRODUCT.md`'s pawn-promotion rules mention Cancel.

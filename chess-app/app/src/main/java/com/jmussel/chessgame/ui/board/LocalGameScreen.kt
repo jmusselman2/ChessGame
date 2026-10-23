@@ -124,6 +124,7 @@ fun LocalGameScreen(
                 PromotionPrompt(
                     choices = pending.choices,
                     onChoose = { choice -> play(BoardInteraction.choosePromotion(game, choice)) },
+                    onCancel = { play(BoardInteraction.cancelPromotion(game)) },
                 )
             }
 
@@ -297,21 +298,32 @@ internal fun ExplainedActions(
 
 private val EXPLANATION_GAP = 2.dp
 
-/** The four pieces a pawn may become, offered as buttons. */
+/**
+ * The four pieces a pawn may become, offered as buttons, and Cancel, which takes the pawn back
+ * to where it was with nothing played (`D107`). Every game screen asks the same way: online,
+ * pass-and-play and the computer. Tapping the board still backs out too.
+ */
 @Composable
 internal fun PromotionPrompt(
     choices: List<PieceType>,
     onChoose: (PieceType) -> Unit,
+    onCancel: () -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(text = "Promote to")
+        Text(text = PROMOTE_TO, style = MaterialTheme.typography.bodyMedium)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             choices.forEach { choice ->
                 PromotionChoice(type = choice, onClick = { onChoose(choice) })
             }
+            TextButton(onClick = onCancel) { Text(text = PROMOTION_CANCEL) }
         }
     }
 }
+
+private const val PROMOTE_TO = "Promote to"
+
+/** The promotion prompt's way out, without a move (`D107`). */
+const val PROMOTION_CANCEL = "Cancel"
 
 @Preview(showBackground = true)
 @Composable

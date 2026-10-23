@@ -145,6 +145,7 @@ explicitly closes and authorizes archiving it (`D103`).
 | `M23.12` | Play the next game replaces the finished one | `M22.1`             | —      | `DONE`    |
 | `M23.13` | The dashboard is current after playing     | `M21.20`                | —      | `DONE`    |
 | `M23.14` | Review's step buttons stay put             | `M22.10`, `M23.2`       | —      | `DONE`    |
+| `M23.15` | Every promotion prompt offers Cancel       | `D041`                  | —      | `DONE`    |
 
 ---
 
@@ -1339,4 +1340,49 @@ at Pixel 7 and Fire HD 8 portrait, a narrow phone, the owner's Pixel 7 and the F
 landscape, and a short split-screen window, each at font scales 1.0 and 2.0. It passes on the
 Fire HD 8, and with the old order it fails there ("Pixel 7 stock portrait (411×914) at 1.0,
 ply 0: the step buttons did not move", a 6 px shift in the forced window).
+`.\gradlew.bat build`: green.
+
+---
+
+## M23.15 — Every promotion prompt offers Cancel
+
+**Status:** DONE
+
+**Depends on:** D041
+
+**Source:** finding F4 of the project owner's adversarial UI test of 2026-10-22 (release
+0.1.13-adv, built from `ecb8826`), scheduled by the owner on 2026-10-23, who chose the online
+prompt's Cancel for every screen (`D107`).
+
+### Objective
+
+Pass-and-play and the game against the computer offer the same Cancel in the promotion
+question as the online game, so backing out is visible everywhere.
+
+### Background
+
+The online prompt offered Queen, Rook, Bishop, Knight and Cancel. The pass-and-play and
+computer prompts offered only the four pieces; the only way out was tapping the board, which
+nothing on screen said. `D041` and `PRODUCT.md` did not say which was intended.
+
+### Acceptance Criteria
+
+- Every game screen's promotion question offers Cancel (`D107`). Cancel takes the pawn back
+  with nothing played and nothing saved; locally, tapping the board still backs out too.
+- One shared prompt serves the three screens.
+- Device tests cancel the prompt on each screen. Verification includes the documented
+  `.\gradlew.bat build` gate and `git diff --check`.
+
+### Completion Note — 2026-10-23
+
+**Fix (`D107`).** `PromotionPrompt` in `ui/board/LocalGameScreen.kt` takes `onCancel` and
+draws Cancel after the four pieces, with "Promote to" in `bodyMedium` as online had it.
+Pass-and-play cancels through `BoardInteraction.cancelPromotion` and `play`; the computer
+through `ComputerGameActions.onUpdate`; the online screen now uses the same composable, and
+its private copy is gone. A cancelled prompt changes no `ChessGame`, so
+`LocalGameChange.between` saves nothing. `PRODUCT.md` says so.
+
+**Tests.** New device test `PromotionCancelUiTest` (3): pass-and-play and the computer cancel
+with the game unchanged and the prompt gone, and the online prompt still cancels. They pass
+on the Fire HD 8; the old local and computer prompts have no Cancel to tap.
 `.\gradlew.bat build`: green.
