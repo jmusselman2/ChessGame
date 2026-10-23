@@ -144,6 +144,7 @@ explicitly closes and authorizes archiving it (`D103`).
 | `M23.11` | An unchanged game keeps what its screen said | `M21.15`              | —      | `DONE`    |
 | `M23.12` | Play the next game replaces the finished one | `M22.1`             | —      | `DONE`    |
 | `M23.13` | The dashboard is current after playing     | `M21.20`                | —      | `DONE`    |
+| `M23.14` | Review's step buttons stay put             | `M22.10`, `M23.2`       | —      | `DONE`    |
 
 ---
 
@@ -1291,4 +1292,51 @@ app) already read it.
 `aGameOpenedThroughFriendsIsUnderTheirTurnWhenBackReachesTheDashboard` (fails with the old
 condition), `backFromAScreenWithNoGamePlayedDoesNotReadTheDashboardAgain` and
 `theDashboardIsReadOnceOnArrivalNotOnEveryLaterReturn`; the six earlier tests pass unchanged.
+`.\gradlew.bat build`: green.
+
+---
+
+## M23.14 — Review's step buttons stay put
+
+**Status:** DONE
+
+**Depends on:** M22.10, M23.2
+
+**Source:** finding F7 of the project owner's adversarial UI test of 2026-10-22 (release
+0.1.13-adv, built from `ecb8826`), scheduled by the owner on 2026-10-23. The behaviour
+predates `M23`.
+
+### Objective
+
+Start, Previous, Next and End stay exactly where they are while the player steps through a
+review, in every window and text size (`D073`, `D100`, `D105`).
+
+### Background
+
+Review drew its title, then its status, then the position line, then the step buttons. The
+status is the ending's larger headline at the last ply and a one-line turn line elsewhere,
+so the button row moved by about 7 dp on the Pixel 7 whenever the review stepped onto or
+off the last ply, and by more where the ending wraps. A thumb resting on Previous landed
+somewhere else.
+
+### Acceptance Criteria
+
+- The four buttons have the same bounds at ply 0, a middle ply, the ply before the end and
+  the end, in one-column, two-pane and short windows, at font scales 1.0 and 2.0.
+- Nothing else in Review changes: the same title, status, position line, board and move
+  history (`D105`), and the same behaviour of each button.
+- A Compose test checks the bounds; it fails with the old order. Verification includes the
+  documented `.\gradlew.bat build` gate and `git diff --check`.
+
+### Completion Note — 2026-10-23
+
+**Fix.** `GameReviewScreen` draws the step buttons straight after the title, which never
+changes, and before the status and position lines, whose height does. The row's position
+now depends only on what is above it, so it cannot move while stepping.
+
+**Tests.** New device test `ReviewControlsUiTest.theStepButtonsDoNotMoveBetweenTheStartAMiddlePlyAndTheEnd`
+at Pixel 7 and Fire HD 8 portrait, a narrow phone, the owner's Pixel 7 and the Fire HD 8 in
+landscape, and a short split-screen window, each at font scales 1.0 and 2.0. It passes on the
+Fire HD 8, and with the old order it fails there ("Pixel 7 stock portrait (411×914) at 1.0,
+ply 0: the step buttons did not move", a 6 px shift in the forced window).
 `.\gradlew.bat build`: green.

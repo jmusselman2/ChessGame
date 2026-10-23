@@ -334,6 +334,9 @@ What they cover:
   kept through a recomposition or an unchanged refresh, a new move, Undo, Redo or an
   opponent's move scrolled into view, the current move kept in view when a request
   shortens the list, and nothing else moving when the list scrolls.
+- `ReviewControlsUiTest` checks that Review's Start, Previous, Next and End keep the same
+  bounds at every ply, in one-column, two-pane and short windows at font scales 1.0 and
+  2.0 (`M23.14`).
 - `LocalGameRotationTest` recreates `MainActivity` with a local game in progress, then
   leaves it with Back and checks that "Local game" resumes it (`M21.2`). It deletes the
   device's local games first.

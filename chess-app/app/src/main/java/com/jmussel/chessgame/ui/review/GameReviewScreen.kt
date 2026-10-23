@@ -57,14 +57,17 @@ fun GameReviewScreen(
         },
         controls = {
             Text(text = review.title)
-            if (review.ply == review.plies) GameEndHeadline(text = review.status) else Text(text = review.status)
-            Text(text = review.positionText, style = MaterialTheme.typography.bodySmall)
+            // The steps come before anything whose height changes with the ply — the ending's
+            // larger headline at the last ply, a turn line elsewhere — so they stay exactly where
+            // the player's thumb is while stepping, in every window and text size (`M23.14`).
             FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { onStep(0) }, enabled = review.canStepBack) { Text(text = START) }
                 Button(onClick = { onStep(review.ply - 1) }, enabled = review.canStepBack) { Text(text = PREVIOUS) }
                 Button(onClick = { onStep(review.ply + 1) }, enabled = review.canStepForward) { Text(text = NEXT) }
                 Button(onClick = { onStep(review.plies) }, enabled = review.canStepForward) { Text(text = END) }
             }
+            if (review.ply == review.plies) GameEndHeadline(text = review.status) else Text(text = review.status)
+            Text(text = review.positionText, style = MaterialTheme.typography.bodySmall)
         },
         // Only the moves up to the position on the board, the last of them current (`D105`).
         moveHistory = remember(review.moves, review.ply) { review.history },
