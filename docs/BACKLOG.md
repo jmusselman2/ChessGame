@@ -140,6 +140,7 @@ explicitly closes and authorizes archiving it (`D103`).
 | `M23.7` | Optional sound and haptic feedback         | `M23.5`                 | `F42`  | `BLOCKED` |
 | `M23.8` | Elaborate animations                       | None                    | `F9`   | `BLOCKED` |
 | `M23.9` | Online Review has one Back                 | `M22.10`                | —      | `DONE`    |
+| `M23.11` | An unchanged game keeps what its screen said | `M21.15`              | —      | `DONE`    |
 | `M23.12` | Play the next game replaces the finished one | `M22.1`             | —      | `DONE`    |
 
 ---
@@ -1043,6 +1044,83 @@ Review from History shows one Back, and it returns to the finished game.
 **Left as is.** Review's turn line reads "WHITE to move", as pass-and-play and the
 computer game do (`GameControls.statusFor`, pinned by `GameControlsTest`). Changing it
 would change every local game screen's wording, so it is not part of this task.
+
+---
+
+## M23.11 — An unchanged game keeps what its screen said
+
+**Status:** DONE
+
+**Depends on:** M21.15
+
+**Source:** findings F1 and F2 of the project owner's adversarial UI test of 2026-10-22
+(release 0.1.13-adv, built from `ecb8826`), proposed for fixing the same day.
+
+### Objective
+
+An answer that brings back the version already on the online game's screen leaves the
+screen's message and its after-game offer as they were.
+
+### Background
+
+`ChessAppViewModel.show` rebuilt `OnlineGameState.Ready` from every answer at or above
+the version on screen, with the answer's own message (none, for a read) and no
+after-game state unless the game had just ended. A read at the same version therefore
+erased what the screen had just said:
+
+- **F1.** A refused command's message, such as "The game moved on. This is where it is
+  now.", was shown for about 125 ms and then wiped by the realtime reload of the version
+  the refusal had already brought. Caught on video in 2 of 4 races.
+- **F2.** The next-game offer `followSeries` found ("Your next game … has started" and
+  Play the next game) was wiped by any later read of the finished game: after a
+  both-resign race, a both-leave race, a normal threefold claim, and deterministically by
+  pressing Home and returning (`D075`'s reload).
+
+### Acceptance Criteria
+
+- An answer at the version on screen keeps the screen's message unless it brings its own
+  (a command's refusal), and always keeps its after-game state. Only a newer version
+  replaces them; a game that has just ended still asks what follows (`D014`).
+- An older answer still never rolls the board back and still reports its message
+  (`M14-02`), and a refresh still settles only its own sync state (`M21.15`).
+- Opening a game starts its screen afresh: a message or offer from an earlier visit is
+  not shown again.
+- View-model tests cover: a refusal followed by a same-version realtime reload keeps the
+  message; a next-game offer survives a same-version realtime reload and a return to the
+  app. Verification includes the documented `.\gradlew.bat build` gate and
+  `git diff --check`.
+
+### Completion Note — 2026-10-22
+
+**Cause.** `ChessAppViewModel.show` built a fresh `OnlineGameState.Ready` from every
+answer that was not older than the screen, taking the message from the answer and
+setting the after-game state only when the game had just ended. A read has no message
+and a finished game read again has not just ended, so a read at the unchanged version
+erased both. The code predates `M20.3`'s rename.
+
+**Fix.** `show` now carries the screen's message and after-game state into an answer at
+the version already shown. A command's refusal still replaces the message with its own,
+a newer version still replaces both, and a game that has just ended still starts
+`followSeries`. The older-answer branch (`M14-02`) and the sync handling (`M21.15`) are
+unchanged. `openOnlineGame` clears the message and offer of a game seen before, so a new
+visit does not repeat what an earlier one was told.
+
+**Tests.** New `UnchangedGameAnswerTest`, against a stateful stub server built with
+`mockEngineOn`:
+
+- `aRefusalsMessageSurvivesTheReloadOfTheVersionItBrought` (F1): a `STALE_VERSION`
+  refusal, then the realtime reload of the same version, keeps "The game moved on. This is
+  where it is now."
+- `theNextGameOfferSurvivesAReloadAndComingBackToTheApp` (F2): after a resignation finds
+  the next game, a same-version realtime reload and then `onBackground`/`onForeground`
+  (`D075`) both keep `AfterGame.NextGame`.
+- `aNewerVersionReplacesTheMessage` and
+  `openingTheGameAgainDoesNotRepeatWhatAnEarlierVisitWasTold` pin the edges.
+
+With the fix reverted, the F1 and F2 tests fail and the other two pass. Existing
+`StaleResponseOrderingTest` (`M14-02`) and `NetworkInterruptionTest` (`M21.15`) pass
+unchanged. `.\gradlew.bat build`: green for this commit alone, in a separate worktree, with the
+server tests run against PostgreSQL.
 
 ---
 

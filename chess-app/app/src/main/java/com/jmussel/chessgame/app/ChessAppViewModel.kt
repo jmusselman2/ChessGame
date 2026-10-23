@@ -397,6 +397,10 @@ class ChessAppViewModel(
      */
     fun openOnlineGame(gameId: String) {
         open(Destination.OnlineGame(gameId))
+        // A game seen before is still drawn until it reloads, but what its screen said then
+        // was said to that visit (`M23.11`).
+        val seenBefore = (game as? OnlineGameState.Ready)?.takeIf { it.game.gameId == gameId }
+        if (seenBefore != null) game = seenBefore.copy(message = null, after = null)
         loadGame(gameId)
     }
 
@@ -1114,9 +1118,21 @@ class ChessAppViewModel(
             return
         }
 
+        // The version on screen is the game on screen, so an answer that brings it back has
+        // overtaken nothing the screen says about it (`M23.11`): a realtime reload of the very
+        // version a refusal just brought, or a reload on coming back to the app, must not wipe
+        // the refusal's message or what `followSeries` found the series did next. Only a
+        // command's own answer says something new at an unchanged version.
+        val unchanged = showing?.takeIf { view.version == it.game.version }
         val justEnded = view.isOver && showing != null && !showing.game.isOver
 
-        game = OnlineGameState.Ready(game = view, message = message, after = if (justEnded) AfterGame.Looking else null, sync = sync)
+        game =
+            OnlineGameState.Ready(
+                game = view,
+                message = message ?: unchanged?.message,
+                after = if (justEnded) AfterGame.Looking else unchanged?.after,
+                sync = sync,
+            )
 
         if (justEnded) followSeries(view)
     }
