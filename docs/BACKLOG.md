@@ -140,6 +140,7 @@ explicitly closes and authorizes archiving it (`D103`).
 | `M23.7` | Optional sound and haptic feedback         | `M23.5`                 | `F42`  | `BLOCKED` |
 | `M23.8` | Elaborate animations                       | None                    | `F9`   | `BLOCKED` |
 | `M23.9` | Online Review has one Back                 | `M22.10`                | —      | `DONE`    |
+| `M23.12` | Play the next game replaces the finished one | `M22.1`             | —      | `DONE`    |
 
 ---
 
@@ -1042,3 +1043,60 @@ Review from History shows one Back, and it returns to the finished game.
 **Left as is.** Review's turn line reads "WHITE to move", as pass-and-play and the
 computer game do (`GameControls.statusFor`, pinned by `GameControlsTest`). Changing it
 would change every local game screen's wording, so it is not part of this task.
+
+---
+
+## M23.12 — Play the next game replaces the finished one
+
+**Status:** DONE
+
+**Depends on:** M22.1
+
+**Source:** finding F8 of the project owner's adversarial UI test of 2026-10-22 (release
+0.1.13-adv, built from `ecb8826`), reproduced twice on the Pixel 7 and scheduled the same
+day. The behaviour predates `M23`.
+
+### Objective
+
+Back from a game opened with Play the next game leads to the screen the finished game was
+opened from, in one press, however many next games were played in a row (`D106`).
+
+### Background
+
+`ChessAppViewModel.openNextGame` opened the next game in front of the finished game's
+destination. `back()` then returned to that destination without reading it again, so the
+screen kept drawing the next game's state under the finished game's destination: Back
+seemed to do nothing, and after a chain of next games the player needed one Back per game
+(three, once). Commands from that screen acted on the game drawn, so no wrong canonical
+state resulted; the defect was navigation and what the screen claimed.
+
+### Acceptance Criteria
+
+- Play the next game puts the next game in place of the finished game on the back stack
+  (`D106`). Every other way into a game still opens it in front of the current screen.
+- One Back from the next game shows the screen the finished game was opened from, and
+  Back to the dashboard still reads it again (`M21.20`).
+- JVM tests cover the stack, including a chain of next games, and view-model tests cover
+  what one Back shows after Play the next game. Verification includes the documented
+  `.\gradlew.bat build` gate and `git diff --check`.
+
+### Completion Note — 2026-10-23
+
+**Cause.** `openNextGame` opened the next game with `open`, in front of the finished game's
+destination. `back()` then popped to that destination without reading it, so the screen
+kept drawing the next game's state under the finished game's destination.
+
+**Fix (`D106`).** `AppNavigation.replace` puts a destination in place of the current one,
+and `openNextGame` uses it before reading the next game. Back from the next game is now one
+press to wherever the finished game was opened from; Back to the dashboard still reads it
+again (`M21.20`). Every other way into a game still uses `open`. `PRODUCT.md` and
+`AGENTS.md` say so.
+
+**Tests.**
+
+- `AppNavigationTest`: `theNextGameTakesTheFinishedGamesPlace` and
+  `aChainOfNextGamesIsOneBackFromWhereTheFirstWasOpened`.
+- `ChessAppTest`: `theNextGameTakesTheFinishedGamesPlaceSoOneBackLeavesIt` (stack, one
+  Back, dashboard read again, no game read on the way back) and
+  `backFromTheNextGameReturnsToTheScreenTheFinishedGameWasOpenedFrom` (Friends).
+- `.\gradlew.bat build`: green for this commit alone, in a separate worktree.

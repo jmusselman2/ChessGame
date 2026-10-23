@@ -265,6 +265,10 @@ Automatic rematches are always on for an active series. A series stops producing
 rematches only when a participant explicitly leaves it. Leaving also ends its
 current game (`D095`), so there is no closed-series game left to finish.
 
+Playing the next game from the finished game's screen replaces the finished game, so
+Back leads to where the finished game was opened from, however many games in a row the
+player has played (`D106`). Finished games are found in History.
+
 ## Takebacks / Undo
 
 A player may undo their own most recent move without opponent confirmation while:

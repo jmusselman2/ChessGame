@@ -115,6 +115,15 @@ data class AppNavigation(
     fun open(destination: Destination): AppNavigation = if (destination == current) this else copy(stack = stack + destination)
 
     /**
+     * [destination] in place of the current screen, with everything behind it kept.
+     *
+     * This is how a finished online game hands over to the game its series moved on to
+     * (`D106`): the finished game is not somewhere to go back to, so Back from the next game
+     * leads to wherever the finished one was opened from.
+     */
+    fun replace(destination: Destination): AppNavigation = copy(stack = stack.dropLast(1) + destination)
+
+    /**
      * [destination] as the only screen, with nothing behind it.
      *
      * This is how startup and onboarding hand over: neither is somewhere to go back to —

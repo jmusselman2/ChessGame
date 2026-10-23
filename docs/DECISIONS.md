@@ -7837,3 +7837,45 @@ controls available and preserves the board dimensions already chosen by `D073` a
   to the last ones, which the owner accepted where a window cannot show every control and a
   usable move list at once. The affected two-pane device tests use `assertPanelShows`,
   which now requires a control in a roomy window to be wholly in view, not merely partly.
+
+---
+
+## D106 — Play the Next Game Replaces the Finished Game on the Back Stack
+
+**Date:** 2026-10-22
+
+**Status:** Accepted
+
+**Relates to:** `D014`, `D015`, `D033`, `D073`, `M23.12`
+
+### Decision
+
+When a finished online game's screen offers the series' next game and the player takes
+it ("Play the next game"), the next game takes the finished game's place on the back
+stack. Back from the next game leads to the screen the finished game was opened from:
+the dashboard, Friends, a group, History or wherever else. However many next games the
+player plays in a row, that is one Back. The finished game stays reachable from History,
+where its Review is (`D100`).
+
+### Rationale
+
+The 2026-10-22 adversarial UI test (finding F8) found that pushing the next game on top
+of the finished one left Back looking broken. `back()` returned to the finished game's
+destination without reading it again, so the screen kept drawing the next game under the
+old destination: Back appeared to do nothing, and a chain of next games needed one Back
+per game. The finished game has nothing left to do on its screen; its result and the
+offer of the next game were its last word. Replacing it is also the shape the dashboard
+already gives a game: one entry, with Back to where the player was.
+
+### Alternatives Considered
+
+- **Keep the finished game behind the next one and read it again on Back.** It fixes the
+  wrong board, but a chain of rematches still costs one Back per game, each showing a game
+  that is over.
+
+### Consequences
+
+- `AppNavigation.replace` puts a destination in place of the current one;
+  `ChessAppViewModel.openNextGame` uses it. Every other way into a game still opens it in
+  front of the current screen (`D033`).
+- Back from an online game to the dashboard still reads the dashboard again (`M21.20`).

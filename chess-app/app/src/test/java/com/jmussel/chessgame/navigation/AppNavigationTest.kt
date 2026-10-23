@@ -132,6 +132,28 @@ class AppNavigationTest {
     }
 
     @Test
+    fun theNextGameTakesTheFinishedGamesPlace() {
+        val navigation = dashboard().open(game).replace(Destination.OnlineGame("game-2"))
+
+        assertEquals(listOf(Destination.Dashboard, Destination.OnlineGame("game-2")), navigation.stack)
+        assertEquals(Destination.Dashboard, navigation.back()?.current)
+    }
+
+    @Test
+    fun aChainOfNextGamesIsOneBackFromWhereTheFirstWasOpened() {
+        val navigation =
+            dashboard()
+                .open(Destination.History)
+                .open(game)
+                .replace(Destination.OnlineGame("game-2"))
+                .replace(Destination.OnlineGame("game-3"))
+                .replace(Destination.OnlineGame("game-4"))
+
+        assertEquals(listOf(Destination.Dashboard, Destination.History, Destination.OnlineGame("game-4")), navigation.stack)
+        assertEquals(Destination.History, navigation.back()?.current)
+    }
+
+    @Test
     fun openingTheScreenAlreadyShowingChangesNothing() {
         val navigation = dashboard().open(game)
 

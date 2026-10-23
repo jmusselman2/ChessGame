@@ -1177,11 +1177,18 @@ class ChessAppViewModel(
         followSeries(ready.game)
     }
 
-    /** Opens the game the series moved on to, which the server chose (`D015`). */
+    /**
+     * Opens the game the series moved on to, which the server chose (`D015`), in place of the
+     * finished one (`D106`).
+     *
+     * The finished game is not kept behind it: Back from the next game leads to wherever the
+     * finished game was opened from, however many games the series has moved on since.
+     */
     fun openNextGame() {
         val next = (game as? OnlineGameState.Ready)?.after as? AfterGame.NextGame ?: return
 
-        openOnlineGame(next.gameId)
+        navigation = navigation.replace(Destination.OnlineGame(next.gameId))
+        loadGame(next.gameId)
     }
 
     /** Goes back to the dashboard, which is where a player goes when a series is over. */

@@ -2702,6 +2702,61 @@ class ChessAppTest {
         }
 
     @Test
+    fun theNextGameTakesTheFinishedGamesPlaceSoOneBackLeavesIt() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan", nextGameId = "game-2"))
+            viewModel.restartAt(Destination.Dashboard)
+            viewModel.loadDashboard()
+            viewModel.dashboardJob?.join()
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+            viewModel.askToResign()
+            viewModel.resign()
+            viewModel.moveJob?.join()
+            viewModel.dashboardJob?.join()
+
+            viewModel.openNextGame()
+            viewModel.gameJob?.join()
+
+            assertEquals(
+                "the finished game is not kept behind the next one (`D106`)",
+                listOf(Destination.Dashboard, Destination.OnlineGame("game-2")),
+                viewModel.navigation.stack,
+            )
+            assertEquals("game-2", (viewModel.game as OnlineGameState.Ready).game.gameId)
+
+            val gameReads = paths.count { it.startsWith("/games/") }
+            val dashboardReads = paths.count { it == "/dashboard" }
+            assertTrue(viewModel.back())
+            viewModel.dashboardJob?.join()
+
+            assertEquals("one Back leaves the next game for the dashboard", Destination.Dashboard, viewModel.navigation.current)
+            assertFalse("there is nothing behind the dashboard", viewModel.navigation.canGoBack)
+            assertEquals("the dashboard is read again", dashboardReads + 1, paths.count { it == "/dashboard" })
+            assertEquals("no game is read on the way back", gameReads, paths.count { it.startsWith("/games/") })
+        }
+
+    @Test
+    fun backFromTheNextGameReturnsToTheScreenTheFinishedGameWasOpenedFrom() =
+        runTest(dispatcher) {
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan", nextGameId = "game-2"))
+            viewModel.restartAt(Destination.Dashboard)
+            viewModel.open(Destination.Friends)
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+            viewModel.askToResign()
+            viewModel.resign()
+            viewModel.moveJob?.join()
+            viewModel.dashboardJob?.join()
+
+            viewModel.openNextGame()
+            viewModel.gameJob?.join()
+            assertTrue(viewModel.back())
+
+            assertEquals(listOf(Destination.Dashboard, Destination.Friends), viewModel.navigation.stack)
+        }
+
+    @Test
     fun aSeriesThatHasClosedOffersNoNextGame() =
         runTest(dispatcher) {
             val viewModel = viewModel(httpClient = httpClient(username = "Jordan"))

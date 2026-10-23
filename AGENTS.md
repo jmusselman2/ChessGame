@@ -277,7 +277,9 @@ row (`SeriesService.lockGameWithSeries`), the order Leave takes, so the two neve
 deadlock. The dashboard lists active series only.
 
 On the client, a game that ends on screen reads the dashboard to find that
-successor (`ChessAppViewModel.followSeries`, `AfterGame`). A game whose series
+successor (`ChessAppViewModel.followSeries`, `AfterGame`). Play the next game puts
+that successor in place of the finished game on the back stack (`AppNavigation.replace`,
+`D106`), so Back leads to where the finished game was opened from. A game whose series
 was already left ends as `SeriesOver` without the read. Leaving a game nobody moved
 in closes its screen; the other player's screen, finding the game gone (`404`), says it
 was removed. A read that fails is
