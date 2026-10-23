@@ -146,6 +146,7 @@ explicitly closes and authorizes archiving it (`D103`).
 | `M23.13` | The dashboard is current after playing     | `M21.20`                | —      | `DONE`    |
 | `M23.14` | Review's step buttons stay put             | `M22.10`, `M23.2`       | —      | `DONE`    |
 | `M23.15` | Every promotion prompt offers Cancel       | `D041`                  | —      | `DONE`    |
+| `M23.16` | Finding your own name says it is you       | `D009`                  | —      | `DONE`    |
 
 ---
 
@@ -1386,3 +1387,44 @@ its private copy is gone. A cancelled prompt changes no `ChessGame`, so
 with the game unchanged and the prompt gone, and the online prompt still cancels. They pass
 on the Fire HD 8; the old local and computer prompts have no Cancel to tap.
 `.\gradlew.bat build`: green.
+
+---
+
+## M23.16 — Finding your own name says it is you
+
+**Status:** DONE
+
+**Depends on:** D009
+
+**Source:** finding F5 of the project owner's adversarial UI test of 2026-10-22 (release
+0.1.13-adv, built from `ecb8826`), scheduled by the owner on 2026-10-23.
+
+### Objective
+
+Looking up your own username on the Friends screen says it is you instead of offering an
+Add friend that the server will refuse.
+
+### Background
+
+Friends → your own username (any case) → Find showed "Found <you>." with Add friend; tapping
+it showed the server's "You cannot add yourself". No harm was done, but the screen offered
+something it knew could not work.
+
+### Acceptance Criteria
+
+- A lookup whose answer is the signed-in player shows "<username> is you." and no Add
+  friend. Any other lookup is unchanged, and no server change is made.
+- A view-model test covers a case-variant of the player's own name. Verification includes
+  the documented `.\gradlew.bat build` gate and `git diff --check`.
+
+### Completion Note — 2026-10-23
+
+**Fix.** `ChessAppViewModel.findUser` compares the server's answer with `currentUser` by user
+id, so any spelling or case the server resolves to the player counts. For the player, it sets
+no found user and the message `Friends.thatIsYou` ("Jordan is you."), which the Friends screen
+already shows where it shows "No such user".
+
+**Tests.** `ChessAppTest.lookingUpYourOwnNameSaysItIsYouAndOffersNoAdd`: the stub server now
+answers the player's own name, in any case, with the player's id and spelling, as the real one
+does; the lookup of "  jORDAN " leaves nothing to add and says "Jordan is you." Without the
+fix the found user is set and the test fails. `.\gradlew.bat build`: green.

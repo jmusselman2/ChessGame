@@ -1416,13 +1416,21 @@ class ChessAppViewModel(
     /**
      * Looks [requested] up by exact username, so the player sees who they are about to add.
      *
-     * A name that belongs to nobody is the server's answer, in the server's words (`D009`).
+     * A name that belongs to nobody is the server's answer, in the server's words (`D009`). The
+     * player's own name, in any case, is not offered as a friend: the server would refuse it, so
+     * the screen says it is them instead (`M23.16`).
      */
     fun findUser(requested: String) {
         if (!Friends.isSendable(requested)) return
 
         runOnFriends { api ->
-            friends = friends.copy(found = api.lookUpUser(Friends.cleaned(requested)), message = null)
+            val found = api.lookUpUser(Friends.cleaned(requested))
+            friends =
+                if (found.userId == currentUser?.userId) {
+                    friends.copy(found = null, message = Friends.thatIsYou(found.username))
+                } else {
+                    friends.copy(found = found, message = null)
+                }
         }
     }
 

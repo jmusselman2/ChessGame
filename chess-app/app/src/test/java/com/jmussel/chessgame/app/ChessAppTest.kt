@@ -295,6 +295,9 @@ class ChessAppTest {
                 friendList(replies.friends)
             path == "/friends" -> sentText(request)
             path.startsWith("/friends/") -> replies.removalOutcome
+            // The server answers a name in any case with the user's own id and spelling, the caller's included.
+            path.startsWith("/users/") && path.removePrefix("/users/").equals(replies.username, ignoreCase = true) ->
+                identity(replies.username, replies.userId)
             path.startsWith("/users/") -> user(path.removePrefix("/users/"))
             path == "/series" -> series(sentText(request), replies.currentGameId)
             // Leaving resigns a started game and deletes one nobody moved in, which the series then
@@ -1034,6 +1037,26 @@ class ChessAppTest {
 
             assertEquals("Alex", viewModel.friends.found?.username)
             assertEquals(listOf("/users/Alex"), paths)
+        }
+
+    @Test
+    fun lookingUpYourOwnNameSaysItIsYouAndOffersNoAdd() =
+        runTest(dispatcher) {
+            // Finding F5 of the 2026-10-22 adversarial UI test: "Found <you>." with Add friend,
+            // which the server then refused (`M23.16`).
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan"))
+            viewModel.start()
+            viewModel.startupJob?.join()
+            viewModel.dashboardJob?.join()
+            viewModel.friendsJob?.join()
+            val before = paths.size
+
+            viewModel.findUser("  jORDAN ")
+            viewModel.friendsJob?.join()
+
+            assertNull("nobody to add", viewModel.friends.found)
+            assertEquals("Jordan is you.", viewModel.friends.message)
+            assertEquals("asked once, and nothing was added", listOf("/users/jORDAN"), paths.drop(before))
         }
 
     @Test

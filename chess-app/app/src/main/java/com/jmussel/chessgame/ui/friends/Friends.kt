@@ -65,6 +65,9 @@ object Friends {
     /** Whether there is anything to send at all. */
     fun isSendable(requested: String): Boolean = cleaned(requested).isNotEmpty()
 
+    /** What a lookup of the player's own [username] says, instead of offering to add them (`M23.16`). */
+    fun thatIsYou(username: String): String = "$username is you."
+
     /** What to show when the server refused. */
     fun messageFor(refusal: ChessApiException): String = refusal.explanation.ifBlank { REFUSED }
 
