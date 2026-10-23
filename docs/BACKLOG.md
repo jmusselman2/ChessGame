@@ -140,6 +140,7 @@ explicitly closes and authorizes archiving it (`D103`).
 | `M23.7` | Optional sound and haptic feedback         | `M23.5`                 | `F42`  | `BLOCKED` |
 | `M23.8` | Elaborate animations                       | None                    | `F9`   | `BLOCKED` |
 | `M23.9` | Online Review has one Back                 | `M22.10`                | —      | `DONE`    |
+| `M23.10` | Leaving says what the leave did           | `M22.1`                 | —      | `DONE`    |
 | `M23.11` | An unchanged game keeps what its screen said | `M21.15`              | —      | `DONE`    |
 | `M23.12` | Play the next game replaces the finished one | `M22.1`             | —      | `DONE`    |
 
@@ -1044,6 +1045,71 @@ Review from History shows one Back, and it returns to the finished game.
 **Left as is.** Review's turn line reads "WHITE to move", as pass-and-play and the
 computer game do (`GameControls.statusFor`, pinned by `GameControlsTest`). Changing it
 would change every local game screen's wording, so it is not part of this task.
+
+---
+
+## M23.10 — Leaving says what the leave did
+
+**Status:** DONE
+
+**Depends on:** M22.1
+
+**Source:** finding F3 of the project owner's adversarial UI test of 2026-10-22 (release
+0.1.13-adv, built from `ecb8826`), scheduled the same day.
+
+### Objective
+
+After Leave series, the online game says what the server's leave actually did to the
+game, not what the game looked like when the player tapped (`D095`).
+
+### Background
+
+When both players confirm Leave series about a second apart, the first leave resigns the
+started game in the second player's favour, and the second leave is accepted
+idempotently (`D095`). The second player's screen then showed "You left the series and
+resigned this game." under "You won by resignation": `ChessAppViewModel.leaveSeries`
+worded its message from the game as decided at the tap, which was unfinished and
+started. Canonical state was right; only the message was wrong. Reproduced twice on the
+Pixel 7, confirming on the Fire HD 8 about a second before it.
+
+### Acceptance Criteria
+
+- The message after a leave is worded from the game as read back after it. It says the
+  player resigned only when that game ended by the player's own resignation after the
+  tap. A game the opponent's resignation ended, a game already over, and a game that
+  could not be read back say only that the series was left.
+- A game the server deleted still closes its screen and says it was removed.
+- Unit tests cover each wording, and a view-model test covers the race: the opponent's
+  leave resigned the game before this player's leave was answered. Verification
+  includes the documented `.\gradlew.bat build` gate and `git diff --check`.
+
+### Completion Note — 2026-10-23
+
+**Cause.** `ChessAppViewModel.leaveSeries` worded its message with
+`OnlineGame.leftSeriesMessage(decidedAt)`, the game as it was when the player tapped. When
+the opponent's leave had already resigned the game in this player's favour, the second leave
+(accepted idempotently, `D095`) still said "You left the series and resigned this game."
+The line came from `M22.1`.
+
+**Fix.** `leftSeriesMessage(decidedAt, now)` words the message from the game read back after
+the leave. It says the player resigned only when a game unfinished at the tap now ends in
+that player's resignation (terminated by resignation, and not won by them). A game the
+opponent's resignation ended, a game already over, and a game that could not be read back
+(the screen keeps the game it had) say "You left the series. No more games with <opponent>
+will start." A deleted game's wording moved to its own `leftSeriesRemovedMessage`, unchanged.
+
+**Tests.**
+
+- `OnlineGameTest`: the resigned wording, plus
+  `leavingAfterTheOtherPlayerLeftFirstDoesNotSayYouResigned`,
+  `aResignationThatWasAlreadyThereIsNotThisLeave`,
+  `aGameThatCouldNotBeReadBackClaimsNoResignation` and
+  `aGameThatEndedAnotherWayBeforeTheLeaveClaimsNoResignation`.
+- `ChessAppTest.leavingJustAfterTheOtherPlayerLeftDoesNotSayYouResigned`: the stub server
+  answers the read-back with a game Alex resigned; the screen says "You won by resignation",
+  `SeriesOver`, and the plain leave message.
+- `.\gradlew.bat build`: green for this commit alone, in a separate worktree, with the server
+  tests run against PostgreSQL.
 
 ---
 

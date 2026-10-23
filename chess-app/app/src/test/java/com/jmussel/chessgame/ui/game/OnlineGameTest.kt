@@ -185,7 +185,13 @@ class OnlineGameTest {
         val warning = OnlineGame.leaveWarningFor(game(hasStarted = true))
 
         assertEquals("Leaving the series ends this game too: you resign it, and Alex wins. No more games with Alex will start.", warning)
-        assertEquals("You left the series and resigned this game.", OnlineGame.leftSeriesMessage(game(hasStarted = true)))
+        assertEquals(
+            "You left the series and resigned this game.",
+            OnlineGame.leftSeriesMessage(
+                decidedAt = game(hasStarted = true),
+                now = game(result = "BLACK_WINS", terminationReason = "RESIGNATION", hasStarted = true),
+            ),
+        )
     }
 
     @Test
@@ -198,7 +204,7 @@ class OnlineGameTest {
         )
         assertEquals(
             "You left the series with Alex. The game had not started, so it was removed.",
-            OnlineGame.leftSeriesMessage(game(), gameRemoved = true),
+            OnlineGame.leftSeriesRemovedMessage(game()),
         )
     }
 
@@ -207,7 +213,42 @@ class OnlineGameTest {
         val finished = game(result = "WHITE_WINS", terminationReason = "CHECKMATE", hasStarted = true)
 
         assertEquals("No more games with Alex will start. Nothing that has been played changes.", OnlineGame.leaveWarningFor(finished))
-        assertEquals("You left the series. No more games with Alex will start.", OnlineGame.leftSeriesMessage(finished))
+        assertEquals("You left the series. No more games with Alex will start.", OnlineGame.leftSeriesMessage(finished, finished))
+    }
+
+    @Test
+    fun leavingAfterTheOtherPlayerLeftFirstDoesNotSayYouResigned() {
+        // Alex's leave resigned the game in this player's favour; this leave was accepted idempotently (`M23.10`).
+        val wonByAlexLeaving = game(yourSide = "BLACK", result = "BLACK_WINS", terminationReason = "RESIGNATION", hasStarted = true)
+
+        assertEquals(
+            "You left the series. No more games with Alex will start.",
+            OnlineGame.leftSeriesMessage(decidedAt = game(yourSide = "BLACK", hasStarted = true), now = wonByAlexLeaving),
+        )
+    }
+
+    @Test
+    fun aResignationThatWasAlreadyThereIsNotThisLeave() {
+        val resigned = game(result = "BLACK_WINS", terminationReason = "RESIGNATION", hasStarted = true)
+
+        assertEquals("You left the series. No more games with Alex will start.", OnlineGame.leftSeriesMessage(resigned, resigned))
+    }
+
+    @Test
+    fun aGameThatCouldNotBeReadBackClaimsNoResignation() {
+        val unread = game(hasStarted = true)
+
+        assertEquals("You left the series. No more games with Alex will start.", OnlineGame.leftSeriesMessage(unread, unread))
+    }
+
+    @Test
+    fun aGameThatEndedAnotherWayBeforeTheLeaveClaimsNoResignation() {
+        val mated = game(result = "BLACK_WINS", terminationReason = "CHECKMATE", hasStarted = true)
+
+        assertEquals(
+            "You left the series. No more games with Alex will start.",
+            OnlineGame.leftSeriesMessage(decidedAt = game(hasStarted = true), now = mated),
+        )
     }
 
     @Test

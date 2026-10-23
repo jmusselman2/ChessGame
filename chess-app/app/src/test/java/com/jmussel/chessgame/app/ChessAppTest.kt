@@ -177,6 +177,7 @@ class ChessAppTest {
         refusalBody: String = "nope",
         existingName: String? = null,
         hasStarted: Boolean = false,
+        opponentLeftFirst: Boolean = false,
         goneAfterFirstRead: Boolean = false,
         canOfferDraw: Boolean = false,
         drawOfferFromYou: Boolean? = null,
@@ -231,6 +232,7 @@ class ChessAppTest {
                                     seriesClosed = seriesClosed,
                                     seriesLeft = leftSeries,
                                     hasStarted = hasStarted,
+                                    opponentLeftFirst = opponentLeftFirst,
                                     canOfferDraw = canOfferDraw,
                                     drawOfferFromYou = drawOfferFromYou,
                                 ),
@@ -272,6 +274,7 @@ class ChessAppTest {
         val seriesClosed: Boolean = false,
         val seriesLeft: Boolean = false,
         val hasStarted: Boolean = false,
+        val opponentLeftFirst: Boolean = false,
         val canOfferDraw: Boolean = false,
         val drawOfferFromYou: Boolean? = null,
     )
@@ -310,6 +313,9 @@ class ChessAppTest {
             path.endsWith("/draw-offer/decline") -> gameView(path.removePrefix("/games/").removeSuffix("/draw-offer/decline"))
             path.endsWith("/resignation") ->
                 resignedGame(path.removePrefix("/games/").removeSuffix("/resignation"), seriesActive = !replies.seriesLeft)
+            // Alex left first, resigning the game in this player's favour; this leave changed nothing (`M23.10`).
+            path.startsWith("/games/") && replies.seriesLeft && replies.hasStarted && replies.opponentLeftFirst ->
+                resignedGame(path.removePrefix("/games/"), seriesActive = false, hasStarted = true, result = "WHITE_WINS")
             path.startsWith("/games/") && replies.seriesLeft && replies.hasStarted ->
                 resignedGame(path.removePrefix("/games/"), seriesActive = false, hasStarted = true)
             path.startsWith("/games/") ->
@@ -416,18 +422,19 @@ class ChessAppTest {
             """.trimIndent()
     }
 
-    /** The same game once its White player has resigned. */
+    /** The same game once its White player has resigned, or its Black player when [result] says White won. */
     private fun resignedGame(
         gameId: String,
         seriesActive: Boolean = true,
         hasStarted: Boolean = false,
+        result: String = "BLACK_WINS",
     ): String =
         """
         {"gameId":"$gameId","seriesId":"series-1","opponent":${user("Alex")},"version":2,
          "yourSide":"WHITE","sideToMove":"WHITE","yourTurn":false,"inCheck":false,
          "board":["rnbqkbnr","pppppppp","........","........","........","........","PPPPPPPP","RNBQKBNR"],
          "moves":[],"moveNumber":1,"halfmoveClock":0,"seriesActive":$seriesActive,"hasStarted":$hasStarted,
-         "result":"BLACK_WINS","terminationReason":"RESIGNATION"}
+         "result":"$result","terminationReason":"RESIGNATION"}
         """.trimIndent()
 
     /** The stubbed server's review of a finished game: one ply, `1. e4`, then checkmate on the board. */
@@ -2446,6 +2453,28 @@ class ChessAppTest {
             assertFalse(ready.submitting)
             assertFalse(ready.confirmingLeave)
             assertEquals("You left the series and resigned this game.", ready.message)
+        }
+
+    @Test
+    fun leavingJustAfterTheOtherPlayerLeftDoesNotSayYouResigned() =
+        runTest(dispatcher) {
+            // Both confirmed Leave series about a second apart: Alex's leave resigned the started game
+            // in this player's favour, and this player's leave was accepted idempotently (`D095`, `M23.10`).
+            val viewModel = viewModel(httpClient = httpClient(username = "Jordan", hasStarted = true, opponentLeftFirst = true))
+            viewModel.openOnlineGame("game-7")
+            viewModel.gameJob?.join()
+
+            viewModel.askToLeaveSeries()
+            viewModel.leaveSeries()
+            viewModel.moveJob?.join()
+            viewModel.dashboardJob?.join()
+
+            val ready = viewModel.game as OnlineGameState.Ready
+            assertEquals("WHITE_WINS", ready.game.result)
+            assertEquals("RESIGNATION", ready.game.terminationReason)
+            assertEquals("You won by resignation", OnlineGame.statusFor(ready.game))
+            assertEquals(AfterGame.SeriesOver, ready.after)
+            assertEquals("You left the series. No more games with Alex will start.", ready.message)
         }
 
     @Test

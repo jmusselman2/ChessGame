@@ -951,8 +951,9 @@ class ChessAppViewModel(
      * deletes one nobody has moved in. Not a game command, so it carries no version, and what it
      * did is read back rather than assumed (`D004`): a game the server deleted (the series it
      * answers with names it no longer) closes its screen, and any other is read again, ended, and
-     * says that no game follows it. Leaving twice is harmless, so a lost answer is simply
-     * reported.
+     * says that no game follows it. What the message says the leave did is worded from that read,
+     * since the other player may have left first and resigned the game in this player's favour
+     * (`M23.10`). Leaving twice is harmless, so a lost answer is simply reported.
      */
     fun leaveSeries() {
         val ready = game as? OnlineGameState.Ready ?: return
@@ -996,7 +997,7 @@ class ChessAppViewModel(
                     current.copy(
                         game = newer,
                         submitting = false,
-                        message = OnlineGame.leftSeriesMessage(decidedAt),
+                        message = OnlineGame.leftSeriesMessage(decidedAt, newer),
                         after = if (newer.isOver) AfterGame.SeriesOver else current.after,
                     )
 
@@ -1022,7 +1023,7 @@ class ChessAppViewModel(
 
         back()
         dashboardJob?.join()
-        dashboard = dashboard.copy(message = OnlineGame.leftSeriesMessage(removed, gameRemoved = true))
+        dashboard = dashboard.copy(message = OnlineGame.leftSeriesRemovedMessage(removed))
     }
 
     /**

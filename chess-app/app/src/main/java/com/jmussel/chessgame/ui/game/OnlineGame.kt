@@ -560,18 +560,31 @@ object OnlineGame {
     }
 
     /**
-     * What a player reads once they have left, in the words of [leaveWarningFor]. [gameRemoved]
-     * is the server saying it deleted the game, which no longer has a screen to say it on.
+     * What a player reads once they have left, in the words of [leaveWarningFor] (`D095`).
+     *
+     * [decidedAt] is the game as it was when the player chose to leave and [now] the game as read
+     * back after the leave. The message says what the leave did, not what it would have done: a
+     * player resigned only when a game unfinished at the tap now ends in their resignation. The
+     * other player may have left first, which resigned the game in this player's favour and left
+     * this leave nothing to do; and a game that could not be read back proves nothing.
      */
     fun leftSeriesMessage(
-        game: GameViewDto,
-        gameRemoved: Boolean = false,
+        decidedAt: GameViewDto,
+        now: GameViewDto,
     ): String =
-        when {
-            gameRemoved -> "You left the series with ${game.opponent.username}. The game had not started, so it was removed."
-            game.isOver || !game.hasStarted -> "You left the series. No more games with ${game.opponent.username} will start."
-            else -> "You left the series and resigned this game."
+        if (!decidedAt.isOver && resignedByYou(now)) {
+            "You left the series and resigned this game."
+        } else {
+            "You left the series. No more games with ${now.opponent.username} will start."
         }
+
+    /** What a player reads once leaving deleted [game], which no longer has a screen to say it on. */
+    fun leftSeriesRemovedMessage(game: GameViewDto): String =
+        "You left the series with ${game.opponent.username}. The game had not started, so it was removed."
+
+    /** Whether [game] ended with this player's resignation: a resignation they did not win. */
+    private fun resignedByYou(game: GameViewDto): Boolean =
+        game.terminationReason == RESIGNATION && game.isOver && game.result != "${game.yourSide}_WINS"
 
     /** What the screen says when the game it was showing has been deleted (`D095`). */
     fun removedGameMessage(game: GameViewDto): String =
@@ -699,6 +712,7 @@ object OnlineGame {
     private const val EMPTY_SQUARE = '.'
     private const val SEPARATOR = "•"
     private const val DRAW = "DRAW"
+    private const val RESIGNATION = "RESIGNATION"
     private const val YOUR_MOVE = "Your move"
     private const val CHECK = "Check"
     private const val FORBIDDEN = 403
