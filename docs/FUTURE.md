@@ -45,7 +45,8 @@ here the same day under `D098` because username changes require `F13` first. On
 2026-10-17 the project owner scheduled `F40`, `F11`, `F35`, `F8`, `F42` and `F9`
 as `M23.3`–`M23.8`, respectively, in backlog milestone
 [`M23`](BACKLOG.md#m23--chess-experience-and-personalization). Those IDs are
-retired too.
+retired too. On 2026-10-23 the owner dropped `M23.4` (formerly `F11`, dead-position
+detection by search); it was not returned here and is not planned.
 
 **Order.** The project owner's triage on 2026-09-23: value to players against
 cost, with every item after the items it depends on. The value ratings in *At a

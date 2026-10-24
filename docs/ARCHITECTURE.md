@@ -26,7 +26,7 @@ Do not build a universal board-game engine during the chess MVP.
 | Backend            | Kotlin + Ktor                                                           |
 | Database           | PostgreSQL 18 locally/CI; beta on `ChessGame Dev`'s PostgreSQL (`D035`) |
 | SQL access         | JetBrains Exposed DSL over HikariCP                                     |
-| On-device storage  | SQLDelight for local games (`D084`, `D085`; built by `M21.1`)           |
+| On-device storage  | SQLDelight for local games; DataStore for preferences (`D085`, `D109`) |
 | Migrations         | Flyway applying forward-only SQL files                                  |
 | Authentication     | Supabase anonymous auth                                                 |
 | Serialization      | Kotlin serialization + JSON                                             |
@@ -440,7 +440,7 @@ Only one transition can win.
 
 ## 11. Client State
 
-Distinguish three categories.
+Distinguish the following categories.
 
 ### 11.1 UI State
 
@@ -665,6 +665,23 @@ cannot display all fixed content at once, its fixed region uses a separate bound
 overflow path rather than joining the move-history scroll. `D073`'s board dimensions
 and `D104`'s captured-piece placement remain unchanged. This is Android UI state and
 adds no DTO, database column, migration or canonical `GameState` field.
+
+### 11.5 Device-Local Preferences and Feedback
+
+Settings preferences are installation-owned presentation state (`D108`, `D109`), not
+game state. DataStore persists the selected theme and the independent Sound and
+Haptics switches. They are read without Ktor or SQLDelight and are available before
+server startup succeeds, so startup and every offline surface use the same choices.
+They never enter `chess-core`, an API DTO, PostgreSQL or the local-game database.
+
+Sound and haptic playback consumes a newly occurring accepted local event or newly
+learned authoritative online event. It does not infer a new event merely because a
+screen, saved game or refreshed server position is being displayed. The client keeps
+enough presentation-level identity to suppress replay from restoration, navigation,
+refresh, reconnect, realtime duplication, retries and lost command answers. Cue
+classification applies `D109`'s one-event precedence before either independently
+enabled output is attempted. Playback observes foreground state and the applicable
+Android sound and vibration settings, and has no control over the game transition.
 
 ## 12. Realtime Architecture
 
@@ -1465,15 +1482,17 @@ Compose UI
 → SQLDelight (on the device)
 ```
 
-The local entry points (the local game, Play the computer, and past local games)
-stay reachable when startup cannot reach the server. As built by `M21.4`: the
-startup screen offers "Local game" and "Past local games" in every state short of
-`Ready` (starting, waking the server, failed), next to Retry. They open on top of
-the startup screen, so Back returns to it. If startup succeeds while the player is
-in a local screen, the dashboard (or onboarding) replaces the startup screen
-*beneath* it (`AppNavigation.rebasedOn`) instead of replacing the whole stack:
-the player stays where they are, and Back leads to the dashboard. Online screens
-are unreachable until startup succeeds.
+The offline-capable entry points (the local game, Play the computer, past local games
+and Settings) stay reachable when startup cannot reach the server. As built by
+`M21.4`, the startup screen offers "Local game" and "Past local games" in every state
+short of `Ready` (starting, waking the server, failed), next to Retry. `M23.5` adds a
+clearly labeled "Settings" action in those startup states and while startup is still
+waiting. These destinations open on top of the startup screen, so Back returns to it.
+If startup succeeds while the player is in an existing local screen, the dashboard
+(or onboarding) replaces the startup screen *beneath* it (`AppNavigation.rebasedOn`)
+instead of replacing the whole stack: the player stays where they are, and Back leads
+to the dashboard. `D109` requires Settings to preserve whichever source opened it.
+Online screens are unreachable until startup succeeds.
 
 The online game state must be separate from local pass-and-play state. Android
 may use `chess-core` for board rendering, legal-move previews, and deterministic

@@ -7913,3 +7913,147 @@ everywhere.
 - `PromotionPrompt` is one composable in `ui/board`, used by all three game screens; the
   online screen's private copy is gone.
 - `PRODUCT.md`'s pawn-promotion rules mention Cancel.
+
+---
+
+## D108 — Themes Are Complete Device-Local Visual Presets
+
+**Date:** 2026-10-23
+
+**Status:** Accepted
+
+**Relates to:** `D069`, `D073`, `D085`, `D087`, `D104`, `M23.5`, `M23.6`
+
+### Decision
+
+The player chooses a theme as one complete whole-app visual preset. A preset is led by
+its chess-piece artwork and also supplies the board, palette, surfaces and controls
+that make one coherent presentation. The player does not independently mix piece
+sets, boards or colour palettes.
+
+The six choices are **Classic**, **Neon Hologram**, **Stained Glass**, **Illuminated
+Manuscript**, **Marble & Basalt** and **Clockwork Kingdom**. Classic is the current
+appearance and the default for new and existing installations until the player chooses
+another. The setting is stored locally through DataStore, applies across the app and
+never becomes server, game or wire state. The selector is the initial real content of
+Settings' Appearance section.
+
+Themes change presentation only. Every board keeps its documented orientation,
+coordinates, interaction, accessibility semantics and feedback priority. Every piece
+set must remain recognisable at board and captured-row sizes. Stained Glass avoids
+prominent diagonal X marks in ordinary squares; Marble & Basalt uses polished stone;
+and last-move marks in Stained Glass, Illuminated Manuscript and Clockwork Kingdom use
+conspicuous golden-yellow fills and inset borders on both squares so the decoration
+cannot swallow the move.
+
+### Rationale
+
+The pieces are what makes a theme feel materially different, while separately choosing
+pieces, boards and colours would multiply combinations, testing and accessibility risk.
+Six curated presets give distinct experiences without turning settings into a visual
+theme builder. Local persistence matches the existing ownership rule for preferences
+and keeps presentation out of canonical game state.
+
+### Consequences
+
+- `M23.6` implements these presets in Settings' Appearance section.
+- Every preset is verified on every board surface and on representative non-game
+  screens, including light/dark contrast, large text and both supported physical
+  devices.
+- Theme artwork must be original or have a recorded distribution licence.
+- `docs/images/M23.6-theme-directions.png` is a visual-direction reference, not a
+  pixel-exact UI requirement or production asset.
+
+---
+
+## D109 — Settings and Feedback Land in Three Green Checkpoints
+
+**Date:** 2026-10-23
+
+**Status:** Accepted
+
+**Relates to:** `D033`, `D073`, `D085`, `D108`, `M23.5`, `M23.6`, `M23.7`
+
+### Decision
+
+**Settings is offline-capable device UI.** The destination and screen are titled
+**Settings** and do not offer username editing. The player opens Settings either by
+tapping their username on the dashboard or by a clearly labeled **Settings** action on
+the startup screen, including while startup is waiting for the server or has failed.
+Back returns to the source dashboard or startup screen. Local-game and computer-game
+screens do not gain a Settings entry.
+
+Settings has two initial sections, **Appearance** and **Feedback**. Appearance shows
+`D108`'s six themes in its decided order, as a two-column thumbnail grid on roomy
+screens and a one-column card list on narrow phones. A selection applies immediately
+and rethemes Settings itself; there is no Save or Apply button. Feedback has separate
+**Sound** and **Haptics** switches. Theme and feedback preferences are device-local,
+persisted and usable without server startup, and still apply to startup,
+pass-and-play and computer games while offline.
+
+**One newly occurring chess event produces at most one feedback cue of each enabled
+kind.** Sound and haptics cover an ordinary move, a capture, check and game end,
+including an opponent move newly arriving anywhere in the foreground app. Precedence
+is game end, then check, then capture, then ordinary move. The action, not the actor,
+selects the cue: an opponent's move has no separate opponent-only cue. Game-end sounds
+distinguish win, loss and draw; in pass-and-play either side's decisive victory uses
+the win sound, while a draw uses the draw sound. Haptic patterns are distinct by event,
+but the player controls all haptics with one switch rather than per-event switches.
+
+Both switches default on and persist independently. Sound respects silent mode, Do
+Not Disturb and media volume. Haptics require both the app switch and Android's system
+vibration/touch-feedback setting. All six visual themes initially share this one sound
+and haptic design; theme-specific sound sets are only a possible future extension, not
+scheduled work.
+
+Feedback is foreground-only and may occur anywhere in the foreground app. Initial
+loading, navigation into an existing position, process restoration, reconnect,
+refresh, realtime duplication or rediscovery of a previously known move produces
+nothing. Online feedback occurs only when the app newly accepts or learns an
+authoritative event; command retries and lost answers cannot duplicate it. Feedback
+never determines, delays, repeats or suppresses a game action. Shipped sound assets
+must have a recorded distribution licence.
+
+**The implementation is one tightly related group with three owner-authorized green
+checkpoints:**
+
+1. `M23.5` creates the destination, both entry points, navigation, offline access and
+   the two-section responsive screen structure. Its full build passes, then it is
+   committed and pushed alone and required CI becomes green. `M23.5` remains IN
+   PROGRESS.
+2. `M23.6` populates Appearance with `D108`'s themes. Its full build passes, then it is
+   committed and pushed alone and required CI becomes green. `M23.6` becomes DONE;
+   `M23.5` remains IN PROGRESS.
+3. `M23.7` populates Feedback and implements the behavior above. Its full build passes,
+   then it is committed and pushed alone and required CI becomes green. This final
+   commit marks both `M23.7` and `M23.5` DONE.
+
+No later checkpoint begins before the preceding pushed checkpoint has its required
+green CI. `M23.5`'s navigation shell is therefore deliberately incomplete until both
+sections have been populated and verified.
+
+### Rationale
+
+The Settings destination must exist before either setting can be exercised, while the
+theme and feedback implementations are large enough to deserve independent build and
+CI evidence. Explicit checkpoints preserve focused commits without pretending that an
+empty or half-populated Settings screen completes `M23.5`. Device-local ownership lets
+the settings work for the app's offline surfaces and keeps presentation and sensory
+feedback out of canonical game state.
+
+Event precedence gives compound moves one clear response, and event identity prevents
+ordinary server refresh and retry behavior from becoming duplicate player feedback.
+Independent global switches keep the controls simple while respecting Android's own
+user settings.
+
+### Consequences
+
+- The backlog dependencies are linear: `M23.5` foundation, then `M23.6` Appearance,
+  then `M23.7` Feedback. There is no circular dependency.
+- Host-side, Compose and physical-device acceptance cover triggers, precedence,
+  defaults, switches, persistence, system settings, foreground scope and duplicate
+  prevention, in addition to each task's more specific checks.
+- Feedback state and presentation preferences are not server, wire, SQLDelight game or
+  `chess-core` state.
+- `M23.7` is no longer blocked. `M23.8` remains blocked on its separate animation-event
+  decision and is not expanded by this decision.

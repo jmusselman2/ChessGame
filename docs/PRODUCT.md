@@ -484,8 +484,51 @@ Completed games belong in history rather than dominating the home screen.
 
 The dashboard's top row shows the player's own username at its right-hand end, so
 a player can always see the name a friend needs to add them. Screens with Back do
-not show it. Tapping it will open user settings; until user settings exist, it is
-plain text (`M17.3`; settings are scheduled as `M23.5`, formerly `F35`).
+not show it. Tapping it opens Settings (`M23.5`, formerly `F35`). A long username
+stays on one line without displacing dashboard navigation.
+
+## Settings
+
+The screen is titled **Settings**. It does not offer username editing, which remains
+deferred until real authentication (`F5`, `F13`, `D098`). It opens from either:
+
+- the username at the right-hand end of the dashboard's top row; or
+- a clearly labeled **Settings** action on the startup screen, including while startup
+  is waiting for the server or has failed.
+
+Back returns to the dashboard or startup screen from which Settings was opened. Local
+and computer game screens remain unchanged. Settings works without server startup and
+its device-local choices still apply to startup, pass-and-play and computer games
+while offline.
+
+Settings initially has two sections, in order:
+
+1. **Appearance.** The themes are Classic, Neon Hologram, Stained Glass, Illuminated
+   Manuscript, Marble & Basalt and Clockwork Kingdom, in that order (`D108`). Roomy
+   screens use a two-column thumbnail grid; narrow phones use a one-column card list.
+   Choosing one applies it immediately, including to Settings itself. There is no Save
+   or Apply button.
+2. **Feedback.** Sound and Haptics are separate persisted device-local switches. Both
+   default on; Haptics is one all-or-nothing switch rather than per-event controls.
+
+Sound and haptics both respond to ordinary moves, captures, check and game end,
+including an opponent move newly arriving while the app is in the foreground. A
+compound event produces exactly one cue of each enabled kind, chosen in this order:
+game end, check, capture, ordinary move. The cue follows the action rather than the
+player, so an opponent move has no separate opponent-only cue. Haptic patterns differ
+by event. Game-end sounds distinguish win, loss and draw; in pass-and-play either
+side's decisive victory uses the win cue and a draw uses the draw cue.
+
+Feedback can occur anywhere in the foreground app, not only on a game screen, and
+never in the background. Loading or reopening an existing position, process
+restoration, reconnect, refresh, a duplicate realtime hint or rediscovering a known
+move does not replay it. An online cue occurs only when the app newly accepts or learns
+an authoritative event; a retry or lost command answer cannot duplicate it. Sound
+respects silent mode, Do Not Disturb and media volume. Haptics also require Android's
+system vibration/touch-feedback setting. Feedback never determines, delays, repeats or
+suppresses a game action. All six themes initially share the same feedback design;
+theme-specific sound sets are only a possible future extension. Every shipped sound
+asset needs a recorded distribution licence (`D109`).
 
 ## Game Screen
 
@@ -695,6 +738,7 @@ about unscheduled items (`D072`).
 - chess clocks,
 - draw offers by agreement (built post-MVP in `M22.3`),
 - custom themes (scheduled as `M23.6`, formerly `F8`),
+- optional sound and haptic feedback (scheduled as `M23.7`, formerly `F42`),
 - elaborate animations (scheduled as `M23.8`, formerly `F9`),
 - spectators,
 - account recovery UI,

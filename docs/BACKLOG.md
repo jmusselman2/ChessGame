@@ -129,15 +129,26 @@ IDs are retired and are not reused (`D072`). This milestone remains `Active`,
 including after all of its currently scheduled tasks are `DONE`, until the owner
 explicitly closes and authorizes archiving it (`D103`).
 
+**`M23.4` dropped 2026-10-23** by the project owner. It was "Dead-position detection by
+search" (formerly `F11`): ending a game automatically when neither side can ever
+checkmate, beyond the insufficient-material cases `D038` already covers. Nothing in
+`PRODUCT.md` or `MVP.md` requires it, such positions are rare in casual play, and draw
+offers (`D097`), threefold and fifty-move claims, and the automatic fivefold and
+seventy-five-move draws already end them. It is not scheduled anywhere, and neither
+`M23.4` nor `F11` is reused. If it ever returns, prefer a cheap exact structural rule to
+a search: only kings and pawns remain, every pawn is permanently blocked by an enemy
+pawn with nothing to capture, and neither king can reach a square from which it could
+take an enemy pawn; with its own termination reason rather than "insufficient
+material".
+
 | Task    | Title                                      | Depends on              | Former | Status    |
 | ------- | ------------------------------------------ | ----------------------- | ------ | --------- |
 | `M23.1` | Captured pieces beside the board           | `M22.7`, `M22.11`       | —      | `DONE`    |
 | `M23.2` | Move history follows the current position  | `M22.7`, `M22.10`, `M23.1` | —   | `DONE`    |
-| `M23.3` | Complete board accessibility               | `M22.6`, `M22.7`, `M22.11` | `F40` | `TODO` |
-| `M23.4` | Dead-position detection by search          | None                    | `F11`  | `TODO`    |
-| `M23.5` | User settings, opened from the username    | Initial contents chosen | `F35`  | `BLOCKED` |
-| `M23.6` | Custom themes                              | None                    | `F8`   | `BLOCKED` |
-| `M23.7` | Optional sound and haptic feedback         | `M23.5`                 | `F42`  | `BLOCKED` |
+| `M23.3` | Board accessibility and large text         | `M22.6`, `M22.7`, `M22.11` | `F40` | `TODO` |
+| `M23.5` | Settings foundation and navigation         | None                    | `F35`  | `TODO`    |
+| `M23.6` | Custom themes                              | `M23.5` foundation checkpoint | `F8` | `TODO` |
+| `M23.7` | Optional sound and haptic feedback         | `M23.6` Appearance checkpoint | `F42` | `TODO` |
 | `M23.8` | Elaborate animations                       | None                    | `F9`   | `BLOCKED` |
 | `M23.9` | Online Review has one Back                 | `M22.10`                | —      | `DONE`    |
 | `M23.10` | Leaving says what the leave did           | `M22.1`                 | —      | `DONE`    |
@@ -758,173 +769,243 @@ usernames.
 
 ---
 
-## M23.3 — Complete board accessibility
+## M23.3 — Board accessibility and large text
 
 **Status:** TODO
 
 **Depends on:** M22.6, M22.7, M22.11
 
 **Formerly:** `F40`. Source: the project owner's 2026-10-14 usability review.
-Value: low while no tester is known to use TalkBack, but high for a player who
-does. Effort: small for spoken square descriptions and medium for the complete
-pass scheduled here.
+Value: large text helps anyone who enlarges system text; the rest is cheap
+correctness. The owner does not expect players to use screen readers. Effort: small.
+
+**Narrowed 2026-10-23** at the owner's request, after a review of the code at
+`42707f3`. Kept: what is valuable (large text) and what is small and cheap (square
+descriptions, boards that cannot be played not offering taps, a written focus order).
+Dropped: screen-reader-only work — click labels such as "select" or "move here", live
+announcements of moves, check and prompts, and a TalkBack check on a device. They are
+not scheduled. The implementing change records the spoken format and focus order as one
+numbered decision.
 
 ### Objective
 
-Make every chess board understandable and operable with TalkBack and large text,
-without changing chess rules, board interaction or the visible feedback that
-other players use.
+Every chess board describes its squares correctly, offers taps only where they do
+something, and every game screen stays usable at large text sizes, without changing
+chess rules, board interaction or the visible feedback.
+
+### Background (state of the code at `42707f3`)
+
+- A square has no `contentDescription`. Its `clickable` merges its children, so a
+  screen reader or Select to Speak reads only the piece glyph. `BoardRendering.glyphFor`
+  draws both sides with the solid glyphs (♚♛♜♝♞♟), so a white rook reads as "black chess
+  rook".
+- A square's `stateDescription` already says "last move", "king in check", "selected",
+  "legal move" and "legal capture" (`M21.17`), and each treatment has its own shape. It
+  also sets `selected`, so "selected" is likely announced twice.
+- Every square is `clickable` even where nothing can be played: Review, a finished
+  game, the opponent's turn and the computer's search. Switch Access and screen readers
+  then offer 64 actions that do nothing. Where `OnlineGame.canPlay` is false, a tap only
+  clears a selection, which cannot exist then.
+- Squares are visited in drawing order. `M22.11`'s edge labels are drawn in
+  `drawBehind` and are already outside the semantics tree.
 
 ### Acceptance Criteria
 
-- Every board square exposes its true coordinate and its occupant, if any, in a
-  concise spoken description. White and Black pieces are named correctly rather
-  than inheriting the misleading Unicode glyph name.
-- Existing spoken state for selection and board feedback remains available. Last
-  move, check, selection and legal destinations are distinguishable without
-  relying on colour alone.
-- TalkBack focus follows a predictable square order for White orientation, Black
-  orientation and face-to-face pass-and-play. Pass-and-play's upside-down piece
-  drawing does not change what is spoken.
-- `M22.11`'s visual edge labels remain outside the semantics tree; the square's
-  own description supplies its coordinate.
-- Board controls, move history and prompts remain reachable and understandable at
-  large font scales. The board retains the layout and interaction rules already
-  decided by `D073`, `D087` and `M22.12`.
-- Host-side and Compose tests cover descriptions, focus order, both orientations,
-  empty and occupied squares, selection, legal destinations, last move and check.
-  Acceptance also includes TalkBack and large-text checks on a physical Android
-  device, the documented `.\gradlew.bat build` gate and `git diff --check`.
+**What a square says**
 
-The earlier open question was whether to schedule only the small spoken-square
-slice first. The owner has instead scheduled the complete pass as this task; no
-separate partial task is created.
+- Each square's description is its coordinate, then its occupant, if any: "e4, White
+  pawn", "g8, Black knight", and "d5" alone for an empty square. Sides and pieces are
+  named in words (`BoardRendering.nameFor`, "White"/"Black" as in `M23.17`), never by
+  the glyph, and the glyph's own text is not read.
+- The square's state follows as its state description, in the existing words. "Selected"
+  is announced once.
+- The description depends only on the square: Black's orientation and pass-and-play's
+  upside-down pieces (`D087`) change nothing that is said. `M22.11`'s edge labels stay
+  outside the semantics tree.
+
+**Which boards offer taps**
+
+- A board that accepts input keeps every square as one click action, as now.
+- A board that accepts no input exposes no click action on any square: Review, a
+  finished game, an online game on the opponent's turn or while a command is on its way,
+  and a game against the computer while it searches.
+- Tap, `M22.12`'s long-press drag and the swipe that scrolls a short screen behave
+  exactly as before.
+
+**Focus order**
+
+- Squares are visited in drawing order: rank by rank from the far side, each rank left
+  to right as drawn. That is a8 to h1 with White at the bottom, h1 to a8 with Black at the
+  bottom, and White's order in face-to-face pass-and-play. The board is one traversal
+  group, so all 64 squares come before the controls, captured rows and move list.
+
+**Large text**
+
+- At font scales 1.3 and 2.0, every control, prompt, captured row and the move list
+  remain reachable and readable in one-column, two-pane and short windows, with nothing
+  clipped or overlapping. The board keeps `D073`'s sizing and its piece glyphs stay sized
+  in dp.
+
+**Verification**
+
+- JVM tests cover each description: an empty square, each side and piece, both
+  orientations, face-to-face upside-down pieces, and every state combination.
+- Compose tests cover: the descriptions and state descriptions in the semantics tree;
+  the glyph's text not being exposed; "selected" once; focus order for White, Black and
+  face-to-face; click actions present on an interactive board and absent on each
+  non-interactive one; tap, drag and short-window swipe unchanged; and the large-text
+  layouts above at font scales 1.3 and 2.0.
+- Existing tests that find a piece by its glyph text (for example in `GameLayoutUiTest`)
+  are updated to the new semantics, and the completion note says which and why.
+- Physical check on the Pixel 7 at font scales 1.3 and 2.0, under a pre-authorization to
+  change and restore `font_scale`. The Fire HD 8 ignores `font_scale` set by adb, so the
+  Compose tests' forced font scales cover it.
+- The documented `.\gradlew.bat build` gate and `git diff --check`.
 
 ---
 
-## M23.4 — Dead-position detection by search
+## M23.5 — Settings foundation and navigation
 
 **Status:** TODO
 
-**Depends on:** None
+**Depends on:** None. This is the first checkpoint in the owner-authorized
+`M23.5`–`M23.7` implementation group.
 
-**Formerly:** `F11`. Source: `D038`. Value: low. Effort: medium.
-
-### Objective
-
-Extend `chess-core`'s automatic dead-position result beyond the exact material and
-colour-complex cases already covered, using search to recognise positions in
-which no legal sequence can end in checkmate.
-
-### Acceptance Criteria
-
-- `ChessRules.terminalResult` recognises a dead position when checkmate is
-  impossible after every legal continuation, and does not declare a draw while
-  any legal continuation can still reach checkmate.
-- The existing exact insufficient-material cases remain correct, including any
-  number of bishops confined to one colour complex once no pawn, rook or queen
-  remains (`D038`).
-- Checkmate, insufficient material, fivefold repetition, the seventy-five-move
-  rule and stalemate retain their documented precedence. The stored termination
-  reason remains the existing insufficient-material reason; no new wire or
-  persistence representation is introduced merely for the search.
-- The implementation stays entirely in pure `chess-core`; Android and the server
-  receive the result through their existing use of `ChessRules`.
-- Rules tests cover search-positive and search-negative positions, promoted
-  material and the existing material shortcuts. Verification includes
-  `:chess-core:test`, the documented `.\gradlew.bat build` gate and
-  `git diff --check`.
-
-**Open decisions:** none. The search design is an implementation choice inside
-`chess-core` and must be measured well enough not to make ordinary move handling
-unusable.
-
----
-
-## M23.5 — User settings, opened from the username
-
-**Status:** BLOCKED
-
-**Depends on:** the project owner choosing at least one initial setting.
-
-**Formerly:** `F35`. Source: `PRODUCT.md`. Value and effort are not estimated
-until the initial contents are chosen.
+**Formerly:** `F35`. Source: `PRODUCT.md`. Value: low–medium as the entry point
+for current and future settings. Effort: small for this foundation checkpoint.
 
 ### Objective
 
-Turn the username at the right-hand end of the dashboard's top row into the entry
-point for the player's settings, while keeping screens whose top row contains
-Back unchanged.
+Create the offline-capable Settings destination, screen and navigation, with the
+complete section structure needed by `M23.6` and `M23.7`, without prematurely marking
+the Settings task complete.
 
 ### Acceptance Criteria
 
-- The settings screen's initial contents are decided and recorded before
-  implementation. Scheduled candidates include custom themes (`M23.6`) and sound
-  or haptic controls (`M23.7`); future candidates still include username changes
-  (`F5`) and approval settings (`F14`). Scheduling this screen does not decide
-  that those are its complete contents.
-- Once the screen has real contents, tapping the dashboard username opens it and
-  Back returns to the dashboard. Until then, the username remains the existing
-  plain, non-tappable text from `M17.3`.
+The criteria below describe the completed Settings surface across all three
+checkpoints; checkpoint 1 deliberately establishes only their shared foundation.
+
+- The destination and screen title are **Settings**. The screen does not present
+  username editing; that remains deferred under `F5` and `D098`.
+- Tapping the username at the right-hand end of the dashboard's top row opens
+  Settings. A clearly labeled **Settings** action also opens it from the startup
+  screen while startup is beginning, waiting for the server, or showing a failure.
+- Back returns to the screen from which Settings was opened: the dashboard or the
+  startup screen. Local-game and computer-game screens receive no Settings entry or
+  other navigation change.
 - A long username remains one line and cannot displace the dashboard navigation.
-- The chosen settings have explicit persistence, default, accessibility and test
-  requirements in this task or in the task that supplies each setting. No empty
-  placeholder screen is shipped merely to satisfy the navigation requirement.
-- Verification for the implemented scope includes host-side state/navigation
-  tests, Compose tests, the documented `.\gradlew.bat build` gate and
-  `git diff --check`.
+- The screen has exactly two initial sections, in this order: **Appearance** and
+  **Feedback**.
+- Appearance reserves the theme selector populated by `M23.6`. It uses a two-column
+  thumbnail grid on roomy screens and a one-column card list on narrow phones, in
+  this order: Classic, Neon Hologram, Stained Glass, Illuminated Manuscript, Marble &
+  Basalt, Clockwork Kingdom. Selecting a theme applies it immediately and rethemes
+  Settings itself; there is no Save or Apply button.
+- Feedback reserves the separate **Sound** and **Haptics** switches populated by
+  `M23.7`.
+- Settings is usable without server startup. Its device-local preferences continue
+  to apply to startup, pass-and-play and computer games while offline.
+- Checkpoint 1's host-side state/navigation tests and Compose tests cover both entry
+  points, every startup state, source-preserving Back behavior and section order.
+  `M23.6` covers the populated responsive selector and immediate application, and
+  `M23.7` covers the populated switches. Each checkpoint includes the documented
+  `.\gradlew.bat build` gate and `git diff --check`.
+- The foundation is not completion: after its full build passes, its own commit is
+  pushed and its required CI is green, `M23.5` remains **IN PROGRESS** while `M23.6`
+  and `M23.7` populate its sections.
 
-### Blocking decision
+### Required implementation sequence — checkpoint 1 of 3
 
-The project owner has not chosen the screen's initial contents. That product
-decision determines this task's value, effort and complete acceptance criteria.
-`M23.6` and `M23.7` are a coordinated personalization group with this task, but
-their presence in the same milestone does not silently resolve the choice.
+Implement only the Settings foundation above, pass the full build, and create and push
+its own green-CI commit. That commit changes `M23.5` to **IN PROGRESS**, not DONE. The
+owner explicitly authorizes this intermediate checkpoint within the tightly related
+three-task group. Do not begin `M23.6` before this checkpoint's required CI is green.
+`M23.5` becomes DONE only in checkpoint 3, together with `M23.7`.
 
 ---
 
 ## M23.6 — Custom themes
 
-**Status:** BLOCKED
+**Status:** TODO
 
-**Depends on:** None. Coordinate its selection UI with `M23.5` if themes are
-chosen as settings content.
+**Depends on:** the implemented, pushed and green-CI `M23.5` foundation checkpoint.
+This is the second checkpoint in the owner-authorized `M23.5`–`M23.7` implementation
+group.
 
 **Formerly:** `F8`. Source: `PRODUCT.md` (*Deferred Features*). Value: low.
 Effort: small–medium; Compose only, with no server work.
 
 ### Objective
 
-Let the player choose supported visual theming without changing gameplay or
-introducing server-owned presentation state.
+Let the player choose one complete visual preset for the whole app, led by a
+distinct chess-piece design and supported by its board, surfaces and controls,
+without changing gameplay or introducing server-owned presentation state.
 
 ### Acceptance Criteria
 
-- The project owner first decides whether the feature themes the board, the chess
-  pieces, the whole app, or a stated combination of them.
-- The chosen scope applies consistently anywhere that surface appears, including
-  online, pass-and-play, computer play and review where applicable.
+- Settings offers exactly six named, indivisible presets: **Classic** (the default
+  and the current appearance), **Neon Hologram**, **Stained Glass**, **Illuminated
+  Manuscript**, **Marble & Basalt** and **Clockwork Kingdom**. The player does not
+  independently combine a piece set, board or colour palette.
+- A preset themes the whole app. Its piece artwork and board appear consistently in
+  online, pass-and-play, computer play and Review; its supporting palette, surfaces
+  and controls apply to the rest of the app. Changing it never changes navigation,
+  layout, wording, rules or canonical game state.
+- The choice is a device-local preference persisted through DataStore and restored
+  before the first themed screen is drawn. New and existing installations use
+  Classic until the player chooses another preset. It never goes to the server.
+- Each preset supplies recognisable king, queen, rook, bishop, knight and pawn art
+  for both sides, including captured-piece rows, promotion choices and dragged
+  pieces. Shipped artwork is original or has a recorded licence permitting its use
+  and distribution.
+- Marble & Basalt uses clearly polished Carrara-white and deep-green marble board
+  squares with restrained veining and glare. Stained Glass uses clean lead-bordered
+  panes without prominent diagonal X marks across ordinary squares.
+- Last-move, check, selection and legal-destination feedback retain the shared
+  priority and meaning from `BoardRendering.feedbackFor`. Every mark remains obvious
+  over every preset; in Stained Glass, Illuminated Manuscript and Clockwork Kingdom,
+  the last move uses a conspicuous golden-yellow fill and inset border on both its
+  origin and destination rather than blending into the decoration.
 - Every supported theme preserves readable pieces, coordinates, captured-piece
   displays, board feedback, controls and accessibility descriptions. Theme choice
-  changes presentation only.
-- Theme selection and persistence are covered by host-side and Compose tests.
+  changes presentation only; decorative names, textures and artwork add no duplicate
+  screen-reader speech.
+- Host-side tests cover the six choices, Classic default, persistence and restoration.
+  Compose tests cover selection, every theme's semantic invariants, representative
+  board feedback and long/large-text layout. Physical checks on the Pixel 7 and Fire
+  HD 8 cover every preset in portrait and landscape, piece recognition, board marks,
+  theme restoration after process death and changing themes with a game in progress.
   Verification includes the documented `.\gradlew.bat build` gate and
   `git diff --check`.
+- Selection uses `M23.5`'s responsive Appearance layout, applies immediately and
+  rethemes Settings itself with no Save or Apply action.
 
-### Blocking decision
+### Design reference and resolved decisions — 2026-10-23
 
-The themeable surface is not decided: board, pieces, whole app, or some
-combination. Choosing it materially changes the scope and player-facing behavior,
-so implementation does not begin until the owner decides it.
+The project owner chose whole-app presets rather than independent board, piece or
+colour controls, selected the six presets above, and made Classic the compatibility
+default. This resolves the task's former blocking decision and supplies `M23.5`'s
+initial setting. The mockup records visual direction, not pixel-exact layout or
+production-ready art; the acceptance criteria and existing decisions remain binding:
+
+![Six whole-app chess theme directions](images/M23.6-theme-directions.png)
+
+### Required implementation sequence — checkpoint 2 of 3
+
+Populate Appearance only after checkpoint 1 is green. Pass the full build, mark
+`M23.6` DONE while leaving `M23.5` IN PROGRESS, and create and push a second commit.
+Do not begin `M23.7` until that commit's required CI is green. The owner explicitly
+authorizes this intermediate checkpoint within the tightly related task group.
 
 ---
 
 ## M23.7 — Optional sound and haptic feedback
 
-**Status:** BLOCKED
+**Status:** TODO
 
-**Depends on:** M23.5 for the full sound and haptic controls. Haptics alone need
-not wait when they follow Android's own touch-feedback setting.
+**Depends on:** the implemented, pushed and green-CI `M23.6` Appearance checkpoint.
+This is the final checkpoint in the owner-authorized `M23.5`–`M23.7` implementation
+group.
 
 **Formerly:** `F42`. Source: the project owner's 2026-10-14 usability review.
 Value: low–medium, principally so a player hears an opponent's move arrive while
@@ -932,31 +1013,54 @@ the app is open. Effort: small–medium.
 
 ### Objective
 
-Add optional sound and haptic feedback at the player-visible moments the owner
-chooses, with explicit controls and platform-respecting defaults.
+Populate Settings' Feedback section and provide one optional, platform-respecting
+sound and haptic response for each newly occurring player-visible chess event.
 
 ### Acceptance Criteria
 
-- The project owner decides which moments receive feedback: a move, a capture,
-  check, game end, an opponent's move arriving, or a stated subset.
-- The project owner decides whether sound is on by default. Full on/off controls
-  live in the settings surface from `M23.5`; their state and persistence are
-  tested.
-- Haptics use Compose's platform feedback and respect Android's touch-feedback
-  setting. Sound and haptic feedback never determine whether an action occurs.
+- Sound and haptics both cover an ordinary move, a capture, check, game end, and an
+  opponent move newly arriving while the app is in the foreground. An arriving
+  opponent move uses the cue for what happened; it does not have a separate
+  opponent-only sound or haptic merely because the opponent made it.
+- Exactly one sound cue and one haptic pattern are eligible for one event, with this
+  precedence: **game end → check → capture → ordinary move**. The same action uses
+  the same cue regardless of which player performed it.
+- Game-end sounds distinguish win, loss and draw. In pass-and-play, a decisive result
+  for either side uses the win cue; a draw uses the draw cue.
+- Sound and Haptics have separate, persisted device-local switches, both enabled by
+  default. Haptics are all-or-nothing from the player's perspective: there are no
+  per-event haptic switches, although the haptic patterns are distinct by event.
+- All six visual themes initially share one sound and haptic design. Theme-specific
+  sound sets are only a possible future extension and are neither scheduled nor
+  implemented here.
+- Feedback may occur anywhere in the foreground app, not only on a game screen. No
+  sound or haptic fires while the app is in the background.
+- Initial loading, navigating into an existing position, process restoration,
+  reconnect, refresh, realtime duplication and rediscovering a previously known move
+  do not replay feedback. Online feedback occurs only for a newly accepted or newly
+  learned authoritative event; a command retry or a lost answer cannot duplicate it.
+- Sound respects silent mode, Do Not Disturb and media volume. Haptics respect
+  Android's system vibration/touch-feedback setting in addition to the app's Haptics
+  switch.
+- Feedback never determines, delays, repeats or suppresses a game action.
 - Every shipped sound asset has a recorded licence that permits distribution with
   the app. No unlicensed placeholder becomes a release asset.
-- Tests cover each chosen trigger, disabled controls, defaults and duplicate-event
-  protection where the same player-visible event can arrive through refresh or
-  realtime. Verification includes the documented `.\gradlew.bat build` gate,
-  `git diff --check` and physical-device checks for the feedback that hardware
-  produces.
+- Host-side tests cover trigger classification, precedence, actor-independence,
+  win/loss/draw selection, newly accepted/learned event identity and duplicate
+  prevention. Compose tests cover defaults, the independent switches, persistence,
+  offline Settings access and foreground/background scope. Physical-device acceptance
+  covers every trigger and precedence case, defaults, switches, persistence, silent
+  mode, Do Not Disturb, media volume, system vibration/touch-feedback, foreground
+  scope, process restoration, reconnect/refresh and duplicate prevention. Verification
+  includes the documented `.\gradlew.bat build` gate and `git diff --check`.
 
-### Blocking decisions
+### Resolved decisions and required implementation sequence — checkpoint 3 of 3
 
-The feedback moments and the sound default are not decided. Those choices define
-the feature's behavior and test matrix, so implementation does not begin until
-the owner resolves them.
+The project owner resolved every former blocking decision on 2026-10-23. Populate
+Feedback only after checkpoint 2 is green. Pass the full build, mark both `M23.7` and
+the enclosing `M23.5` Settings task DONE, and create and push a third separate commit
+whose required CI must be green. The owner explicitly authorizes this final checkpoint
+within the tightly related task group.
 
 ---
 
