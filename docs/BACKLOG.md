@@ -159,6 +159,7 @@ material".
 | `M23.15` | Every promotion prompt offers Cancel       | `D041`                  | —      | `DONE`    |
 | `M23.16` | Finding your own name says it is you       | `D009`                  | —      | `DONE`    |
 | `M23.17` | Turn lines name the side as a word         | `D041`                  | —      | `DONE`    |
+| `M23.18` | Database health probe and scheduled availability check | None          | —      | `TODO`    |
 
 ---
 
@@ -1576,3 +1577,221 @@ their history.
 `PastLocalGamesTest`, `OnlineGameReviewTest` and the device tests `LocalGameRotationTest`,
 `LocalDrawClaimUiTest`, `M5IndependentUiReevaluationTest`, `RedoUiTest` and
 `PastLocalGamesUiTest`. `.\gradlew.bat build`: green.
+
+---
+
+## M23.18 — Database health probe and scheduled availability check
+
+**Status:** TODO
+
+**Depends on:** None
+
+### Objective
+
+Repair the verified Hikari connection-initialization defect, add a public
+database-backed health endpoint that performs three real lightweight PostgreSQL reads,
+and add a low-noise GitHub Actions schedule that calls it once on Monday, Wednesday and
+Friday. This creates genuine application-database activity and verifies the deployed
+JDBC path, but it does not guarantee that Supabase will never pause a Free-plan project.
+
+### Acceptance Criteria
+
+#### Hikari connection initialization
+
+- The current defect is that Hikari sets global `autoCommit=false` and then executes the
+  connection initialization `SET` statements without ending the transaction they start.
+  A newly created but unused pooled connection can therefore remain `idle in transaction`
+  until PostgreSQL terminates it under `idle_in_transaction_session_timeout`.
+- Preserve Hikari's global `autoCommit=false`. Exposed manages explicit transactions, and
+  this task does not broadly change that behavior.
+- Preserve the current connection-level values: `statement_timeout` 30 seconds,
+  `idle_in_transaction_session_timeout` 60 seconds and `lock_timeout` 10 seconds.
+- Apply the narrow repair by explicitly completing the initialization transaction after
+  the session settings are applied, for example by appending `COMMIT` to the fixed
+  initialization SQL.
+- Keep the settings connection-local. Do not move them onto the shared Supabase
+  `postgres` role or change project-wide PostgreSQL configuration.
+- Add a real-PostgreSQL integration test with a deliberately shortened idle timeout. It
+  proves that the session settings remain active; an initialized, unused pooled
+  connection is not left idle in a transaction; the connection remains usable after a
+  wait beyond the shortened timeout; and Hikari has not hidden a terminated physical
+  connection by silently replacing it. Comparing `pg_backend_pid()` before and after the
+  wait is an acceptable way to prove the same physical connection survived.
+- The test must not wait the production 60 seconds. It also verifies that the repair
+  leaves global autocommit disabled and the three configured timeout values correct after
+  initialization completes.
+
+#### Public database-health API
+
+Add this route:
+
+```text
+GET /health/database
+```
+
+- The route is public and browser-accessible. It requires no maintenance token,
+  Supabase JWT, authentication header, query parameter or request body.
+- Register it only in the full database-backed application, after database initialization
+  and migrations succeed. Do not register it in `healthModule()`; a health-only server
+  returns `404` for this path.
+- Leave the existing `GET /health` response and behavior unchanged. Keep Render's
+  configured health-check path at `/health`; Render must not call `/health/database`
+  continuously.
+- Include `Cache-Control: no-store` on every success and failure response.
+- Return only generic JSON: `200 OK` with `{"status":"ok"}` when every required check
+  succeeds, and `503 Service Unavailable` with `{"status":"unavailable"}` when connection
+  acquisition or any required check fails.
+- Never return SQL text, exception details, table contents, record identifiers,
+  credentials, connection strings or PostgreSQL metadata. Log only safe check names,
+  results, timing and failure categories; neither the response nor the probe's logs expose
+  credentials or raw database exception details.
+- The implementation contains only the fixed, parameterless SQL below. No request value
+  may influence SQL.
+
+#### Required database reads
+
+A healthy invocation executes these as three distinct, sequential, top-level SQL
+statements:
+
+```sql
+SELECT EXISTS (
+    SELECT 1
+    FROM public.flyway_schema_history
+    WHERE success = true
+);
+```
+
+```sql
+SELECT EXISTS (
+    SELECT 1
+    FROM public.games
+);
+```
+
+```sql
+SELECT EXISTS (
+    SELECT 1
+    FROM public.game_series
+);
+```
+
+- Execute all three statements on a healthy invocation, sequentially rather than
+  concurrently. Execute each in a short Exposed-managed transaction, completing one
+  before starting the next, compatible with the existing `autoCommit=false` pool.
+- Do not deliberately create three physical database connections, and do not require
+  separate HTTP requests. Hikari may reuse the same pooled physical connection.
+- At least one successful Flyway migration must exist. A false result from the Flyway
+  query is unhealthy and returns `503`.
+- Empty `games` and `game_series` tables are healthy. A false `EXISTS` result from either
+  table does not indicate a database failure.
+- A missing table, permission failure, connection failure, timeout or SQL exception from
+  any required check returns `503`.
+- Retrieve and return no game or user data. Do not create or depend on a sample user or
+  sample game.
+- Perform no insert, update, delete, heartbeat write, timestamp update or other mutation.
+  The endpoint has no effect on application records.
+
+#### Supabase and scope boundaries
+
+- The Supabase Data API remains disabled. Do not enable or use it, change its schema
+  exposure, change RLS policies or database grants, add a Supabase Edge Function, add a
+  PostgreSQL function, or change Supabase Auth behavior.
+- Do not add a heartbeat table, database migration, maintenance token or secret.
+- Do not modify existing application records, upgrade Supabase or Render to a paid plan,
+  or attempt to restore a paused Supabase project automatically.
+
+#### Scheduled availability check
+
+- Add a separate scheduled GitHub Actions workflow, preserving the existing CI workflow,
+  and use the existing public ChessGame repository for the initial trial.
+- Run once on Monday, Wednesday and Friday at an off-hour minute, using
+  `23 6 * * 1,3,5`. Include `workflow_dispatch` for manual verification.
+- Each invocation initiates one probe of `GET /health/database`, not three HTTP requests
+  for the three database statements. A bounded retry policy may repeat that same GET only
+  after a connection failure, timeout or `5xx` response; it must not loop without a bound
+  or send redundant successful probes.
+- Allow at least two minutes for a Render cold start. Require final HTTP `200` and validate
+  that the JSON response reports `status: ok`.
+- Set `permissions: {}`. Do not check out or execute repository code when the workflow
+  only needs to make the request.
+- Commit the public endpoint URL as a non-secret workflow value. Store, require and log no
+  secret because the endpoint is intentionally public.
+- Send no dummy writes and modify no records. Do not create fake commits or other
+  artificial repository activity.
+- Make a failed probe obvious in the workflow result while keeping a successful run quiet.
+- GitHub may automatically disable scheduled workflows in an inactive public repository
+  after 60 days. The owner has chosen GitHub for the initial trial and will re-evaluate the
+  scheduler location before or around that point. Do not work around this limitation.
+
+#### Operational limitations
+
+- This endpoint is a legitimate database-health check that also creates genuine database
+  activity and verifies the deployed JDBC path.
+- Three separate statements may create a stronger activity signal than one compound
+  statement, but Supabase does not publish its activity-scoring formula.
+- Monday/Wednesday/Friday is a low-noise, evidence-informed cadence, not a guarantee that
+  inactivity pausing will not occur. Only a paid Supabase plan guarantees that inactivity
+  pausing will not occur.
+- The workflow does not automatically restore a project that is already paused.
+
+### Required tests
+
+#### Endpoint and routing
+
+- Prove the public endpoint succeeds without authentication and a healthy request executes
+  all three checks.
+- Prove failure to acquire a connection or failure of any required statement produces
+  `503`, while empty `games` and `game_series` tables still produce `200`.
+- Prove absence of a successful Flyway history row produces `503`.
+- Prove failure responses expose no SQL or exception details and every success and failure
+  response includes `Cache-Control: no-store`.
+- Prove `healthModule()` does not expose the route and the existing `/health` behavior is
+  unchanged.
+- Prove repeated probes do not modify any application rows.
+
+#### Hikari repair
+
+- Add the shortened-idle-timeout real-PostgreSQL integration test specified above,
+  including physical-backend identity before and after the wait.
+- Prove the connection-level timeout settings remain correct after the initialization
+  transaction is completed.
+- Prove the repaired behavior retains global `autoCommit=false`.
+
+#### Workflow
+
+- Validate the new workflow's syntax.
+- Manually dispatch it against the deployed endpoint and confirm it succeeds after a
+  Render cold start.
+- Confirm an unavailable or non-`200` endpoint fails the workflow.
+- Confirm the workflow requires and logs no secret.
+
+### Required implementation verification
+
+#### Local and CI verification
+
+- Run the focused server and real-PostgreSQL database integration tests, including every
+  route, failure, no-mutation and Hikari case above.
+- Run the complete documented build gate: `./gradlew build --continue` on Unix-like
+  systems or `.\gradlew.bat build --continue` on Windows.
+- Run `git diff --check`.
+- Require a green required GitHub Actions run for the implementation commit. Preserve the
+  existing CI workflow; its run and the new availability workflow have distinct purposes.
+
+#### Post-deployment operational verification
+
+After the owner authorizes merging to `main` and the beta deployment completes:
+
+- confirm `/health` remains unchanged and `/health/database` returns `200`;
+- wait longer than the production 60-second idle-in-transaction timeout and call
+  `/health/database` successfully again;
+- verify there are no new PostgreSQL SQLSTATE `25P03` idle-transaction terminations;
+- verify Render no longer reports repeated Hikari closed-connection validation warnings;
+- verify the probe has not changed application data; and
+- manually dispatch the scheduled workflow and confirm it succeeds after a cold start.
+
+Repository policy does not authorize autonomous code to merge to `main`, deploy the beta
+or claim production inspection. Keep local task verification and post-deployment evidence
+separate. When policy prevents those operational checks, record the required
+owner/interactive follow-up explicitly instead of claiming it was performed. Do not mark
+`M23.18` DONE until its required green Actions evidence and the authorized operational
+verification above are recorded.
