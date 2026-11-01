@@ -2,6 +2,7 @@ package com.jmussel.chessgame.server
 
 import com.jmussel.chessgame.server.auth.SupabaseTokenVerifier
 import com.jmussel.chessgame.server.db.DashboardQueries
+import com.jmussel.chessgame.server.db.DatabaseHealth
 import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.GameRepository
 import com.jmussel.chessgame.server.db.GroupRepository
@@ -25,6 +26,7 @@ fun Application.testModule(
     database: Database,
     lastSeen: LastSeenTracker? = null,
     realtime: RealtimeHub = RealtimeHub(),
+    databaseHealth: DatabaseHealth = DatabaseHealth(database),
 ) {
     val users = UserRepository(database)
     val series = seriesService(database)
@@ -39,6 +41,7 @@ fun Application.testModule(
         dashboard = DashboardQueries(database),
         history = HistoryQueries(database),
         commands = GameCommandService(database, GameRepository(database), series, users),
+        databaseHealth = databaseHealth,
         realtime = realtime,
         lastSeen = lastSeen ?: LastSeenTracker(users),
     )

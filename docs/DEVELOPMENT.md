@@ -524,6 +524,18 @@ status. In health-only mode it says so, and names what is missing:
 That matters most on a host: a deploy whose environment was never filled in
 passes its health check and is reported live while serving nothing.
 
+The full database-backed application also exposes `GET /health/database`. It runs
+three fixed, sequential, read-only checks through Exposed and the request pool: one
+successful Flyway migration exists, and the `games` and `game_series` tables are
+readable. Empty game tables are healthy. It returns only `{"status":"ok"}` (`200`)
+or `{"status":"unavailable"}` (`503`), with `Cache-Control: no-store`, and is not
+registered in health-only mode. Render deliberately continues polling `/health`.
+At 06:23 UTC on Monday, Wednesday and Friday,
+`.github/workflows/database-availability.yml` first calls `/health` with a bounded
+cold-start retry budget, then calls the database route with an independent bounded
+retry budget. This separates application wake/liveness failures from deployed JDBC-path
+failures without making Render poll the database continuously (`M23.18`).
+
 `ChessServerConfig` points development Android clients at
 `http://10.0.2.2:8080`, which is this machine as an emulator sees it. Since
 `M14.5` the manifest grants `INTERNET`, and the `debug` source set's

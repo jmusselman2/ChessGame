@@ -135,10 +135,11 @@ data class ConnectionTimeouts(
     val idleInTransaction: Duration = Duration.ofSeconds(60),
     val lock: Duration = Duration.ofSeconds(10),
 ) {
-    /** The `SET`s that apply these to a connection, run once as it opens. */
+    /** The `SET`s that apply these to a connection, and the commit that ends their transaction. */
     val initSql: String
         get() =
             "SET statement_timeout = ${statement.toMillis()}; " +
                 "SET idle_in_transaction_session_timeout = ${idleInTransaction.toMillis()}; " +
-                "SET lock_timeout = ${lock.toMillis()}"
+                "SET lock_timeout = ${lock.toMillis()}; " +
+                "COMMIT"
 }

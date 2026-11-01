@@ -68,7 +68,7 @@ two-digit milestone numbers so the files sort in order (`M01-M05.md`, `M21.md`).
 | `M20`     | Multi-Game Rules Architecture                               | [`backlog/M18-M20.md`](backlog/M18-M20.md)  | Done   |
 | `M21`     | AI Opponent, Local Game Persistence, and Game-Screen Polish | [`backlog/M21.md`](backlog/M21.md)          | Done   |
 | `M22`     | Play and Social Improvements                                | [`backlog/M22.md`](backlog/M22.md)          | Done   |
-| `M23`     | Chess Experience and Personalization                         | [below](#m23--chess-experience-and-personalization) | Active |
+| `M23`     | Chess Experience and Personalization                        | [below]                                     | Active |
 
 The archives, by phase: `M01-M05.md` local chess; `M06-M13.md` the server and online
 play; `M14-M17.md` the multiplayer client through the friend beta; `M18-M20.md` the
@@ -141,25 +141,25 @@ pawn with nothing to capture, and neither king can reach a square from which it 
 take an enemy pawn; with its own termination reason rather than "insufficient
 material".
 
-| Task    | Title                                      | Depends on              | Former | Status    |
-| ------- | ------------------------------------------ | ----------------------- | ------ | --------- |
-| `M23.1` | Captured pieces beside the board           | `M22.7`, `M22.11`       | —      | `DONE`    |
-| `M23.2` | Move history follows the current position  | `M22.7`, `M22.10`, `M23.1` | —   | `DONE`    |
-| `M23.3` | Board accessibility and large text         | `M22.6`, `M22.7`, `M22.11` | `F40` | `TODO` |
-| `M23.5` | Settings foundation and navigation         | None                    | `F35`  | `TODO`    |
-| `M23.6` | Custom themes                              | `M23.5` foundation checkpoint | `F8` | `TODO` |
-| `M23.7` | Optional sound and haptic feedback         | `M23.6` Appearance checkpoint | `F42` | `TODO` |
-| `M23.8` | Elaborate animations                       | None                    | `F9`   | `BLOCKED` |
-| `M23.9` | Online Review has one Back                 | `M22.10`                | —      | `DONE`    |
-| `M23.10` | Leaving says what the leave did           | `M22.1`                 | —      | `DONE`    |
-| `M23.11` | An unchanged game keeps what its screen said | `M21.15`              | —      | `DONE`    |
-| `M23.12` | Play the next game replaces the finished one | `M22.1`             | —      | `DONE`    |
-| `M23.13` | The dashboard is current after playing     | `M21.20`                | —      | `DONE`    |
-| `M23.14` | Review's step buttons stay put             | `M22.10`, `M23.2`       | —      | `DONE`    |
-| `M23.15` | Every promotion prompt offers Cancel       | `D041`                  | —      | `DONE`    |
-| `M23.16` | Finding your own name says it is you       | `D009`                  | —      | `DONE`    |
-| `M23.17` | Turn lines name the side as a word         | `D041`                  | —      | `DONE`    |
-| `M23.18` | Database health probe and scheduled availability check | None          | —      | `TODO`    |
+| Task     | Title                                     | Depends on                    | Former | Status    |
+| -------- | ----------------------------------------- | ----------------------------- | ------ | --------- |
+| `M23.1`  | Captured pieces beside the board          | `M22.7`, `M22.11`             | —      | `DONE`    |
+| `M23.2`  | Move history follows the current position | `M22.7`, `M22.10`, `M23.1`    | —      | `DONE`    |
+| `M23.3`  | Board accessibility and large text        | `M22.6`, `M22.7`, `M22.11`    | `F40`  | `TODO`    |
+| `M23.5`  | Settings foundation and navigation        | None                          | `F35`  | `TODO`    |
+| `M23.6`  | Custom themes                             | `M23.5` foundation checkpoint | `F8`   | `TODO`    |
+| `M23.7`  | Optional sound and haptic feedback        | `M23.6` Appearance checkpoint | `F42`  | `TODO`    |
+| `M23.8`  | Elaborate animations                      | None                          | `F9`   | `BLOCKED` |
+| `M23.9`  | Online Review has one Back                | `M22.10`                      | —      | `DONE`    |
+| `M23.10` | Leaving says what the leave did           | `M22.1`                       | —      | `DONE`    |
+| `M23.11` | Unchanged game keeps what its screen said | `M21.15`                      | —      | `DONE`    |
+| `M23.12` | Play next game replaces the finished one  | `M22.1`                       | —      | `DONE`    |
+| `M23.13` | The dashboard is current after playing    | `M21.20`                      | —      | `DONE`    |
+| `M23.14` | Review's step buttons stay put            | `M22.10`, `M23.2`             | —      | `DONE`    |
+| `M23.15` | Every promotion prompt offers Cancel      | `D041`                        | —      | `DONE`    |
+| `M23.16` | Finding your own name says it is you      | `D009`                        | —      | `DONE`    |
+| `M23.17` | Turn lines name the side as a word        | `D041`                        | —      | `DONE`    |
+| `M23.18` | Database health probe and scheduled check | None                          | —      | `DONE`    |
 
 ---
 
@@ -350,11 +350,11 @@ Review's moves carry the field too, but review draws nothing new.
 the rows push the panel's last controls below the fold. Measured on the Fire HD 8 with
 forced windows:
 
-| Window | Height | Overflow, worst panel |
-| ------ | ------ | --------------------- |
-| Stock Pixel 7 landscape, 3-button | 383 dp | 6 dp |
-| Stock Pixel 7 landscape, gesture | 359 dp | 24 dp |
-| 640×360 phone | 360 dp | 58 dp |
+| Window                            | Height | Overflow, worst panel |
+| --------------------------------- | ------ | --------------------- |
+| Stock Pixel 7 landscape, 3-button | 383 dp | 6 dp                  |
+| Stock Pixel 7 landscape, gesture  | 359 dp | 24 dp                 |
+| 640×360 phone                     | 360 dp | 58 dp                 |
 
 The owner's Pixel 7 (969×457), the Fire HD 8 and tablets still show every control. The
 owner chose to follow `D104`: the panel scrolls to its last controls in short windows.
@@ -1582,7 +1582,7 @@ their history.
 
 ## M23.18 — Database health probe and scheduled availability check
 
-**Status:** TODO
+**Status:** DONE
 
 **Depends on:** None
 
@@ -1590,9 +1590,10 @@ their history.
 
 Repair the verified Hikari connection-initialization defect, add a public
 database-backed health endpoint that performs three real lightweight PostgreSQL reads,
-and add a low-noise GitHub Actions schedule that calls it once on Monday, Wednesday and
-Friday. This creates genuine application-database activity and verifies the deployed
-JDBC path, but it does not guarantee that Supabase will never pause a Free-plan project.
+and add a low-noise GitHub Actions schedule that first wakes the deployed application
+through `/health` and then checks its database path on Monday, Wednesday and Friday. This
+creates genuine application-database activity and verifies the deployed JDBC path, but
+it does not guarantee that Supabase will never pause a Free-plan project.
 
 ### Acceptance Criteria
 
@@ -1706,12 +1707,17 @@ SELECT EXISTS (
   and use the existing public ChessGame repository for the initial trial.
 - Run once on Monday, Wednesday and Friday at an off-hour minute, using
   `23 6 * * 1,3,5`. Include `workflow_dispatch` for manual verification.
-- Each invocation initiates one probe of `GET /health/database`, not three HTTP requests
-  for the three database statements. A bounded retry policy may repeat that same GET only
-  after a connection failure, timeout or `5xx` response; it must not loop without a bound
-  or send redundant successful probes.
-- Allow at least two minutes for a Render cold start. Require final HTTP `200` and validate
-  that the JSON response reports `status: ok`.
+- Each invocation first calls `GET /health` as a wake/liveness phase. Require HTTP `200`,
+  allow at least two minutes for a Render cold start, and use bounded retries only after a
+  connection failure, timeout or `5xx` response. Do not retry a permanent `4xx` or use this
+  phase to claim database availability.
+- Only after `/health` succeeds, initiate one probe of `GET /health/database`, not three
+  HTTP requests for the three database statements. A separate bounded retry policy may
+  repeat that same GET only after a connection failure, timeout or `5xx` response; it must
+  not retry a permanent `4xx`, loop without a bound or send redundant successful probes.
+- Require final HTTP `200` from `/health/database` and validate that the JSON response
+  reports `status: ok`. Keep the two retry budgets independent and make a terminal failure
+  name its application-wake or database-health phase, while successful runs stay quiet.
 - Set `permissions: {}`. Do not check out or execute repository code when the workflow
   only needs to make the request.
 - Commit the public endpoint URL as a non-secret workflow value. Store, require and log no
@@ -1760,6 +1766,12 @@ SELECT EXISTS (
 #### Workflow
 
 - Validate the new workflow's syntax.
+- Prove `/health` runs before `/health/database`, and that the database route is not called
+  when the wake/liveness phase fails.
+- Prove transient connection, timeout or `5xx` failures can recover within each phase's
+  own bounded retry budget, while permanent `4xx` responses are not retried.
+- Prove a database `200` without `status: ok` fails and a complete two-phase invocation
+  succeeds, using deterministic local endpoints rather than production availability.
 - Manually dispatch it against the deployed endpoint and confirm it succeeds after a
   Render cold start.
 - Confirm an unavailable or non-`200` endpoint fails the workflow.
@@ -1795,3 +1807,68 @@ separate. When policy prevents those operational checks, record the required
 owner/interactive follow-up explicitly instead of claiming it was performed. Do not mark
 `M23.18` DONE until its required green Actions evidence and the authorized operational
 verification above are recorded.
+
+### Completion Note — 2026-11-01
+
+**Local verification.** The focused database-health suite ran 20 tests against the
+disposable loopback PostgreSQL with no failures or skips. The complete server suite then
+ran 748 tests with no failures or skips, and `.\gradlew.bat build --continue` completed
+successfully. `actionlint` 1.7.12 accepted the new workflow, and its exact shell block
+failed as required for both a connection failure and an HTTP `404`. `git diff --check`
+was clean.
+
+**Rollout verification.** The owner explicitly authorized this run to fast-forward `main`
+and inspect production. Required CI run `41286407520` was green for implementation commit
+`aba0386`; main CI run `41287219367` was also green. Render deployment
+`dep-dbjf4ifb9u1s73bla0pg` became live for that exact commit. The existing `/health`
+response remained healthy, and `/health/database` returned `200` with `status: ok` before
+and 64 seconds after the production idle-in-transaction timeout. Exact application-table
+row counts matched the pre-deployment baseline after repeated probes. The post-deployment
+Supabase log windows contained no SQLSTATE `25P03` or idle-transaction termination, and
+Render contained no matching Hikari closed-connection validation warning. Manual workflow
+run `41319199845` passed in 1 minute 7 seconds after a 15-minute no-traffic interval,
+verifying the bounded Render cold-start path without a secret or write.
+
+### Follow-up — 2026-11-01: wake before the database probe
+
+At the owner's request, the scheduled workflow now uses two explicit phases. It first
+calls `/health` with the full Render cold-start retry budget. Only after that succeeds,
+it calls `/health/database` with an independent bounded retry budget and requires the
+fixed `{"status":"ok"}` response. Permanent `4xx` responses are not retried, terminal
+diagnostics name the failed phase and successful runs remain quiet. Render's own health
+check remains `/health`; the endpoint, its three sequential database statements and the
+Hikari repair are unchanged.
+
+**Local verification.** Eight deterministic workflow tests execute the exact YAML shell
+block against a local stateful HTTP server. They cover phase ordering, a failed wake never
+reaching the database route, transient `5xx` recovery in each phase, permanent `4xx`
+failures without retries, invalid database status and complete success. `actionlint`
+1.7.12 accepted the workflow. The focused workflow, route, database-health and Hikari
+suite passed against disposable loopback PostgreSQL, and the complete server suite ran
+754 tests with no failures, errors or skips. `.\gradlew.bat build --continue` and
+`git diff --check` passed.
+
+**Rollout verification — 2026-11-01.** Consolidated implementation commit `b3242db`
+passed required main CI run `41387706256`; its Build and Test job completed successfully
+against CI PostgreSQL. Render service `srv-da8qq8afngtc7388b690` deployed that exact
+commit as `dep-dbk0u35g1s2s738g3bv0`, live at 2026-11-02 04:21:32 UTC. `/health`
+remained `200` with the expected full-application body and build `b3242db`;
+`/health/database` returned `200`, `{"status":"ok"}` and `Cache-Control: no-store`, then
+did so again 81 seconds later, beyond the production idle-transaction timeout.
+
+After a 15-minute 17-second no-request interval, manual two-phase workflow run
+`41390765996` succeeded on `b3242db` in 1 minute 9 seconds. Render directly recorded a
+new instance starting, the application taking 41.397 seconds to start, and the final
+`/health/database` request returning `200`, so this was a real cold start. Render did
+not retain a separate successful `/health` request log; its precedence is therefore
+proved by the exact workflow code and deterministic tests, rather than an independent
+production request record. The workflow cannot reach its database phase until the
+preceding wake/liveness call succeeds, and the successful run logged no secret value.
+
+Exact aggregate counts for all 14 application-owned public tables matched before and
+after the direct probes and workflow run. The bounded Supabase PostgreSQL log window
+contained no SQLSTATE `25P03`, idle-transaction termination or related termination,
+and the corresponding Render window contained no Hikari closed-connection validation
+warning or error-level application log. Verification used only public GETs and read-only
+aggregate/log inspection: no secret, write, Data API enablement, application-record
+mutation or service/database configuration change occurred.

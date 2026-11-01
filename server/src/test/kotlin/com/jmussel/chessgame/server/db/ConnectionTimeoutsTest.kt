@@ -1,12 +1,16 @@
 package com.jmussel.chessgame.server.db
 
 import java.sql.Connection
+import java.sql.DriverManager
 import java.sql.SQLException
 import java.time.Duration
 import javax.sql.DataSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 /**
  * The limits on a request's connection (`D077`, `M17.12`): each is set on every pooled
@@ -31,6 +35,14 @@ class ConnectionTimeoutsTest {
         }
 
     private fun Connection.run(sql: String) = createStatement().use { it.execute(sql) }
+
+    private fun Connection.backendPid(): Int =
+        createStatement().use { statement ->
+            statement.executeQuery("select pg_backend_pid()").use { rows ->
+                check(rows.next())
+                rows.getInt(1)
+            }
+        }
 
     private fun DataSource.anyUserId(): String =
         connection.use { connection ->
@@ -58,6 +70,53 @@ class ConnectionTimeoutsTest {
                 }
             }
         }
+
+    @Test
+    fun initializationCommitsItsSettingsWithoutChangingAutocommit() {
+        val base = DatabaseTestSupport.config ?: return
+        val applicationName = "m23-initialization-${System.nanoTime()}"
+        val separator = if ('?' in base.jdbcUrl) '&' else '?'
+        val config =
+            base.copy(
+                jdbcUrl = "${base.jdbcUrl}$separator" + "ApplicationName=$applicationName",
+                maximumPoolSize = 1,
+                timeouts = ConnectionTimeouts(idleInTransaction = Duration.ofMillis(INITIALIZATION_IDLE_MILLIS)),
+            )
+
+        DriverManager.getConnection(base.jdbcUrl, base.username, base.password).use { observer ->
+            val dataSource = config.dataSource()
+            try {
+                val initializedPid = waitForBackend(observer, applicationName)
+
+                assertEquals("idle", backendState(observer, initializedPid))
+
+                Thread.sleep(INITIALIZATION_WAIT_MILLIS)
+
+                assertEquals("idle", backendState(observer, initializedPid))
+                dataSource.connection.use { connection ->
+                    assertFalse(connection.autoCommit)
+                    assertEquals(initializedPid, connection.backendPid())
+                    assertEquals("30s", connection.show("statement_timeout"))
+                    assertEquals("500ms", connection.show("idle_in_transaction_session_timeout"))
+                    assertEquals("10s", connection.show("lock_timeout"))
+                    assertTrue(connection.createStatement().use { it.execute("select 1") })
+                    connection.rollback()
+                }
+            } finally {
+                (dataSource as AutoCloseable).close()
+            }
+        }
+    }
+
+    @Test
+    fun initializationSqlEndsTheTransactionAfterApplyingEverySetting() {
+        val sql = ConnectionTimeouts().initSql
+
+        assertTrue(sql.contains("SET statement_timeout = 30000"))
+        assertTrue(sql.contains("SET idle_in_transaction_session_timeout = 60000"))
+        assertTrue(sql.contains("SET lock_timeout = 10000"))
+        assertTrue(sql.endsWith("; COMMIT"))
+    }
 
     @Test
     fun theMigrationConnectionHasNoLimits() {
@@ -125,6 +184,36 @@ class ConnectionTimeoutsTest {
             }
         }
 
+    private fun waitForBackend(
+        observer: Connection,
+        applicationName: String,
+    ): Int {
+        val deadline = System.nanoTime() + Duration.ofSeconds(5).toNanos()
+        while (System.nanoTime() < deadline) {
+            observer
+                .prepareStatement(
+                    "select pid from pg_stat_activity where application_name = ? and datname = current_database()",
+                ).use { statement ->
+                    statement.setString(1, applicationName)
+                    statement.executeQuery().use { rows ->
+                        if (rows.next()) return rows.getInt(1)
+                    }
+                }
+            Thread.sleep(10)
+        }
+
+        return assertNotNull(null, "Hikari did not initialize its physical connection")
+    }
+
+    private fun backendState(
+        observer: Connection,
+        pid: Int,
+    ): String? =
+        observer.prepareStatement("select state from pg_stat_activity where pid = ?").use { statement ->
+            statement.setInt(1, pid)
+            statement.executeQuery().use { rows -> if (rows.next()) rows.getString(1) else null }
+        }
+
     private companion object {
         /** `query_canceled`: what a statement timeout raises. */
         const val QUERY_CANCELED = "57014"
@@ -134,5 +223,8 @@ class ConnectionTimeoutsTest {
 
         /** Comfortably past the 300 ms idle limit. */
         const val IDLE_WAIT_MILLIS = 1_000L
+
+        const val INITIALIZATION_IDLE_MILLIS = 500L
+        const val INITIALIZATION_WAIT_MILLIS = 1_200L
     }
 }

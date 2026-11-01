@@ -9,6 +9,8 @@ import com.jmussel.chessgame.server.auth.installSupabaseAuthentication
 import com.jmussel.chessgame.server.dashboard.dashboardRoutes
 import com.jmussel.chessgame.server.db.DashboardQueries
 import com.jmussel.chessgame.server.db.DatabaseConfig
+import com.jmussel.chessgame.server.db.DatabaseHealth
+import com.jmussel.chessgame.server.db.DatabaseHealthResult
 import com.jmussel.chessgame.server.db.Databases
 import com.jmussel.chessgame.server.db.FriendshipRepository
 import com.jmussel.chessgame.server.db.GameRepository
@@ -32,6 +34,8 @@ import com.jmussel.chessgame.server.user.identityRoutes
 import com.jmussel.chessgame.server.user.profileRoutes
 import com.jmussel.chessgame.server.user.userLookupRoutes
 import com.jmussel.chessgame.server.user.usernameRoutes
+import io.ktor.http.ContentType
+import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -41,6 +45,7 @@ import io.ktor.server.auth.authenticate
 import io.ktor.server.engine.embeddedServer
 import io.ktor.server.netty.Netty
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.response.header
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
@@ -111,6 +116,7 @@ fun main() {
                 dashboard = DashboardQueries(database),
                 history = HistoryQueries(database),
                 commands = GameCommandService(database, games, series, users),
+                databaseHealth = DatabaseHealth(database),
             )
         }
     }.start(wait = true)
@@ -131,6 +137,7 @@ fun Application.module(
     dashboard: DashboardQueries,
     history: HistoryQueries,
     commands: GameCommandService,
+    databaseHealth: DatabaseHealth,
     realtime: RealtimeHub = RealtimeHub(),
     lastSeen: LastSeenTracker = LastSeenTracker(users),
 ) {
@@ -141,6 +148,7 @@ fun Application.module(
 
     routing {
         healthRoute()
+        databaseHealthRoute(databaseHealth)
 
         authenticate(SUPABASE_AUTH) {
             identityRoutes(users)
@@ -155,6 +163,28 @@ fun Application.module(
             historyRoutes(history)
             gameRoutes(commands, realtime, users, series)
             realtimeRoutes(realtime)
+        }
+    }
+}
+
+private fun Route.databaseHealthRoute(databaseHealth: DatabaseHealth) {
+    get("/health/database") {
+        call.response.header(HttpHeaders.CacheControl, "no-store")
+
+        when (databaseHealth.check()) {
+            DatabaseHealthResult.Healthy ->
+                call.respondText(
+                    text = """{"status":"ok"}""",
+                    contentType = ContentType.Application.Json,
+                    status = HttpStatusCode.OK,
+                )
+
+            DatabaseHealthResult.Unavailable ->
+                call.respondText(
+                    text = """{"status":"unavailable"}""",
+                    contentType = ContentType.Application.Json,
+                    status = HttpStatusCode.ServiceUnavailable,
+                )
         }
     }
 }
